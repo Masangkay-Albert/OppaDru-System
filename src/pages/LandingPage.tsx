@@ -3,12 +3,12 @@ import Navbar from "../components/navbar";
 import chickenImage from "../assets/chicken.jpg";
 
 const categories = [
-  { name: "Chicken", desc: "Crispy Korean fried chicken" },
-  { name: "Rice Meals", desc: "Busog meals everyday" },
-  { name: "Sulit Meals", desc: "Affordable & satisfying" },
-  { name: "Snacks", desc: "Perfect anytime bites" },
-  { name: "Beverages", desc: "Cold refreshing drinks" },
-  { name: "Sides", desc: "Add-ons you'll love" },
+  { name: "Chicken", desc: "Crispy Korean fried chicken", image: "https://placehold.co/60x60" },
+  { name: "Rice Meals", desc: "Busog meals everyday", image: "https://placehold.co/60x60" },
+  { name: "Sulit Meals", desc: "Affordable & satisfying", image: "https://placehold.co/60x60" },
+  { name: "Snacks", desc: "Perfect anytime bites", image: "https://placehold.co/60x60" },
+  { name: "Beverages", desc: "Cold refreshing drinks", image: "https://placehold.co/60x60" },
+  { name: "Sides", desc: "Add-ons you'll love", image: chickenImage },
 ];
 
 const LandingPage: React.FC = () => {
@@ -38,7 +38,7 @@ const LandingPage: React.FC = () => {
         </div>
         <div className="flex justify-center">
           <img
-            src={chickenImage}
+            src="https://placehold.co/420x420"
             alt="Oppa Dru Chicken"
             className="w-full max-w-[420px] rounded-[30px] shadow-2xl"
           />
@@ -53,7 +53,7 @@ const LandingPage: React.FC = () => {
             className="bg-white/80 backdrop-blur-md rounded-2xl p-6 text-center shadow-lg hover:-translate-y-2 transition"
           >
             <img
-              src={chickenImage}
+              src={c.image}
               alt={c.name}
               className="w-[60px] h-[60px] rounded-full object-cover mx-auto mb-3"
             />
@@ -85,7 +85,7 @@ const LandingPage: React.FC = () => {
       <section className="mx-[6%] my-16 px-[6%] py-20 grid md:grid-cols-2 gap-12 bg-gradient-to-br from-[#f7f4ea] to-[#fdfaf3] rounded-[60px]">
         <div>
           <img
-            src={chickenImage}
+            src="https://placehold.co/600x400"
             alt="About Oppa Dru"
             className="w-full rounded-[35px] shadow-2xl"
           />
