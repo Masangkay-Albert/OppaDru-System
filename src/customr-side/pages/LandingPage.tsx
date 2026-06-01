@@ -20,7 +20,7 @@ const LandingPage: React.FC = () => {
       <section className="grid md:grid-cols-2 items-center gap-12 px-[6%] py-24 bg-gradient-to-br from-yellow-100 to-orange-50 rounded-b-[80px]">
         <div>
           <h1 className="text-5xl md:text-6xl font-bold leading-tight">
-            Welcome to <span className="text-lime-700">Oppa Dru</span>
+            Welcome to <span className="text-lime-700">Oppa Dru Korean Fried Chicken</span>
           </h1>
           <p className="mt-6 text-lg text-gray-600 leading-relaxed">
             Authentic Korean Fried Chicken
@@ -91,7 +91,7 @@ const LandingPage: React.FC = () => {
           />
         </div>
         <div className="flex flex-col justify-center">
-          <h2 className="text-4xl font-bold">About Oppa Dru</h2>
+          <h2 className="text-4xl font-bold">About Oppa Dru Korean Fried Chicken</h2>
           <p className="mt-6 text-gray-600 leading-8">
             Oppa Dru Korean Fried Chicken is known for bold flavors, crispy
             textures, and authentic Korean-style recipes. Every dish is cooked

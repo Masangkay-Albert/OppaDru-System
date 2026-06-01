@@ -10,7 +10,7 @@ const Navbar: React.FC = () => {
         <div className="flex items-center gap-3 w-full md:w-auto justify-between">
           <div className="flex items-center gap-3">
             <img src={oppaLogo} alt="Oppa Dru Logo" className="w-[45px] h-[45px] rounded-full" />
-            <div className="text-[22px] font-bold text-white">Oppa Dru</div>
+            <div className="text-[22px] font-bold text-white">Oppa Dru Korean Fried Chicken</div>
           </div>
           <button 
             className="md:hidden text-white text-2xl"
