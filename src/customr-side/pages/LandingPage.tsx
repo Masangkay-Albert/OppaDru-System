@@ -1,6 +1,8 @@
 import React from "react";
 import Navbar from "../components/navbar";
-import chickenImage from "../assets/chicken.jpg";
+import oppaLogo from "../../assets/oppadrulogo.jpg";
+import fbLogo from "../../assets/facebook-logoo.png";
+import igLogo from "../../assets/instagram-logoo.png";
 
 const categories = [
   { name: "Chicken", desc: "Crispy Korean fried chicken", image: "https://placehold.co/60x60" },
@@ -8,7 +10,7 @@ const categories = [
   { name: "Sulit Meals", desc: "Affordable & satisfying", image: "https://placehold.co/60x60" },
   { name: "Snacks", desc: "Perfect anytime bites", image: "https://placehold.co/60x60" },
   { name: "Beverages", desc: "Cold refreshing drinks", image: "https://placehold.co/60x60" },
-  { name: "Sides", desc: "Add-ons you'll love", image: chickenImage },
+  { name: "Sides", desc: "Add-ons you'll love", image: "https://placehold.co/60x60" },
 ];
 
 const LandingPage: React.FC = () => {
@@ -17,7 +19,10 @@ const LandingPage: React.FC = () => {
       <Navbar />
 
       {/* HERO */}
-      <section className="grid md:grid-cols-2 items-center gap-12 px-[6%] py-24 bg-gradient-to-br from-yellow-100 to-orange-50 rounded-b-[80px]">
+      <section
+        id="home"
+        className="grid md:grid-cols-2 items-center gap-12 px-[6%] py-24 bg-gradient-to-br from-yellow-100 to-orange-50 rounded-b-[80px]"
+      >
         <div>
           <h1 className="text-5xl md:text-6xl font-bold leading-tight">
             Welcome to <span className="text-lime-700">Oppa Dru Korean Fried Chicken</span>
@@ -46,11 +51,11 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* CATEGORIES */}
-      <section className="mt-[-40px] px-[6%] py-16 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
+      <section id="categories" className="mt-[-40px] px-[6%] py-16 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
         {categories.map((c) => (
           <div
             key={c.name}
-            className="bg-white/80 backdrop-blur-md rounded-2xl p-6 text-center shadow-lg hover:-translate-y-2 transition"
+            className="bg-white/80 backdrop-blur-md rounded-2xl p-6 text-center shadow-lg hover:-translate-y-2 transition cursor-pointer"
           >
             <img
               src={c.image}
@@ -82,7 +87,7 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* ABOUT */}
-      <section className="mx-[6%] my-16 px-[6%] py-20 grid md:grid-cols-2 gap-12 bg-gradient-to-br from-[#f7f4ea] to-[#fdfaf3] rounded-[60px]">
+      <section id="about" className="mx-[6%] my-16 px-[6%] py-20 grid md:grid-cols-2 gap-12 bg-gradient-to-br from-[#f7f4ea] to-[#fdfaf3] rounded-[60px]">
         <div>
           <img
             src="https://placehold.co/600x400"
@@ -115,11 +120,95 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* FOOTER */}
-      <footer className="bg-[#2f3e2e] text-white text-center py-10 px-5">
-        <p>© 2026 Oppa Dru Korean Fried Chicken</p>
-        <span className="block mt-3 text-sm text-gray-300">
-          📞 0947 306 5526 | Facebook: Oppa Dru Korean Fried Chicken
-        </span>
+      <footer className="bg-[#1a2e1a] text-white">
+        <div className="max-w-7xl mx-auto px-6 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {/* Column 1 - Brand with Logo */}
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <img 
+                  src={oppaLogo} 
+                  alt="Oppa Dru Logo" 
+                  className="w-12 h-12 rounded-full object-cover border-2 border-yellow-400"
+                />
+                <h3 className="text-xl font-bold">Oppa Dru Korean Fried Chicken</h3>
+              </div>
+              <p className="text-gray-300 text-sm leading-relaxed">
+                Authentic Korean fried chicken with bold flavors and crispy textures. Made fresh daily.
+              </p>
+            </div>
+
+            {/* Column 2 - Quick Links */}
+            <div>
+              <h4 className="text-lg font-semibold mb-4 text-yellow-400">Quick Links</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#home" className="text-gray-300 hover:text-yellow-400 transition">Home</a></li>
+                <li><a href="#about" className="text-gray-300 hover:text-yellow-400 transition">About Us</a></li>
+                <li><a href="#categories" className="text-gray-300 hover:text-yellow-400 transition">Food Categories</a></li>
+                <li><a href="/menu" className="text-gray-300 hover:text-yellow-400 transition">Our Menu</a></li>
+              </ul>
+            </div>
+
+            {/* Column 3 - Contact Info */}
+            <div>
+              <h4 className="text-lg font-semibold mb-4 text-yellow-400">Contact Us</h4>
+              <ul className="space-y-3 text-sm">
+                <li className="flex items-start gap-3">
+                  <span>📞</span>
+                  <span className="text-gray-300">0947 306 5526</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span>📧</span>
+                  <span className="text-gray-300">oppadrukfc@gmail.com</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span>📍</span>
+                  <span className="text-gray-300">37 Malihan St. Barangay Zone 1<br />Dasmariñas, Cavite, Philippines</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Column 4 - Social & Hours */}
+            <div>
+              <h4 className="text-lg font-semibold mb-4 text-yellow-400">Follow Us</h4>
+              <div className="flex gap-3 mb-6">
+                <a 
+                  href="https://www.facebook.com/oppadruKFC" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="w-10 h-10 rounded-full overflow-hidden hover:opacity-80 transition"
+                >
+                  <img 
+                    src={fbLogo} 
+                    alt="Facebook" 
+                    className="w-full h-full object-cover"
+                  />
+                </a>
+                <a 
+                  href="https://www.instagram.com/oppadrukfc/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="w-10 h-10 rounded-full overflow-hidden hover:opacity-80 transition"
+                >
+                  <img 
+                    src={igLogo} 
+                    alt="Instagram" 
+                    className="w-full h-full object-cover"
+                  />
+                </a>
+              </div>
+              <h4 className="text-lg font-semibold mb-3 text-yellow-400">Business Hours</h4>
+              <p className="text-gray-300 text-sm">Daily: 11:00 AM - 11:00 PM</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Bar */}
+        <div className="border-t border-gray-700">
+          <div className="max-w-7xl mx-auto px-6 py-4 text-center">
+            <p className="text-gray-400 text-sm">© 2026 Oppa Dru Korean Fried Chicken. All rights reserved.</p>
+          </div>
+        </div>
       </footer>
     </div>
   );
