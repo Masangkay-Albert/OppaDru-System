@@ -25,7 +25,7 @@ const Navbar: React.FC = () => {
         {/* Logo Section - LEFT SIDE */}
         <div className="flex items-center gap-3">
           <img 
-            src={oppaLogo} 
+            src={oppaLogo}  
             alt="Oppa Dru Logo" 
             className="w-[50px] h-[50px] rounded-full object-cover border-2 border-yellow-400"
           />
