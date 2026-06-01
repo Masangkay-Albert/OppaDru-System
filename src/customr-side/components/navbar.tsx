@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import oppaLogo from "../../assets/oppadrulogo.jpg"; // From customr-side/components to src/assets
+import oppaLogo from "../../assets/oppadrulogo.jpg";
 
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -45,7 +45,7 @@ const Navbar: React.FC = () => {
           ☰
         </button>
 
-        {/* Navigation Links & Login - RIGHT SIDE for desktop */}
+        {/* Navigation Links & Login - RIGHT SIDE */}
         <div className={`flex flex-col md:flex-row items-center gap-4 md:gap-6 mt-4 md:mt-0 ${isOpen ? "flex" : "hidden md:flex"} w-full md:w-auto`}>
           <ul className="flex flex-col md:flex-row items-center gap-4 md:gap-5">
             <li>

@@ -153,15 +153,15 @@ const LandingPage: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-4 text-yellow-400">Contact Us</h4>
               <ul className="space-y-3 text-sm">
-                <li className="flex items-start gap-3">
+                <li className="flex items-center gap-3">
                   <span>📞</span>
                   <span className="text-gray-300">0947 306 5526</span>
                 </li>
-                <li className="flex items-start gap-3">
+                <li className="flex items-center gap-3">
                   <span>📧</span>
                   <span className="text-gray-300">oppadrukfc@gmail.com</span>
                 </li>
-                <li className="flex items-start gap-3">
+                <li className="flex gap-3">
                   <span>📍</span>
                   <span className="text-gray-300">37 Malihan St. Barangay Zone 1<br />Dasmariñas, Cavite, Philippines</span>
                 </li>

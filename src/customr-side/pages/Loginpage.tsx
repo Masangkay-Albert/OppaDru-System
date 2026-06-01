@@ -1,20 +1,45 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import oppaLogo from "../../assets/oppadrulogo.jpg";
 
-const Loginpage: React.FC = () => {
+const LoginPage: React.FC = () => {
   const navigate = useNavigate();
 
+  const handleRegisterClick = () => {
+    navigate("/register");
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-100 to-orange-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full">
+    <div 
+      className="min-h-screen flex items-center justify-center p-4 relative"
+      style={{
+        backgroundImage: `url(${oppaLogo})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        position: "relative",
+      }}
+    >
+      {/* Dark Overlay para mabasa ang text */}
+      <div className="absolute inset-0 bg-black/50"></div>
+      
+      {/* Login Form */}
+      <div className="relative z-10 bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 max-w-md w-full">
         <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <img 
+              src={oppaLogo} 
+              alt="Oppa Dru Logo" 
+              className="w-20 h-20 rounded-full object-cover border-2 border-lime-700"
+            />
+          </div>
           <h1 className="text-3xl font-bold text-lime-700">Oppa Dru</h1>
           <p className="text-gray-600 mt-2">Login to your account</p>
         </div>
         
         <form className="space-y-5">
           <div>
-            <label className="block text-gray-700 font-medium mb-2">Email</label>
+            <label className="block text-gray-700 font-medium mb-2">Email Address</label>
             <input 
               type="email" 
               placeholder="Enter your email"
@@ -41,7 +66,10 @@ const Loginpage: React.FC = () => {
         
         <p className="text-center text-gray-500 mt-6">
           Don't have an account?{" "}
-          <button className="text-lime-700 font-semibold hover:underline">
+          <button 
+            onClick={handleRegisterClick}
+            className="text-lime-700 font-semibold hover:underline"
+          >
             Sign up
           </button>
         </p>
@@ -57,4 +85,4 @@ const Loginpage: React.FC = () => {
   );
 };
 
-export default Loginpage;
+export default LoginPage;
