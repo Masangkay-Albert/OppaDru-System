@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import oppaLogo from "../../assets/oppadrulogo.jpg";
+import oppaLogo from "../../../assets/oppadrulogo.jpg";
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();

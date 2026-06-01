@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import oppaLogo from "../../assets/oppadrulogo.jpg";
+import oppaLogo from "../../../assets/oppadrulogo.jpg";
 
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);

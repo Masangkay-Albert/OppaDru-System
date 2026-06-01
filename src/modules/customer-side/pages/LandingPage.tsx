@@ -1,8 +1,8 @@
 import React from "react";
 import Navbar from "../components/navbar";
-import oppaLogo from "../../assets/oppadrulogo.jpg";
-import fbLogo from "../../assets/facebook-logoo.png";
-import igLogo from "../../assets/instagram-logoo.png";
+import oppaLogo from "../../../assets/oppadrulogo.jpg";
+import fbLogo from "../../../assets/facebook-logoo.png";
+import igLogo from "../../../assets/instagram-logoo.png";
 
 const categories = [
   { name: "Chicken", desc: "Crispy Korean fried chicken", image: "https://placehold.co/60x60" },
@@ -206,7 +206,7 @@ const LandingPage: React.FC = () => {
         {/* Bottom Bar */}
         <div className="border-t border-gray-700">
           <div className="max-w-7xl mx-auto px-6 py-4 text-center">
-            <p className="text-gray-400 text-sm">© 2026 Oppa Dru Korean Fried Chicken. All rights reserved.</p>
+            <p className="text-gray-400 text-sm">© 2018 Oppa Dru Korean Fried Chicken. All rights reserved.</p>
           </div>
         </div>
       </footer>
