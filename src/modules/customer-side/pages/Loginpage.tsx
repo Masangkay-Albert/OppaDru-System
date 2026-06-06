@@ -1,9 +1,30 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../../contexts/Authcontext";
 import oppaLogo from "../../../assets/oppadrulogo.jpg";
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+    
+    const success = await login(email, password);
+    if (success) {
+      navigate("/customer");
+    } else {
+      setError("Invalid email or password");
+      setIsLoading(false);
+    }
+  };
 
   const handleRegisterClick = () => {
     navigate("/register");
@@ -17,13 +38,10 @@ const LoginPage: React.FC = () => {
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
-        position: "relative",
       }}
     >
-      {/* Dark Overlay para mabasa ang text */}
       <div className="absolute inset-0 bg-black/50"></div>
       
-      {/* Login Form */}
       <div className="relative z-10 bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 max-w-md w-full">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
@@ -37,30 +55,54 @@ const LoginPage: React.FC = () => {
           <p className="text-gray-600 mt-2">Login to your account</p>
         </div>
         
-        <form className="space-y-5">
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-xl">
+            {error}
+          </div>
+        )}
+        
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-gray-700 font-medium mb-2">Email Address</label>
             <input 
               type="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
+              required
               className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
             />
           </div>
           
           <div>
             <label className="block text-gray-700 font-medium mb-2">Password</label>
-            <input 
-              type="password" 
-              placeholder="Enter your password"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
-            />
+            <div className="relative">
+              <input 
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-lime-700"
+              >
+                {showPassword ? "👁️" : "👁️‍🗨️"}
+              </button>
+            </div>
           </div>
           
           <button 
             type="submit"
-            className="w-full bg-lime-700 text-white py-3 rounded-xl font-semibold hover:bg-lime-800 transition"
+            disabled={isLoading}
+            className={`w-full bg-lime-700 text-white py-3 rounded-xl font-semibold transition ${
+              isLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-lime-800"
+            }`}
           >
-            Sign In
+            {isLoading ? "Logging in..." : "Sign In"}
           </button>
         </form>
         

@@ -1,10 +1,60 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../../contexts/Authcontext";
 import oppaLogo from "../../../assets/oppadrulogo.jpg";
 
 const RegistrationPage: React.FC = () => {
   const navigate = useNavigate();
+  const { register, login } = useAuth();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    // Validation
+    if (!fullName || !email || !password) {
+      setError("Please fill in all fields");
+      setIsLoading(false);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      setIsLoading(false);
+      return;
+    }
+
+    // Register user
+    const success = await register(fullName, email, password);
+    if (success) {
+      // Auto-login after successful registration
+      const loginSuccess = await login(email, password);
+      if (loginSuccess) {
+        // Direct to customer page
+        navigate("/customer");
+      } else {
+        setError("Account created but login failed. Please try logging in.");
+        setIsLoading(false);
+      }
+    } else {
+      setError("Email already exists");
+      setIsLoading(false);
+    }
+  };
 
   const handleLoginClick = () => {
     navigate("/login");
@@ -37,12 +87,22 @@ const RegistrationPage: React.FC = () => {
           <p className="text-gray-600 mt-2">Sign up to get started</p>
         </div>
         
-        <form className="space-y-4">
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-xl text-sm">
+            {error}
+          </div>
+        )}
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-gray-700 font-medium mb-2">Full Name</label>
             <input 
               type="text" 
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
               placeholder="Enter your full name"
+              required
               className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
             />
           </div>
@@ -51,7 +111,10 @@ const RegistrationPage: React.FC = () => {
             <label className="block text-gray-700 font-medium mb-2">Email Address</label>
             <input 
               type="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
+              required
               className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
             />
           </div>
@@ -61,7 +124,10 @@ const RegistrationPage: React.FC = () => {
             <div className="relative">
               <input 
                 type={showPassword ? "text" : "password"}
-                placeholder="Create a password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Create a password (min. 6 characters)"
+                required
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent pr-12"
               />
               <button
@@ -78,16 +144,22 @@ const RegistrationPage: React.FC = () => {
             <label className="block text-gray-700 font-medium mb-2">Confirm Password</label>
             <input 
               type="password" 
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm your password"
+              required
               className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
             />
           </div>
           
           <button 
             type="submit"
-            className="w-full bg-lime-700 text-white py-3 rounded-xl font-semibold hover:bg-lime-800 transition"
+            disabled={isLoading}
+            className={`w-full bg-lime-700 text-white py-3 rounded-xl font-semibold transition ${
+              isLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-lime-800"
+            }`}
           >
-            Sign Up
+            {isLoading ? "Creating Account..." : "Sign Up"}
           </button>
         </form>
         

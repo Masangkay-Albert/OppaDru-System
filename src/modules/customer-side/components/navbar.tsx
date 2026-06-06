@@ -45,7 +45,7 @@ const Navbar: React.FC = () => {
           ☰
         </button>
 
-        {/* Navigation Links & Login - RIGHT SIDE */}
+        {/* Navigation Links & Login */}
         <div className={`flex flex-col md:flex-row items-center gap-4 md:gap-6 mt-4 md:mt-0 ${isOpen ? "flex" : "hidden md:flex"} w-full md:w-auto`}>
           <ul className="flex flex-col md:flex-row items-center gap-4 md:gap-5">
             <li>
