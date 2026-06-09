@@ -2,7 +2,7 @@
 import React from 'react';
 import { useFavorites } from '../../../contexts/FavoritesContext';
 import { useCart } from '../../../contexts/CartContext';
-import NavbarCustomer from '../components/NavbarCustomer';
+import NavbarCustomer from '../components/navigation/NavbarCustomer';
 
 const FavoritesPage: React.FC = () => {
   const { favorites, toggleFavorite } = useFavorites();

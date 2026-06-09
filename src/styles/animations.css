@@ -1,0 +1,354 @@
+/* ============================================
+   LOCATION PICKER ANIMATIONS & STYLES
+   ============================================ */
+
+/* Map Ripple Effect */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.map-ripple {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: rgba(34, 197, 94, 0.5);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: ripple 0.5s ease-out;
+  z-index: 1000;
+  transform: translate(-50%, -50%);
+}
+
+/* Custom Marker Pin */
+.marker-pin {
+  width: 24px;
+  height: 24px;
+  background: #2d6a4f;
+  border: 3px solid #e76f51;
+  border-radius: 50% 50% 50% 0;
+  position: relative;
+  transform: rotate(-45deg);
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.marker-pin::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Marker Pulse Animation */
+@keyframes pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
+}
+
+.marker-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  background: rgba(46, 125, 50, 0.4);
+  border-radius: 50%;
+  animation: pulse 1.5s ease-out infinite;
+  pointer-events: none;
+}
+
+/* Slide Down Animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.3s ease-out;
+}
+
+/* Custom Div Icon Container */
+.custom-div-icon {
+  background: transparent;
+  border: none;
+}
+
+/* ============================================
+   LOCATION PICKER MODAL STYLES
+   (Optional - kung gusto mo i-extract din yung modal styling)
+   ============================================ */
+
+.location-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.location-picker-modal {
+  background: white;
+  border-radius: 0.75rem;
+  width: 100%;
+  max-width: 42rem;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  animation: slideDown 0.3s ease-out;
+}
+
+.location-picker-header {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(to right, #2d6a4f, #1b4d3e);
+}
+
+.location-picker-header h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: white;
+}
+
+.location-picker-close {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1.5rem;
+  transition: color 0.2s;
+}
+
+.location-picker-close:hover {
+  color: white;
+}
+
+.location-picker-info {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fdf4e6;
+}
+
+.location-picker-info p {
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+.location-picker-search {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  position: relative;
+}
+
+.location-picker-input-wrapper {
+  position: relative;
+}
+
+.location-picker-input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.75rem;
+  transition: all 0.2s;
+}
+
+.location-picker-input:focus {
+  border-color: #2d6a4f;
+  outline: none;
+}
+
+.location-picker-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #9ca3af;
+}
+
+.location-picker-results {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  top: 100%;
+  margin-top: 0.5rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  max-height: 15rem;
+  overflow-y: auto;
+}
+
+.location-picker-result-item {
+  width: 100%;
+  text-align: left;
+  padding: 0.75rem;
+  transition: background-color 0.2s;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.location-picker-result-item:last-child {
+  border-bottom: none;
+}
+
+.location-picker-result-item:hover {
+  background: #d8f3dc;
+}
+
+.location-picker-result-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.location-picker-result-address {
+  font-size: 0.75rem;
+  color: #6b7280;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.location-picker-selected {
+  padding: 0.75rem 1rem 0.75rem 1rem;
+}
+
+.location-picker-selected-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.location-picker-selected-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #2d6a4f;
+  word-break: break-word;
+}
+
+.location-picker-selected-address {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 0.25rem;
+  word-break: break-word;
+}
+
+.location-picker-map-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.location-picker-map {
+  height: 20rem;
+  width: 100%;
+  position: relative;
+}
+
+.location-picker-map-note {
+  font-size: 0.75rem;
+  text-align: center;
+  color: #9ca3af;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.location-picker-actions {
+  padding: 1rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 0.75rem;
+  background: #f9fafb;
+}
+
+.location-picker-cancel {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  border-radius: 0.75rem;
+  transition: background-color 0.2s;
+}
+
+.location-picker-cancel:hover {
+  background: #f3f4f6;
+}
+
+.location-picker-confirm {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  background: #2d6a4f;
+  color: white;
+  border-radius: 0.75rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  transform: scale(1);
+}
+
+.location-picker-confirm:hover {
+  background: #1b4d3e;
+  transform: scale(1.02);
+}
+
+/* Optional: Loading state */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.location-picker-loading {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid #e5e7eb;
+  border-top-color: #2d6a4f;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .location-picker-modal {
+    max-width: 95%;
+    max-height: 95vh;
+  }
+  
+  .location-picker-map {
+    height: 16rem;
+  }
+}

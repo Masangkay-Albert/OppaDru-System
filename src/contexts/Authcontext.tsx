@@ -1,4 +1,6 @@
+// src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import * as authService from '../services/authService';
 
 interface User {
   id: string;
@@ -30,10 +32,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored user data
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    // ✅ GAMIT ANG authService
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
+      setUser(currentUser);
     }
     setIsLoading(false);
   }, []);
@@ -41,22 +43,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Get users from localStorage
-      const users = JSON.parse(localStorage.getItem('users') || '[]');
-      const foundUser = users.find((u: any) => u.email === email && u.password === password);
+      // ✅ GAMIT ANG authService.validateCredentials
+      const validUser = authService.validateCredentials(email, password);
       
-      if (foundUser) {
-        const userData = {
-          id: foundUser.id,
-          fullName: foundUser.fullName,
-          email: foundUser.email,
-          role: 'customer' as const
+      if (validUser) {
+        const userData: User = {
+          id: validUser.id,
+          fullName: validUser.fullName,
+          email: validUser.email,
+          role: validUser.role as 'customer'
         };
         setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
+        // ✅ GAMIT ANG authService.setCurrentUser
+        authService.setCurrentUser(userData);
         setIsLoading(false);
         return true;
       }
@@ -73,24 +74,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const users = JSON.parse(localStorage.getItem('users') || '[]');
-      
-      // Check if email exists
-      if (users.some((u: any) => u.email === email)) {
+      // ✅ GAMIT ANG authService.isEmailTaken
+      if (authService.isEmailTaken(email)) {
         setIsLoading(false);
         return false;
       }
       
-      const newUser = {
-        id: Date.now().toString(),
-        fullName,
-        email,
-        password,
-        role: 'customer'
-      };
+      // ✅ GAMIT ANG authService.createUserObject at saveUser
+      const newUserId = Date.now().toString();
+      const newUser = authService.createUserObject(newUserId, fullName, email, password);
+      authService.saveUser(newUser);
       
-      users.push(newUser);
-      localStorage.setItem('users', JSON.stringify(users));
       setIsLoading(false);
       return true;
     } catch (error) {
@@ -101,7 +95,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('user');
+    // ✅ GAMIT ANG authService.removeCurrentUser
+    authService.removeCurrentUser();
   };
 
   return (

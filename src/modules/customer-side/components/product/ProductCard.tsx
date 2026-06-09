@@ -1,7 +1,7 @@
 // ProductCard.tsx
 import React from 'react';
-import type { Product } from '../../../types/product.types';
-import { useFavorites } from '../../../contexts/FavoritesContext';
+import type { Product } from '../../../../types/product.types';
+import { useFavorites } from '../../../../contexts/FavoritesContext';
 
 interface ProductCardProps {
   product: Product;

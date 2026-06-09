@@ -1,8 +1,8 @@
 // NavbarCustomer.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../../contexts/Authcontext";
-import oppaLogo from "../../../assets/oppadrulogo.jpg";
+import { useAuth } from "../../../../contexts/Authcontext";
+import oppaLogo from "../../../../assets/oppadrulogo.jpg";
 
 const NavbarCustomer: React.FC = () => {
   const navigate = useNavigate();

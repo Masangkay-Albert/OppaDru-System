@@ -1,10 +1,10 @@
 // src/modules/customer-side/components/ProductModal.tsx
 import React, { useState, useEffect } from 'react';
-import type { Product, CartItem } from '../../../types/product.types';
-import { useCart } from '../../../contexts/CartContext';
-import { useFavorites } from '../../../contexts/FavoritesContext';
+import type { Product, CartItem } from '../../../../types/product.types';
+import { useCart } from '../../../../contexts/CartContext';
+import { useFavorites } from '../../../../contexts/FavoritesContext';
 import QuantitySelector from './QuantitySelector';
-import AddonsSection from './AddonsSection';
+import AddonsSection from '../common/AddonsSection';
 
 interface ProductModalProps {
   product: Product | null;

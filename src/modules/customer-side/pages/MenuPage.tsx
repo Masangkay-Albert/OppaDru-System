@@ -5,13 +5,13 @@ import { useCart } from '../../../contexts/CartContext';
 import { useFavorites } from '../../../contexts/FavoritesContext';
 import { products, categories } from '../../../data/mockData';
 import type { Product, ProductCategory } from '../../../types/product.types';
-import ProductCard from '../components/ProductCard';
-import ProductModal from '../components/ProductModal';
-import CartSidebar from '../components/CartSidebar';
-import NavbarCustomer from '../components/NavbarCustomer';
-import PromoBanner from '../components/PromoBanner';
-import NotificationToast from '../components/NotificationToast';
-import GreetingBanner from '../components/GreetingBanner';
+import ProductCard from '../components/product/ProductCard';
+import ProductModal from '../components/product/ProductModal';
+import CartSidebar from '../components/cart/CartSidebar';
+import NavbarCustomer from '../components/navigation/NavbarCustomer';
+import PromoBanner from '../components/common/PromoBanner';
+import NotificationToast from '../components/common/NotificationToast';
+import GreetingBanner from '../components/common/GreetingBanner';
 import '../../../styles/global.css';
 
 const MenuPage: React.FC = () => {

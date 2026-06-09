@@ -1,5 +1,5 @@
 import React from "react";
-import Navbar from "../components/navbar";
+import Navbar from "../components/navigation/navbar";
 import oppaLogo from "../../../assets/oppadrulogo.jpg";
 import fbLogo from "../../../assets/facebook-logoo.png";
 import igLogo from "../../../assets/instagram-logoo.png";

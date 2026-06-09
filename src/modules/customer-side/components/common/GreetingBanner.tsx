@@ -1,6 +1,6 @@
 // GreetingBanner.tsx
 import React from 'react';
-import type { ProductCategory } from '../../../types/product.types';
+import type { ProductCategory } from '../../../../types/product.types';
 
 interface GreetingBannerProps {
   userName?: string;
