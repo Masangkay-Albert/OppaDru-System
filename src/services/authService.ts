@@ -29,11 +29,6 @@ export const saveUser = (user: StoredUser): void => {
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
 };
 
-export const findUserByEmail = (email: string): StoredUser | undefined => {
-  const users = getStoredUsers();
-  return users.find(u => u.email === email);
-};
-
 export const validateCredentials = (email: string, password: string): StoredUser | null => {
   const users = getStoredUsers();
   const user = users.find(u => u.email === email && u.password === password);

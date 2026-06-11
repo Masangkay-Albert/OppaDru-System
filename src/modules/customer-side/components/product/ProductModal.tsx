@@ -84,7 +84,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) => {
       <div className="fixed inset-0 bg-black/50 z-[100] animate-fadeIn" onClick={onClose} />
       
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-[520px] max-h-[85vh] bg-white rounded-xl z-[101] overflow-hidden animate-slideUp shadow-2xl flex flex-col">
-        {/* Header - walang heart button */}
+        {/* Header */}
         <div className="flex justify-between items-center px-5 py-4 bg-[#2d6a4f] text-white shrink-0">
           <h2 className="font-bold text-lg">{product.name}</h2>
           <button onClick={onClose} className="text-2xl opacity-80 hover:opacity-100 cursor-pointer">✕</button>

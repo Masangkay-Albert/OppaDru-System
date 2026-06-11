@@ -1,49 +1,53 @@
-// src/hooks/useMapLocation.ts
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { getAddressFromCoords, getPositionKey } from '../services/geocodingService';
-import type { ResolvedAddress } from '../services/geocodingService';
+import {
+  getAddressFromCoords,
+  getPositionKey
+} from '../services/geocodingService';
+
 import type { LocationResult } from './useLocationSearch';
 
 export const useMapLocation = (initialLat: number, initialLng: number) => {
-  const [position, setPosition] = useState<[number, number]>([initialLat, initialLng]);
+  const [position, setPosition] = useState<[number, number]>([
+    initialLat,
+    initialLng
+  ]);
+
   const [currentAddress, setCurrentAddress] = useState('');
   const [currentName, setCurrentName] = useState('');
   const [resolvedPositionKey, setResolvedPositionKey] = useState('');
-  const [selectedSearchResult, setSelectedSearchResult] = useState<LocationResult | null>(null);
-  
-  const reverseRequestIdRef = useRef(0);
+  const [selectedSearchResult, setSelectedSearchResult] =
+    useState<LocationResult | null>(null);
 
-  const resolveAndStorePinAddress = useCallback(
-    async (lat: number, lng: number) => {
-      const requestId = reverseRequestIdRef.current + 1;
-      reverseRequestIdRef.current = requestId;
+  const requestIdRef = useRef(0);
 
-      const result = await getAddressFromCoords(lat, lng);
+  const resolveAddress = useCallback(async (lat: number, lng: number) => {
+    const requestId = ++requestIdRef.current;
 
-      if (requestId !== reverseRequestIdRef.current) {
-        return null;
-      }
+    const result = await getAddressFromCoords(lat, lng);
 
-      if (result) {
-        setCurrentAddress(result.address);
-        setCurrentName(result.name);
-        setResolvedPositionKey(getPositionKey(lat, lng));
-      } else {
-        setCurrentAddress('');
-        setCurrentName('');
-        setResolvedPositionKey('');
-      }
+    if (requestId !== requestIdRef.current) return;
 
-      return result;
+    if (result) {
+      setCurrentAddress(result.address);
+      setCurrentName(result.name);
+      setResolvedPositionKey(getPositionKey(lat, lng));
+    } else {
+      setCurrentAddress('');
+      setCurrentName('');
+      setResolvedPositionKey('');
+    }
+
+    return result;
+  }, []);
+
+  const updatePosition = useCallback(
+    (lat: number, lng: number) => {
+      setPosition([lat, lng]);
+      setSelectedSearchResult(null);
+      resolveAddress(lat, lng);
     },
-    []
+    [resolveAddress]
   );
-
-  const updatePosition = useCallback((lat: number, lng: number) => {
-    setPosition([lat, lng]);
-    setSelectedSearchResult(null);
-    resolveAndStorePinAddress(lat, lng);
-  }, [resolveAndStorePinAddress]);
 
   const selectSearchResult = useCallback((result: LocationResult) => {
     setSelectedSearchResult(result);
@@ -51,7 +55,6 @@ export const useMapLocation = (initialLat: number, initialLng: number) => {
     setCurrentAddress(result.address);
     setCurrentName(result.name);
     setResolvedPositionKey(getPositionKey(result.lat, result.lng));
-    return result;
   }, []);
 
   const clearSelectedSearch = useCallback(() => {
@@ -59,8 +62,8 @@ export const useMapLocation = (initialLat: number, initialLng: number) => {
   }, []);
 
   useEffect(() => {
-    resolveAndStorePinAddress(initialLat, initialLng);
-  }, [initialLat, initialLng, resolveAndStorePinAddress]);
+    resolveAddress(initialLat, initialLng);
+  }, [initialLat, initialLng, resolveAddress]);
 
   return {
     position,
@@ -71,6 +74,6 @@ export const useMapLocation = (initialLat: number, initialLng: number) => {
     updatePosition,
     selectSearchResult,
     clearSelectedSearch,
-    resolveAndStorePinAddress
+    resolveAddress
   };
 };

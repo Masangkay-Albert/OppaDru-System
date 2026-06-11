@@ -57,7 +57,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
     address: string;
     name: string;
   }) => {
-    // Use the FULL address from LocationPicker (kasama ang province)
     const fullAddress = location.address || location.name;
     
     if (fullAddress) {
@@ -79,7 +78,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
 
   const getDisplayAddress = () => {
     if (!address.street) return 'No address selected';
-    // Show full address (may province na)
     return address.street;
   };
 
@@ -104,7 +102,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         tempPerson={tempPerson}
         onUpdatePerson={updatePerson}
       />
-
       <div className="bg-white rounded-2xl shadow-lg p-6">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">

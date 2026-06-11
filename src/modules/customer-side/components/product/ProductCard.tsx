@@ -16,7 +16,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
       className="bg-white rounded-xl overflow-hidden border border-gray-200 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2d6a4f] cursor-pointer"
       onClick={() => onOpenModal(product)}
     >
-      {/* Image Section - PURE PLACEHOLDER, walang emoji */}
       <div className="relative h-44 bg-gray-200 flex items-center justify-center">
         <div className="w-full h-full flex items-center justify-center bg-gray-300 text-gray-500 text-sm font-medium">
           Image

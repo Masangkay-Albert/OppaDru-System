@@ -1,8 +1,10 @@
 // src/contexts/OrderContext.tsx
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { CartItem } from '../types/product.types';
+
 import { ORDER_STATUS, type OrderStatus } from '../utils/constants';
-import { OPPA_DRU_STORE_COORDS, calculateDistance, getRoutePoints, type Coordinates } from '../services/geocodingService';
+
+import { OPPA_DRU_STORE_COORDS, calculateDistance, getRoutePoints, type Coordinates} from '../services/geocodingService';
 
 export interface Order {
   id: string;
@@ -145,7 +147,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     setCurrentOrder(newOrder);
 
-    // Start driver simulation after 3 seconds (preparation time)
     setTimeout(() => {
       startDriverSimulation(addressCoords, routePoints);
     }, 3000);

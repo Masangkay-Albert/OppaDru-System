@@ -23,7 +23,6 @@ export const searchLocationAPI = async (query: string): Promise<LocationResult[]
     });
 
     const data = await response.json();
-
     if (!Array.isArray(data)) return [];
 
     return data
@@ -45,38 +44,35 @@ export const useLocationSearch = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<LocationResult | null>(null);
 
-  const debounceTimer = useRef<number | null>(null);
+  const debounceRef = useRef<number | null>(null);
   const requestIdRef = useRef(0);
-  const skipNextSearchRef = useRef(false);
+  const skipRef = useRef(false);
 
   useEffect(() => {
-    if (debounceTimer.current) {
-      window.clearTimeout(debounceTimer.current);
-    }
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
 
-    const cleanQuery = searchQuery.trim();
+    const q = searchQuery.trim();
 
-    if (skipNextSearchRef.current) {
-      skipNextSearchRef.current = false;
+    if (skipRef.current) {
+      skipRef.current = false;
       setSearchResults([]);
       setIsSearching(false);
       return;
     }
 
-    if (cleanQuery.length <= 2) {
-      requestIdRef.current += 1;
+    if (q.length <= 2) {
+      requestIdRef.current++;
       setSearchResults([]);
       setIsSearching(false);
       return;
     }
 
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
+    const requestId = ++requestIdRef.current;
 
-    debounceTimer.current = window.setTimeout(async () => {
+    debounceRef.current = window.setTimeout(async () => {
       setIsSearching(true);
 
-      const results = await searchLocationAPI(cleanQuery);
+      const results = await searchLocationAPI(q);
 
       if (requestId === requestIdRef.current) {
         setSearchResults(results);
@@ -85,15 +81,13 @@ export const useLocationSearch = () => {
     }, 500);
 
     return () => {
-      if (debounceTimer.current) {
-        window.clearTimeout(debounceTimer.current);
-      }
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
   }, [searchQuery]);
 
   const selectLocation = useCallback((location: LocationResult) => {
-    skipNextSearchRef.current = true;
-    requestIdRef.current += 1;
+    skipRef.current = true;
+    requestIdRef.current++;
 
     setSelectedLocation(location);
     setSearchQuery(location.address);
@@ -102,7 +96,7 @@ export const useLocationSearch = () => {
   }, []);
 
   const clearSearch = useCallback(() => {
-    requestIdRef.current += 1;
+    requestIdRef.current++;
 
     setSearchQuery('');
     setSearchResults([]);

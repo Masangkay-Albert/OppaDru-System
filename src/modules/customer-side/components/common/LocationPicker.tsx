@@ -6,7 +6,8 @@ import 'leaflet/dist/leaflet.css';
 import '../../../../styles/animations.css'; 
 import { useLocationSearch, searchLocationAPI } from '../../../../hooks/useLocationSearch';
 import { useMapLocation } from '../../../../hooks/useMapLocation';
-import { getAddressFromCoords, getAddressName } from '../../../../services/geocodingService';
+import { useConfirmLocation } from '../../../../hooks/useConfirmLocation'; 
+// import { getAddressFromCoords, getAddressName } from '../../../../services/geocodingService';
 import { AnimatedMarker } from './AnimatedMarker';
 import { MapClickHandler } from './MapClickHandler';
 import type { LocationResult } from '../../../../hooks/useLocationSearch';
@@ -30,27 +31,18 @@ interface LocationPickerProps {
   initialLng?: number;
 }
 
-// Clean address function - preserves province (Cavite)
 const cleanAddress = (address: string): string => {
   if (!address) return address;
   
   let cleaned = address;
-  
-  // Remove "Philippines" only
+
   cleaned = cleaned.replace(/,\s*Philippines\s*,?/gi, '');
-  
-  // Remove "Calabarzon" (region) but keep Cavite
   cleaned = cleaned.replace(/,\s*Calabarzon\s*,?/gi, '');
-  
-  // Remove postal code (4-5 digits) but keep if part of address
   cleaned = cleaned.replace(/\b\d{4,5}\b(?!\s*$)/g, '');
-  
-  // Clean up extra commas and spaces
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
   cleaned = cleaned.replace(/,\s*,/g, ',');
   cleaned = cleaned.replace(/,\s*$/, '');
-  
-  // Ensure Cavite is present if Dasmariñas is there
+
   if (cleaned.toLowerCase().includes('dasmariñas') && !cleaned.toLowerCase().includes('cavite')) {
     cleaned = `${cleaned}, Cavite`;
   }
@@ -58,7 +50,6 @@ const cleanAddress = (address: string): string => {
   return cleaned;
 };
 
-// Get short name for display
 const getShortName = (fullAddress: string): string => {
   const parts = fullAddress.split(',');
   if (parts.length > 0) {
@@ -96,6 +87,14 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     clearSearch
   } = useLocationSearch();
 
+  const confirmLocation = useConfirmLocation({
+    searchQuery,
+    selectedSearchResult,
+    position: position,  
+    onSelectLocation,
+    onClose
+  });
+
   const handleSelectSearchResult = (result: LocationResult) => {
     selectSearchResult(result);
     selectLocation(result);
@@ -106,62 +105,6 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
         easeLinearity: 0.5
       });
     }
-  };
-
-  const handleConfirmLocation = async () => {
-    const typedAddress = searchQuery.trim();
-
-    if (typedAddress) {
-      let locationResult = selectedSearchResult;
-
-      if (!locationResult || locationResult.address !== typedAddress) {
-        const results = await searchLocationAPI(typedAddress);
-        locationResult = results[0] || null;
-      }
-
-      const rawAddress = locationResult?.address || typedAddress;
-      const cleanAddressStr = cleanAddress(rawAddress);
-      const shortName = getShortName(rawAddress);
-
-      onSelectLocation({
-        lat: locationResult?.lat ?? position[0],
-        lng: locationResult?.lng ?? position[1],
-        name: shortName,
-        address: cleanAddressStr
-      });
-
-      onClose();
-      return;
-    }
-
-    const currentPositionKey = `${position[0].toFixed(6)},${position[1].toFixed(6)}`;
-    let pinAddress = null;
-
-    if (currentAddress && resolvedPositionKey === currentPositionKey) {
-      pinAddress = {
-        name: currentName || getAddressName(currentAddress),
-        address: currentAddress
-      };
-    } else {
-      pinAddress = await getAddressFromCoords(position[0], position[1]);
-    }
-
-    if (!pinAddress) {
-      window.alert('Hindi mahanap ang address ng pin location. I-drag ulit ang pin or mag-search ng address.');
-      return;
-    }
-
-    const cleanAddressStr = cleanAddress(pinAddress.address);
-    const shortName = getShortName(pinAddress.address);
-
-    onSelectLocation({
-      lat: position[0],
-      lng: position[1],
-      name: shortName,
-      address: cleanAddressStr
-    });
-
-    onClose();
   };
 
   const getDisplayName = () => {
@@ -264,7 +207,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             Cancel
           </button>
           <button
-            onClick={handleConfirmLocation}
+            onClick={confirmLocation}  // ✅ USE THE HOOK FUNCTION
             className="location-picker-confirm"
           >
             Confirm Location

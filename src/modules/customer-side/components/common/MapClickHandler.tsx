@@ -1,18 +1,17 @@
-// src/modules/customer-side/components/common/MapClickHandler.tsx
 import { useMapEvents } from 'react-leaflet';
 
-interface MapClickHandlerProps {
+interface Props {
   onMapClick: (lat: number, lng: number) => void;
 }
 
-export const MapClickHandler: React.FC<MapClickHandlerProps> = ({ onMapClick }) => {
+export const MapClickHandler: React.FC<Props> = ({ onMapClick }) => {
   useMapEvents({
     click: (e) => {
-      // Add ripple effect
       const ripple = document.createElement('div');
       ripple.className = 'map-ripple';
-      ripple.style.left = e.containerPoint.x + 'px';
-      ripple.style.top = e.containerPoint.y + 'px';
+      ripple.style.left = `${e.containerPoint.x}px`;
+      ripple.style.top = `${e.containerPoint.y}px`;
+
       document.body.appendChild(ripple);
       setTimeout(() => ripple.remove(), 500);
 
