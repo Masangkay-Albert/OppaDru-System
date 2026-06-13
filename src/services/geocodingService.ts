@@ -1,4 +1,3 @@
-// src/services/geocodingService.ts
 import { OPPA_DRU_STORE } from '../utils/constants';
 
 export interface ResolvedAddress {
@@ -91,6 +90,112 @@ export const calculateDistance = (
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 };
 
+// ========== OpenRouteService Integration ==========
+
+const ORS_API_KEY = import.meta.env.VITE_OPENROUTE_API_KEY;
+
+export interface RouteResponse {
+  coordinates: [number, number][];  // [lng, lat] format from API
+  distance: number;  // in meters
+  duration: number;  // in seconds
+}
+
+export const getRoadRoute = async (
+  start: Coordinates,
+  end: Coordinates
+): Promise<RouteResponse | null> => {
+  if (!ORS_API_KEY) {
+    console.error('OpenRouteService API key is missing. Check your .env file.');
+    return null;
+  }
+
+  const url = `https://api.openrouteservice.org/v2/directions/driving-car/geojson`;
+  
+  const body = {
+    coordinates: [
+      [start.lng, start.lat],
+      [end.lng, end.lat]
+    ]
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': ORS_API_KEY
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('ORS API Error:', errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    if (data?.features?.[0]?.geometry?.coordinates) {
+      const coordinates = data.features[0].geometry.coordinates;
+      const distance = data.features[0].properties.segments[0].distance;
+      const duration = data.features[0].properties.segments[0].duration;
+      
+      return {
+        coordinates,
+        distance,
+        duration
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching route from ORS:', error);
+    return null;
+  }
+};
+
+// Helper function to convert ORS coordinates to Leaflet format [lat, lng]
+export const convertToLeafletPoints = (orsCoordinates: [number, number][]): [number, number][] => {
+  return orsCoordinates.map(coord => [coord[1], coord[0]]);
+};
+
+// Get driver position along route based on progress
+export const getPositionAlongRoute = (
+  routePoints: [number, number][], // Array of [lat, lng] points
+  progressPercent: number // 0 to 100
+): Coordinates => {
+  if (routePoints.length === 0) {
+    return { lat: 0, lng: 0 };
+  }
+  
+  if (progressPercent >= 100) {
+    const lastPoint = routePoints[routePoints.length - 1];
+    return { lat: lastPoint[0], lng: lastPoint[1] };
+  }
+  
+  if (progressPercent <= 0) {
+    const firstPoint = routePoints[0];
+    return { lat: firstPoint[0], lng: firstPoint[1] };
+  }
+  
+  // Calculate which point index based on progress
+  const targetIndex = (progressPercent / 100) * (routePoints.length - 1);
+  const index = Math.floor(targetIndex);
+  const nextIndex = Math.min(index + 1, routePoints.length - 1);
+  const fraction = targetIndex - index;
+  
+  // Interpolate between two points
+  const currentPoint = routePoints[index];
+  const nextPoint = routePoints[nextIndex];
+  
+  return {
+    lat: currentPoint[0] + (nextPoint[0] - currentPoint[0]) * fraction,
+    lng: currentPoint[1] + (nextPoint[1] - currentPoint[1]) * fraction
+  };
+};
+
+// Legacy function (kept for backward compatibility)
 export const getRoutePoints = (start: Coordinates, end: Coordinates): Coordinates[] => {
   const points: Coordinates[] = [];
   const steps = 30;
