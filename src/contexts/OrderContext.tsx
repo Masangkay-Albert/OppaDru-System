@@ -42,7 +42,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const animationRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
-  const durationRef = useRef<number>(60000); // 60 seconds (1 minuto) travel time - mas mabagal
+  const durationRef = useRef<number>(60000); 
 
   const stopSimulation = () => {
     if (animationRef.current) {

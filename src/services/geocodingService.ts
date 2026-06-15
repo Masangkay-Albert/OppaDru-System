@@ -90,14 +90,12 @@ export const calculateDistance = (
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 };
 
-// ========== OpenRouteService Integration ==========
-
 const ORS_API_KEY = import.meta.env.VITE_OPENROUTE_API_KEY;
 
 export interface RouteResponse {
-  coordinates: [number, number][];  // [lng, lat] format from API
-  distance: number;  // in meters
-  duration: number;  // in seconds
+  coordinates: [number, number][];  
+  distance: number;  
+  duration: number; 
 }
 
 export const getRoadRoute = async (
@@ -155,37 +153,31 @@ export const getRoadRoute = async (
   }
 };
 
-// Helper function to convert ORS coordinates to Leaflet format [lat, lng]
 export const convertToLeafletPoints = (orsCoordinates: [number, number][]): [number, number][] => {
   return orsCoordinates.map(coord => [coord[1], coord[0]]);
 };
 
-// Get driver position along route based on progress
 export const getPositionAlongRoute = (
-  routePoints: [number, number][], // Array of [lat, lng] points
-  progressPercent: number // 0 to 100
+  routePoints: [number, number][], 
+  progressPercent: number
 ): Coordinates => {
+
   if (routePoints.length === 0) {
     return { lat: 0, lng: 0 };
   }
-  
   if (progressPercent >= 100) {
     const lastPoint = routePoints[routePoints.length - 1];
     return { lat: lastPoint[0], lng: lastPoint[1] };
   }
-  
   if (progressPercent <= 0) {
     const firstPoint = routePoints[0];
     return { lat: firstPoint[0], lng: firstPoint[1] };
   }
-  
-  // Calculate which point index based on progress
+
   const targetIndex = (progressPercent / 100) * (routePoints.length - 1);
   const index = Math.floor(targetIndex);
   const nextIndex = Math.min(index + 1, routePoints.length - 1);
   const fraction = targetIndex - index;
-  
-  // Interpolate between two points
   const currentPoint = routePoints[index];
   const nextPoint = routePoints[nextIndex];
   
@@ -195,7 +187,6 @@ export const getPositionAlongRoute = (
   };
 };
 
-// Legacy function (kept for backward compatibility)
 export const getRoutePoints = (start: Coordinates, end: Coordinates): Coordinates[] => {
   const points: Coordinates[] = [];
   const steps = 30;

@@ -207,7 +207,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             Cancel
           </button>
           <button
-            onClick={confirmLocation}  // ✅ USE THE HOOK FUNCTION
+            onClick={confirmLocation} 
             className="location-picker-confirm"
           >
             Confirm Location
