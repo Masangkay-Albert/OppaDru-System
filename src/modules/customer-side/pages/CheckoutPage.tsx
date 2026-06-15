@@ -1,4 +1,5 @@
 // src/modules/customer-side/pages/CheckoutPage.tsx
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../../contexts/CartContext';
@@ -7,26 +8,18 @@ import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import CheckoutForm from '../components/checkout/CheckoutForm';
 import CheckoutSummary from '../components/checkout/CheckoutSummary';
 import { useCheckoutForm } from '../../../hooks/useCheckoutForm';
-import { geocodeAddress } from '../../../services/geocodingService';
+import { geocodeAddress, OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
+import { FEES } from '../../../utils/constants';
 
-// Helper function to shorten address for geocoding
 const shortenAddressForGeocoding = (address: string): string => {
-  // Remove "Philippines" if present
   let shortened = address.replace(', Philippines', '');
-  
-  // Remove postal code (5 digits)
   shortened = shortened.replace(/\b\d{4}\b/g, '');
-  
-  // Get the first 3 parts of the address
   const parts = shortened.split(',');
   if (parts.length > 3) {
     shortened = parts.slice(0, 3).join(',');
   }
-  
-  // Clean up extra spaces and commas
   shortened = shortened.replace(/\s+/g, ' ').trim();
   shortened = shortened.replace(/,\s*,/g, ',');
-  
   return shortened;
 };
 
@@ -65,21 +58,20 @@ const CheckoutPage: React.FC = () => {
     
     try {
       const userAddress = address.street;
-      
-      // Shorten the address for geocoding
       const shortAddress = shortenAddressForGeocoding(userAddress);
-      
-      // Try to geocode with shortened address
+
       let coords = await geocodeAddress(shortAddress);
+
+      // Extract city from address if available, otherwise use fallback
+      const cityMatch = userAddress.match(/(Dasmariñas|Imus|Bacoor|General Trias|Silang|Tagaytay)/i);
+      const fallbackAddress = cityMatch ? `${cityMatch[1]}, Cavite` : 'Dasmariñas, Cavite';
       
-      // If still fails, try with city only
       if (!coords) {
-        coords = await geocodeAddress('Dasmariñas, Cavite');
+        coords = await geocodeAddress(fallbackAddress);
       }
       
       if (!coords) {
-        // Use store coordinates as last resort
-        coords = { lat: 14.322, lng: 120.958 };
+        coords = { ...OPPA_DRU_STORE_COORDS };
       }
       
       const subtotal = cartItems.reduce((sum, item) => {
@@ -87,8 +79,11 @@ const CheckoutPage: React.FC = () => {
         return sum + (item.price + addonsTotal) * item.quantity;
       }, 0);
       
-      const deliveryFee = deliveryType === 'priority' ? 99 : 49;
-      const total = subtotal + deliveryFee + 29 + ((subtotal + deliveryFee + 29 - voucherDiscount) * 0.12);
+      // NO HARDCODED - gamit ang constants
+      const deliveryFee = deliveryType === 'priority' ? FEES.DELIVERY.PRIORITY : FEES.DELIVERY.STANDARD;
+      const serviceFee = FEES.SERVICE;
+      const vatRate = FEES.VAT_RATE;
+      const total = subtotal + deliveryFee + serviceFee + ((subtotal + deliveryFee + serviceFee - voucherDiscount) * vatRate);
       
       placeOrder(cartItems, total, userAddress, coords);
       clearCart();
