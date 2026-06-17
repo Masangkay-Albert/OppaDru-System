@@ -25,7 +25,6 @@ export const useCheckoutForm = () => {
   });
   const [deliveryType, setDeliveryType] = useState<'standard' | 'priority'>('standard');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash_on_delivery');
-  const [appliedVoucher, setAppliedVoucher] = useState<any>(null);
   const [voucherDiscount, setVoucherDiscount] = useState(0);
   
   const updateAddress = useCallback((field: keyof Address, value: string) => {
@@ -37,8 +36,8 @@ export const useCheckoutForm = () => {
   }, []);
   
   const isValid = useCallback(() => {
-    return !!address.street && !!tempPerson.fullName;
-  }, [address.street, tempPerson.fullName]);
+    return !!address.street && !!tempPerson.fullName && !!tempPerson.phone;
+  }, [address.street, tempPerson.fullName, tempPerson.phone]);
   
   return {
     address,
@@ -51,8 +50,6 @@ export const useCheckoutForm = () => {
     setDeliveryType,
     paymentMethod,
     setPaymentMethod,
-    appliedVoucher,
-    setAppliedVoucher,
     voucherDiscount,
     setVoucherDiscount,
     isValid

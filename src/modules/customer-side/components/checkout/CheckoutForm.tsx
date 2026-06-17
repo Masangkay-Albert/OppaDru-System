@@ -28,7 +28,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   cartItems,
   tempPerson,
   updatePerson,
-  deliveryType,
   setDeliveryType,
   paymentMethod,
   setPaymentMethod

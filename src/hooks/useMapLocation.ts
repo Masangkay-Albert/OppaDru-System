@@ -1,9 +1,9 @@
+// src/hooks/useMapLocation.ts
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   getAddressFromCoords,
   getPositionKey
 } from '../services/geocodingService';
-
 import type { LocationResult } from './useLocationSearch';
 
 export const useMapLocation = (initialLat: number, initialLng: number) => {

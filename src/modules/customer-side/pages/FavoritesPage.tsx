@@ -1,12 +1,12 @@
+// src/modules/customer-side/pages/FavoritesPage.tsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFavorites } from '../../../contexts/FavoritesContext';
 import { useCart } from '../../../contexts/CartContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
+import type { Product } from '../../../types/product.types';
 
-// Placeholder image component
 const ProductImagePlaceholder: React.FC<{ name: string }> = ({ name }) => {
-  // Get first letter for placeholder
   const firstLetter = name.charAt(0).toUpperCase();
   
   return (
@@ -22,7 +22,7 @@ const FavoritesPage: React.FC = () => {
   const { favorites, toggleFavorite, getOrderCount } = useFavorites();
   const { addToCart } = useCart();
 
-  const handleAddToCart = (product: any) => {
+  const handleAddToCart = (product: Product) => {
     const cartItem = {
       ...product,
       quantity: 1,
@@ -30,7 +30,6 @@ const FavoritesPage: React.FC = () => {
       specialInstructions: ''
     };
     addToCart(cartItem);
-    // Show feedback
     const btn = document.getElementById(`fav-add-${product.id}`);
     if (btn) {
       btn.textContent = 'Added!';
@@ -45,7 +44,6 @@ const FavoritesPage: React.FC = () => {
       <NavbarCustomer />
       
       <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Header with back button */}
         <div className="flex items-center gap-4 mb-6">
           <button 
             onClick={() => navigate('/customer')}
@@ -81,9 +79,8 @@ const FavoritesPage: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Info banner */}
             <div className="mb-6 p-3 bg-[#d8f3dc] rounded-xl text-sm text-[#2d6a4f] flex items-center gap-2">
-              <span> </span>
+              <span>⭐</span>
               <p>Order a product 3 times and it will be automatically added to favorites.</p>
             </div>
             
@@ -95,7 +92,6 @@ const FavoritesPage: React.FC = () => {
                     key={product.id} 
                     className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100"
                   >
-                    {/* Image Section with Placeholder */}
                     <div className="relative h-40 w-full">
                       <ProductImagePlaceholder name={product.name} />
                       <button 
@@ -106,12 +102,11 @@ const FavoritesPage: React.FC = () => {
                       </button>
                       {orderCount >= 3 && (
                         <div className="absolute bottom-3 left-3 bg-[#2d6a4f] text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                          <span></span> Auto-favorite
+                          <span>⭐</span> Auto-favorite
                         </div>
                       )}
                     </div>
                     
-                    {/* Content Section */}
                     <div className="p-4">
                       <h3 className="font-bold text-gray-800 text-lg">{product.name}</h3>
                       <p className="text-gray-500 text-xs mt-1 line-clamp-2">{product.description}</p>

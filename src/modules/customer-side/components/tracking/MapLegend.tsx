@@ -1,3 +1,4 @@
+// src/modules/customer-side/components/tracking/MapLegend.tsx
 import React from 'react';
 import oppaDeliveryIcon from '../../../../assets/oppa-dru-delivery.png';
 
@@ -22,7 +23,7 @@ const MapLegend: React.FC = () => {
               <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
             )}
             {item.type === "image" && (
-              <img src={item.icon} alt={item.label} className="w-4 h-4" />
+              <img src={item.icon} alt={item.label} className="w-4 h-4 object-contain" />
             )}
             <span className="text-gray-600">{item.label}</span>
           </div>

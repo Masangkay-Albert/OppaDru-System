@@ -1,5 +1,5 @@
 // src/contexts/AuthContext.tsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as authService from '../services/authService';
 
 interface User {
@@ -31,8 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // ✅ GAMIT ANG authService
+  const initializeUser = useCallback(() => {
     const currentUser = authService.getCurrentUser();
     if (currentUser) {
       setUser(currentUser);
@@ -40,12 +39,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
+  useEffect(() => {
+    initializeUser();
+  }, [initializeUser]);
+
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // ✅ GAMIT ANG authService.validateCredentials
+
       const validUser = authService.validateCredentials(email, password);
       
       if (validUser) {
@@ -56,14 +58,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: validUser.role as 'customer'
         };
         setUser(userData);
-        // ✅ GAMIT ANG authService.setCurrentUser
         authService.setCurrentUser(userData);
         setIsLoading(false);
         return true;
       }
       setIsLoading(false);
       return false;
-    } catch (error) {
+    } catch {
       setIsLoading(false);
       return false;
     }
@@ -73,21 +74,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // ✅ GAMIT ANG authService.isEmailTaken
+
       if (authService.isEmailTaken(email)) {
         setIsLoading(false);
         return false;
       }
-      
-      // ✅ GAMIT ANG authService.createUserObject at saveUser
+
       const newUserId = Date.now().toString();
       const newUser = authService.createUserObject(newUserId, fullName, email, password);
       authService.saveUser(newUser);
-      
       setIsLoading(false);
       return true;
-    } catch (error) {
+    } catch {
+
       setIsLoading(false);
       return false;
     }
@@ -95,7 +94,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
-    // ✅ GAMIT ANG authService.removeCurrentUser
     authService.removeCurrentUser();
   };
 
@@ -105,3 +103,5 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
+
+export type { User, AuthContextType };

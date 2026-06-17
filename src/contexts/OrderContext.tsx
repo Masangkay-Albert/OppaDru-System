@@ -1,31 +1,44 @@
 // src/contexts/OrderContext.tsx
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { CartItem } from '../types/product.types';
-
 import { ORDER_STATUS, type OrderStatus } from '../utils/constants';
-
-import { OPPA_DRU_STORE_COORDS, calculateDistance, getRoutePoints, type Coordinates} from '../services/geocodingService';
+import { OPPA_DRU_STORE } from '../utils/constants';
 
 export interface Order {
   id: string;
   items: CartItem[];
   total: number;
+  address: string;
+  coords: { lat: number; lng: number };
+  status: OrderStatus;  
+  timestamp: string;
+  paymentMethod: string;
+  paymentReference?: string;
+  eta?: number;
+  currentRouteIndex?: number;
   deliveryAddress: string;
-  deliveryAddressCoords: Coordinates;
-  status: OrderStatus;
-  driverPosition: Coordinates;
-  startPosition: Coordinates;
-  routePoints: Coordinates[];
-  currentRouteIndex: number;
-  distance: number;
-  eta: number;
-  createdAt: Date;
+  deliveryAddressCoords: { lat: number; lng: number };
+  driverPosition?: { lat: number; lng: number };
+  createdAt?: string;
+  deliveryFee?: number;
+  serviceFee?: number;
 }
 
 interface OrderContextType {
+  orders: Order[];
   currentOrder: Order | null;
-  placeOrder: (items: CartItem[], total: number, deliveryAddress: string, addressCoords: Coordinates) => void;
+  placeOrder: (
+    items: CartItem[], 
+    total: number, 
+    address: string, 
+    coords: { lat: number; lng: number },
+    paymentMethod: string,
+    paymentReference?: string
+  ) => void;
+  updateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  updateDriverPosition: (orderId: string, position: { lat: number; lng: number }) => void;
   clearOrder: () => void;
+  getOrderById: (orderId: string) => Order | undefined;
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
@@ -39,131 +52,128 @@ export const useOrder = () => {
 };
 
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [orders, setOrders] = useState<Order[]>([]);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
-  const animationRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const durationRef = useRef<number>(60000); 
 
-  const stopSimulation = () => {
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
+  const loadOrders = useCallback(() => {
+    const savedOrders = localStorage.getItem('orders');
+    const savedCurrentOrder = localStorage.getItem('currentOrder');
+    
+    if (savedOrders) {
+      try {
+        setOrders(JSON.parse(savedOrders));
+      } catch {
+        console.error('Failed to parse orders');
+      }
     }
-  };
-
-  const startDriverSimulation = (destination: Coordinates, routePoints: Coordinates[]) => {
-    stopSimulation();
     
-    startTimeRef.current = Date.now();
-    const totalPoints = routePoints.length;
+    if (savedCurrentOrder) {
+      try {
+        setCurrentOrder(JSON.parse(savedCurrentOrder));
+      } catch {
+        console.error('Failed to parse current order');
+      }
+    }
+  }, []);
 
-    const updatePosition = () => {
-      const elapsed = Date.now() - startTimeRef.current;
-      let progress = Math.min(1, elapsed / durationRef.current);
-      
-      setCurrentOrder(prev => {
-        if (!prev) return null;
-        
-        if (progress >= 1) {
-          stopSimulation();
-          return {
-            ...prev,
-            status: ORDER_STATUS.DELIVERED,
-            driverPosition: destination,
-            eta: 0,
-            currentRouteIndex: 100
-          };
-        }
-        
-        const pointIndex = Math.floor(progress * (totalPoints - 1));
-        const currentPosition = routePoints[pointIndex];
-        const progressPercent = Math.floor(progress * 100);
-        
-        let remainingDistance = 0;
-        for (let i = pointIndex; i < totalPoints - 1; i++) {
-          remainingDistance += calculateDistance(
-            routePoints[i].lat, routePoints[i].lng,
-            routePoints[i + 1].lat, routePoints[i + 1].lng
-          );
-        }
-        const newEta = Math.max(1, Math.ceil(remainingDistance * 2));
-        
-        let newStatus = prev.status;
-        if (progress >= 0.9 && newStatus !== ORDER_STATUS.ARRIVING_SOON) {
-          newStatus = ORDER_STATUS.ARRIVING_SOON;
-        } else if (progress > 0.1 && newStatus === ORDER_STATUS.PREPARING) {
-          newStatus = ORDER_STATUS.ON_THE_WAY;
-        }
-        
-        return {
-          ...prev,
-          driverPosition: currentPosition,
-          eta: newEta,
-          status: newStatus,
-          currentRouteIndex: progressPercent
-        };
-      });
-      
-      animationRef.current = requestAnimationFrame(updatePosition);
-    };
-    
-    animationRef.current = requestAnimationFrame(updatePosition);
-  };
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
 
   const placeOrder = (
     items: CartItem[],
     total: number,
-    deliveryAddress: string,
-    addressCoords: Coordinates
+    address: string,
+    coords: { lat: number; lng: number },
+    paymentMethod: string,
+    paymentReference?: string
   ) => {
-    const distance = calculateDistance(
-      OPPA_DRU_STORE_COORDS.lat,
-      OPPA_DRU_STORE_COORDS.lng,
-      addressCoords.lat,
-      addressCoords.lng
-    );
-    
-    const eta = Math.max(1, Math.ceil(distance * 2));
-    const routePoints = getRoutePoints(
-      { lat: OPPA_DRU_STORE_COORDS.lat, lng: OPPA_DRU_STORE_COORDS.lng },
-      addressCoords
-    );
-    
     const newOrder: Order = {
       id: `ORD-${Date.now()}`,
       items,
       total,
-      deliveryAddress,
-      deliveryAddressCoords: addressCoords,
-      status: ORDER_STATUS.PREPARING,
-      driverPosition: { lat: OPPA_DRU_STORE_COORDS.lat, lng: OPPA_DRU_STORE_COORDS.lng },
-      startPosition: { lat: OPPA_DRU_STORE_COORDS.lat, lng: OPPA_DRU_STORE_COORDS.lng },
-      routePoints,
+      address,
+      coords,
+      status: ORDER_STATUS.PENDING,
+      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      paymentMethod,
+      paymentReference,
+      eta: 35,
       currentRouteIndex: 0,
-      distance,
-      eta,
-      createdAt: new Date()
+      deliveryAddress: address,
+      deliveryAddressCoords: coords,
+      deliveryFee: 49,
+      serviceFee: 29,
+      driverPosition: { 
+        lat: OPPA_DRU_STORE.lat, 
+        lng: OPPA_DRU_STORE.lng 
+      }
     };
-    
+
+    setOrders(prev => [...prev, newOrder]);
     setCurrentOrder(newOrder);
 
-    setTimeout(() => {
-      startDriverSimulation(addressCoords, routePoints);
-    }, 3000);
+    localStorage.setItem('currentOrder', JSON.stringify(newOrder));
+    localStorage.setItem('orders', JSON.stringify([...orders, newOrder]));
+  };
+
+  const updateOrderStatus = (orderId: string, status: OrderStatus) => {
+    setOrders(prev =>
+      prev.map(order =>
+        order.id === orderId ? { ...order, status } : order
+      )
+    );
+    
+    if (currentOrder?.id === orderId) {
+      const updatedOrder: Order = {
+        ...currentOrder,
+        status
+      };
+      setCurrentOrder(updatedOrder);
+      localStorage.setItem('currentOrder', JSON.stringify(updatedOrder));
+    }
+  };
+
+  const updateDriverPosition = (orderId: string, position: { lat: number; lng: number }) => {
+    setOrders(prev =>
+      prev.map(order =>
+        order.id === orderId ? { ...order, driverPosition: position } : order
+      )
+    );
+    
+    if (currentOrder?.id === orderId) {
+      const updatedOrder: Order = {
+        ...currentOrder,
+        driverPosition: position
+      };
+      setCurrentOrder(updatedOrder);
+      localStorage.setItem('currentOrder', JSON.stringify(updatedOrder));
+    }
   };
 
   const clearOrder = () => {
-    stopSimulation();
     setCurrentOrder(null);
+    localStorage.removeItem('currentOrder');
   };
 
-  useEffect(() => {
-    return () => stopSimulation();
-  }, []);
+  const getOrderById = (orderId: string): Order | undefined => {
+    return orders.find(order => order.id === orderId);
+  };
 
   return (
-    <OrderContext.Provider value={{ currentOrder, placeOrder, clearOrder }}>
+    <OrderContext.Provider value={{ 
+      orders, 
+      currentOrder, 
+      placeOrder, 
+      updateOrderStatus,
+      updateDriverPosition,
+      clearOrder,
+      getOrderById 
+    }}>
       {children}
     </OrderContext.Provider>
   );
 };
+
+export type { OrderContextType };

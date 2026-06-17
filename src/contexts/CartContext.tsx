@@ -1,5 +1,5 @@
 // src/contexts/CartContext.tsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { CartItem } from '../types/product.types';
 import { useAuth } from './Authcontext';
 
@@ -27,15 +27,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user } = useAuth();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
-  // Get cart key based on user ID
-  const getCartKey = () => {
+  const getCartKey = useCallback(() => {
     if (user?.id) {
       return `cart_user_${user.id}`;
     }
     return 'cart_guest';
-  };
+  }, [user]);
 
-  // Load cart when user changes
   useEffect(() => {
     if (user) {
       const savedCart = localStorage.getItem(getCartKey());
@@ -43,14 +41,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       setCartItems([]);
     }
-  }, [user]);
+  }, [user, getCartKey]);
 
-  // Save cart when items change or user changes
   useEffect(() => {
     if (user) {
       localStorage.setItem(getCartKey(), JSON.stringify(cartItems));
     }
-  }, [cartItems, user]);
+  }, [cartItems, user, getCartKey]);
 
   const addToCart = (item: CartItem) => {
     setCartItems(prevItems => {
@@ -119,3 +116,5 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </CartContext.Provider>
   );
 };
+
+export type { CartContextType };

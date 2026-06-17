@@ -12,7 +12,10 @@ const PAYMENT_OPTIONS = [
   { id: 'credit_card', name: 'Credit or Debit Card', icon: '💳' }
 ];
 
-const PaymentMethods: React.FC<PaymentMethodsProps> = ({ paymentMethod, setPaymentMethod }) => {
+const PaymentMethods: React.FC<PaymentMethodsProps> = ({ 
+  paymentMethod, 
+  setPaymentMethod 
+}) => {
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6">
       <div className="flex items-center gap-2 mb-4">
@@ -26,8 +29,21 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ paymentMethod, setPayme
       
       <div className="space-y-2">
         {PAYMENT_OPTIONS.map((option) => (
-          <label key={option.id} className="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:border-[#e76f51]">
-            <input type="radio" name="payment" checked={paymentMethod === option.id} onChange={() => setPaymentMethod(option.id)} className="accent-[#2d6a4f]" />
+          <label 
+            key={option.id} 
+            className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${
+              paymentMethod === option.id 
+                ? 'border-[#2d6a4f] bg-[#d8f3dc]/30' 
+                : 'border-gray-200 hover:border-[#e76f51]'
+            }`}
+          >
+            <input 
+              type="radio" 
+              name="payment" 
+              checked={paymentMethod === option.id} 
+              onChange={() => setPaymentMethod(option.id)}
+              className="accent-[#2d6a4f] w-4 h-4"
+            />
             <span className="text-xl">{option.icon}</span>
             <span className="text-sm text-gray-700">{option.name}</span>
           </label>

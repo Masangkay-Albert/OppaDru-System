@@ -1,5 +1,7 @@
+// src/contexts/FavoritesContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Product } from '../types/product.types';
+import { useAuth } from '../contexts/Authcontext';
 
 interface OrderCount {
   productId: string;
@@ -29,39 +31,57 @@ export const useFavorites = () => {
 };
 
 export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [favorites, setFavorites] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('favorites');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [orderCounts, setOrderCounts] = useState<OrderCount[]>(() => {
-    const saved = localStorage.getItem('orderCounts');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [lastOrderedProductId, setLastOrderedProductId] = useState<string | null>(() => {
-    return localStorage.getItem('lastOrderedProductId');
-  });
-
+  const { user } = useAuth();
+  const [favorites, setFavorites] = useState<Product[]>([]);
+  const [orderCounts, setOrderCounts] = useState<OrderCount[]>([]);
+  const [lastOrderedProductId, setLastOrderedProductId] = useState<string | null>(null);
   const [showNotification, setShowNotification] = useState(false);
   const [newFavoriteName, setNewFavoriteName] = useState('');
   const [notificationTimer, setNotificationTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('favorites', JSON.stringify(favorites));
-  }, [favorites]);
+    if (user?.id) {
+      const savedFavorites = localStorage.getItem(`favorites_${user.id}`);
+      setFavorites(savedFavorites ? JSON.parse(savedFavorites) : []);
 
-  useEffect(() => {
-    localStorage.setItem('orderCounts', JSON.stringify(orderCounts));
-  }, [orderCounts]);
+      // Load order counts for this user
+      const savedOrderCounts = localStorage.getItem(`orderCounts_${user.id}`);
+      setOrderCounts(savedOrderCounts ? JSON.parse(savedOrderCounts) : []);
 
-  useEffect(() => {
-    if (lastOrderedProductId) {
-      localStorage.setItem('lastOrderedProductId', lastOrderedProductId);
+      // Load last ordered product for this user
+      const savedLastOrdered = localStorage.getItem(`lastOrderedProductId_${user.id}`);
+      setLastOrderedProductId(savedLastOrdered || null);
     } else {
-      localStorage.removeItem('lastOrderedProductId');
+      // Clear data when no user is logged in
+      setFavorites([]);
+      setOrderCounts([]);
+      setLastOrderedProductId(null);
+      setShowNotification(false);
+      setNewFavoriteName('');
     }
-  }, [lastOrderedProductId]);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      localStorage.setItem(`favorites_${user.id}`, JSON.stringify(favorites));
+    }
+  }, [favorites, user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      localStorage.setItem(`orderCounts_${user.id}`, JSON.stringify(orderCounts));
+    }
+  }, [orderCounts, user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      if (lastOrderedProductId) {
+        localStorage.setItem(`lastOrderedProductId_${user.id}`, lastOrderedProductId);
+      } else {
+        localStorage.removeItem(`lastOrderedProductId_${user.id}`);
+      }
+    }
+  }, [lastOrderedProductId, user?.id]);
 
   const clearNotificationTimer = () => {
     if (notificationTimer) {
@@ -71,6 +91,11 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const addOrder = (product: Product) => {
+    if (!user?.id) {
+      console.warn('Cannot add order: User not logged in');
+      return;
+    }
+
     const isConsecutive = lastOrderedProductId === product.id;
     
     setOrderCounts(prev => {
@@ -112,7 +137,6 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           console.log(`First time ordering ${product.name}, count: 1`);
         }
       } else {
-
         console.log(`Different product! Resetting all counts. Last was: ${lastOrderedProductId}, Now: ${product.id}`);
         newPrev = [{ productId: product.id, count: 1, lastOrderDate: Date.now() }];
       }
@@ -126,6 +150,11 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const isFavorite = (productId: string) => favorites.some(f => f.id === productId);
 
   const toggleFavorite = (product: Product) => {
+    if (!user?.id) {
+      console.warn('Cannot toggle favorite: User not logged in');
+      return;
+    }
+
     setFavorites(prev => 
       prev.some(f => f.id === product.id)
         ? prev.filter(f => f.id !== product.id)
@@ -162,3 +191,5 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     </FavoritesContext.Provider>
   );
 };
+
+export type { FavoritesContextType };
