@@ -1,4 +1,4 @@
- // src/modules/customer-side/components/checkout/VoucherSection.tsx
+// src/modules/customer-side/components/checkout/VoucherSection.tsx
 import React, { useState } from 'react';
 import { validateAndApplyVoucher } from '../../../../services/voucherService';
 
@@ -8,15 +8,19 @@ interface VoucherSectionProps {
   onVoucherRemoved: () => void;
 }
 
-const VoucherSection: React.FC<VoucherSectionProps> = ({ subtotal, onVoucherApplied, onVoucherRemoved }) => {
+const VoucherSection: React.FC<VoucherSectionProps> = ({ 
+  subtotal, 
+  onVoucherApplied, 
+  onVoucherRemoved 
+}) => {
   const [voucherCode, setVoucherCode] = useState('');
   const [voucherError, setVoucherError] = useState('');
-  const [currentDiscount, setCurrentDiscount] = useState(0);
+  const [hasAppliedVoucher, setHasAppliedVoucher] = useState(false);
 
   const handleApply = () => {
     const result = validateAndApplyVoucher(voucherCode, subtotal);
     if (result.isValid) {
-      setCurrentDiscount(result.discount);
+      setHasAppliedVoucher(true);
       onVoucherApplied(result.discount);
       setVoucherError('');
     } else {
@@ -25,17 +29,17 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({ subtotal, onVoucherAppl
   };
 
   const handleRemove = () => {
-    setCurrentDiscount(0);
+    setHasAppliedVoucher(false);
     setVoucherCode('');
     onVoucherRemoved();
   };
 
-  if (currentDiscount > 0) {
+  if (hasAppliedVoucher) {
     return (
       <div className="mb-4 p-3 bg-[#d8f3dc] rounded-xl flex justify-between items-center">
         <div>
           <p className="font-medium text-[#2d6a4f]">Voucher Applied</p>
-          <p className="text-xs text-gray-500">₱{currentDiscount} off</p>
+          <p className="text-xs text-gray-500">Code: {voucherCode}</p>
         </div>
         <button onClick={handleRemove} className="text-red-500 text-sm">Remove</button>
       </div>
@@ -61,7 +65,7 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({ subtotal, onVoucherAppl
         />
         <button 
           onClick={handleApply}
-          className="px-4 py-2 bg-[#2d6a4f] text-white rounded-xl text-sm font-medium"
+          className="px-4 py-2 bg-[#2d6a4f] text-white rounded-xl text-sm font-medium hover:bg-[#1b4d3e] transition-colors"
         >
           Apply
         </button>

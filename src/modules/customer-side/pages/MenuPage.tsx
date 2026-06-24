@@ -10,7 +10,7 @@ import ProductModal from '../components/product/ProductModal';
 import CartSidebar from '../components/cart/CartSidebar';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import PromoBanner from '../components/common/PromoBanner';
-import NotificationToast from '../components/common/NotificationToast';
+import NotificationToast from '../components/common/ProductNotification';
 import GreetingBanner from '../components/common/GreetingBanner';
 import '../../../styles/global.css';
 

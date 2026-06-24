@@ -1,10 +1,10 @@
 // src/modules/customer-side/components/cart/CartSidebar.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCart } from '../../../../contexts/CartContext'; 
+import { useCart } from '../../../../contexts/CartContext';
 import CartItemComponent from './CartItem';
 import CartSummary from './CartSummary';
-import { calculateItemTotal, calculateSubtotal } from '../../../../services/cartService'; 
+import { calculateItemTotal, calculateSubtotal } from '../../../../services/cartService';
 
 interface CartSidebarProps {
   onClose?: () => void;
@@ -13,10 +13,18 @@ interface CartSidebarProps {
 const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
   const navigate = useNavigate();
   const { cartItems, removeFromCart, updateQuantity, clearCart } = useCart();
-  const [useCutlery, setUseCutlery] = useState(false);
+  const [useCutlery, setUseCutlery] = useState(() => {
+    const saved = localStorage.getItem('cutleryPreference');
+    return saved ? JSON.parse(saved) : false;
+  });
 
   const subtotal = calculateSubtotal(cartItems);
   const hasItems = cartItems.length > 0;
+
+  const handleCutleryChange = (value: boolean) => {
+    setUseCutlery(value);
+    localStorage.setItem('cutleryPreference', JSON.stringify(value));
+  };
 
   const handleCheckout = () => {
     if (hasItems) {
@@ -68,7 +76,7 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
         subtotal={subtotal}
         hasItems={hasItems}
         useCutlery={useCutlery}
-        onCutleryChange={setUseCutlery}
+        onCutleryChange={handleCutleryChange}
       />
 
       <div className="p-4 border-t border-gray-200 bg-white">

@@ -49,42 +49,52 @@ const PersonalDetailsForm: React.FC<PersonalDetailsFormProps> = ({ tempPerson, o
             value={editPerson.fullName} 
             onChange={(e) => setEditPerson({...editPerson, fullName: e.target.value})} 
             placeholder="Full Name" 
-            className="w-full px-4 py-2 border rounded-xl"
+            className="w-full px-4 py-2 border rounded-xl focus:border-[#2d6a4f] focus:outline-none"
+            required
           />
           <input 
             type="email" 
             value={tempPerson.email || user?.email || ''} 
             disabled 
-            className="w-full px-4 py-2 border rounded-xl bg-gray-50"
+            className="w-full px-4 py-2 border rounded-xl bg-gray-50 text-gray-500"
           />
           <input 
             type="tel" 
             value={editPerson.phone} 
             onChange={(e) => setEditPerson({...editPerson, phone: e.target.value})} 
             placeholder="Phone Number" 
-            className="w-full px-4 py-2 border rounded-xl"
+            className="w-full px-4 py-2 border rounded-xl focus:border-[#2d6a4f] focus:outline-none"
+            required
           />
           <div className="flex gap-3">
-            <button onClick={saveEdit} className="px-4 py-2 bg-[#2d6a4f] text-white rounded-xl">Save</button>
-            <button onClick={() => setIsEditing(false)} className="px-4 py-2 border rounded-xl">Cancel</button>
+            <button 
+              onClick={saveEdit} 
+              className="px-4 py-2 bg-[#2d6a4f] text-white rounded-xl hover:bg-[#1b4332] transition-colors"
+            >
+              Save
+            </button>
+            <button 
+              onClick={() => setIsEditing(false)} 
+              className="px-4 py-2 border rounded-xl hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       ) : (
         <div className="space-y-2">
           <div className="flex items-center gap-2 py-1">
             <span className="text-sm text-gray-500 w-24">Full Name</span>
-            <span className="text-sm font-medium">{tempPerson.fullName || user?.fullName}</span>
+            <span className="text-sm font-medium">{tempPerson.fullName || user?.fullName || 'Not set'}</span>
           </div>
           <div className="flex items-center gap-2 py-1">
             <span className="text-sm text-gray-500 w-24">Email</span>
-            <span className="text-sm font-medium">{tempPerson.email || user?.email}</span>
+            <span className="text-sm font-medium">{tempPerson.email || user?.email || 'Not set'}</span>
           </div>
-          {tempPerson.phone && (
-            <div className="flex items-center gap-2 py-1">
-              <span className="text-sm text-gray-500 w-24">Phone</span>
-              <span className="text-sm font-medium">{tempPerson.phone}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2 py-1">
+            <span className="text-sm text-gray-500 w-24">Phone</span>
+            <span className="text-sm font-medium">{tempPerson.phone || 'Not set'}</span>
+          </div>
         </div>
       )}
     </div>

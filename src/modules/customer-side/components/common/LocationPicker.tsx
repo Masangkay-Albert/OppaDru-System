@@ -3,15 +3,16 @@ import React, { useRef } from 'react';
 import { MapContainer, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import '../../../../styles/animations.css'; 
-import { useLocationSearch, searchLocationAPI } from '../../../../hooks/useLocationSearch';
+import '../../../../styles/animations.css';
+import { useLocationSearch } from '../../../../hooks/useLocationSearch';
 import { useMapLocation } from '../../../../hooks/useMapLocation';
-import { useConfirmLocation } from '../../../../hooks/useConfirmLocation'; 
-// import { getAddressFromCoords, getAddressName } from '../../../../services/geocodingService';
+import { useConfirmLocation } from '../../../../hooks/useConfirmLocation';
 import { AnimatedMarker } from './AnimatedMarker';
 import { MapClickHandler } from './MapClickHandler';
 import type { LocationResult } from '../../../../hooks/useLocationSearch';
+import { cleanAddress, getShortName } from '../../../../utils/locationUtils';
 
+// Fix Leaflet default icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -31,35 +32,6 @@ interface LocationPickerProps {
   initialLng?: number;
 }
 
-const cleanAddress = (address: string): string => {
-  if (!address) return address;
-  
-  let cleaned = address;
-
-  cleaned = cleaned.replace(/,\s*Philippines\s*,?/gi, '');
-  cleaned = cleaned.replace(/,\s*Calabarzon\s*,?/gi, '');
-  cleaned = cleaned.replace(/\b\d{4,5}\b(?!\s*$)/g, '');
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
-  cleaned = cleaned.replace(/,\s*,/g, ',');
-  cleaned = cleaned.replace(/,\s*$/, '');
-
-  if (cleaned.toLowerCase().includes('dasmariñas') && !cleaned.toLowerCase().includes('cavite')) {
-    cleaned = `${cleaned}, Cavite`;
-  }
-  
-  return cleaned;
-};
-
-const getShortName = (fullAddress: string): string => {
-  const parts = fullAddress.split(',');
-  if (parts.length > 0) {
-    let name = parts[0].trim();
-    name = name.replace(/\b\d{4,5}\b/g, '').trim();
-    return name;
-  }
-  return fullAddress;
-};
-
 const LocationPicker: React.FC<LocationPickerProps> = ({
   onSelectLocation,
   onClose,
@@ -72,7 +44,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     position,
     currentAddress,
     currentName,
-    resolvedPositionKey,
+    // resolvedPositionKey is reserved for future use
     selectedSearchResult,
     updatePosition,
     selectSearchResult,
@@ -90,7 +62,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   const confirmLocation = useConfirmLocation({
     searchQuery,
     selectedSearchResult,
-    position: position,  
+    position: position,
     onSelectLocation,
     onClose
   });
@@ -207,7 +179,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             Cancel
           </button>
           <button
-            onClick={confirmLocation}  // ✅ USE THE HOOK FUNCTION
+            onClick={confirmLocation}
             className="location-picker-confirm"
           >
             Confirm Location

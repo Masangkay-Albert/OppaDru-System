@@ -1,3 +1,4 @@
+// src/hooks/useLocationSearch.ts
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 export interface LocationResult {
@@ -5,6 +6,15 @@ export interface LocationResult {
   address: string;
   lat: number;
   lng: number;
+}
+
+interface OSMResponse {
+  display_name: string;
+  lat: string;
+  lon: string;
+  address: {
+    [key: string]: string;
+  };
 }
 
 export const searchLocationAPI = async (query: string): Promise<LocationResult[]> => {
@@ -22,12 +32,12 @@ export const searchLocationAPI = async (query: string): Promise<LocationResult[]
       }
     });
 
-    const data = await response.json();
+    const data: OSMResponse[] = await response.json();
     if (!Array.isArray(data)) return [];
 
     return data
-      .filter((item: any) => item?.display_name && item?.lat && item?.lon)
-      .map((item: any) => ({
+      .filter((item) => item?.display_name && item?.lat && item?.lon)
+      .map((item) => ({
         name: item.display_name.split(',')[0].trim(),
         address: item.display_name,
         lat: parseFloat(item.lat),

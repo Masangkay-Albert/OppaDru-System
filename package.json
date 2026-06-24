@@ -10,8 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@gegeweb/leaflet-routing-machine-openroute": "^0.1.10",
     "@tailwindcss/postcss": "^4.3.0",
+    "@types/leaflet-routing-machine": "^3.2.9",
     "leaflet": "^1.9.4",
+    "leaflet-routing-machine": "^3.2.12",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
