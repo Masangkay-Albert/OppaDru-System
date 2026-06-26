@@ -48,7 +48,6 @@ const MenuPage: React.FC = () => {
       <NavbarCustomer />
       <PromoBanner />
 
-      {/* Mobile Buttons */}
       {totalItems > 0 && (
         <button 
           onClick={() => setIsMobileCartOpen(true)} 
@@ -66,7 +65,6 @@ const MenuPage: React.FC = () => {
       </button>
 
       <div className="flex flex-col lg:flex-row">
-        {/* Sidebar Categories - Desktop */}
         <aside className="hidden lg:block w-64 bg-white/90 backdrop-blur-sm border-r border-[#e76f51]/20 p-6 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
           <div className="mb-6 pb-4 border-b-2 border-[#e76f51]/30">
             <h2 className="text-2xl font-extrabold text-[#2d6a4f]">Menu</h2>
@@ -90,15 +88,12 @@ const MenuPage: React.FC = () => {
           </nav>
         </aside>
 
-        {/* Main Content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          {/* GREETING BANNER  */}
           <GreetingBanner 
             userName={user?.fullName?.split(' ')[0]}
             onCategoryClick={setSelectedCategory}
           />
 
-          {/* Search Bar */}
           <div className="mb-6">
             <div className="relative">
               <input
@@ -112,7 +107,6 @@ const MenuPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Products Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
             {filteredProducts.map((product) => (
               <ProductCard key={product.id} product={product} onOpenModal={setSelectedProduct} />
@@ -126,12 +120,10 @@ const MenuPage: React.FC = () => {
           )}
         </main>
 
-        {/* Desktop Cart Sidebar */}
         <div className="hidden lg:block">
           <CartSidebar />
         </div>
 
-        {/* Mobile Cart Drawer */}
         {isMobileCartOpen && (
           <>
             <div className="fixed inset-0 bg-black/50 z-[45] animate-fadeIn" onClick={() => setIsMobileCartOpen(false)} />
@@ -141,7 +133,6 @@ const MenuPage: React.FC = () => {
           </>
         )}
 
-        {/* Mobile Category Drawer */}
         {isMobileCategoryOpen && (
           <>
             <div className="fixed inset-0 bg-black/50 z-[45] animate-fadeIn" onClick={() => setIsMobileCategoryOpen(false)} />
@@ -173,7 +164,6 @@ const MenuPage: React.FC = () => {
         )}
       </div>
 
-      {/* Product Modal */}
       <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
     </div>
   );
