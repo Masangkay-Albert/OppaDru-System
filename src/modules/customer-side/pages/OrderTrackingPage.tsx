@@ -1,4 +1,3 @@
-// src/modules/customer-side/pages/OrderTrackingPage.tsx
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -155,6 +154,11 @@ const OrderTrackingPage: React.FC = () => {
   const statusColor = STATUS_COLORS[order.status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700';
   const isDelivered = order.status === ORDER_STATUS.DELIVERED;
 
+  const mapCenter = order.deliveryAddressCoords ? [
+    (OPPA_DRU_STORE_COORDS.lat + order.deliveryAddressCoords.lat) / 2,
+    (OPPA_DRU_STORE_COORDS.lng + order.deliveryAddressCoords.lng) / 2
+  ] : [OPPA_DRU_STORE_COORDS.lat, OPPA_DRU_STORE_COORDS.lng];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
       <NavbarCustomer />
@@ -190,10 +194,7 @@ const OrderTrackingPage: React.FC = () => {
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
               <div className="h-[400px] w-full relative">
                 <MapContainer 
-                  center={[
-                    (OPPA_DRU_STORE_COORDS.lat + (order.deliveryAddressCoords?.lat || OPPA_DRU_STORE_COORDS.lat)) / 2,
-                    (OPPA_DRU_STORE_COORDS.lng + (order.deliveryAddressCoords?.lng || OPPA_DRU_STORE_COORDS.lng)) / 2
-                  ]}
+                  center={mapCenter as [number, number]}
                   zoom={13} 
                   style={{ height: '100%', width: '100%' }} 
                   zoomControl={true}

@@ -1,7 +1,8 @@
-// ProductCard.tsx
 import React from 'react';
 import type { Product } from '../../../../types/product.types';
 import { useFavorites } from '../../../../contexts/FavoritesContext';
+import { FiHeart } from 'react-icons/fi';
+import { FaHeart } from 'react-icons/fa';
 
 interface ProductCardProps {
   product: Product;
@@ -13,14 +14,14 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
 
   return (
     <div 
-      className="bg-white rounded-xl overflow-hidden border border-gray-200 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2d6a4f] cursor-pointer"
+      className="bg-white rounded-2xl overflow-hidden border border-gray-200/80 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:border-[#2d6a4f]/30 cursor-pointer group flex flex-col h-full"
       onClick={() => onOpenModal(product)}
     >
-      <div className="relative h-44 bg-gray-200 flex items-center justify-center">
+      <div className="relative h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0">
         <div className="w-full h-full flex items-center justify-center bg-gray-300 text-gray-500 text-sm font-medium">
           Image
         </div>
-        <div className="absolute bottom-3 right-3 bg-[#2d6a4f] text-white px-3 py-1 rounded-full font-bold text-sm shadow-md">
+        <div className="absolute bottom-3 right-3 bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] text-white px-4 py-1.5 rounded-full font-bold text-sm shadow-lg">
           ₱{product.price}
         </div>
         <button 
@@ -28,22 +29,25 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
             e.stopPropagation();
             toggleFavorite(product);
           }}
-          className="absolute top-3 right-3 text-2xl bg-white/80 rounded-full w-8 h-8 flex items-center justify-center shadow-md"
+          className="absolute top-3 right-3 text-2xl bg-white/90 backdrop-blur-sm rounded-full w-9 h-9 flex items-center justify-center shadow-lg hover:scale-110 transition-transform duration-300"
         >
-          {isFavorite(product.id) ? '❤️' : '🤍'}
+          {isFavorite(product.id) ? (
+            <FaHeart className="text-red-500" />
+          ) : (
+            <FiHeart className="text-gray-400" />
+          )}
         </button>
       </div>
       
-      {/* Content Section */}
-      <div className="p-4">
-        <h3 className="font-bold text-gray-800 mb-1 text-base">{product.name}</h3>
-        <p className="text-gray-500 text-xs mb-3 line-clamp-2">{product.description}</p>
+      <div className="p-4 flex flex-col flex-1">
+        <h3 className="font-bold text-gray-800 mb-1 text-base line-clamp-1">{product.name}</h3>
+        <p className="text-gray-500 text-xs mb-3 line-clamp-2 flex-1">{product.description}</p>
         <button 
           onClick={(e) => {
             e.stopPropagation();
             onOpenModal(product);
           }}
-          className="w-full py-2 bg-[#e76f51] text-white rounded-lg text-sm font-semibold hover:bg-[#f4a261] transition-all hover:scale-[1.02]"
+          className="w-full py-2.5 bg-gradient-to-r from-[#e76f51] to-[#f4a261] text-white rounded-xl text-sm font-semibold hover:shadow-lg transition-all hover:scale-[1.02] mt-auto"
         >
           Order Now
         </button>

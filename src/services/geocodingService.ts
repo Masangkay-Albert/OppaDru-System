@@ -15,6 +15,107 @@ export const OPPA_DRU_STORE_COORDS = {
   lng: OPPA_DRU_STORE.lng
 };
 
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+export const geocodeAddress = async (address: string): Promise<Coordinates | null> => {
+  if (!address.trim()) return null;
+
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=10&countrycodes=ph`
+    );
+    const data = await response.json();
+
+    if (!data?.length) return null;
+
+    const searchTerms = address.toLowerCase().split(' ');
+    const selectedResult = data.find((result: any) => {
+      const display = (result.display_name || '').toLowerCase();
+      return searchTerms.some((term: string) => display.includes(term));
+    }) || data[0];
+
+    return {
+      lat: parseFloat(selectedResult.lat),
+      lng: parseFloat(selectedResult.lon)
+    };
+  } catch {
+    return null;
+  }
+};
+
+export const reverseGeocode = async (lat: number, lng: number): Promise<string | null> => {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+    );
+    const data = await response.json();
+
+    if (data?.display_name) {
+      return data.display_name;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+export const getRouteFromGoogle = async (
+  start: Coordinates,
+  end: Coordinates
+): Promise<[number, number][] | null> => {
+  if (!GOOGLE_MAPS_API_KEY) return null;
+
+  try {
+    const response = await fetch(
+      `/google-maps/directions/json?origin=${start.lat},${start.lng}&destination=${end.lat},${end.lng}&key=${GOOGLE_MAPS_API_KEY}`
+    );
+    const data = await response.json();
+
+    if (data.status === 'OK' && data.routes.length > 0) {
+      const points = data.routes[0].overview_polyline.points;
+      return decodePolyline(points);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const decodePolyline = (encoded: string): [number, number][] => {
+  const points: [number, number][] = [];
+  let index = 0;
+  const len = encoded.length;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < len) {
+    let b;
+    let shift = 0;
+    let result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+
+  return points;
+};
+
 export const getAddressName = (address: string) => {
   return address.split(',')[0]?.trim() || address;
 };
@@ -27,47 +128,13 @@ export const getAddressFromCoords = async (
   lat: number,
   lng: number
 ): Promise<ResolvedAddress | null> => {
-  try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
-    );
-
-    const data = await response.json();
-
-    if (!data?.display_name) return null;
-
-    const address = data.display_name.replace(', Philippines', '');
-
-    return {
-      name: getAddressName(address),
-      address
-    };
-  } catch {
-    return null;
-  }
-};
-
-export const geocodeAddress = async (address: string): Promise<Coordinates | null> => {
-  if (!address.trim()) return null;
-
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`
-    );
-
-    const data = await res.json();
-
-    if (data?.length > 0) {
-      return {
-        lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon)
-      };
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
+  const address = await reverseGeocode(lat, lng);
+  if (!address) return null;
+  
+  return {
+    name: getAddressName(address),
+    address
+  };
 };
 
 export const calculateDistance = (
@@ -90,78 +157,10 @@ export const calculateDistance = (
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 };
 
-const ORS_API_KEY = import.meta.env.VITE_OPENROUTE_API_KEY;
-
-export interface RouteResponse {
-  coordinates: [number, number][];  
-  distance: number;  
-  duration: number; 
-}
-
-export const getRoadRoute = async (
-  start: Coordinates,
-  end: Coordinates
-): Promise<RouteResponse | null> => {
-  if (!ORS_API_KEY) {
-    console.error('OpenRouteService API key is missing. Check your .env file.');
-    return null;
-  }
-
-  const url = `https://api.openrouteservice.org/v2/directions/driving-car/geojson`;
-  
-  const body = {
-    coordinates: [
-      [start.lng, start.lat],
-      [end.lng, end.lat]
-    ]
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': ORS_API_KEY
-      },
-      body: JSON.stringify(body)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('ORS API Error:', errorText);
-      return null;
-    }
-
-    const data = await response.json();
-    
-    if (data?.features?.[0]?.geometry?.coordinates) {
-      const coordinates = data.features[0].geometry.coordinates;
-      const distance = data.features[0].properties.segments[0].distance;
-      const duration = data.features[0].properties.segments[0].duration;
-      
-      return {
-        coordinates,
-        distance,
-        duration
-      };
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Error fetching route from ORS:', error);
-    return null;
-  }
-};
-
-export const convertToLeafletPoints = (orsCoordinates: [number, number][]): [number, number][] => {
-  return orsCoordinates.map(coord => [coord[1], coord[0]]);
-};
-
 export const getPositionAlongRoute = (
   routePoints: [number, number][], 
   progressPercent: number
 ): Coordinates => {
-
   if (routePoints.length === 0) {
     return { lat: 0, lng: 0 };
   }
@@ -185,19 +184,4 @@ export const getPositionAlongRoute = (
     lat: currentPoint[0] + (nextPoint[0] - currentPoint[0]) * fraction,
     lng: currentPoint[1] + (nextPoint[1] - currentPoint[1]) * fraction
   };
-};
-
-export const getRoutePoints = (start: Coordinates, end: Coordinates): Coordinates[] => {
-  const points: Coordinates[] = [];
-  const steps = 30;
-
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    points.push({
-      lat: start.lat + (end.lat - start.lat) * t,
-      lng: start.lng + (end.lng - start.lng) * t
-    });
-  }
-
-  return points;
 };

@@ -1,8 +1,7 @@
-// src/modules/customer-side/components/tracking/RouteLayer.tsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { getRoadRoute, convertToLeafletPoints } from '../../../../services/geocodingService';
+import { getRouteFromGoogle } from '../../../../services/geocodingService';
 
 interface RouteLayerProps {
   start: { lat: number; lng: number };
@@ -21,15 +20,20 @@ const RouteLayer: React.FC<RouteLayerProps> = ({ start, end, progress, onRouteLo
     const fetchRoute = async () => {
       setLoading(true);
       setError(null);
-      const route = await getRoadRoute(start, end);
+      const points = await getRouteFromGoogle(start, end);
       
-      if (route?.coordinates.length) {
-        const points = convertToLeafletPoints(route.coordinates);
+      if (points && points.length > 0) {
         setFullRoute(points);
         onRouteLoaded?.(points);
         map.fitBounds(L.latLngBounds(points), { padding: [50, 50] });
       } else {
-        setError('Failed to load route');
+        const fallbackPoints: [number, number][] = [
+          [start.lat, start.lng],
+          [(start.lat + end.lat) / 2, (start.lng + end.lng) / 2],
+          [end.lat, end.lng]
+        ];
+        setFullRoute(fallbackPoints);
+        onRouteLoaded?.(fallbackPoints);
       }
       setLoading(false);
     };

@@ -1,12 +1,8 @@
-/* src/styles/global.css */
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=Playfair+Display:wght@400;500;600;700;800&display=swap');
-
-/* Import Modal Styles */
 @import "./modal.css";
 
-/* Oppa Dru Brand Colors */
 :root {
   --oppa-green: #2d6a4f;
   --oppa-green-dark: #1b4d3e;
@@ -18,7 +14,6 @@
   --oppa-brown: #7f4f24;
 }
 
-/* Google Fonts - Professional and Elegant */
 body {
   font-family: 'Inter', sans-serif;
 }
@@ -27,7 +22,6 @@ h1, h2, h3, h4, .font-serif, .logo-text {
   font-family: 'Playfair Display', serif;
 }
 
-/* Custom animations */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -64,20 +58,24 @@ h1, h2, h3, h4, .font-serif, .logo-text {
   to { transform: rotate(360deg); }
 }
 
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
 .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
 .animate-slideUp { animation: slideUp 0.3s ease-out; }
 .animate-slideInRight { animation: slideInRight 0.3s ease-out; }
 .animate-slideInLeft { animation: slideInLeft 0.3s ease-out; }
 .animate-pulse { animation: pulse 0.5s ease-in-out 2; }
 .animate-spin { animation: spin 1s linear infinite; }
+.animate-bounce { animation: bounce 1s infinite; }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #e5e7eb; border-radius: 3px; }
 ::-webkit-scrollbar-thumb { background: #2d6a4f; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #1b4d3e; }
 
-/* Line clamp utility */
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -85,7 +83,6 @@ h1, h2, h3, h4, .font-serif, .logo-text {
   overflow: hidden;
 }
 
-/* Custom utility classes for Oppa Dru theme */
 .bg-oppa-gradient {
   background: linear-gradient(135deg, var(--oppa-green) 0%, var(--oppa-green-dark) 100%);
 }
@@ -108,35 +105,4 @@ h1, h2, h3, h4, .font-serif, .logo-text {
 .hover-oppa-transition:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-}
-
-/* src/styles/global.css - Add these animations */
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-in-out;
-}
-
-/* For the processing dots */
-.animate-bounce {
-  animation: bounce 1s infinite;
 }

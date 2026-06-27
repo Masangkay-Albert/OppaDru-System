@@ -1,4 +1,3 @@
-// src/modules/customer-side/components/tracking/DriverMarker.tsx
 import React, { useEffect, useState } from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import { getPositionAlongRoute, type Coordinates } from '../../../../services/geocodingService';

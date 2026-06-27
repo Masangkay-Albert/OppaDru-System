@@ -8,7 +8,7 @@ import oppaLogo from "../../../../assets/oppadrulogo.jpg";
 const NavbarCustomer: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { favorites } = useFavorites();
+  const { favorites, favoriteNotificationCount } = useFavorites();
   const [showDropdown, setShowDropdown] = useState(false);
 
   const getInitials = (name: string) => {
@@ -21,11 +21,16 @@ const NavbarCustomer: React.FC = () => {
     setShowDropdown(false);
   };
 
+  const handleFavoritesClick = () => {
+    navigate("/customer/favorites");
+  };
+
+  const showBadge = favoriteNotificationCount > 0;
+
   return (
     <nav className="bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] sticky top-0 z-50 shadow-lg">
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo - Left side */}
           <div 
             className="flex items-center gap-2 sm:gap-3 cursor-pointer flex-shrink-0"
             onClick={() => navigate("/customer")}
@@ -35,7 +40,6 @@ const NavbarCustomer: React.FC = () => {
               alt="Oppa Dru" 
               className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border border-white/20"
             />
-            {/* Desktop: Full text, Mobile: Short text */}
             <span className="font-serif font-bold text-white text-sm sm:text-base md:text-lg whitespace-nowrap hidden sm:inline">
               Oppa Dru Korean Fried Chicken
             </span>
@@ -44,23 +48,20 @@ const NavbarCustomer: React.FC = () => {
             </span>
           </div>
 
-          {/* Right side - Favorites and Profile */}
           <div className="flex items-center gap-3 sm:gap-5 md:gap-6 flex-shrink-0">
-            {/* Favorites */}
             <button
-              onClick={() => navigate("/customer/favorites")}
+              onClick={handleFavoritesClick}
               className="relative flex items-center gap-1 sm:gap-2 text-white font-sans font-medium hover:text-white/90 transition-colors duration-200"
             >
               <Heart size={16} className="sm:w-[18px] sm:h-[18px] md:w-5 md:h-5" />
               <span className="text-sm sm:text-base">Favorites</span>
-              {favorites.length > 0 && (
-                <span className="absolute -top-2 -right-3 sm:-right-4 bg-[#e76f51] text-white text-xs font-bold rounded-full min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] flex items-center justify-center px-1">
-                  {favorites.length}
+              {showBadge && (
+                <span className="absolute -top-2 -right-3 sm:-right-4 bg-[#e76f51] text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] sm:min-w-[20px] sm:h-[20px] flex items-center justify-center px-1.5 animate-pulse">
+                  {favoriteNotificationCount}
                 </span>
               )}
             </button>
 
-            {/* Profile Dropdown */}
             {user && (
               <div className="relative">
                 <button

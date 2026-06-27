@@ -1,4 +1,3 @@
-// GreetingBanner.tsx
 import React from 'react';
 import type { ProductCategory } from '../../../../types/product.types';
 
@@ -31,9 +30,9 @@ const GreetingBanner: React.FC<GreetingBannerProps> = ({
   const displayName = userName || 'Guest';
 
   return (
-    <div className="bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] rounded-2xl p-6 mb-6 text-white shadow-lg">
-      <h2 className="text-xl sm:text-2xl font-bold mb-1">
-        {greeting}, {displayName}! 
+    <div className="bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] rounded-2xl p-6 mb-6 text-white shadow-xl">
+      <h2 className="text-xl sm:text-2xl font-serif font-bold mb-1">
+        {greeting}, {displayName}!
       </h2>
       <p className="text-[#d8f3dc] text-sm mb-4">What are you craving today?</p>
       
@@ -42,7 +41,7 @@ const GreetingBanner: React.FC<GreetingBannerProps> = ({
           <button
             key={category.id}
             onClick={() => onCategoryClick(category.id)}
-            className="px-4 py-2 rounded-full text-sm font-medium bg-white/20 text-white hover:bg-white/30 transition-all"
+            className="px-4 py-2 rounded-full text-sm font-medium bg-white/20 text-white hover:bg-white/30 transition-all hover:scale-105"
           >
             {category.name}
           </button>
