@@ -1,3 +1,4 @@
+// src/modules/customer-side/components/common/MapClickHandler.tsx
 import { useMapEvents } from 'react-leaflet';
 
 interface Props {

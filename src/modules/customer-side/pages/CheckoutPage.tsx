@@ -1,7 +1,7 @@
 // src/modules/customer-side/pages/CheckoutPage.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiShoppingCart, FiAlertCircle } from 'react-icons/fi';
+import { FiArrowLeft, FiShoppingCart } from 'react-icons/fi';
 import { useCart } from '../../../contexts/CartContext';
 import { useOrder } from '../../../contexts/OrderContext';
 import { useToast } from '../components/ToastProvider';
@@ -10,6 +10,7 @@ import CheckoutForm from '../components/checkout/CheckoutForm';
 import CheckoutSummary from '../components/checkout/CheckoutSummary';
 import GCashPaymentModal from '../components/checkout/GCashPaymentModal';
 import CreditCardPaymentModal from '../components/checkout/CreditCardPaymentModal';
+import ScheduleModal from '../components/checkout/ScheduleModal';
 import { useCheckoutForm } from '../../../hooks/useCheckoutForm';
 import { geocodeAddress, OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
 import { FEES } from '../../../utils/constants';
@@ -25,6 +26,33 @@ interface PaymentResult {
   amount: number;
 }
 
+const getAvailableDates = () => {
+  const dates = [];
+  const today = new Date();
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dates.push({
+      date: date,
+      label: i === 0 ? 'Today' : dayNames[date.getDay()]
+    });
+  }
+  return dates;
+};
+
+const getTimeSlots = () => {
+  const slots = [];
+  for (let hour = 8; hour <= 22; hour++) {
+    for (let min = 0; min < 60; min += 30) {
+      const h = hour.toString().padStart(2, '0');
+      const m = min.toString().padStart(2, '0');
+      slots.push(`${h}:${m}`);
+    }
+  }
+  return slots;
+};
+
 const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cartItems, clearCart } = useCart();
@@ -34,7 +62,11 @@ const CheckoutPage: React.FC = () => {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [showGCashModal, setShowGCashModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [paymentReference, setPaymentReference] = useState('');
+  const [scheduleDisplay, setScheduleDisplay] = useState('Select date & time');
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   const {
     address,
@@ -45,7 +77,7 @@ const CheckoutPage: React.FC = () => {
     setDeliveryType,
     paymentMethod,
     setPaymentMethod,
-    voucherDiscount
+    voucherDiscount,
   } = useCheckoutForm();
 
   const calculateTotal = () => {
@@ -125,27 +157,33 @@ const CheckoutPage: React.FC = () => {
     }
   };
 
-  const validateCheckout = (): boolean => {
+  const handleScheduleConfirm = () => {
+    if (selectedDate && selectedTime) {
+      const dateStr = selectedDate.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      });
+      setScheduleDisplay(`${dateStr} at ${selectedTime}`);
+      showToast('Schedule set successfully!', 'success');
+    }
+  };
+
+  const handlePlaceOrder = () => {
     if (!address.street) {
-      showToast('Please enter your delivery address', 'error');
-      return false;
+      showToast('Please select a delivery address', 'error');
+      return;
     }
     
     if (!tempPerson.fullName) {
       showToast('Please enter your full name', 'error');
-      return false;
+      return;
     }
 
     if (!tempPerson.phone) {
       showToast('Please enter your phone number', 'error');
-      return false;
+      return;
     }
-    
-    return true;
-  };
-
-  const handlePlaceOrder = () => {
-    if (!validateCheckout()) return;
     
     if (paymentMethod === 'cash_on_delivery') {
       placeOrderDirect();
@@ -208,13 +246,14 @@ const CheckoutPage: React.FC = () => {
             <CheckoutForm 
               address={address}
               updateAddress={updateAddress}
-              cartItems={cartItems}
               tempPerson={tempPerson}
               updatePerson={updatePerson}
               deliveryType={deliveryType}
               setDeliveryType={setDeliveryType}
               paymentMethod={paymentMethod}
               setPaymentMethod={setPaymentMethod}
+              scheduleDisplay={scheduleDisplay}
+              onScheduleClick={() => setShowScheduleModal(true)}
             />
           </div>
 
@@ -231,20 +270,35 @@ const CheckoutPage: React.FC = () => {
         </div>
       </div>
 
+      <ScheduleModal
+        isOpen={showScheduleModal}
+        onClose={() => {
+          setShowScheduleModal(false);
+          setSelectedDate(null);
+          setSelectedTime(null);
+        }}
+        availableDates={getAvailableDates()}
+        timeSlots={getTimeSlots()}
+        selectedDate={selectedDate}
+        selectedTime={selectedTime}
+        onSelectDate={setSelectedDate}
+        onSelectTime={setSelectedTime}
+        onConfirm={() => {
+          handleScheduleConfirm();
+          setShowScheduleModal(false);
+        }}
+      />
+
       <GCashPaymentModal
         isOpen={showGCashModal}
-        onClose={() => {
-          setShowGCashModal(false);
-        }}
+        onClose={() => setShowGCashModal(false)}
         amount={total}
         onPaymentComplete={handlePaymentComplete}
       />
 
       <CreditCardPaymentModal
         isOpen={showCardModal}
-        onClose={() => {
-          setShowCardModal(false);
-        }}
+        onClose={() => setShowCardModal(false)}
         amount={total}
         onPaymentComplete={handlePaymentComplete}
       />
