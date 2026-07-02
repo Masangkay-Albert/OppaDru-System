@@ -1,4 +1,3 @@
-// src/modules/customer-side/components/checkout/CheckoutForm.tsx
 import React, { useState } from 'react';
 import { useAuth } from '../../../../contexts/Authcontext';
 import { useToast } from '../ToastProvider';
@@ -9,9 +8,17 @@ import PersonalDetailsForm from './PersonalDetailsForm';
 import DeliveryOptions from './DeliveryOptions';
 import PaymentMethods from './PaymentMethods';
 
+interface AddressFormState {
+  street: string;
+  floor: string;
+  note: string;
+  block: string; 
+  lot: string;   
+}
+
 interface CheckoutFormProps {
-  address: { street: string; floor: string; note: string };
-  updateAddress: (field: keyof { street: string; floor: string; note: string }, value: string) => void;
+  address: AddressFormState; // ✅ UPDATED to use shared shape
+  updateAddress: (field: keyof AddressFormState, value: string) => void; // ✅ UPDATED
   tempPerson: { fullName: string; email: string; phone: string };
   updatePerson: (field: keyof { fullName: string; email: string; phone: string }, value: string) => void;
   deliveryType: 'standard' | 'priority';
@@ -57,6 +64,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       }
       if (details?.floor) updateAddress('floor', details.floor);
       if (details?.note) updateAddress('note', details.note);
+      updateAddress('block', details?.block || ''); 
+      updateAddress('lot', details?.lot || '');     
     }
   });
 
@@ -64,18 +73,15 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
     const newAddress = addAddress(location);
     if (newAddress) {
       setShowLocationPicker(false);
-      // REMOVED: showToast(editingAddress ? 'Address updated!' : 'Address added!', 'success');
     }
   };
 
   const handleDeleteAddress = (id: string) => {
     deleteAddress(id);
-    // REMOVED: showToast('Address deleted', 'info');
   };
 
   const handleSetDefault = (id: string) => {
     setDefaultAddress(id);
-    // REMOVED: showToast('Default address updated!', 'success');
   };
 
   const handleSaveDetails = (details: any) => {
@@ -83,7 +89,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       updateDetails(selectedAddressId, details);
       if (details.floor) updateAddress('floor', details.floor);
       if (details.note) updateAddress('note', details.note);
-      // REMOVED: showToast('Additional details saved!', 'success');
+      updateAddress('block', details.block || ''); 
+      updateAddress('lot', details.lot || '');    
     }
   };
 

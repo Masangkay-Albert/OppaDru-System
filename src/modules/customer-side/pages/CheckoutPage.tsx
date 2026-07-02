@@ -1,4 +1,3 @@
-// src/modules/customer-side/pages/CheckoutPage.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiShoppingCart } from 'react-icons/fi';
@@ -58,8 +57,9 @@ const CheckoutPage: React.FC = () => {
   const { cartItems, clearCart } = useCart();
   const { placeOrder } = useOrder();
   const { showToast } = useToast();
-  
+
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [orderCompleted, setOrderCompleted] = useState(false);
   const [showGCashModal, setShowGCashModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -85,12 +85,12 @@ const CheckoutPage: React.FC = () => {
       const addonsTotal = item.selectedAddons?.reduce((s, a) => s + a.price, 0) || 0;
       return sum + (item.price + addonsTotal) * item.quantity;
     }, 0);
-    
+
     const deliveryFee = deliveryType === 'priority' ? FEES.DELIVERY.PRIORITY : FEES.DELIVERY.STANDARD;
     const serviceFee = FEES.SERVICE;
     const vatRate = FEES.VAT_RATE;
     const total = subtotal + deliveryFee + serviceFee + ((subtotal + deliveryFee + serviceFee - voucherDiscount) * vatRate);
-    
+
     return {
       subtotal,
       deliveryFee,
@@ -100,43 +100,58 @@ const CheckoutPage: React.FC = () => {
     };
   };
 
+const buildFullDeliveryAddress = () => {
+  const parts: string[] = [];
+
+  if (address.block.trim()) {
+    parts.push(`Block ${address.block.trim()}`);
+  }
+  if (address.lot.trim()) {
+    parts.push(`Lot ${address.lot.trim()}`);
+  }
+  if (address.street.trim()) {
+    parts.push(address.street.trim());
+  }
+  return parts.join(', ');
+};
+
   const placeOrderDirect = async () => {
     setIsPlacingOrder(true);
-    
+
     try {
-      const userAddress = address.street;
-      const shortAddress = cleanAddress(userAddress);
+      const rawStreetAddress = address.street;
+      const shortAddress = cleanAddress(rawStreetAddress);
 
       let coords = await geocodeAddress(shortAddress);
 
       if (!coords) {
-        const cityMatch = userAddress.match(/(Dasmariñas|Imus|Bacoor|General Trias|Silang|Tagaytay|Manila|Quezon|Makati|Taguig|Cebu|Davao|Baguio)/i);
+        const cityMatch = rawStreetAddress.match(/(Dasmariñas|Imus|Bacoor|General Trias|Silang|Tagaytay|Manila|Quezon|Makati|Taguig|Cebu|Davao|Baguio)/i);
         const fallbackAddress = cityMatch ? `${cityMatch[1]}, Philippines` : 'Dasmariñas, Cavite, Philippines';
         coords = await geocodeAddress(fallbackAddress);
       }
-      
+
       if (!coords) {
         coords = { ...OPPA_DRU_STORE_COORDS };
       }
-      
+
       const { total } = calculateTotal();
-      
+      const fullDeliveryAddress = buildFullDeliveryAddress(); 
+
       placeOrder(
-        cartItems, 
-        total, 
-        userAddress, 
-        coords, 
+        cartItems,
+        total,
+        fullDeliveryAddress, 
+        coords,
         paymentMethod,
         paymentReference || undefined
       );
-      
+
+      setOrderCompleted(true);
       clearCart();
-      showToast('Order placed successfully! 🎉', 'success');
-      
-      setTimeout(() => {
-        navigate('/tracking');
-      }, 1000);
-      
+      showToast('Order placed successfully!', 'success');
+
+      navigate('/tracking');
+
     } catch (error) {
       showToast('Failed to place order. Please try again.', 'error');
       console.error('Order placement error:', error);
@@ -159,10 +174,10 @@ const CheckoutPage: React.FC = () => {
 
   const handleScheduleConfirm = () => {
     if (selectedDate && selectedTime) {
-      const dateStr = selectedDate.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
+      const dateStr = selectedDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
       });
       setScheduleDisplay(`${dateStr} at ${selectedTime}`);
       showToast('Schedule set successfully!', 'success');
@@ -174,7 +189,7 @@ const CheckoutPage: React.FC = () => {
       showToast('Please select a delivery address', 'error');
       return;
     }
-    
+
     if (!tempPerson.fullName) {
       showToast('Please enter your full name', 'error');
       return;
@@ -184,17 +199,17 @@ const CheckoutPage: React.FC = () => {
       showToast('Please enter your phone number', 'error');
       return;
     }
-    
+
     if (paymentMethod === 'cash_on_delivery') {
       placeOrderDirect();
       return;
     }
-    
+
     if (paymentMethod === 'gcash') {
       setShowGCashModal(true);
       return;
     }
-    
+
     if (paymentMethod === 'credit_card') {
       setShowCardModal(true);
       return;
@@ -203,7 +218,7 @@ const CheckoutPage: React.FC = () => {
 
   const { total } = calculateTotal();
 
-  if (cartItems.length === 0) {
+  if (cartItems.length === 0 && !orderCompleted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
         <NavbarCustomer />
@@ -227,11 +242,11 @@ const CheckoutPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
       <NavbarCustomer />
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center gap-3 mb-6 pb-3 border-b border-[#e76f51]/20">
-          <button 
-            onClick={() => navigate('/customer')} 
+          <button
+            onClick={() => navigate('/customer')}
             className="flex items-center gap-2 text-gray-500 hover:text-[#2d6a4f] transition-colors group"
           >
             <FiArrowLeft className="group-hover:-translate-x-1 transition-transform" size={18} />
@@ -243,7 +258,7 @@ const CheckoutPage: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            <CheckoutForm 
+            <CheckoutForm
               address={address}
               updateAddress={updateAddress}
               tempPerson={tempPerson}

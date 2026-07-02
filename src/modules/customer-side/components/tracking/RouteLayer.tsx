@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { getRouteFromGoogle } from '../../../../services/geocodingService';
+import { getRouteOSRM, getRouteFromGoogle } from '../../../../services/geocodingService';
 
 interface RouteLayerProps {
   start: { lat: number; lng: number };
@@ -13,15 +13,20 @@ interface RouteLayerProps {
 const RouteLayer: React.FC<RouteLayerProps> = ({ start, end, progress, onRouteLoaded }) => {
   const [fullRoute, setFullRoute] = useState<[number, number][]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [usingFallback, setUsingFallback] = useState(false);
   const map = useMap();
 
   useEffect(() => {
     const fetchRoute = async () => {
       setLoading(true);
-      setError(null);
-      const points = await getRouteFromGoogle(start, end);
-      
+      setUsingFallback(false);
+
+      let points = await getRouteOSRM(start, end);
+
+      if (!points || points.length === 0) {
+        points = await getRouteFromGoogle(start, end);
+      }
+
       if (points && points.length > 0) {
         setFullRoute(points);
         onRouteLoaded?.(points);
@@ -34,6 +39,7 @@ const RouteLayer: React.FC<RouteLayerProps> = ({ start, end, progress, onRouteLo
         ];
         setFullRoute(fallbackPoints);
         onRouteLoaded?.(fallbackPoints);
+        setUsingFallback(true);
       }
       setLoading(false);
     };
@@ -52,13 +58,35 @@ const RouteLayer: React.FC<RouteLayerProps> = ({ start, end, progress, onRouteLo
     return fullRoute.slice(Math.max(1, count));
   }, [fullRoute, progress]);
 
-  if (loading) return <div className="absolute top-2 left-2 z-[1000] bg-white/90 p-2 rounded shadow text-xs">Loading route...</div>;
-  if (error || !fullRoute.length) return <div className="absolute top-2 left-2 z-[1000] bg-red-100 p-2 rounded shadow text-xs text-red-600">{error || 'No route available'}</div>;
+  if (loading) {
+    return (
+      <div className="absolute top-2 left-2 z-[1000] bg-white/90 p-2 rounded shadow text-xs">
+        Loading route...
+      </div>
+    );
+  }
+
+  if (!fullRoute.length) {
+    return (
+      <div className="absolute top-2 left-2 z-[1000] bg-red-100 p-2 rounded shadow text-xs text-red-600">
+        No route available
+      </div>
+    );
+  }
 
   return (
     <>
-      {remainingRoute.length > 1 && <Polyline positions={remainingRoute} color="#e76f51" weight={4} opacity={0.7} dashArray="8, 8" />}
-      {traveledRoute.length > 1 && <Polyline positions={traveledRoute} color="#2d6a4f" weight={4} opacity={0.9} />}
+      {usingFallback && (
+        <div className="absolute top-2 left-2 z-[1000] bg-yellow-100 p-2 rounded shadow text-xs text-yellow-700">
+          Using straight-line route
+        </div>
+      )}
+      {remainingRoute.length > 1 && (
+        <Polyline positions={remainingRoute} color="#e76f51" weight={4} opacity={0.7} dashArray="8, 8" />
+      )}
+      {traveledRoute.length > 1 && (
+        <Polyline positions={traveledRoute} color="#2d6a4f" weight={4} opacity={0.9} />
+      )}
     </>
   );
 };

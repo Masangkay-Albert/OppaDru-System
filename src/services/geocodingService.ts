@@ -1,4 +1,3 @@
-// src/services/geocodingService.ts
 import { OPPA_DRU_STORE } from '../utils/constants';
 
 export interface ResolvedAddress {
@@ -58,8 +57,8 @@ export const geocodeAddress = async (address: string): Promise<Coordinates | nul
   if (!address.trim()) return null;
 
   try {
-    const searchQuery = address.includes('Philippines') || address.includes('PH') 
-      ? address 
+    const searchQuery = address.includes('Philippines') || address.includes('PH')
+      ? address
       : `${address}, Philippines`;
 
     const response = await fetch(
@@ -83,7 +82,7 @@ export const geocodeAddress = async (address: string): Promise<Coordinates | nul
       );
       const fallbackData = await fallbackResponse.json();
       if (!fallbackData?.length) return null;
-      
+
       return {
         lat: parseFloat(fallbackData[0].lat),
         lng: parseFloat(fallbackData[0].lon)
@@ -118,6 +117,35 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string |
     return null;
   } catch (error) {
     console.error('Reverse geocode error:', error);
+    return null;
+  }
+};
+
+/**
+ * Kumukuha ng aktwal na road route gamit ang OSRM (Open Source Routing Machine).
+ * Libre, walang kailangang API key, at naka-base sa OpenStreetMap data —
+ * pareho ng pinagmulan ng geocoding functions sa file na ito.
+ */
+export const getRouteOSRM = async (
+  start: Coordinates,
+  end: Coordinates
+): Promise<[number, number][] | null> => {
+  try {
+    const response = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+    );
+    const data = await response.json();
+
+    if (data.code === 'Ok' && data.routes?.length > 0) {
+      // GeoJSON coordinates ay [lng, lat] — kailangan i-flip papuntang [lat, lng] para sa Leaflet
+      const coordinates: [number, number][] = data.routes[0].geometry.coordinates.map(
+        (c: [number, number]) => [c[1], c[0]]
+      );
+      return coordinates;
+    }
+    return null;
+  } catch (error) {
+    console.error('OSRM route fetch error:', error);
     return null;
   }
 };
@@ -194,7 +222,7 @@ export const getAddressFromCoords = async (
 ): Promise<ResolvedAddress | null> => {
   const address = await reverseGeocode(lat, lng);
   if (!address) return null;
-  
+
   return {
     name: getAddressName(address),
     address
@@ -222,7 +250,7 @@ export const calculateDistance = (
 };
 
 export const getPositionAlongRoute = (
-  routePoints: [number, number][], 
+  routePoints: [number, number][],
   progressPercent: number
 ): Coordinates => {
   if (routePoints.length === 0) {
@@ -243,7 +271,7 @@ export const getPositionAlongRoute = (
   const fraction = targetIndex - index;
   const currentPoint = routePoints[index];
   const nextPoint = routePoints[nextIndex];
-  
+
   return {
     lat: currentPoint[0] + (nextPoint[0] - currentPoint[0]) * fraction,
     lng: currentPoint[1] + (nextPoint[1] - currentPoint[1]) * fraction

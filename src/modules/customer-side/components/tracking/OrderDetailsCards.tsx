@@ -3,6 +3,7 @@ import React from 'react';
 import { ORDER_STATUS } from '../../../../utils/constants';
 import type { Order } from '../../../../contexts/OrderContext';
 import type { CartItem, Addon } from '../../../../types/product.types';
+import { formatCurrency } from '../../../../utils/formatters';
 
 interface OrderDetailsCardsProps {
   currentOrder: Order;
@@ -10,32 +11,60 @@ interface OrderDetailsCardsProps {
 }
 
 const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, formatDate }) => {
+  const subtotal = currentOrder.items?.reduce((sum: number, item: CartItem) => {
+    const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + a.price, 0) || 0;
+    return sum + (item.price + addonsTotal) * item.quantity;
+  }, 0) || 0;
+
+  const deliveryFee = currentOrder.deliveryFee ?? 49;
+  const serviceFee = currentOrder.serviceFee ?? 29;
+  const vat = Math.max(0, currentOrder.total - subtotal - deliveryFee - serviceFee);
+
   return (
     <div className="space-y-4">
-      {/* Order Items Card */}
       <div className="bg-white rounded-2xl shadow-lg p-5">
         <h3 className="font-semibold text-gray-800 mb-3">Order Items</h3>
-        <div className="space-y-2 max-h-48 overflow-y-auto">
+        <div className="space-y-2 max-h-48 overflow-y-auto mb-3">
           {currentOrder.items?.map((item: CartItem, idx: number) => {
             const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + a.price, 0) || 0;
             const itemTotal = (item.price + addonsTotal) * item.quantity;
             return (
               <div key={idx} className="flex justify-between text-sm py-1 border-b border-gray-100 last:border-0">
                 <span className="text-gray-600">{item.quantity}x {item.name}</span>
-                <span className="text-gray-800 font-medium">₱{Math.round(itemTotal)}</span>
+                <span className="text-gray-800 font-medium">{formatCurrency(itemTotal)}</span>
               </div>
             );
           })}
         </div>
+
+        <div className="border-t border-gray-100 pt-3 space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Subtotal</span>
+            <span className="text-gray-800">{formatCurrency(subtotal)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Delivery fee</span>
+            <span className="text-gray-800">{deliveryFee === 0 ? 'Free' : formatCurrency(deliveryFee)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Service fee</span>
+            <span className="text-gray-800">{formatCurrency(serviceFee)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">VAT (12%)</span>
+            <span className="text-gray-800">{formatCurrency(vat)}</span>
+          </div>
+        </div>
+
         <div className="border-t border-[#e76f51]/20 pt-3 mt-2">
           <div className="flex justify-between text-base font-semibold">
             <span>Total</span>
-            <span className="text-[#2d6a4f]">₱{Math.round(currentOrder.total)}</span>
+            <span className="text-[#2d6a4f]">{formatCurrency(currentOrder.total)}</span>
           </div>
+          <p className="text-xs text-gray-400 text-right">(inc. fees and tax)</p>
         </div>
       </div>
 
-      {/* Delivery Address Card */}
       <div className="bg-white rounded-2xl shadow-lg p-5">
         <h3 className="font-semibold text-gray-800 mb-3">Delivery Address</h3>
         <div className="flex gap-3">
@@ -54,7 +83,6 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
         </div>
       </div>
 
-      {/* Order Information Card - Combined with Payment Details */}
       <div className="bg-white rounded-2xl shadow-lg p-5">
         <h3 className="font-semibold text-gray-800 mb-3">Order Information</h3>
         <div className="space-y-2 text-sm">
@@ -78,14 +106,6 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
               <span className="text-gray-700 font-mono text-xs">{currentOrder.paymentReference}</span>
             </div>
           )}
-          <div className="flex justify-between">
-            <span className="text-gray-500">Delivery Fee</span>
-            <span className="text-gray-700">₱{currentOrder.deliveryFee || 49}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Service Fee</span>
-            <span className="text-gray-700">₱{currentOrder.serviceFee || 29}</span>
-          </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Status</span>
             <span className={`font-medium ${
