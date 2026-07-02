@@ -1,5 +1,7 @@
 // src/modules/customer-side/components/checkout/CreditCardPaymentModal.tsx
 import React, { useState } from 'react';
+import { FaCreditCard, FaCheckCircle, FaTimesCircle, FaLock, FaCcVisa, FaCcMastercard, FaCcAmex, FaCcDiscover } from 'react-icons/fa';
+import { IoClose } from 'react-icons/io5';
 import { usePayment } from '../../../../hooks/usePayment';
 
 interface PaymentResult {
@@ -33,7 +35,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
     cvv: ''
   });
 
-  const { processCard, isProcessing, result, formatCurrency } = usePayment();
+  const { processCard, isProcessing, result, formatCurrency, reset } = usePayment();
 
   if (!isOpen) return null;
 
@@ -82,16 +84,17 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
 
   const handleClose = () => {
     setForm({ cardNumber: '', cardHolderName: '', expiryMonth: '', expiryYear: '', cvv: '' });
+    reset();
     onClose();
   };
 
-  const getCardType = (number: string) => {
-    const clean = number.replace(/\s/g, '');
-    if (clean.startsWith('4')) return 'Visa';
-    if (clean.startsWith('5')) return 'Mastercard';
-    if (clean.startsWith('3')) return 'Amex';
-    if (clean.startsWith('6')) return 'Discover';
-    return '';
+  const CardTypeIcon = () => {
+    const clean = form.cardNumber.replace(/\s/g, '');
+    if (clean.startsWith('4')) return <FaCcVisa size={32} className="opacity-80" />;
+    if (clean.startsWith('5')) return <FaCcMastercard size={32} className="opacity-80" />;
+    if (clean.startsWith('3')) return <FaCcAmex size={32} className="opacity-80" />;
+    if (clean.startsWith('6')) return <FaCcDiscover size={32} className="opacity-80" />;
+    return null;
   };
 
   if (isProcessing) {
@@ -110,9 +113,11 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
         <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center">
-          <div className={`text-6xl ${result.success ? 'text-green-500' : 'text-red-500'}`}>
-            {result.success ? '✅' : '❌'}
-          </div>
+          {result.success ? (
+            <FaCheckCircle className="text-6xl text-green-500 mx-auto" />
+          ) : (
+            <FaTimesCircle className="text-6xl text-red-500 mx-auto" />
+          )}
           <h3 className={`text-xl font-bold mt-3 ${result.success ? 'text-green-600' : 'text-red-600'}`}>
             {result.success ? 'Payment Successful!' : 'Payment Failed'}
           </h3>
@@ -124,7 +129,13 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
             </div>
           )}
           <button
-            onClick={handleClose}
+            onClick={() => {
+              if (result.success) {
+                handleClose();
+              } else {
+                reset();
+              }
+            }}
             className="mt-4 w-full py-3 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4332]"
           >
             {result.success ? 'Continue' : 'Try Again'}
@@ -136,22 +147,22 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-        <button onClick={handleClose} className="float-right text-gray-400 hover:text-gray-600 text-2xl">
-          ×
+      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+        <button onClick={handleClose} className="absolute right-6 top-6 text-gray-400 hover:text-gray-600">
+          <IoClose size={24} />
         </button>
 
-        <div className="text-center">
-          <div className="text-6xl mb-3">💳</div>
+        <div className="text-center pt-2">
+          <FaCreditCard className="text-5xl text-[#2d6a4f] mx-auto mb-3" />
           <h3 className="text-xl font-bold text-gray-800">Credit / Debit Card</h3>
           <p className="text-sm text-gray-500 mt-1">Enter your card details securely</p>
           <p className="text-2xl font-bold text-[#2d6a4f] mt-3">{formatCurrency(amount)}</p>
         </div>
 
         <div className="mt-4 bg-gradient-to-br from-[#1a1a2e] to-[#16213e] rounded-xl p-4 text-white min-h-[120px]">
-          {getCardType(form.cardNumber) && (
-            <div className="text-right text-xs font-bold opacity-50 mb-2">{getCardType(form.cardNumber)}</div>
-          )}
+          <div className="flex justify-end h-8">
+            <CardTypeIcon />
+          </div>
           <div className="font-mono text-lg tracking-wider">
             {form.cardNumber || '•••• •••• •••• ••••'}
           </div>
@@ -230,7 +241,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
         </div>
 
         <div className="mt-3 flex items-center gap-2 text-xs text-gray-400 bg-gray-50 p-3 rounded-xl">
-          <span className="text-green-500 text-lg">🔒</span>
+          <FaLock className="text-green-500" size={14} />
           <span>Your payment information is secure and encrypted</span>
         </div>
 

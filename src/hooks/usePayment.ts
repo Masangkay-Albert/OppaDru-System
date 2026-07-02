@@ -1,18 +1,38 @@
 // src/hooks/usePayment.ts
 import { useState } from 'react';
-import { paymentService, type PaymentResult } from '../services/paymentService';
+import { paymentService, type PaymentResult, type OTPRequestResult } from '../services/paymentService';
 
 export const usePayment = () => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PaymentResult | null>(null);
 
-  const processGCash = async (mobileNumber: string, amount: number) => {
+  const requestGCashOTP = async (mobileNumber: string): Promise<OTPRequestResult> => {
+    setIsSendingOtp(true);
+    setError(null);
+    try {
+      const response = await paymentService.requestGCashOTP(mobileNumber);
+      if (!response.success) {
+        setError(response.message);
+      }
+      return response;
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const processGCash = async (
+    mobileNumber: string,
+    enteredOtp: string,
+    expectedOtp: string,
+    amount: number
+  ) => {
     setIsProcessing(true);
     setError(null);
-    
+
     try {
-      const response = await paymentService.processGCash(mobileNumber, amount);
+      const response = await paymentService.processGCash(mobileNumber, enteredOtp, expectedOtp, amount);
       setResult(response);
       return response;
     } catch (err) {
@@ -34,7 +54,7 @@ export const usePayment = () => {
   }) => {
     setIsProcessing(true);
     setError(null);
-    
+
     try {
       const response = await paymentService.processCard(data);
       setResult(response);
@@ -50,14 +70,17 @@ export const usePayment = () => {
 
   const reset = () => {
     setIsProcessing(false);
+    setIsSendingOtp(false);
     setError(null);
     setResult(null);
   };
 
   return {
     isProcessing,
+    isSendingOtp,
     error,
     result,
+    requestGCashOTP,
     processGCash,
     processCard,
     reset,
