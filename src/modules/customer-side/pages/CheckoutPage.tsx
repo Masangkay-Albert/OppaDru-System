@@ -1,6 +1,7 @@
 // src/modules/customer-side/pages/CheckoutPage.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FiArrowLeft, FiShoppingCart, FiAlertCircle } from 'react-icons/fi';
 import { useCart } from '../../../contexts/CartContext';
 import { useOrder } from '../../../contexts/OrderContext';
 import { useToast } from '../components/ToastProvider';
@@ -76,10 +77,9 @@ const CheckoutPage: React.FC = () => {
 
       let coords = await geocodeAddress(shortAddress);
 
-      const cityMatch = userAddress.match(/(Dasmariñas|Imus|Bacoor|General Trias|Silang|Tagaytay)/i);
-      const fallbackAddress = cityMatch ? `${cityMatch[1]}, Cavite` : 'Dasmariñas, Cavite';
-      
       if (!coords) {
+        const cityMatch = userAddress.match(/(Dasmariñas|Imus|Bacoor|General Trias|Silang|Tagaytay|Manila|Quezon|Makati|Taguig|Cebu|Davao|Baguio)/i);
+        const fallbackAddress = cityMatch ? `${cityMatch[1]}, Philippines` : 'Dasmariñas, Cavite, Philippines';
         coords = await geocodeAddress(fallbackAddress);
       }
       
@@ -105,8 +105,9 @@ const CheckoutPage: React.FC = () => {
         navigate('/tracking');
       }, 1000);
       
-    } catch {
+    } catch (error) {
       showToast('Failed to place order. Please try again.', 'error');
+      console.error('Order placement error:', error);
     } finally {
       setIsPlacingOrder(false);
     }
@@ -170,7 +171,7 @@ const CheckoutPage: React.FC = () => {
         <NavbarCustomer />
         <div className="flex items-center justify-center h-[80vh]">
           <div className="bg-white rounded-2xl shadow-xl p-12 text-center max-w-md">
-            <div className="text-7xl mb-6">🛒</div>
+            <FiShoppingCart className="text-7xl text-gray-300 mx-auto mb-6" />
             <h2 className="text-2xl font-bold text-gray-800 mb-3">Your cart is empty</h2>
             <p className="text-gray-500 mb-6">Add some delicious Korean fried chicken to your order!</p>
             <button
@@ -195,9 +196,7 @@ const CheckoutPage: React.FC = () => {
             onClick={() => navigate('/customer')} 
             className="flex items-center gap-2 text-gray-500 hover:text-[#2d6a4f] transition-colors group"
           >
-            <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
+            <FiArrowLeft className="group-hover:-translate-x-1 transition-transform" size={18} />
             <span className="text-sm font-medium">Back to Menu</span>
           </button>
           <span className="text-gray-300 text-xl">|</span>

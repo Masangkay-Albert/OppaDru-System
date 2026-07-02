@@ -6,12 +6,18 @@ export interface LocationResult {
   address: string;
   lat: number;
   lng: number;
+  type?: string;
+  displayName?: string;
+  importance?: number;
 }
 
 interface OSMResponse {
   display_name: string;
   lat: string;
   lon: string;
+  class: string;
+  type: string;
+  importance: number;
   address: {
     [key: string]: string;
   };
@@ -24,7 +30,7 @@ export const searchLocationAPI = async (query: string): Promise<LocationResult[]
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
       cleanQuery
-    )}&limit=5&addressdetails=1&accept-language=en`;
+    )}&limit=15&addressdetails=1&accept-language=en&countrycodes=ph&dedupe=1&polygon=0`;
 
     const response = await fetch(url, {
       headers: {
@@ -35,43 +41,48 @@ export const searchLocationAPI = async (query: string): Promise<LocationResult[]
     const data: OSMResponse[] = await response.json();
     if (!Array.isArray(data)) return [];
 
-    return data
+    const prioritized = data
       .filter((item) => item?.display_name && item?.lat && item?.lon)
-      .map((item) => ({
-        name: item.display_name.split(',')[0].trim(),
-        address: item.display_name,
-        lat: parseFloat(item.lat),
-        lng: parseFloat(item.lon)
-      }));
-  } catch {
+      .sort((a, b) => {
+        const aHasPH = a.display_name?.toLowerCase().includes('philippines');
+        const bHasPH = b.display_name?.toLowerCase().includes('philippines');
+        if (aHasPH && !bHasPH) return -1;
+        if (!aHasPH && bHasPH) return 1;
+        return (b.importance || 0) - (a.importance || 0);
+      });
+
+    return prioritized.map((item) => ({
+      name: item.display_name.split(',')[0]?.trim() || item.display_name,
+      address: item.display_name,
+      lat: parseFloat(item.lat),
+      lng: parseFloat(item.lon),
+      type: item.class || 'location',
+      displayName: item.display_name,
+      importance: item.importance
+    }));
+  } catch (error) {
+    console.error('Search error:', error);
     return [];
   }
 };
 
-export const useLocationSearch = () => {
+export const useLocationSearch = (debounceDelay: number = 300) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<LocationResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<LocationResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const debounceRef = useRef<number | null>(null);
   const requestIdRef = useRef(0);
-  const skipRef = useRef(false);
 
   useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    setError(null);
 
     const q = searchQuery.trim();
 
-    if (skipRef.current) {
-      skipRef.current = false;
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-
-    if (q.length <= 2) {
-      requestIdRef.current++;
+    if (q.length <= 1) {
       setSearchResults([]);
       setIsSearching(false);
       return;
@@ -82,45 +93,66 @@ export const useLocationSearch = () => {
     debounceRef.current = window.setTimeout(async () => {
       setIsSearching(true);
 
-      const results = await searchLocationAPI(q);
+      try {
+        const results = await searchLocationAPI(q);
 
-      if (requestId === requestIdRef.current) {
-        setSearchResults(results);
-        setIsSearching(false);
+        if (requestId === requestIdRef.current) {
+          setSearchResults(results);
+          
+          if (results.length === 0) {
+            setError('No locations found. Try a different search term.');
+          }
+        }
+      } catch {
+        if (requestId === requestIdRef.current) {
+          setError('Failed to search locations. Please try again.');
+        }
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setIsSearching(false);
+        }
       }
-    }, 500);
+    }, debounceDelay);
 
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-  }, [searchQuery]);
+  }, [searchQuery, debounceDelay]);
 
-  const selectLocation = useCallback((location: LocationResult) => {
-    skipRef.current = true;
-    requestIdRef.current++;
-
+  const selectLocation = useCallback((location: LocationResult | null) => {
     setSelectedLocation(location);
-    setSearchQuery(location.address);
+    if (location) {
+      setSearchQuery(location.address);
+    }
     setSearchResults([]);
     setIsSearching(false);
+    setError(null);
   }, []);
 
   const clearSearch = useCallback(() => {
     requestIdRef.current++;
-
     setSearchQuery('');
     setSearchResults([]);
     setSelectedLocation(null);
     setIsSearching(false);
+    setError(null);
   }, []);
+
+  const handleInputChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (selectedLocation) {
+      setSelectedLocation(null);
+    }
+  }, [selectedLocation]);
 
   return {
     searchQuery,
-    setSearchQuery,
+    setSearchQuery: handleInputChange,
     searchResults,
     isSearching,
     selectedLocation,
     selectLocation,
-    clearSearch
+    clearSearch,
+    error
   };
 };

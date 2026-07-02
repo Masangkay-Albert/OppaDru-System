@@ -1,3 +1,4 @@
+// src/services/geocodingService.ts
 import { OPPA_DRU_STORE } from '../utils/constants';
 
 export interface ResolvedAddress {
@@ -17,28 +18,84 @@ export const OPPA_DRU_STORE_COORDS = {
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
+export const searchAddresses = async (query: string): Promise<Array<{
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  type?: string;
+}>> => {
+  if (!query.trim()) return [];
+
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=15&addressdetails=1&countrycodes=PH&dedupe=1&polygon=0&accept-language=en`,
+      {
+        headers: {
+          'User-Agent': 'OppaDruFoodDelivery/1.0'
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (!Array.isArray(data)) return [];
+
+    return data.map((item: any) => ({
+      name: item.display_name.split(',')[0]?.trim() || item.display_name,
+      address: item.display_name,
+      lat: parseFloat(item.lat),
+      lng: parseFloat(item.lon),
+      type: item.class || 'location'
+    }));
+  } catch (error) {
+    console.error('Search addresses error:', error);
+    return [];
+  }
+};
+
 export const geocodeAddress = async (address: string): Promise<Coordinates | null> => {
   if (!address.trim()) return null;
 
   try {
+    const searchQuery = address.includes('Philippines') || address.includes('PH') 
+      ? address 
+      : `${address}, Philippines`;
+
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=10&countrycodes=ph`
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=ph`,
+      {
+        headers: {
+          'User-Agent': 'OppaDruFoodDelivery/1.0'
+        }
+      }
     );
     const data = await response.json();
 
-    if (!data?.length) return null;
-
-    const searchTerms = address.toLowerCase().split(' ');
-    const selectedResult = data.find((result: any) => {
-      const display = (result.display_name || '').toLowerCase();
-      return searchTerms.some((term: string) => display.includes(term));
-    }) || data[0];
+    if (!data?.length) {
+      const fallbackResponse = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
+        {
+          headers: {
+            'User-Agent': 'OppaDruFoodDelivery/1.0'
+          }
+        }
+      );
+      const fallbackData = await fallbackResponse.json();
+      if (!fallbackData?.length) return null;
+      
+      return {
+        lat: parseFloat(fallbackData[0].lat),
+        lng: parseFloat(fallbackData[0].lon)
+      };
+    }
 
     return {
-      lat: parseFloat(selectedResult.lat),
-      lng: parseFloat(selectedResult.lon)
+      lat: parseFloat(data[0].lat),
+      lng: parseFloat(data[0].lon)
     };
-  } catch {
+  } catch (error) {
+    console.error('Geocode address error:', error);
     return null;
   }
 };
@@ -46,7 +103,12 @@ export const geocodeAddress = async (address: string): Promise<Coordinates | nul
 export const reverseGeocode = async (lat: number, lng: number): Promise<string | null> => {
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      {
+        headers: {
+          'User-Agent': 'OppaDruFoodDelivery/1.0'
+        }
+      }
     );
     const data = await response.json();
 
@@ -54,7 +116,8 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string |
       return data.display_name;
     }
     return null;
-  } catch {
+  } catch (error) {
+    console.error('Reverse geocode error:', error);
     return null;
   }
 };
@@ -76,7 +139,8 @@ export const getRouteFromGoogle = async (
       return decodePolyline(points);
     }
     return null;
-  } catch {
+  } catch (error) {
+    console.error('Route fetch error:', error);
     return null;
   }
 };
