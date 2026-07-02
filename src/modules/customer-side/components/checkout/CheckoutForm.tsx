@@ -64,20 +64,18 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
     const newAddress = addAddress(location);
     if (newAddress) {
       setShowLocationPicker(false);
-      showToast(editingAddress ? 'Address updated!' : 'Address added!', 'success');
+      // REMOVED: showToast(editingAddress ? 'Address updated!' : 'Address added!', 'success');
     }
   };
 
   const handleDeleteAddress = (id: string) => {
-    const success = deleteAddress(id);
-    if (success) {
-      showToast('Address deleted', 'info');
-    }
+    deleteAddress(id);
+    // REMOVED: showToast('Address deleted', 'info');
   };
 
   const handleSetDefault = (id: string) => {
     setDefaultAddress(id);
-    showToast('Default address updated!', 'success');
+    // REMOVED: showToast('Default address updated!', 'success');
   };
 
   const handleSaveDetails = (details: any) => {
@@ -85,7 +83,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       updateDetails(selectedAddressId, details);
       if (details.floor) updateAddress('floor', details.floor);
       if (details.note) updateAddress('note', details.note);
-      showToast('Additional details saved!', 'success');
+      // REMOVED: showToast('Additional details saved!', 'success');
     }
   };
 
