@@ -1,4 +1,4 @@
-// PromoBanner.tsx
+// src/modules/customer-side/components/common/PromoBanner.tsx
 import React, { useState, useEffect } from 'react';
 
 interface Promo {
@@ -25,13 +25,13 @@ const PromoBanner: React.FC = () => {
   const currentPromo = promos[currentIndex];
 
   return (
-    <div className="bg-gradient-to-r from-[#e76f51] to-[#f4a261] text-white py-3 px-5 relative overflow-hidden">
+    <div className="bg-[#C1440E] text-white py-3 px-5 relative overflow-hidden">
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div className="flex items-center gap-3 flex-wrap text-sm">
           <strong className="text-white">{currentPromo.title}</strong>
-          <span>{currentPromo.description}</span>
+          <span className="text-white/90">{currentPromo.description}</span>
         </div>
-        <div className="bg-white/20 px-3 py-1 rounded-full text-xs">{currentPromo.validUntil}</div>
+        <div className="bg-white/15 px-3 py-1 rounded-full text-xs">{currentPromo.validUntil}</div>
       </div>
       <div className="flex justify-center gap-2 mt-2">
         {promos.map((_, index) => (
