@@ -36,9 +36,9 @@ export const products: Product[] = [
   { id: 'ch9', name: 'Spring Onion Boneless Chicken', description: 'Boneless fried chicken topped with spring onions', price: 438, category: 'chicken', image: oppadrulogo, isAvailable: true },
 
   // Snacks
-  { id: 'sn1', name: 'Crispy Chicken Sandwich', description: 'Crispy fried chicken fillet in a soft bun', price: 0, category: 'snacks', image: oppadrulogo, isAvailable: true },
-  { id: 'sn2', name: 'Tteokkboki (Ricecake + Fishcake)', description: 'Korean rice cakes and fishcake in spicy sauce', price: 0, category: 'snacks', image: oppadrulogo, isAvailable: true },
-  { id: 'sn3', name: 'French Fries', description: 'Crispy golden fries', price: 0, category: 'snacks', image: oppadrulogo, isAvailable: true },
+  { id: 'sn1', name: 'Crispy Chicken Sandwich', description: 'Crispy fried chicken fillet in a soft bun', price: 165, category: 'snacks', image: oppadrulogo, isAvailable: true },
+  { id: 'sn2', name: 'Tteokkboki (Ricecake + Fishcake)', description: 'Korean rice cakes and fishcake in spicy sauce', price: 139, category: 'snacks', image: oppadrulogo, isAvailable: true },
+  { id: 'sn3', name: 'French Fries', description: 'Crispy golden fries', price: 139, category: 'snacks', image: oppadrulogo, isAvailable: true },
 
   // Fruity Soda & Fruity Milk
   { id: 'fr1', name: 'Mango Milk', description: 'Creamy mango-flavored milk drink', price: 109, category: 'fruity-soda-milk', image: oppadrulogo, isAvailable: true },
