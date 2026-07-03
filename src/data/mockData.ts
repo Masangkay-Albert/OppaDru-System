@@ -8,7 +8,7 @@ export const categories: Category[] = [
   { id: 'chicken', name: 'Chicken', icon: '' },
   { id: 'beverages', name: 'Beverages', icon: '' },
   { id: 'snacks', name: 'Snacks', icon: '' },
-  { id: 'side-dishes', name: 'Side Dishes', icon: '' },
+  { id: 'side-dishes', name: 'Boneless Chicken', icon: '' },
 ];
 
 export const products: Product[] = [
