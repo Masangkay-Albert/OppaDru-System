@@ -1,4 +1,3 @@
-// src/modules/customer-side/components/product/ProductCard.tsx
 import React from 'react';
 import type { Product } from '../../../../types/product.types';
 import { useFavorites } from '../../../../contexts/FavoritesContext';
@@ -15,7 +14,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
 
   return (
     <div 
-      className="bg-white rounded-2xl overflow-hidden border border-gray-200/80 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:border-[#1b7a3d]/30 cursor-pointer group flex flex-col h-full"
+      className="bg-white rounded-2xl overflow-hidden border border-gray-200/80 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:border-[var(--oppa-green)]/30 cursor-pointer group flex flex-col h-full"
       onClick={() => onOpenModal(product)}
     >
       <div className="relative h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0">
@@ -30,7 +29,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
             Image
           </div>
         )}
-        <div className="absolute bottom-3 right-3 bg-gradient-to-r from-[#1b7a3d] to-[#0f5c2c] text-white px-4 py-1.5 rounded-full font-bold text-sm shadow-lg">
+        <div className="absolute bottom-3 right-3 bg-[var(--oppa-green)] text-white px-4 py-1.5 rounded-full font-bold text-sm shadow-lg">
           ₱{product.price}
         </div>
         <button 
@@ -41,7 +40,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
           className="absolute top-3 right-3 text-2xl bg-white/90 backdrop-blur-sm rounded-full w-9 h-9 flex items-center justify-center shadow-lg hover:scale-110 transition-transform duration-300"
         >
           {isFavorite(product.id) ? (
-            <FaHeart className="text-[#d62828]" />
+            <FaHeart className="text-[var(--oppa-accent)]" />
           ) : (
             <FiHeart className="text-gray-400" />
           )}
@@ -56,7 +55,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
             e.stopPropagation();
             onOpenModal(product);
           }}
-          className="w-full py-2.5 bg-gradient-to-r from-[#d62828] to-[#b31f1f] text-white rounded-xl text-sm font-semibold hover:shadow-lg transition-all hover:scale-[1.02] mt-auto"
+          className="w-full py-2.5 bg-[var(--oppa-accent)] hover:bg-[var(--oppa-accent-dark)] text-white rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] mt-auto"
         >
           Order Now
         </button>

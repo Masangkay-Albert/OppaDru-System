@@ -4,14 +4,17 @@
 @import "./modal.css";
 
 :root {
-  --oppa-green: #2d6a4f;
-  --oppa-green-dark: #1b4d3e;
-  --oppa-green-light: #d8f3dc;
-  --oppa-orange: #e76f51;
-  --oppa-orange-dark: #f4a261;
-  --oppa-orange-light: #fff3e0;
-  --oppa-warm: #fdf4e6;
-  --oppa-brown: #7f4f24;
+  --oppa-green-bright: #2FA84B;
+  --oppa-green-dark: green;
+  --oppa-green: #2E7A45;
+  --oppa-green-soft: #DFF0E3;
+  --oppa-cream: #FBF8F1;
+  --oppa-accent: #C62828;
+  --oppa-accent-dark: #E53935;
+  --oppa-yellow: #F4B400;
+  --oppa-text: #1E2B22;
+  --oppa-text-muted: #66766B;
+  --oppa-border: #E4DED0;
 }
 
 body {
@@ -73,8 +76,8 @@ h1, h2, h3, h4, .font-serif, .logo-text {
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #e5e7eb; border-radius: 3px; }
-::-webkit-scrollbar-thumb { background: #2d6a4f; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #1b4d3e; }
+::-webkit-scrollbar-thumb { background: var(--oppa-green); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--oppa-green-dark); }
 
 .line-clamp-2 {
   display: -webkit-box;
@@ -88,11 +91,11 @@ h1, h2, h3, h4, .font-serif, .logo-text {
 }
 
 .bg-oppa-gradient-light {
-  background: linear-gradient(135deg, var(--oppa-orange-light) 0%, var(--oppa-warm) 100%);
+  background: linear-gradient(135deg, var(--oppa-green-soft) 0%, var(--oppa-cream) 100%);
 }
 
 .text-oppa-gradient {
-  background: linear-gradient(135deg, var(--oppa-green) 0%, var(--oppa-orange) 100%);
+  background: linear-gradient(135deg, var(--oppa-green) 0%, var(--oppa-accent) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

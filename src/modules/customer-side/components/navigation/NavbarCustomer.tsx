@@ -1,4 +1,3 @@
-// src/modules/customer-side/components/navigation/NavbarCustomer.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../../contexts/Authcontext";
@@ -29,7 +28,7 @@ const NavbarCustomer: React.FC = () => {
   const showBadge = favoriteNotificationCount > 0;
 
   return (
-    <nav className="bg-[#1C3D2E] sticky top-0 z-50 shadow-md">
+    <nav className="bg-[var(--oppa-green-dark)] sticky top-0 z-50 shadow-md">
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div
@@ -41,10 +40,10 @@ const NavbarCustomer: React.FC = () => {
               alt="Oppa Dru"
               className="w-9 h-9 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-white/20 shadow-sm"
             />
-            <span className="font-serif font-bold text-[#F5EFE3] text-sm sm:text-base md:text-lg whitespace-nowrap hidden sm:inline">
+            <span className="font-serif font-bold text-[var(--oppa-cream)] text-sm sm:text-base md:text-lg whitespace-nowrap hidden sm:inline">
               Oppa Dru Korean Fried Chicken
             </span>
-            <span className="font-serif font-bold text-[#F5EFE3] text-sm whitespace-nowrap sm:hidden">
+            <span className="font-serif font-bold text-[var(--oppa-cream)] text-sm whitespace-nowrap sm:hidden">
               Oppa Dru
             </span>
           </div>
@@ -52,12 +51,12 @@ const NavbarCustomer: React.FC = () => {
           <div className="flex items-center gap-3 sm:gap-5 md:gap-6 flex-shrink-0">
             <button
               onClick={handleFavoritesClick}
-              className="relative flex items-center gap-1 sm:gap-2 text-[#F5EFE3] font-sans font-medium hover:text-white transition-colors duration-200"
+              className="relative flex items-center gap-1 sm:gap-2 text-[var(--oppa-cream)] font-sans font-medium hover:text-white transition-colors duration-200"
             >
               <Heart size={16} className="sm:w-[18px] sm:h-[18px] md:w-5 md:h-5" />
               <span className="text-sm sm:text-base">Favorites</span>
               {showBadge && (
-                <span className="absolute -top-2 -right-3 sm:-right-4 bg-[#C1440E] text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] sm:min-w-[20px] sm:h-[20px] flex items-center justify-center px-1.5">
+                <span className="absolute -top-2 -right-3 sm:-right-4 bg-[var(--oppa-accent)] text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] sm:min-w-[20px] sm:h-[20px] flex items-center justify-center px-1.5">
                   {favoriteNotificationCount}
                 </span>
               )}
@@ -67,9 +66,9 @@ const NavbarCustomer: React.FC = () => {
               <div className="relative">
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className="flex items-center gap-1 sm:gap-2 text-[#F5EFE3] font-sans font-medium hover:text-white transition-colors duration-200"
+                  className="flex items-center gap-1 sm:gap-2 text-[var(--oppa-cream)] font-sans font-medium hover:text-white transition-colors duration-200"
                 >
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/15 flex items-center justify-center text-[#F5EFE3] font-bold text-xs sm:text-sm">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/15 flex items-center justify-center text-[var(--oppa-cream)] font-bold text-xs sm:text-sm">
                     {getInitials(user.fullName)}
                   </div>
                   <span className="hidden sm:inline text-sm md:text-base">{user.fullName.split(' ')[0]}</span>
