@@ -13,6 +13,7 @@ import {
   Home,
   Menu,
   X,
+  Car
 } from 'lucide-react';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 
@@ -23,6 +24,7 @@ const navItems = [
   { to: '/admin/customers', label: 'Customers', icon: Users },
   { to: '/admin/employees', label: 'Employees', icon: Briefcase },
   { to: '/admin/reports', label: 'Reports', icon: FileBarChart },
+  { to: '/admin/delivery', label: 'Delivery', icon: Car },
 ];
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {

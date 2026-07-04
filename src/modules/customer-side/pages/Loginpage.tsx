@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
 import * as adminAuthService from "../../../services/adminAuthService";
 import oppaLogo from "../../../assets/oppadrulogo.jpg";
+import {Bike} from 'lucide-react';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -131,6 +132,8 @@ const LoginPage: React.FC = () => {
         >
           Go to Admin Portal
         </button>
+
+          <Bike onClick={() => navigate("/delivery/login")}></Bike>
         
         <button 
           onClick={() => navigate("/")}

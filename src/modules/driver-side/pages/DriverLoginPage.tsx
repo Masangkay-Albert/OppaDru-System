@@ -1,8 +1,9 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BikeIcon } from "lucide-react";
-import heroSectionImg from "../../assets/herosection.png";
-
+import heroSectionImg from "../../../assets/herosection.png";
+import { driverAuth } from "../../../services/driverAuth"; 
 
 const DriverLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -17,14 +18,13 @@ const DriverLoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // GUMAWA NG AUTH PARA SA MGA DRIVER PERO NEED PA MAG ADD MGA DRIVER THRU ADMIN PAGE
-      // 
-      const success = true;
+      
+      const result = await driverAuth.login(email, password);
 
-      if (success) {
+      if (result.success) {
         navigate("/driver/dashboard");
       } else {
-        setError("Invalid email or password");
+        setError(result.message || "Invalid email or password");
       }
     } finally {
       setIsLoading(false);

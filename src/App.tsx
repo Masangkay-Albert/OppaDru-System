@@ -22,7 +22,9 @@ import AdminCustomersPage from "./modules/admin-side/pages/AdminCustomersPage";
 import AdminEmployeesPage from "./modules/admin-side/pages/AdminEmployeesPage";
 import AdminReportsPage from "./modules/admin-side/pages/AdminReportsPage";
 import ProtectedAdminRoute from "./modules/admin-side/components/ProtectedAdminRoute";
-import DriverLoginPage from "./modules/driver-side/DriverLoginPage";
+import MyOrdersPage from "./modules/customer-side/pages/MyOrdersPage";
+import AdminDelivery from "./modules/admin-side/pages/AdminDelivery";
+import DriverLoginPage from "./modules/driver-side/pages/DriverLoginPage"; 
 
 function App() {
   return (
@@ -39,6 +41,7 @@ function App() {
                     <Route path="/register" element={<RegistrationPage />} />
                     <Route path="/customer" element={<MenuPage />} />
                     <Route path="/customer/favorites" element={<FavoritesPage />} />
+                    <Route path="/customer/orders" element={<MyOrdersPage/>}/>
                     <Route path="/checkout" element={<CheckoutPage />} />
                     <Route path="/tracking" element={<OrderTrackingPage />} />
                     <Route path="/admin/login" element={<AdminLoginPage />} />
@@ -47,10 +50,11 @@ function App() {
                     <Route path="/admin/products" element={<ProtectedAdminRoute><AdminProductsPage /></ProtectedAdminRoute>} />
                     <Route path="/admin/products/add" element={<ProtectedAdminRoute><AdminAddProductPage /></ProtectedAdminRoute>} />
                     <Route path="/admin/orders" element={<ProtectedAdminRoute><AdminOrdersPage /></ProtectedAdminRoute>} />
+                    <Route path="/admin/delivery" element={<ProtectedAdminRoute><AdminDelivery/></ProtectedAdminRoute>}/>
                     <Route path="/admin/customers" element={<ProtectedAdminRoute><AdminCustomersPage /></ProtectedAdminRoute>} />
                     <Route path="/admin/employees" element={<ProtectedAdminRoute><AdminEmployeesPage /></ProtectedAdminRoute>} />
                     <Route path="/admin/reports" element={<ProtectedAdminRoute><AdminReportsPage /></ProtectedAdminRoute>} />
-                    <Route path="/delivery/login" element={<DriverLoginPage />} />
+                    <Route path="/delivery/login" element={<DriverLoginPage/>}/>
                   </Routes>
                 </ToastProvider>
               </BrowserRouter>

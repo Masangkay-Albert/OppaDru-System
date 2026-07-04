@@ -36,7 +36,7 @@ const LandingPage: React.FC = () => {
           </h1>
           <p className="text-lg text-gray-600 font-medium leading-relaxed">
             Authentic Korean Fried Chicken. <br />
-            <span className="text-gray-500 font-normal">Crispy. Juicy. Made Fresh Daily to satisfy your cravings.</span>
+            <span className="text-gray-500 font-normal">Sauced, tossed, and straight-up obsessed.</span>
           </p>
           <div className="flex flex-wrap gap-4 pt-2">
             <button 
