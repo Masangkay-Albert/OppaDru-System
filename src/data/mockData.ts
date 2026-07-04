@@ -94,7 +94,7 @@ export const products: Product[] = [
   { id: 'rm8', name: 'Spring Onion Chicken With Rice', description: 'Fried chicken topped with spring onions, served with rice', price: 198, category: 'rice-meals', image: getRiceImage('springonion-rice.jpg'), isAvailable: true },
   { id: 'rm9', name: 'Yangyeom 2.0 Chicken With Rice', description: 'Upgraded yangnyeom recipe, sweeter and spicier, with rice', price: 198, category: 'rice-meals', image: getRiceImage('yangyeom2.0-rice.jpg'), isAvailable: true },
 
-  // Chicken Meal (Boneless)
+  // Chicken Meal d (Boneless)
   { id: 'ch1', name: 'Original Boneless Chicken', description: 'Classic crispy boneless fried chicken', price: 415, category: 'chicken', image: getChickenImage('original-chicken.jpg'), isAvailable: true },
   { id: 'ch2', name: 'Soy Garlic Boneless Chicken', description: 'Boneless chicken glazed with soy garlic sauce', price: 428, category: 'chicken', image: getChickenImage('soygarlic-chicken.jpg'), isAvailable: true },
   { id: 'ch3', name: 'Classic BBQ Boneless Chicken', description: 'Boneless chicken tossed in classic BBQ sauce', price: 428, category: 'chicken', image: getChickenImage('classicbbq-chicken.jpg'), isAvailable: true },
