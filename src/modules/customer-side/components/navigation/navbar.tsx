@@ -77,7 +77,7 @@ const Navbar: React.FC = () => {
             onClick={handleLoginClick}
             className="px-7 py-2.5 rounded-full bg-[#fcd34d] text-[#133824] font-bold text-sm shadow-md hover:bg-yellow-300 hover:scale-105 active:scale-95 transition-all duration-200"
           >
-            Order Now
+            Login
           </button>
         </div>
       </div>
