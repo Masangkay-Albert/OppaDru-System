@@ -3,14 +3,16 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { CartItem } from '../types/product.types';
 import { ORDER_STATUS, type OrderStatus } from '../utils/constants';
 import { OPPA_DRU_STORE } from '../utils/constants';
+import { useAuth } from './Authcontext';
 
 export interface Order {
   id: string;
+  userId: string;
   items: CartItem[];
   total: number;
   address: string;
   coords: { lat: number; lng: number };
-  status: OrderStatus;  
+  status: OrderStatus;
   timestamp: string;
   paymentMethod: string;
   paymentReference?: string;
@@ -28,9 +30,9 @@ interface OrderContextType {
   orders: Order[];
   currentOrder: Order | null;
   placeOrder: (
-    items: CartItem[], 
-    total: number, 
-    address: string, 
+    items: CartItem[],
+    total: number,
+    address: string,
     coords: { lat: number; lng: number },
     paymentMethod: string,
     paymentReference?: string
@@ -52,30 +54,59 @@ export const useOrder = () => {
 };
 
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
+  // Bawat user may sariling orders key, gaya ng ginawa sa CartContext.
+  const getOrdersKey = useCallback(() => {
+    if (user?.id) {
+      return `orders_user_${user.id}`;
+    }
+    return 'orders_guest';
+  }, [user]);
+
+  const getCurrentOrderKey = useCallback(() => {
+    if (user?.id) {
+      return `currentOrder_user_${user.id}`;
+    }
+    return 'currentOrder_guest';
+  }, [user]);
+
   const loadOrders = useCallback(() => {
-    const savedOrders = localStorage.getItem('orders');
-    const savedCurrentOrder = localStorage.getItem('currentOrder');
-    
+    if (!user) {
+      setOrders([]);
+      setCurrentOrder(null);
+      return;
+    }
+
+    const savedOrders = localStorage.getItem(getOrdersKey());
+    const savedCurrentOrder = localStorage.getItem(getCurrentOrderKey());
+
     if (savedOrders) {
       try {
         setOrders(JSON.parse(savedOrders));
       } catch {
         console.error('Failed to parse orders');
+        setOrders([]);
       }
+    } else {
+      setOrders([]);
     }
-    
+
     if (savedCurrentOrder) {
       try {
         setCurrentOrder(JSON.parse(savedCurrentOrder));
       } catch {
         console.error('Failed to parse current order');
+        setCurrentOrder(null);
       }
+    } else {
+      setCurrentOrder(null);
     }
-  }, []);
+  }, [user, getOrdersKey, getCurrentOrderKey]);
 
+  // Reload orders tuwing magpapalit ng naka-login na user (login/logout).
   useEffect(() => {
     loadOrders();
   }, [loadOrders]);
@@ -88,8 +119,14 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     paymentMethod: string,
     paymentReference?: string
   ) => {
+    if (!user) {
+      console.error('Cannot place order: no user logged in');
+      return;
+    }
+
     const newOrder: Order = {
       id: `ORD-${Date.now()}`,
+      userId: user.id,
       items,
       total,
       address,
@@ -105,56 +142,61 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       deliveryAddressCoords: coords,
       deliveryFee: 49,
       serviceFee: 29,
-      driverPosition: { 
-        lat: OPPA_DRU_STORE.lat, 
-        lng: OPPA_DRU_STORE.lng 
+      driverPosition: {
+        lat: OPPA_DRU_STORE.lat,
+        lng: OPPA_DRU_STORE.lng
       }
     };
 
-    setOrders(prev => [...prev, newOrder]);
+    const updatedOrders = [...orders, newOrder];
+    setOrders(updatedOrders);
     setCurrentOrder(newOrder);
 
-    localStorage.setItem('currentOrder', JSON.stringify(newOrder));
-    localStorage.setItem('orders', JSON.stringify([...orders, newOrder]));
+    localStorage.setItem(getCurrentOrderKey(), JSON.stringify(newOrder));
+    localStorage.setItem(getOrdersKey(), JSON.stringify(updatedOrders));
   };
 
   const updateOrderStatus = (orderId: string, status: OrderStatus) => {
-    setOrders(prev =>
-      prev.map(order =>
+    setOrders(prev => {
+      const updated = prev.map(order =>
         order.id === orderId ? { ...order, status } : order
-      )
-    );
-    
+      );
+      localStorage.setItem(getOrdersKey(), JSON.stringify(updated));
+      return updated;
+    });
+
     if (currentOrder?.id === orderId) {
       const updatedOrder: Order = {
         ...currentOrder,
         status
       };
       setCurrentOrder(updatedOrder);
-      localStorage.setItem('currentOrder', JSON.stringify(updatedOrder));
+      localStorage.setItem(getCurrentOrderKey(), JSON.stringify(updatedOrder));
     }
   };
 
   const updateDriverPosition = (orderId: string, position: { lat: number; lng: number }) => {
-    setOrders(prev =>
-      prev.map(order =>
+    setOrders(prev => {
+      const updated = prev.map(order =>
         order.id === orderId ? { ...order, driverPosition: position } : order
-      )
-    );
-    
+      );
+      localStorage.setItem(getOrdersKey(), JSON.stringify(updated));
+      return updated;
+    });
+
     if (currentOrder?.id === orderId) {
       const updatedOrder: Order = {
         ...currentOrder,
         driverPosition: position
       };
       setCurrentOrder(updatedOrder);
-      localStorage.setItem('currentOrder', JSON.stringify(updatedOrder));
+      localStorage.setItem(getCurrentOrderKey(), JSON.stringify(updatedOrder));
     }
   };
 
   const clearOrder = () => {
     setCurrentOrder(null);
-    localStorage.removeItem('currentOrder');
+    localStorage.removeItem(getCurrentOrderKey());
   };
 
   const getOrderById = (orderId: string): Order | undefined => {
@@ -162,14 +204,14 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <OrderContext.Provider value={{ 
-      orders, 
-      currentOrder, 
-      placeOrder, 
+    <OrderContext.Provider value={{
+      orders,
+      currentOrder,
+      placeOrder,
       updateOrderStatus,
       updateDriverPosition,
       clearOrder,
-      getOrderById 
+      getOrderById
     }}>
       {children}
     </OrderContext.Provider>

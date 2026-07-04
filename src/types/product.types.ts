@@ -2,16 +2,17 @@
 export type ProductCategory = 
   | 'all'
   | 'rice-meals'
-  | 'sulit-meals'
   | 'chicken'
-  | 'beverages'
   | 'snacks'
-  | 'side-dishes';
+  | 'fruity-soda-milk'
+  | 'noodles'
+  | 'fresh-lemonade';
 
 export interface Addon {
   id: string;
   name: string;
   price: number;
+  image?: string; 
 }
 
 export interface Product {
@@ -36,6 +37,7 @@ export interface Category {
 }
 
 export interface CartItem extends Product {
+  cartItemId: string;
   quantity: number;
   selectedAddons?: Addon[];      
   specialInstructions?: string;  

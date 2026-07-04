@@ -17,28 +17,84 @@ export const OPPA_DRU_STORE_COORDS = {
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
+export const searchAddresses = async (query: string): Promise<Array<{
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  type?: string;
+}>> => {
+  if (!query.trim()) return [];
+
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=15&addressdetails=1&countrycodes=PH&dedupe=1&polygon=0&accept-language=en`,
+      {
+        headers: {
+          'User-Agent': 'OppaDruFoodDelivery/1.0'
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (!Array.isArray(data)) return [];
+
+    return data.map((item: any) => ({
+      name: item.display_name.split(',')[0]?.trim() || item.display_name,
+      address: item.display_name,
+      lat: parseFloat(item.lat),
+      lng: parseFloat(item.lon),
+      type: item.class || 'location'
+    }));
+  } catch (error) {
+    console.error('Search addresses error:', error);
+    return [];
+  }
+};
+
 export const geocodeAddress = async (address: string): Promise<Coordinates | null> => {
   if (!address.trim()) return null;
 
   try {
+    const searchQuery = address.includes('Philippines') || address.includes('PH')
+      ? address
+      : `${address}, Philippines`;
+
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=10&countrycodes=ph`
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=ph`,
+      {
+        headers: {
+          'User-Agent': 'OppaDruFoodDelivery/1.0'
+        }
+      }
     );
     const data = await response.json();
 
-    if (!data?.length) return null;
+    if (!data?.length) {
+      const fallbackResponse = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
+        {
+          headers: {
+            'User-Agent': 'OppaDruFoodDelivery/1.0'
+          }
+        }
+      );
+      const fallbackData = await fallbackResponse.json();
+      if (!fallbackData?.length) return null;
 
-    const searchTerms = address.toLowerCase().split(' ');
-    const selectedResult = data.find((result: any) => {
-      const display = (result.display_name || '').toLowerCase();
-      return searchTerms.some((term: string) => display.includes(term));
-    }) || data[0];
+      return {
+        lat: parseFloat(fallbackData[0].lat),
+        lng: parseFloat(fallbackData[0].lon)
+      };
+    }
 
     return {
-      lat: parseFloat(selectedResult.lat),
-      lng: parseFloat(selectedResult.lon)
+      lat: parseFloat(data[0].lat),
+      lng: parseFloat(data[0].lon)
     };
-  } catch {
+  } catch (error) {
+    console.error('Geocode address error:', error);
     return null;
   }
 };
@@ -46,7 +102,12 @@ export const geocodeAddress = async (address: string): Promise<Coordinates | nul
 export const reverseGeocode = async (lat: number, lng: number): Promise<string | null> => {
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      {
+        headers: {
+          'User-Agent': 'OppaDruFoodDelivery/1.0'
+        }
+      }
     );
     const data = await response.json();
 
@@ -54,7 +115,37 @@ export const reverseGeocode = async (lat: number, lng: number): Promise<string |
       return data.display_name;
     }
     return null;
-  } catch {
+  } catch (error) {
+    console.error('Reverse geocode error:', error);
+    return null;
+  }
+};
+
+/**
+ * Kumukuha ng aktwal na road route gamit ang OSRM (Open Source Routing Machine).
+ * Libre, walang kailangang API key, at naka-base sa OpenStreetMap data —
+ * pareho ng pinagmulan ng geocoding functions sa file na ito.
+ */
+export const getRouteOSRM = async (
+  start: Coordinates,
+  end: Coordinates
+): Promise<[number, number][] | null> => {
+  try {
+    const response = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+    );
+    const data = await response.json();
+
+    if (data.code === 'Ok' && data.routes?.length > 0) {
+      // GeoJSON coordinates ay [lng, lat] — kailangan i-flip papuntang [lat, lng] para sa Leaflet
+      const coordinates: [number, number][] = data.routes[0].geometry.coordinates.map(
+        (c: [number, number]) => [c[1], c[0]]
+      );
+      return coordinates;
+    }
+    return null;
+  } catch (error) {
+    console.error('OSRM route fetch error:', error);
     return null;
   }
 };
@@ -76,7 +167,8 @@ export const getRouteFromGoogle = async (
       return decodePolyline(points);
     }
     return null;
-  } catch {
+  } catch (error) {
+    console.error('Route fetch error:', error);
     return null;
   }
 };
@@ -130,7 +222,7 @@ export const getAddressFromCoords = async (
 ): Promise<ResolvedAddress | null> => {
   const address = await reverseGeocode(lat, lng);
   if (!address) return null;
-  
+
   return {
     name: getAddressName(address),
     address
@@ -158,7 +250,7 @@ export const calculateDistance = (
 };
 
 export const getPositionAlongRoute = (
-  routePoints: [number, number][], 
+  routePoints: [number, number][],
   progressPercent: number
 ): Coordinates => {
   if (routePoints.length === 0) {
@@ -179,7 +271,7 @@ export const getPositionAlongRoute = (
   const fraction = targetIndex - index;
   const currentPoint = routePoints[index];
   const nextPoint = routePoints[nextIndex];
-  
+
   return {
     lat: currentPoint[0] + (nextPoint[0] - currentPoint[0]) * fraction,
     lng: currentPoint[1] + (nextPoint[1] - currentPoint[1]) * fraction

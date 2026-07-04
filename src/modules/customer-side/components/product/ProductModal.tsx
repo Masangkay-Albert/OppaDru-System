@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import type { Product, CartItem } from '../../../../types/product.types';
+import type { Product, CartItem, Addon } from '../../../../types/product.types';
 import { useCart } from '../../../../contexts/CartContext';
 import { useFavorites } from '../../../../contexts/FavoritesContext';
+import { addons as allAddons } from '../../../../data/mockData';
 import QuantitySelector from './QuantitySelector';
 import AddonsSection from '../common/AddonsSection';
 import { FiX } from 'react-icons/fi';
@@ -10,27 +11,29 @@ import '../../../../styles/modal.css';
 interface ProductModalProps {
   product: Product | null;
   onClose: () => void;
+  editMode?: boolean;
+  editCartItemId?: string;
+  initialQuantity?: number;
+  initialAddons?: Addon[];
+  initialInstructions?: string;
 }
 
-const addonsByProduct: Record<string, Array<{ id: string; name: string; price: number }>> = {
-  default: [
-    { id: 'gravy', name: 'Extra Gravy', price: 12 },
-    { id: 'rice', name: 'Extra Rice', price: 25 },
-  ],
-  sm1: [
-    { id: 'extra_chicken', name: 'Extra Chicken', price: 89 },
-    { id: 'extra_rice', name: 'Extra Rice', price: 25 },
-    { id: 'large_drink', name: 'Upgrade to Large Drink', price: 15 },
-  ],
-};
+const addonsByProduct: Record<string, Addon[]> = {};
 
-const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) => {
-  const { addToCart } = useCart();
+const ProductModal: React.FC<ProductModalProps> = ({
+  product,
+  onClose,
+  editMode = false,
+  editCartItemId,
+  initialQuantity,
+  initialAddons,
+  initialInstructions,
+}) => {
+  const { addToCart, editCartItem } = useCart();
   const { addOrder } = useFavorites();
   const [quantity, setQuantity] = useState(1);
-  const [selectedAddons, setSelectedAddons] = useState<typeof addonsByProduct.default>([]);
+  const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
   const [specialInstructions, setSpecialInstructions] = useState('');
-  const [unavailableAction, setUnavailableAction] = useState<'remove' | 'keep'>('remove');
   const [isClosing, setIsClosing] = useState(false);
 
   useEffect(() => {
@@ -52,14 +55,22 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) => {
     };
   }, [product]);
 
+  useEffect(() => {
+    if (product) {
+      setQuantity(initialQuantity ?? 1);
+      setSelectedAddons(initialAddons ?? []);
+      setSpecialInstructions(initialInstructions ?? '');
+    }
+  }, [product?.id, editCartItemId]);
+
   if (!product) return null;
 
-  const addons = addonsByProduct[product.id] || addonsByProduct.default;
+  const addons = addonsByProduct[product.id] || allAddons;
 
   const getAddonsTotal = () => selectedAddons.reduce((sum, addon) => sum + addon.price, 0);
   const getTotalPrice = () => (product.price + getAddonsTotal()) * quantity;
 
-  const toggleAddon = (addon: typeof addonsByProduct.default[0]) => {
+  const toggleAddon = (addon: Addon) => {
     setSelectedAddons(prev =>
       prev.find(a => a.id === addon.id)
         ? prev.filter(a => a.id !== addon.id)
@@ -78,34 +89,37 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) => {
     }, 200);
   };
 
-  const handleAddToCart = () => {
-    const cartItem: CartItem = {
+  const handleSubmit = () => {
+    const cartItemData: Omit<CartItem, 'cartItemId'> = {
       ...product,
       quantity,
       selectedAddons: selectedAddons.length > 0 ? selectedAddons : undefined,
       specialInstructions: specialInstructions || undefined,
     };
-    
-    addToCart(cartItem);
-    
-    for (let i = 0; i < quantity; i++) {
-      addOrder(product);
+
+    if (editMode && editCartItemId) {
+      editCartItem(editCartItemId, cartItemData);
+    } else {
+      addToCart(cartItemData);
+      for (let i = 0; i < quantity; i++) {
+        addOrder(product);
+      }
     }
-    
+
     handleClose();
   };
 
   return (
     <>
-      <div 
+      <div
         className={`fixed inset-0 bg-black/50 z-[100] transition-opacity duration-200 ${
           isClosing ? 'opacity-0' : 'opacity-100'
         }`}
         onClick={handleClose}
       />
-      
+
       <div className="fixed inset-0 z-[101] flex items-center justify-center p-4">
-        <div 
+        <div
           className={`w-[90%] max-w-[520px] max-h-[85vh] bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col transition-all duration-200 ${
             isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
           }`}
@@ -116,7 +130,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) => {
               <FiX />
             </button>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto p-6">
             <p className="text-3xl font-extrabold text-[#2d6a4f] mb-2">₱{product.price}</p>
             <p className="text-sm text-gray-500 mb-4">{product.description}</p>
@@ -143,7 +157,6 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) => {
               />
               <p className="text-xs text-gray-400 mt-1">Special requests are subject to the restaurant's approval.</p>
             </div>
-
           </div>
 
           <div className="p-6 border-t border-gray-200 bg-white shrink-0">
@@ -151,8 +164,8 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose }) => {
               <span>Total:</span>
               <span className="text-[#2d6a4f] text-2xl">₱{getTotalPrice()}</span>
             </div>
-            <button onClick={handleAddToCart} className="w-full py-3 bg-gradient-to-r from-[#e76f51] to-[#f4a261] text-white rounded-xl font-bold hover:shadow-lg transition-all hover:scale-[1.02]">
-              Add to Cart ({quantity})
+            <button onClick={handleSubmit} className="w-full py-3 bg-gradient-to-r from-[#e76f51] to-[#f4a261] text-white rounded-xl font-bold hover:shadow-lg transition-all hover:scale-[1.02]">
+              {editMode ? 'Update Cart' : 'Add to Cart'}
             </button>
           </div>
         </div>

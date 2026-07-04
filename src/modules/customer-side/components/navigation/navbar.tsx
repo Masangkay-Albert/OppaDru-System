@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { HiMenu, HiX } from "react-icons/hi";
 import oppaLogo from "../../../../assets/oppadrulogo.jpg";
 
 const Navbar: React.FC = () => {
@@ -20,68 +21,63 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-50 bg-[#166534]/90 backdrop-blur-md">
-      <div className="flex flex-col md:flex-row justify-between items-center px-[6%] py-[15px]">
-        {/* Logo Section - LEFT SIDE */}
+    <nav className="bg-[#133824] px-[6%] py-5">
+      <div className="flex justify-between items-center max-w-7xl mx-auto">
+        
+        {/* Logo Section */}
         <div className="flex items-center gap-3">
           <img 
             src={oppaLogo}  
             alt="Oppa Dru Logo" 
-            className="w-[50px] h-[50px] rounded-full object-cover border-2 border-yellow-400"
+            className="w-12 h-12 rounded-full object-cover border-2 border-[#fcd34d]"
           />
-          <div className="text-[20px] font-bold text-white hidden lg:block">
-            Oppa Dru Korean Fried Chicken
-          </div>
-          <div className="text-[16px] font-bold text-white md:hidden">
-            Oppa Dru
+          <div className="text-white font-serif font-bold leading-tight flex flex-col">
+            <span className="text-xl tracking-wide">Oppa Dru</span>
+            <span className="text-xl tracking-wide text-[#fcd34d]">Korean Fried Chicken</span>
           </div>
         </div>
 
-        {/* Mobile Menu Button */}
+        {/* Mobile Menu Toggle */}
         <button 
-          className="md:hidden text-white text-2xl absolute right-6 top-4"
+          className="md:hidden text-[#fcd34d] focus:outline-none transition-transform active:scale-95"
           onClick={() => setIsOpen(!isOpen)}
         >
-          ☰
+          {isOpen ? <HiX size={28} /> : <HiMenu size={28} />}
         </button>
 
-        {/* Navigation Links & Login */}
-        <div className={`flex flex-col md:flex-row items-center gap-4 md:gap-6 mt-4 md:mt-0 ${isOpen ? "flex" : "hidden md:flex"} w-full md:w-auto`}>
-          <ul className="flex flex-col md:flex-row items-center gap-4 md:gap-5">
+        {/* Desktop Links */}
+        <div className={`absolute md:static top-[88px] left-0 w-full md:w-auto bg-[#133824] md:bg-transparent z-40 transition-all duration-300 ease-in-out ${isOpen ? "h-auto py-6 opacity-100 border-b border-white/10" : "h-0 opacity-0 md:h-auto md:opacity-100 overflow-hidden md:overflow-visible"}`}>
+          <ul className="flex flex-col md:flex-row items-center gap-6 md:gap-8 justify-center">
             <li>
-              <a 
-                href="#home" 
-                onClick={(e) => handleNavClick(e, "home")}
-                className="text-white font-medium hover:text-[#fde047] transition block py-2 px-2"
-              >
+              <a href="#home" onClick={(e) => handleNavClick(e, "home")} className="text-white font-medium text-sm hover:text-[#fcd34d] transition-colors tracking-wide">
                 Home
               </a>
             </li>
             <li>
-              <a 
-                href="#about" 
-                onClick={(e) => handleNavClick(e, "about")}
-                className="text-white font-medium hover:text-[#fde047] transition block py-2 px-2"
-              >
-                About Us
+              <a href="#menu" onClick={(e) => handleNavClick(e, "menu")} className="text-white font-medium text-sm hover:text-[#fcd34d] transition-colors tracking-wide">
+                Menu
               </a>
             </li>
             <li>
-              <a 
-                href="#categories" 
-                onClick={(e) => handleNavClick(e, "categories")}
-                className="text-white font-medium hover:text-[#fde047] transition block py-2 px-2"
-              >
-                Food Categories
+              <a href="#promos" onClick={(e) => handleNavClick(e, "promos")} className="text-white font-medium text-sm hover:text-[#fcd34d] transition-colors tracking-wide">
+                Promos
+              </a>
+            </li>
+            <li>
+              <a href="#about" onClick={(e) => handleNavClick(e, "about")} className="text-white font-medium text-sm hover:text-[#fcd34d] transition-colors tracking-wide">
+                About
               </a>
             </li>
           </ul>
-          
+        </div>
+
+        {/* Action Button */}
+        <div className="hidden md:block">
           <button 
             onClick={handleLoginClick}
-            className="px-6 py-2 rounded-full bg-[#fde047] text-[#166534] font-semibold hover:bg-[#facc15] transition w-full md:w-auto mt-2 md:mt-0"
+            className="px-7 py-2.5 rounded-full bg-[#fcd34d] text-[#133824] font-bold text-sm shadow-md hover:bg-yellow-300 hover:scale-105 active:scale-95 transition-all duration-200"
           >
-            Login
+            Order Now
           </button>
         </div>
       </div>

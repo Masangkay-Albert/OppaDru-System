@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../../../contexts/CartContext';
 import CartItemComponent from './CartItem';
 import CartSummary from './CartSummary';
+import ProductModal from '../product/ProductModal';
 import { calculateItemTotal, calculateSubtotal } from '../../../../services/cartService';
+import type { CartItem } from '../../../../types/product.types';
 import { FiX, FiShoppingBag, FiTrash2 } from 'react-icons/fi';
 
 interface CartSidebarProps {
@@ -13,6 +15,7 @@ interface CartSidebarProps {
 const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
   const navigate = useNavigate();
   const { cartItems, removeFromCart, updateQuantity, clearCart } = useCart();
+  const [editingItem, setEditingItem] = useState<CartItem | null>(null);
   const [useCutlery, setUseCutlery] = useState(() => {
     const saved = localStorage.getItem('cutleryPreference');
     return saved ? JSON.parse(saved) : false;
@@ -61,18 +64,19 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
       ) : (
         <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
           {cartItems.map((item) => (
-            <CartItemComponent 
-              key={item.id}
+            <CartItemComponent
+              key={item.cartItemId}
               item={item}
               onUpdateQuantity={updateQuantity}
               onRemove={removeFromCart}
+              onEdit={setEditingItem}
               calculateItemTotal={calculateItemTotal}
             />
           ))}
         </div>
       )}
 
-      <CartSummary 
+      <CartSummary
         subtotal={subtotal}
         hasItems={hasItems}
         useCutlery={useCutlery}
@@ -81,14 +85,14 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
 
       <div className="p-4 border-t border-gray-200 bg-white">
         {hasItems ? (
-          <button 
+          <button
             onClick={handleCheckout}
             className="w-full py-3 bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] text-white rounded-xl font-semibold hover:shadow-lg transition-all hover:scale-[1.02]"
           >
             Checkout
           </button>
         ) : (
-          <button 
+          <button
             disabled
             className="w-full py-3 bg-gray-100 text-gray-400 rounded-xl font-semibold cursor-not-allowed"
           >
@@ -103,6 +107,18 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
           Clear Cart
         </button>
       </div>
+
+      {editingItem && (
+        <ProductModal
+          product={editingItem}
+          editMode
+          editCartItemId={editingItem.cartItemId}
+          initialQuantity={editingItem.quantity}
+          initialAddons={editingItem.selectedAddons}
+          initialInstructions={editingItem.specialInstructions}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
     </div>
   );
 };

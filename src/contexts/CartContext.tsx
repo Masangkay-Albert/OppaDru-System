@@ -1,13 +1,14 @@
-// src/contexts/CartContext.tsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { CartItem } from '../types/product.types';
 import { useAuth } from './Authcontext';
+import { generateCartItemId } from '../services/cartService';
 
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (item: CartItem) => void;
-  removeFromCart: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  addToCart: (item: Omit<CartItem, 'cartItemId'>) => void;
+  editCartItem: (oldCartItemId: string, updatedItem: Omit<CartItem, 'cartItemId'>) => void;
+  removeFromCart: (cartItemId: string) => void;
+  updateQuantity: (cartItemId: string, quantity: number) => void;
   clearCart: () => void;
   getTotalPrice: () => number;
   getTotalItems: () => number;
@@ -49,14 +50,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [cartItems, user, getCartKey]);
 
-  const addToCart = (item: CartItem) => {
+  const addToCart = (item: Omit<CartItem, 'cartItemId'>) => {
+    const cartItemId = generateCartItemId(item.id, item.selectedAddons, item.specialInstructions);
+
     setCartItems(prevItems => {
-      const existingItemIndex = prevItems.findIndex(existing => 
-        existing.id === item.id && 
-        JSON.stringify(existing.selectedAddons) === JSON.stringify(item.selectedAddons) &&
-        existing.specialInstructions === item.specialInstructions
-      );
-      
+      const existingItemIndex = prevItems.findIndex(existing => existing.cartItemId === cartItemId);
+
       if (existingItemIndex !== -1) {
         const updatedItems = [...prevItems];
         updatedItems[existingItemIndex] = {
@@ -65,24 +64,48 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         return updatedItems;
       }
-      
-      return [...prevItems, item];
+
+      return [...prevItems, { ...item, cartItemId }];
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCartItems(prevItems => prevItems.filter(item => item.id !== productId));
+  const editCartItem = (oldCartItemId: string, updatedItem: Omit<CartItem, 'cartItemId'>) => {
+    const newCartItemId = generateCartItemId(
+      updatedItem.id,
+      updatedItem.selectedAddons,
+      updatedItem.specialInstructions
+    );
+
+    setCartItems(prevItems => {
+      const withoutOld = prevItems.filter(item => item.cartItemId !== oldCartItemId);
+      const matchIndex = withoutOld.findIndex(item => item.cartItemId === newCartItemId);
+
+      if (matchIndex !== -1) {
+        const merged = [...withoutOld];
+        merged[matchIndex] = {
+          ...merged[matchIndex],
+          quantity: merged[matchIndex].quantity + updatedItem.quantity
+        };
+        return merged;
+      }
+
+      return [...withoutOld, { ...updatedItem, cartItemId: newCartItemId }];
+    });
   };
 
-  const updateQuantity = (productId: string, quantity: number) => {
+  const removeFromCart = (cartItemId: string) => {
+    setCartItems(prevItems => prevItems.filter(item => item.cartItemId !== cartItemId));
+  };
+
+  const updateQuantity = (cartItemId: string, quantity: number) => {
     if (quantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(cartItemId);
       return;
     }
-    
+
     setCartItems(prevItems =>
       prevItems.map(item =>
-        item.id === productId ? { ...item, quantity } : item
+        item.cartItemId === cartItemId ? { ...item, quantity } : item
       )
     );
   };
@@ -106,6 +129,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <CartContext.Provider value={{
       cartItems,
       addToCart,
+      editCartItem,
       removeFromCart,
       updateQuantity,
       clearCart,

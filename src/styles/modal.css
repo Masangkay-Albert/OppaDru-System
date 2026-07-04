@@ -1,10 +1,4 @@
 /* src/styles/modal.css */
-
-/* ========================================
-   MODAL ANIMATIONS - FIXED FOR CENTER
-   ======================================== */
-
-/* Backdrop animations */
 @keyframes modalFadeIn {
   from {
     opacity: 0;
@@ -23,7 +17,6 @@
   }
 }
 
-/* Content animations - Keep center positioning */
 @keyframes modalSlideUp {
   from {
     opacity: 0;
@@ -46,7 +39,6 @@
   }
 }
 
-/* Animation Classes - WITHOUT transform to preserve center */
 .modal-backdrop-enter {
   animation: modalFadeIn 0.25s ease-out forwards;
 }
@@ -55,7 +47,6 @@
   animation: modalFadeOut 0.25s ease-out forwards;
 }
 
-/* These classes only handle opacity and scale, NOT transform */
 .modal-content-enter {
   animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

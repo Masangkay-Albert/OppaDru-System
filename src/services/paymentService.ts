@@ -10,6 +10,12 @@ export interface PaymentResult {
   amount: number;
 }
 
+export interface OTPRequestResult {
+  success: boolean;
+  otp?: string; 
+  message: string;
+}
+
 class PaymentService {
   private static instance: PaymentService;
   private isProcessing: boolean = false;
@@ -29,8 +35,8 @@ class PaymentService {
     return `OPPA-${timestamp}-${random}`;
   }
 
-  private async simulateDelay(): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 2000));
+  private async simulateDelay(min = 1200, max = 2500): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, min + Math.random() * (max - min)));
   }
 
   private generateOTP(): string {
@@ -44,7 +50,7 @@ class PaymentService {
   private validateCardNumber(card: string): boolean {
     const clean = card.replace(/\s/g, '');
     if (!/^\d{16}$/.test(clean)) return false;
-    
+
     let sum = 0;
     let isEven = false;
     for (let i = clean.length - 1; i >= 0; i--) {
@@ -63,11 +69,33 @@ class PaymentService {
     const now = new Date();
     const expYear = parseInt(year);
     const expMonth = parseInt(month);
-    return expYear < now.getFullYear() || 
+    return expYear < now.getFullYear() ||
            (expYear === now.getFullYear() && expMonth < now.getMonth() + 1);
   }
 
-  async processGCash(mobileNumber: string, amount: number): Promise<PaymentResult> {
+  async requestGCashOTP(mobileNumber: string): Promise<OTPRequestResult> {
+    if (!this.validateMobileNumber(mobileNumber)) {
+      return {
+        success: false,
+        message: 'Invalid Philippine mobile number. Use format 09XXXXXXXXX.'
+      };
+    }
+
+    await this.simulateDelay(600, 1200);
+
+    return {
+      success: true,
+      otp: this.generateOTP(),
+      message: `A 6-digit code was sent to ${mobileNumber}.`
+    };
+  }
+
+  async processGCash(
+    mobileNumber: string,
+    enteredOtp: string,
+    expectedOtp: string,
+    amount: number
+  ): Promise<PaymentResult> {
     if (this.isProcessing) {
       return {
         success: false,
@@ -80,18 +108,15 @@ class PaymentService {
 
     this.isProcessing = true;
     try {
-      if (!this.validateMobileNumber(mobileNumber)) {
+      if (enteredOtp !== expectedOtp) {
         return {
           success: false,
-          message: 'Invalid Philippine mobile number.',
+          message: 'Incorrect OTP. Please try again.',
           timestamp: new Date().toISOString(),
           paymentMethod: 'gcash',
           amount
         };
       }
-
-      const otp = this.generateOTP();
-      alert(`📱 GCash OTP: ${otp}\n\nEnter this code to complete payment.`);
 
       await this.simulateDelay();
       const success = Math.random() < 0.9;

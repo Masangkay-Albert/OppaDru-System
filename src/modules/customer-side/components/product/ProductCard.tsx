@@ -14,14 +14,22 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
 
   return (
     <div 
-      className="bg-white rounded-2xl overflow-hidden border border-gray-200/80 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:border-[#2d6a4f]/30 cursor-pointer group flex flex-col h-full"
+      className="bg-white rounded-2xl overflow-hidden border border-gray-200/80 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:border-[var(--oppa-green)]/30 cursor-pointer group flex flex-col h-full"
       onClick={() => onOpenModal(product)}
     >
       <div className="relative h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0">
-        <div className="w-full h-full flex items-center justify-center bg-gray-300 text-gray-500 text-sm font-medium">
-          Image
-        </div>
-        <div className="absolute bottom-3 right-3 bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] text-white px-4 py-1.5 rounded-full font-bold text-sm shadow-lg">
+        {product.image ? (
+          <img 
+            src={product.image} 
+            alt={product.name} 
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-300 text-gray-500 text-sm font-medium">
+            Image
+          </div>
+        )}
+        <div className="absolute bottom-3 right-3 bg-[var(--oppa-green)] text-white px-4 py-1.5 rounded-full font-bold text-sm shadow-lg">
           ₱{product.price}
         </div>
         <button 
@@ -47,7 +55,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
             e.stopPropagation();
             onOpenModal(product);
           }}
-          className="w-full py-2.5 bg-gradient-to-r from-[#e76f51] to-[#f4a261] text-white rounded-xl text-sm font-semibold hover:shadow-lg transition-all hover:scale-[1.02] mt-auto"
+          className="w-full py-2.5 bg-[#C1440E] hover:bg-[#a23a0c] text-white rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] mt-auto"
         >
           Order Now
         </button>
