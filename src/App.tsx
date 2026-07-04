@@ -22,6 +22,7 @@ import AdminCustomersPage from "./modules/admin-side/pages/AdminCustomersPage";
 import AdminEmployeesPage from "./modules/admin-side/pages/AdminEmployeesPage";
 import AdminReportsPage from "./modules/admin-side/pages/AdminReportsPage";
 import ProtectedAdminRoute from "./modules/admin-side/components/ProtectedAdminRoute";
+import DriverLoginPage from "./modules/driver-side/DriverLoginPage";
 
 function App() {
   return (
@@ -49,6 +50,7 @@ function App() {
                     <Route path="/admin/customers" element={<ProtectedAdminRoute><AdminCustomersPage /></ProtectedAdminRoute>} />
                     <Route path="/admin/employees" element={<ProtectedAdminRoute><AdminEmployeesPage /></ProtectedAdminRoute>} />
                     <Route path="/admin/reports" element={<ProtectedAdminRoute><AdminReportsPage /></ProtectedAdminRoute>} />
+                    <Route path="/delivery/login" element={<DriverLoginPage />} />
                   </Routes>
                 </ToastProvider>
               </BrowserRouter>
