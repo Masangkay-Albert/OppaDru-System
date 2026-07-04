@@ -81,7 +81,6 @@ const AdminEmployeesPage: React.FC = () => {
           >
             <option>Cashier</option>
             <option>Kitchen Staff</option>
-            <option>Delivery Rider</option>
           </select>
           <button type="submit" className="bg-gray-900 text-white text-sm rounded-lg px-4 py-2">
             Save Employee
