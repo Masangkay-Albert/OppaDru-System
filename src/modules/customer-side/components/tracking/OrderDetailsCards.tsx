@@ -24,14 +24,31 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
     <div className="space-y-4">
       <div className="bg-white rounded-2xl shadow-lg p-5">
         <h3 className="font-semibold text-gray-800 mb-3">Order Items</h3>
-        <div className="space-y-2 max-h-48 overflow-y-auto mb-3">
+        <div className="space-y-3 max-h-56 overflow-y-auto mb-3">
           {currentOrder.items?.map((item: CartItem, idx: number) => {
             const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + a.price, 0) || 0;
             const itemTotal = (item.price + addonsTotal) * item.quantity;
             return (
-              <div key={idx} className="flex justify-between text-sm py-1 border-b border-gray-100 last:border-0">
-                <span className="text-gray-600">{item.quantity}x {item.name}</span>
-                <span className="text-gray-800 font-medium">{formatCurrency(itemTotal)}</span>
+              <div key={idx} className="text-sm py-1 border-b border-gray-100 last:border-0">
+                <div className="flex justify-between">
+                  <span className="text-gray-700 font-medium">{item.quantity}x {item.name}</span>
+                  <span className="text-gray-800 font-medium">{formatCurrency(itemTotal)}</span>
+                </div>
+
+                {item.selectedAddons && item.selectedAddons.length > 0 && (
+                  <div className="mt-1 pl-3 space-y-0.5">
+                    {item.selectedAddons.map((addon) => (
+                      <div key={addon.id} className="flex justify-between text-xs text-gray-400">
+                        <span>+ {addon.name}</span>
+                        <span>{formatCurrency(addon.price)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {item.specialInstructions && (
+                  <p className="text-xs text-gray-400 italic pl-3 mt-1">"{item.specialInstructions}"</p>
+                )}
               </div>
             );
           })}

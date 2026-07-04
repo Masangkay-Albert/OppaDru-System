@@ -1,5 +1,6 @@
+// src/modules/customer-side/pages/OrderTrackingPage.tsx
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useOrder } from '../../../contexts/OrderContext';
@@ -15,12 +16,20 @@ import ProgressBar from '../components/tracking/ProgressBar';
 import OrderDetailsCards from '../components/tracking/OrderDetailsCards';
 import { storeIcon, destinationIcon } from '../components/tracking/MapIcons';
 
+interface TrackingLocationState {
+  orderId?: string;
+}
+
 const OrderTrackingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { currentOrder, clearOrder } = useOrder();
-  
+  const location = useLocation();
+  const { currentOrder, getOrderById, updateOrderStatus, clearOrder } = useOrder();
+
+  const locationState = location.state as TrackingLocationState | null;
+  const requestedOrderId = locationState?.orderId;
+
   const [routePoints, setRoutePoints] = useState<[number, number][]>([]);
-  const [order, setOrder] = useState<Order | null>(currentOrder);
+  const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [simulatedProgress, setSimulatedProgress] = useState(0);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -33,28 +42,31 @@ const OrderTrackingPage: React.FC = () => {
   }, [isSimulating, order]);
 
   useEffect(() => {
-    if (!order) {
-      const savedOrder = localStorage.getItem('currentOrder');
-      if (savedOrder) {
-        try {
-          const parsed: Order = JSON.parse(savedOrder);
-          setOrder(parsed);
-          setIsLoading(false);
-        } catch {
-          navigate('/customer');
-          setIsLoading(false);
-        }
-      } else {
-        navigate('/customer');
-        setIsLoading(false);
-      }
-    } else {
-      setIsLoading(false);
-      if (order.status === ORDER_STATUS.DELIVERED) {
-        setIsSimulating(false);
-      }
+    let resolvedOrder: Order | null = null;
+
+    if (requestedOrderId) {
+      resolvedOrder = getOrderById(requestedOrderId) || null;
     }
-  }, [order, navigate, currentOrder]);
+
+    if (!resolvedOrder) {
+      resolvedOrder = currentOrder;
+    }
+
+    if (!resolvedOrder) {
+      navigate('/customer');
+      setIsLoading(false);
+      return;
+    }
+
+    setOrder(resolvedOrder);
+    setIsLoading(false);
+
+    if (resolvedOrder.status === ORDER_STATUS.DELIVERED) {
+      setIsSimulating(false);
+      setSimulatedProgress(100);
+    }
+
+  }, [requestedOrderId, currentOrder, getOrderById, navigate]);
 
   useEffect(() => {
     if (!order || order.status === ORDER_STATUS.DELIVERED || !isSimulating) return;
@@ -75,15 +87,11 @@ const OrderTrackingPage: React.FC = () => {
 
   const handleDeliver = useCallback(() => {
     if (order && order.status !== ORDER_STATUS.DELIVERED && simulatedProgress >= 95) {
-      const updatedOrder: Order = {
-        ...order,
-        status: ORDER_STATUS.DELIVERED
-      };
-      setOrder(updatedOrder);
-      localStorage.setItem('currentOrder', JSON.stringify(updatedOrder));
+      updateOrderStatus(order.id, ORDER_STATUS.DELIVERED);
+      setOrder(prev => (prev ? { ...prev, status: ORDER_STATUS.DELIVERED } : prev));
       setSimulatedProgress(100);
     }
-  }, [order, simulatedProgress]);
+  }, [order, simulatedProgress, updateOrderStatus]);
 
   useEffect(() => {
     if (simulatedProgress >= 95 && order && order.status !== ORDER_STATUS.DELIVERED && !isSimulating) {
@@ -104,12 +112,12 @@ const OrderTrackingPage: React.FC = () => {
     try {
       const dateObj = typeof date === 'string' ? new Date(date) : date;
       if (isNaN(dateObj.getTime())) return 'N/A';
-      return dateObj.toLocaleDateString('en-PH', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric', 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      return dateObj.toLocaleDateString('en-PH', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
       });
     } catch {
       return 'N/A';
@@ -118,7 +126,7 @@ const OrderTrackingPage: React.FC = () => {
 
   const handleOrderComplete = () => {
     clearOrder();
-    navigate('/customer');
+    navigate('/customer/orders');
   };
 
   if (isLoading) {
@@ -162,18 +170,18 @@ const OrderTrackingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
       <NavbarCustomer />
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => navigate('/customer')} 
+            <button
+              onClick={() => navigate('/customer/orders')}
               className="flex items-center gap-2 text-gray-600 hover:text-[#2d6a4f] transition-colors group"
             >
               <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              <span className="text-sm font-medium hover:underline">Back to Menu</span>
+              <span className="text-sm font-medium hover:underline">Back to My Orders</span>
             </button>
             <span className="text-gray-300">|</span>
             <h1 className="text-xl font-bold text-[#2d6a4f]">Track Your Order</h1>
@@ -191,8 +199,8 @@ const OrderTrackingPage: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="h-[400px] w-full relative">
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden isolate">
+              <div className="h-[400px] w-full relative z-0">
                 <MapContainer 
                   center={mapCenter as [number, number]}
                   zoom={13} 
@@ -273,7 +281,7 @@ const OrderTrackingPage: React.FC = () => {
                 onClick={handleOrderComplete} 
                 className="w-full mt-4 py-3 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition shadow-md"
               >
-                Order Complete
+                Back to My Orders
               </button>
             )}
           </div>

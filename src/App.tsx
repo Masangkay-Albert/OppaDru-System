@@ -12,6 +12,7 @@ import MenuPage from "./modules/customer-side/pages/MenuPage";
 import FavoritesPage from "./modules/customer-side/pages/FavoritesPage";
 import CheckoutPage from "./modules/customer-side/pages/CheckoutPage";
 import OrderTrackingPage from "./modules/customer-side/pages/OrderTrackingPage";
+import MyOrdersPage from "./modules/customer-side/pages/MyOrdersPage";
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
                   <Route path="/register" element={<RegistrationPage />} />
                   <Route path="/customer" element={<MenuPage />} />
                   <Route path="/customer/favorites" element={<FavoritesPage />} />
+                  <Route path="/customer/orders" element={<MyOrdersPage />} />
                   <Route path="/checkout" element={<CheckoutPage />} />
                   <Route path="/tracking" element={<OrderTrackingPage />} />
                 </Routes>
