@@ -1,12 +1,13 @@
 // src/modules/admin-side/pages/AdminEmployeesPage.tsx
 import React, { useEffect, useState } from 'react';
-import { UserPlus } from 'lucide-react';
+import { Trash2, UserPlus } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import AccountModal from '../components/AccountModal';
 import {
   getAccountsByRole,
   resetAccountPassword,
   addEmployeeAccount,
+  deleteAccount,
   type StoredAccount,
 } from '../../../services/adminAuthService';
 
@@ -25,6 +26,13 @@ const AdminEmployeesPage: React.FC = () => {
   const handleReset = (id: string, newPassword: string) => {
     resetAccountPassword(id, newPassword);
     refresh();
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Delete this employee account?')) {
+      deleteAccount(id);
+      refresh();
+    }
   };
 
   const handleAdd = (e: React.FormEvent) => {
@@ -81,7 +89,6 @@ const AdminEmployeesPage: React.FC = () => {
           >
             <option>Cashier</option>
             <option>Kitchen Staff</option>
-            <option>Delivery Rider</option>
           </select>
           <button type="submit" className="bg-gray-900 text-white text-sm rounded-lg px-4 py-2">
             Save Employee
@@ -113,12 +120,21 @@ const AdminEmployeesPage: React.FC = () => {
                 <td className="px-5 py-3 text-gray-600">{emp.email}</td>
                 <td className="px-5 py-3 text-gray-600">{emp.position || '—'}</td>
                 <td className="px-5 py-3">
-                  <button
-                    onClick={() => setSelected(emp)}
-                    className="text-blue-600 hover:underline text-xs font-medium"
-                  >
-                    View / Reset Password
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => setSelected(emp)}
+                      className="text-xs font-medium text-blue-600 hover:underline"
+                    >
+                      View / Reset Password
+                    </button>
+                    <button
+                      onClick={() => handleDelete(emp.id)}
+                      className="text-red-500 hover:text-red-700"
+                      title="Delete employee"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

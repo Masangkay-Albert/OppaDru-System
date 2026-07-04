@@ -1,9 +1,46 @@
 // src/services/adminOrderService.ts
 import type { Order } from '../contexts/OrderContext';
 import type { CartItem } from '../types/product.types';
+import { getAccountDisplayName } from './adminAuthService';
 
 const ORDERS_KEY = 'orders';
 const ONSITE_ORDERS_KEY = 'onsiteOrders';
+
+const getOnlineOrderStorageKeys = (): string[] => {
+  const keys: string[] = [];
+
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key === ORDERS_KEY || key === 'orders_guest' || key.startsWith('orders_user_')) {
+      keys.push(key);
+    }
+  }
+
+  return keys;
+};
+
+const updateOnlineOrdersInStorage = (updater: (orders: Order[]) => Order[]): void => {
+  const keys = getOnlineOrderStorageKeys();
+
+  keys.forEach((key) => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+
+    try {
+      const orders: Order[] = JSON.parse(raw);
+      const updated = updater(orders);
+
+      if (updated.length === 0) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, JSON.stringify(updated));
+      }
+    } catch {
+      // Ignore invalid storage entries.
+    }
+  });
+};
 
 export type OrderChannel = 'online' | 'onsite';
 
@@ -13,19 +50,44 @@ export interface AdminOrder extends Order {
   served?: boolean;
 }
 
-// Online orders come from the customer-side OrderContext ('orders' key).
+// Online orders come from the customer-side OrderContext and are stored per user.
 // Onsite orders are simulated here since there is no cashier module yet —
 // admin can add a "walk-in" order manually and it is stored separately.
 
-export const getOnlineOrders = (): AdminOrder[] => {
-  const raw = localStorage.getItem(ORDERS_KEY);
-  if (!raw) return [];
-  try {
-    const parsed: Order[] = JSON.parse(raw);
-    return parsed.map((o) => ({ ...o, channel: 'online' as const, served: o.status === 'delivered' }));
-  } catch {
-    return [];
+const getStoredOnlineOrders = (): Order[] => {
+  const seen = new Set<string>();
+  const orders: Order[] = [];
+
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key !== ORDERS_KEY && key !== 'orders_guest' && !key.startsWith('orders_user_')) continue;
+
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed: Order[] = JSON.parse(raw);
+      parsed.forEach((order) => {
+        if (!seen.has(order.id)) {
+          seen.add(order.id);
+          orders.push(order);
+        }
+      });
+    } catch {
+      // Ignore invalid storage entries.
+    }
   }
+
+  return orders;
+};
+
+export const getOnlineOrders = (): AdminOrder[] => {
+  return getStoredOnlineOrders().map((o) => ({
+    ...o,
+    channel: 'online' as const,
+    served: o.status === 'delivered',
+    customerName: getAccountDisplayName(o.userId) || 'Customer',
+  }));
 };
 
 export const getOnsiteOrders = (): AdminOrder[] => {
@@ -94,11 +156,9 @@ export const markOrderServed = (orderId: string, channel: OrderChannel): void =>
     );
     localStorage.setItem(ONSITE_ORDERS_KEY, JSON.stringify(orders));
   } else {
-    const raw = localStorage.getItem(ORDERS_KEY);
-    if (!raw) return;
-    const orders: Order[] = JSON.parse(raw);
-    const updated = orders.map((o) => (o.id === orderId ? { ...o, status: 'delivered' as const } : o));
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
+    updateOnlineOrdersInStorage((orders) =>
+      orders.map((o) => (o.id === orderId ? { ...o, status: 'delivered' as const } : o))
+    );
   }
 };
 
@@ -107,10 +167,6 @@ export const removeOrder = (orderId: string, channel: OrderChannel): void => {
     const orders = getOnsiteOrders().filter((o) => o.id !== orderId);
     localStorage.setItem(ONSITE_ORDERS_KEY, JSON.stringify(orders));
   } else {
-    const raw = localStorage.getItem(ORDERS_KEY);
-    if (!raw) return;
-    const orders: Order[] = JSON.parse(raw);
-    const updated = orders.filter((o) => o.id !== orderId);
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
+    updateOnlineOrdersInStorage((orders) => orders.filter((o) => o.id !== orderId));
   }
 };

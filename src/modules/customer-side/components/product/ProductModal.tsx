@@ -90,6 +90,8 @@ const ProductModal: React.FC<ProductModalProps> = ({
   };
 
   const handleSubmit = () => {
+    if (!product.isAvailable) return;
+
     const cartItemData: Omit<CartItem, 'cartItemId'> = {
       ...product,
       quantity,
@@ -135,28 +137,38 @@ const ProductModal: React.FC<ProductModalProps> = ({
             <p className="text-3xl font-extrabold text-[#2d6a4f] mb-2">₱{product.price}</p>
             <p className="text-sm text-gray-500 mb-4">{product.description}</p>
 
-            <div className="mb-5">
-              <label className="block font-semibold text-sm text-gray-800 mb-2">Quantity</label>
-              <QuantitySelector
-                quantity={quantity}
-                onIncrease={() => setQuantity(quantity + 1)}
-                onDecrease={() => setQuantity(Math.max(1, quantity - 1))}
-              />
-            </div>
+            {!product.isAvailable && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                This item is currently not available for ordering.
+              </div>
+            )}
 
-            <AddonsSection addons={addons} selectedAddons={selectedAddons} onToggleAddon={toggleAddon} />
+            {product.isAvailable && (
+              <>
+                <div className="mb-5">
+                  <label className="block font-semibold text-sm text-gray-800 mb-2">Quantity</label>
+                  <QuantitySelector
+                    quantity={quantity}
+                    onIncrease={() => setQuantity(quantity + 1)}
+                    onDecrease={() => setQuantity(Math.max(1, quantity - 1))}
+                  />
+                </div>
 
-            <div className="mb-5">
-              <label className="block font-semibold text-sm text-gray-800 mb-2">Special Instructions</label>
-              <textarea
-                className="w-full p-3 border-2 border-gray-200 rounded-xl text-sm resize-none focus:border-[#2d6a4f] focus:outline-none transition-colors"
-                placeholder="e.g. No mayo, extra spicy..."
-                value={specialInstructions}
-                onChange={(e) => setSpecialInstructions(e.target.value)}
-                rows={2}
-              />
-              <p className="text-xs text-gray-400 mt-1">Special requests are subject to the restaurant's approval.</p>
-            </div>
+                <AddonsSection addons={addons} selectedAddons={selectedAddons} onToggleAddon={toggleAddon} />
+
+                <div className="mb-5">
+                  <label className="block font-semibold text-sm text-gray-800 mb-2">Special Instructions</label>
+                  <textarea
+                    className="w-full p-3 border-2 border-gray-200 rounded-xl text-sm resize-none focus:border-[#2d6a4f] focus:outline-none transition-colors"
+                    placeholder="e.g. No mayo, extra spicy..."
+                    value={specialInstructions}
+                    onChange={(e) => setSpecialInstructions(e.target.value)}
+                    rows={2}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Special requests are subject to the restaurant's approval.</p>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="p-6 border-t border-gray-200 bg-white shrink-0">
@@ -164,8 +176,16 @@ const ProductModal: React.FC<ProductModalProps> = ({
               <span>Total:</span>
               <span className="text-[#2d6a4f] text-2xl">₱{getTotalPrice()}</span>
             </div>
-            <button onClick={handleSubmit} className="w-full py-3 bg-gradient-to-r from-[#e76f51] to-[#f4a261] text-white rounded-xl font-bold hover:shadow-lg transition-all hover:scale-[1.02]">
-              {editMode ? 'Update Cart' : 'Add to Cart'}
+            <button
+              onClick={handleSubmit}
+              disabled={!product.isAvailable}
+              className={`w-full py-3 rounded-xl font-bold transition-all ${
+                product.isAvailable
+                  ? 'bg-gradient-to-r from-[#e76f51] to-[#f4a261] text-white hover:shadow-lg hover:scale-[1.02]'
+                  : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+              }`}
+            >
+              {product.isAvailable ? (editMode ? 'Update Cart' : 'Add to Cart') : 'Not Available'}
             </button>
           </div>
         </div>

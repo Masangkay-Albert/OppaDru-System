@@ -68,6 +68,15 @@ export const getAllAccounts = (): StoredAccount[] => {
   return JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
 };
 
+export const getAccountById = (id: string): StoredAccount | undefined => {
+  return getAllAccounts().find((account) => account.id === id);
+};
+
+export const getAccountDisplayName = (accountId?: string): string | undefined => {
+  if (!accountId) return undefined;
+  return getAccountById(accountId)?.fullName;
+};
+
 export const getAccountsByRole = (role: 'customer' | 'employee'): StoredAccount[] => {
   return getAllAccounts().filter((u) => (u.role || 'customer') === role);
 };

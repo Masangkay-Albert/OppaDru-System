@@ -1,9 +1,9 @@
 // src/modules/customer-side/pages/MenuPage.tsx
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from '../../../contexts/Authcontext';
 import { useCart } from '../../../contexts/CartContext';
 import { useFavorites } from '../../../contexts/FavoritesContext';
-import { products, categories } from '../../../data/mockData';
+import { categories } from '../../../data/mockData';
 import type { Product, ProductCategory } from '../../../types/product.types';
 import ProductCard from '../components/product/ProductCard';
 import ProductModal from '../components/product/ProductModal';
@@ -15,11 +15,13 @@ import GreetingBanner from '../components/common/GreetingBanner';
 import { FiShoppingCart, FiMenu, FiX, FiSearch } from 'react-icons/fi';
 import foodpandaLogo from '../../../assets/foodpanda.png';
 import '../../../styles/global.css';
+import { getAllProducts } from '../../../services/adminProductService';
 
 const MenuPage: React.FC = () => {
   const { user } = useAuth();
   const { getTotalItems } = useCart();
   const { showNotification, newFavoriteName, clearNotification } = useFavorites();
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
@@ -27,6 +29,17 @@ const MenuPage: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const scrollPositionRef = useRef<number>(0);
   const mainContentRef = useRef<HTMLDivElement>(null);
+
+  const refreshProducts = useCallback(() => {
+    setProducts(getAllProducts());
+  }, []);
+
+  useEffect(() => {
+    refreshProducts();
+    const handleProductsUpdated = () => refreshProducts();
+    window.addEventListener('products-updated', handleProductsUpdated);
+    return () => window.removeEventListener('products-updated', handleProductsUpdated);
+  }, [refreshProducts]);
 
   const handleOpenModal = useCallback((product: Product) => {
     scrollPositionRef.current = window.scrollY;

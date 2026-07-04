@@ -21,11 +21,11 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <nav className="bg-[#133824] px-[6%] py-5">
+    <nav className="bg-[#133824] px-[6%] py-5 sticky top-0 z-50 shadow-lg">
       <div className="flex justify-between items-center max-w-7xl mx-auto">
         
         {/* Logo Section */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate("/")}>
           <img 
             src={oppaLogo}  
             alt="Oppa Dru Logo" 
