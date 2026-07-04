@@ -1,6 +1,6 @@
 // src/modules/admin-side/pages/AdminProductsPage.tsx
 import React, { useEffect, useState } from 'react';
-import { PlusSquare, Trash2, X } from 'lucide-react';
+import { PlusSquare, Search, Trash2, X } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllProducts, toggleAvailability, deleteProduct, updateProduct, addProduct } from '../../../services/adminProductService';
 import type { Product, ProductCategory } from '../../../types/product.types';
@@ -32,6 +32,7 @@ const createEmptyForm = (): ProductFormState => ({
 const AdminProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [activeCategory, setActiveCategory] = useState<ProductCategory | 'all'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -44,7 +45,22 @@ const AdminProductsPage: React.FC = () => {
     refresh();
   }, []);
 
-  const filteredProducts = activeCategory === 'all' ? products : products.filter((product) => product.category === activeCategory);
+  const getCategoryLabel = (category: ProductCategory) => {
+    return categories.find((item) => item.id === category)?.name || category.replace('-', ' ');
+  };
+
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  const filteredProducts = products.filter((product) => {
+    const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
+    const matchesSearch =
+      normalizedSearch.length === 0 ||
+      product.name.toLowerCase().includes(normalizedSearch) ||
+      product.description.toLowerCase().includes(normalizedSearch) ||
+      getCategoryLabel(product.category).toLowerCase().includes(normalizedSearch);
+
+    return matchesCategory && matchesSearch;
+  });
 
   const handleToggle = (id: string) => {
     toggleAvailability(id);
@@ -125,37 +141,48 @@ const AdminProductsPage: React.FC = () => {
     refresh();
   };
 
-  const getCategoryLabel = (category: ProductCategory) => {
-    return categories.find((item) => item.id === category)?.name || category.replace('-', ' ');
-  };
-
   return (
     <AdminLayout>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-        <button
-          onClick={openAddModal}
-          className="flex items-center justify-center gap-2 rounded-lg bg-lime-700 px-4 py-2 text-sm font-medium text-white hover:bg-lime-800"
-        >
-          <PlusSquare size={16} /> Add Product
-        </button>
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        {categoryOptions.map((option) => (
+      <div className="sticky top-0 z-10 -mx-4 border-b border-gray-100 bg-gray-50/95 px-4 pb-4 pt-1 backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
           <button
-            key={option.value}
-            onClick={() => setActiveCategory(option.value)}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-              activeCategory === option.value ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'
-            }`}
+            onClick={openAddModal}
+            className="flex items-center justify-center gap-2 rounded-lg bg-lime-700 px-4 py-2 text-sm font-medium text-white hover:bg-lime-800"
           >
-            {option.label}
+            <PlusSquare size={16} /> Add Product
           </button>
-        ))}
+        </div>
+
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="relative w-full xl:max-w-sm">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search products..."
+              className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-lime-700"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {categoryOptions.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setActiveCategory(option.value)}
+                className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+                  activeCategory === option.value ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+      <div className="mt-4 max-h-[calc(100vh-250px)] overflow-auto rounded-2xl border border-gray-200 bg-white sm:max-h-[calc(100vh-270px)]">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-left text-xs uppercase text-gray-400">

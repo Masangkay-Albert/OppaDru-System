@@ -117,7 +117,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 overflow-y-auto">
+      <main className="flex flex-1 min-w-0 flex-col overflow-hidden">
         <div className="border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
           <button
             onClick={() => setIsSidebarOpen(true)}
@@ -127,7 +127,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             Menu
           </button>
         </div>
-        <div className="p-4 sm:p-6">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</div>
       </main>
     </div>
   );
