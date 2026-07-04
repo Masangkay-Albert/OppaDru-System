@@ -1,11 +1,14 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
+import { useAdminAuth } from "../../../contexts/AdminAuthContext";
+import * as adminAuthService from "../../../services/adminAuthService";
 import oppaLogo from "../../../assets/oppadrulogo.jpg";
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login: customerLogin } = useAuth();
+  const { login: adminLogin } = useAdminAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -16,8 +19,21 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
-    
-    const success = await login(email, password);
+
+    const isAdminCredentials = adminAuthService.validateAdminCredentials(email, password);
+
+    if (isAdminCredentials) {
+      const success = await adminLogin(email, password);
+      if (success) {
+        navigate("/admin/dashboard");
+      } else {
+        setError("Invalid admin email or password");
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    const success = await customerLogin(email, password);
     if (success) {
       navigate("/customer");
     } else {
@@ -115,10 +131,17 @@ const LoginPage: React.FC = () => {
             Sign up
           </button>
         </p>
+
+        <button 
+          onClick={() => navigate("/admin/login")}
+          className="w-full mt-4 text-lime-700 font-semibold hover:underline"
+        >
+          Go to Admin Portal
+        </button>
         
         <button 
           onClick={() => navigate("/")}
-          className="w-full mt-4 text-gray-500 hover:text-gray-700 transition"
+          className="w-full mt-2 text-gray-500 hover:text-gray-700 transition"
         >
           ← Back to Home
         </button>
