@@ -91,7 +91,7 @@ class PaymentService {
   }
 
   async processGCash(
-    mobileNumber: string,
+    _mobileNumber: string,
     enteredOtp: string,
     expectedOtp: string,
     amount: number

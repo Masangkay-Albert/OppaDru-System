@@ -2,8 +2,11 @@
 export type ProductCategory = 
   | 'all'
   | 'rice-meals'
+  | 'sulit-meals'
   | 'chicken'
+  | 'beverages'
   | 'snacks'
+  | 'side-dishes'
   | 'fruity-soda-milk'
   | 'noodles'
   | 'fresh-lemonade';

@@ -1,5 +1,6 @@
 // src/services/adminOrderService.ts
 import type { Order } from '../contexts/OrderContext';
+import type { CartItem } from '../types/product.types';
 
 const ORDERS_KEY = 'orders';
 const ONSITE_ORDERS_KEY = 'onsiteOrders';
@@ -51,16 +52,22 @@ export const addOnsiteOrder = (data: {
   const total = data.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const newOrder: AdminOrder = {
     id: `WI-${Date.now()}`,
-    items: data.items.map((i) => ({
-      id: `${i.name}-${Date.now()}`,
-      name: i.name,
-      description: '',
-      price: i.price,
-      category: 'chicken',
-      image: '',
-      isAvailable: true,
-      quantity: i.quantity,
-    })),
+    userId: `onsite-${Date.now()}`,
+    items: data.items.map((i) => {
+      const cartItemId = `${i.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const item: CartItem = {
+        id: cartItemId,
+        cartItemId,
+        name: i.name,
+        description: '',
+        price: i.price,
+        category: 'chicken',
+        image: '',
+        isAvailable: true,
+        quantity: i.quantity,
+      };
+      return item;
+    }),
     total,
     address: 'Onsite / Walk-in',
     coords: { lat: 0, lng: 0 },

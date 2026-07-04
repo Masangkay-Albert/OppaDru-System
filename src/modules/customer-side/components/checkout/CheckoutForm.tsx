@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../../../contexts/Authcontext';
-import { useToast } from '../ToastProvider';
 import { useAddressManagement } from '../../../../hooks/useAddressManagement';
 import LocationPicker from '../common/LocationPicker';
 import AddressSection from './AddressSection';
@@ -30,7 +29,6 @@ interface CheckoutFormProps {
 }
 
 const CheckoutForm: React.FC<CheckoutFormProps> = ({
-  address,
   updateAddress,
   tempPerson,
   updatePerson,
@@ -42,7 +40,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   onScheduleClick
 }) => {
   const { user } = useAuth();
-  const { showToast } = useToast();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   const {

@@ -11,7 +11,7 @@ interface CartItemProps {
 }
 
 const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, onRemove, onEdit, calculateItemTotal }) => {
-  const baseTotal = item.price * item.quantity;
+  const baseTotal = calculateItemTotal(item);
 
   return (
     <div

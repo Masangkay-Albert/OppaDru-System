@@ -8,7 +8,7 @@ import oppaLogo from "../../../../assets/oppadrulogo.jpg";
 const NavbarCustomer: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { favorites, favoriteNotificationCount } = useFavorites();
+  const { favoriteNotificationCount } = useFavorites();
   const [showDropdown, setShowDropdown] = useState(false);
 
   const getInitials = (name: string) => {

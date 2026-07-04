@@ -34,16 +34,16 @@ const AddressSection: React.FC<AddressSectionProps> = ({
   onDelete,
   onSetDefault,
   onAddNew,
-  onSaveDetails
+  onSaveDetails,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<AddressDetails>(selectedDetails || {});
 
-  const hasDetails = selectedDetails && Object.keys(selectedDetails).length > 0;
+  const hasDetails = Boolean(selectedDetails && Object.keys(selectedDetails).length > 0);
 
   const handleSaveDetails = () => {
     onSaveDetails(formData);
-    setIsEditing(false); // Close form after save
+    setIsEditing(false);
   };
 
   const handleEditClick = () => {
@@ -53,7 +53,6 @@ const AddressSection: React.FC<AddressSectionProps> = ({
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-[#d8f3dc] rounded-full flex items-center justify-center">
@@ -70,24 +69,18 @@ const AddressSection: React.FC<AddressSectionProps> = ({
         </button>
       </div>
 
-      {/* Address List */}
       <div className="space-y-3">
-        {addresses.map((addr) => {
-          // Check if this address has details
-          const addrHasDetails = addr.details && Object.keys(addr.details).length > 0;
-          
-          return (
-            <AddressCard
-              key={addr.id}
-              {...addr}
-              isSelected={selectedId === addr.id}
-              onSelect={() => onSelect(addr.id)}
-              onEdit={() => onEdit(addr)}
-              onDelete={() => onDelete(addr.id)}
-              onSetDefault={() => onSetDefault(addr.id)}
-            />
-          );
-        })}
+        {addresses.map((addr) => (
+          <AddressCard
+            key={addr.id}
+            {...addr}
+            isSelected={selectedId === addr.id}
+            onSelect={() => onSelect(addr.id)}
+            onEdit={() => onEdit(addr)}
+            onDelete={() => onDelete(addr.id)}
+            onSetDefault={() => onSetDefault(addr.id)}
+          />
+        ))}
 
         {addresses.length === 0 && (
           <div className="text-center py-8">
@@ -103,7 +96,6 @@ const AddressSection: React.FC<AddressSectionProps> = ({
         )}
       </div>
 
-      {/* Additional Details */}
       {selectedId && addresses.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-200">
           <div className="flex items-center justify-between mb-3">
@@ -131,7 +123,6 @@ const AddressSection: React.FC<AddressSectionProps> = ({
           </div>
 
           {isEditing ? (
-            // EDIT MODE - Show form
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -220,22 +211,22 @@ const AddressSection: React.FC<AddressSectionProps> = ({
               </div>
             </div>
           ) : (
-            // VIEW MODE - Show saved details only
-            hasDetails && (
-              <div className="text-sm text-gray-600 space-y-1 bg-[#f8fafc] rounded-lg p-3">
-                {selectedDetails.block && (
-                  <div className="flex items-center gap-2">
-                    <FiCheck className="text-[#2d6a4f]" size={14} />
-                    <span>Block: <span className="font-medium">{selectedDetails.block}</span></span>
-                    {selectedDetails.lot && <span>| Lot: <span className="font-medium">{selectedDetails.lot}</span></span>}
-                  </div>
-                )}
-                {selectedDetails.floor && <p className="ml-6">Floor: {selectedDetails.floor}</p>}
-                {selectedDetails.unit && <p className="ml-6">Unit: {selectedDetails.unit}</p>}
-                {selectedDetails.building && <p className="ml-6">Building: {selectedDetails.building}</p>}
-                {selectedDetails.note && <p className="ml-6 text-gray-400 text-xs">📝 {selectedDetails.note}</p>}
+            <div className="rounded-xl bg-[#f8fbf8] p-4 border border-[#d8f3dc]">
+              <div className="flex items-start gap-2">
+                <FiCheck className="text-[#2d6a4f] mt-0.5" size={16} />
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Delivery instructions saved</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {selectedDetails?.block && `Block ${selectedDetails.block}`} 
+                    {selectedDetails?.lot && ` • Lot ${selectedDetails.lot}`} 
+                    {selectedDetails?.floor && ` • ${selectedDetails.floor}`} 
+                    {selectedDetails?.unit && ` • Unit ${selectedDetails.unit}`} 
+                    {selectedDetails?.building && ` • ${selectedDetails.building}`} 
+                    {selectedDetails?.note && ` • ${selectedDetails.note}`}
+                  </p>
+                </div>
               </div>
-            )
+            </div>
           )}
         </div>
       )}
