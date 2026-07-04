@@ -6,6 +6,42 @@ import { getAccountDisplayName } from './adminAuthService';
 const ORDERS_KEY = 'orders';
 const ONSITE_ORDERS_KEY = 'onsiteOrders';
 
+const getOnlineOrderStorageKeys = (): string[] => {
+  const keys: string[] = [];
+
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key === ORDERS_KEY || key === 'orders_guest' || key.startsWith('orders_user_')) {
+      keys.push(key);
+    }
+  }
+
+  return keys;
+};
+
+const updateOnlineOrdersInStorage = (updater: (orders: Order[]) => Order[]): void => {
+  const keys = getOnlineOrderStorageKeys();
+
+  keys.forEach((key) => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+
+    try {
+      const orders: Order[] = JSON.parse(raw);
+      const updated = updater(orders);
+
+      if (updated.length === 0) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, JSON.stringify(updated));
+      }
+    } catch {
+      // Ignore invalid storage entries.
+    }
+  });
+};
+
 export type OrderChannel = 'online' | 'onsite';
 
 export interface AdminOrder extends Order {
@@ -120,11 +156,9 @@ export const markOrderServed = (orderId: string, channel: OrderChannel): void =>
     );
     localStorage.setItem(ONSITE_ORDERS_KEY, JSON.stringify(orders));
   } else {
-    const raw = localStorage.getItem(ORDERS_KEY);
-    if (!raw) return;
-    const orders: Order[] = JSON.parse(raw);
-    const updated = orders.map((o) => (o.id === orderId ? { ...o, status: 'delivered' as const } : o));
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
+    updateOnlineOrdersInStorage((orders) =>
+      orders.map((o) => (o.id === orderId ? { ...o, status: 'delivered' as const } : o))
+    );
   }
 };
 
@@ -133,10 +167,6 @@ export const removeOrder = (orderId: string, channel: OrderChannel): void => {
     const orders = getOnsiteOrders().filter((o) => o.id !== orderId);
     localStorage.setItem(ONSITE_ORDERS_KEY, JSON.stringify(orders));
   } else {
-    const raw = localStorage.getItem(ORDERS_KEY);
-    if (!raw) return;
-    const orders: Order[] = JSON.parse(raw);
-    const updated = orders.filter((o) => o.id !== orderId);
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(updated));
+    updateOnlineOrdersInStorage((orders) => orders.filter((o) => o.id !== orderId));
   }
 };

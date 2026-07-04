@@ -3,6 +3,7 @@ import type { Product } from '../../../../types/product.types';
 import { useFavorites } from '../../../../contexts/FavoritesContext';
 import { FiHeart } from 'react-icons/fi';
 import { FaHeart } from 'react-icons/fa';
+import oppaDruLogo from '../../../../assets/oppadrulogo.jpg';
 
 interface ProductCardProps {
   product: Product;
@@ -29,15 +30,20 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
     >
       <div className="relative h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center flex-shrink-0">
         {product.image ? (
-          <img 
-            src={product.image} 
-            alt={product.name} 
+          <img
+            src={product.image}
+            alt={product.name}
+            onError={(event) => {
+              event.currentTarget.src = oppaDruLogo;
+            }}
             className="w-full h-full object-cover"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gray-300 text-gray-500 text-sm font-medium">
-            Image
-          </div>
+          <img
+            src={oppaDruLogo}
+            alt={product.name}
+            className="w-full h-full object-cover"
+          />
         )}
         <div className="absolute bottom-3 right-3 bg-[var(--oppa-green)] text-white px-4 py-1.5 rounded-full font-bold text-sm shadow-lg">
           ₱{product.price}

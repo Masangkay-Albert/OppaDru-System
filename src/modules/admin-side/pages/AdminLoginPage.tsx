@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import { Shield } from 'lucide-react';
+import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 
 const AdminLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -26,14 +27,16 @@ const AdminLoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white rounded-2xl shadow-md p-8 w-full max-w-sm border border-gray-200">
-        <div className="flex flex-col items-center mb-6">
-          <div className="bg-lime-700 text-white p-3 rounded-full mb-3">
+    <div className="relative flex min-h-screen items-center justify-center bg-gray-100 p-4">
+      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${oppaDruLogo})` }} />
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(13,22,16,0.88),rgba(55,97,39,0.72))]" />
+      <div className="relative w-full max-w-sm rounded-[24px] border border-white/20 bg-white/95 p-6 shadow-2xl backdrop-blur sm:p-8">
+        <div className="mb-6 flex flex-col items-center">
+          <div className="mb-3 rounded-full bg-lime-700 p-3 text-white shadow-lg">
             <Shield size={28} />
           </div>
           <h1 className="text-2xl font-bold text-gray-800">Admin Portal</h1>
-          <p className="text-gray-500 text-sm mt-1">Oppa Dru Korean Fried Chicken</p>
+          <p className="mt-1 text-sm text-gray-500">Oppa Dru Korean Fried Chicken</p>
         </div>
 
         {error && (

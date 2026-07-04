@@ -6,8 +6,10 @@ import { getAllProducts, toggleAvailability, deleteProduct, updateProduct, addPr
 import type { Product, ProductCategory } from '../../../types/product.types';
 import { formatCurrency } from '../../../utils/formatters';
 import { categories } from '../../../data/mockData';
+import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 
 const categoryOptions = [{ value: 'all' as const, label: 'All' }, ...categories.filter((c) => c.id !== 'all').map((c) => ({ value: c.id as ProductCategory, label: c.name }))];
+const DEFAULT_PRODUCT_IMAGE = oppaDruLogo;
 
 type ProductFormState = {
   name: string;
@@ -176,13 +178,14 @@ const AdminProductsPage: React.FC = () => {
               <tr key={product.id} className="border-b border-gray-50 last:border-0">
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
-                    {product.image ? (
-                      <img src={product.image} alt={product.name} className="h-14 w-14 rounded-lg border border-gray-200 object-cover" />
-                    ) : (
-                      <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-[10px] text-gray-400">
-                        No Image
-                      </div>
-                    )}
+                    <img
+                      src={product.image || DEFAULT_PRODUCT_IMAGE}
+                      alt={product.name}
+                      onError={(event) => {
+                        event.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
+                      }}
+                      className="h-14 w-14 rounded-lg border border-gray-200 object-cover"
+                    />
                     <div>
                       <p className="font-medium text-gray-800">{product.name}</p>
                       <p className="text-xs text-gray-400">{product.description}</p>
@@ -289,9 +292,14 @@ const AdminProductsPage: React.FC = () => {
               <div>
                 <label className="mb-1 block text-sm text-gray-600">Food Image</label>
                 <input type="file" accept="image/*" onChange={handleImageChange} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                {(imagePreview || form.image) && (
-                  <img src={imagePreview || form.image} alt="Preview" className="mt-3 h-28 w-full rounded-lg border border-gray-200 object-cover" />
-                )}
+                <img
+                  src={imagePreview || form.image || DEFAULT_PRODUCT_IMAGE}
+                  alt="Preview"
+                  onError={(event) => {
+                    event.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
+                  }}
+                  className="mt-3 h-28 w-full rounded-lg border border-gray-200 object-cover"
+                />
               </div>
 
               <label className="flex items-center gap-2 text-sm text-gray-600">

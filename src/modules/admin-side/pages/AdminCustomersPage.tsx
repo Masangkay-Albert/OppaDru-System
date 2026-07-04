@@ -1,8 +1,9 @@
 // src/modules/admin-side/pages/AdminCustomersPage.tsx
 import React, { useEffect, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import AccountModal from '../components/AccountModal';
-import { getAccountsByRole, resetAccountPassword, type StoredAccount } from '../../../services/adminAuthService';
+import { getAccountsByRole, resetAccountPassword, deleteAccount, type StoredAccount } from '../../../services/adminAuthService';
 
 const AdminCustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<StoredAccount[]>([]);
@@ -17,6 +18,13 @@ const AdminCustomersPage: React.FC = () => {
   const handleReset = (id: string, newPassword: string) => {
     resetAccountPassword(id, newPassword);
     refresh();
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Delete this customer account?')) {
+      deleteAccount(id);
+      refresh();
+    }
   };
 
   return (
@@ -45,12 +53,21 @@ const AdminCustomersPage: React.FC = () => {
                 <td className="px-5 py-3 font-medium text-gray-800">{c.fullName}</td>
                 <td className="px-5 py-3 text-gray-600">{c.email}</td>
                 <td className="px-5 py-3">
-                  <button
-                    onClick={() => setSelected(c)}
-                    className="text-blue-600 hover:underline text-xs font-medium"
-                  >
-                    View / Reset Password
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => setSelected(c)}
+                      className="text-xs font-medium text-blue-600 hover:underline"
+                    >
+                      View / Reset Password
+                    </button>
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      className="text-red-500 hover:text-red-700"
+                      title="Delete customer"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
