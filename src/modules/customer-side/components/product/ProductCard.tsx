@@ -40,7 +40,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
           className="absolute top-3 right-3 text-2xl bg-white/90 backdrop-blur-sm rounded-full w-9 h-9 flex items-center justify-center shadow-lg hover:scale-110 transition-transform duration-300"
         >
           {isFavorite(product.id) ? (
-            <FaHeart className="text-[var(--oppa-accent)]" />
+            <FaHeart className="text-red-500" />
           ) : (
             <FiHeart className="text-gray-400" />
           )}
@@ -55,7 +55,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
             e.stopPropagation();
             onOpenModal(product);
           }}
-          className="w-full py-2.5 bg-[var(--oppa-accent)] hover:bg-[var(--oppa-accent-dark)] text-white rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] mt-auto"
+          className="w-full py-2.5 bg-[#C1440E] hover:bg-[#a23a0c] text-white rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] mt-auto"
         >
           Order Now
         </button>
