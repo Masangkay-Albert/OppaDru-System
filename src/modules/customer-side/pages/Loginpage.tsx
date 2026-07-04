@@ -1,14 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
-import { useAdminAuth } from "../../../contexts/AdminAuthContext";
 import * as adminAuthService from "../../../services/adminAuthService";
 import oppaLogo from "../../../assets/oppadrulogo.jpg";
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login: customerLogin } = useAuth();
-  const { login: adminLogin } = useAdminAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -23,13 +21,8 @@ const LoginPage: React.FC = () => {
     const isAdminCredentials = adminAuthService.validateAdminCredentials(email, password);
 
     if (isAdminCredentials) {
-      const success = await adminLogin(email, password);
-      if (success) {
-        navigate("/admin/dashboard");
-      } else {
-        setError("Invalid admin email or password");
-        setIsLoading(false);
-      }
+      setError("Admin accounts must use the admin portal.");
+      setIsLoading(false);
       return;
     }
 
