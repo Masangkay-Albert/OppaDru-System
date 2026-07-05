@@ -32,7 +32,7 @@ const AdminDashboardPage: React.FC = () => {
       <h1 className="mb-1 font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Dashboard</h1>
       <p className="mb-6 text-sm text-[var(--oppa-text-muted)]">Welcome back, here's what's happening today.</p>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Total Orders" value={orders.length} icon={ShoppingBag} />
         <StatCard label="Total Users" value={totalUsers} icon={Users} />
         <StatCard label="Total Products" value={totalProducts} icon={Package} />

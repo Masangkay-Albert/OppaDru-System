@@ -133,7 +133,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       </aside>
 
-      <main className="flex flex-1 min-w-0 flex-col overflow-hidden">
+      <main className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden">
         <div className="flex items-center justify-between border-b border-[var(--oppa-border)] bg-white/95 px-4 py-3 backdrop-blur md:hidden">
           <button
             onClick={() => setIsSidebarOpen(true)}
@@ -147,7 +147,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <span className="font-serif text-sm font-bold text-[var(--oppa-text)]">Oppa Dru</span>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 sm:px-6">{children}</div>
       </main>
     </div>
   );

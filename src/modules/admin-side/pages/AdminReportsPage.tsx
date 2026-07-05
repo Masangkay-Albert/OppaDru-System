@@ -105,20 +105,20 @@ const AdminReportsPage: React.FC = () => {
         ))}
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:p-5">
           <p className="text-2xl font-bold text-[var(--oppa-text)]">{formatCurrency(totalSales)}</p>
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Total Sales</p>
         </div>
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:p-5">
           <p className="text-2xl font-bold text-[var(--oppa-text)]">{totalOrders}</p>
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Total Orders</p>
         </div>
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:p-5">
           <p className="text-2xl font-bold text-[var(--oppa-text)]">{onlineCount}</p>
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Online Orders</p>
         </div>
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:p-5">
           <p className="text-2xl font-bold text-[var(--oppa-text)]">{onsiteCount}</p>
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Onsite Orders</p>
         </div>
