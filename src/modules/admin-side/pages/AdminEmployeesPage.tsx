@@ -45,11 +45,14 @@ const AdminEmployeesPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Registered Employees</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Registered Employees</h1>
+          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage staff accounts and access.</p>
+        </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="flex items-center gap-2 bg-lime-700 hover:bg-lime-800 text-white px-4 py-2 rounded-lg text-sm font-medium"
+          className="bg-oppa-gradient flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
         >
           <UserPlus size={16} /> Add Employee
         </button>
@@ -58,14 +61,14 @@ const AdminEmployeesPage: React.FC = () => {
       {showForm && (
         <form
           onSubmit={handleAdd}
-          className="bg-white rounded-2xl border border-gray-200 p-5 mb-6 grid grid-cols-1 sm:grid-cols-5 gap-3 items-end"
+          className="mb-6 grid grid-cols-1 items-end gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:grid-cols-5"
         >
           <input
             required
             placeholder="Full name"
             value={form.fullName}
             onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
           />
           <input
             required
@@ -73,33 +76,33 @@ const AdminEmployeesPage: React.FC = () => {
             placeholder="Email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
           />
           <input
             required
             placeholder="Password"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
           />
           <select
             value={form.position}
             onChange={(e) => setForm({ ...form, position: e.target.value })}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
           >
             <option>Cashier</option>
             <option>Kitchen Staff</option>
           </select>
-          <button type="submit" className="bg-gray-900 text-white text-sm rounded-lg px-4 py-2">
+          <button type="submit" className="bg-oppa-gradient rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
             Save Employee
           </button>
         </form>
       )}
 
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto">
+      <div className="overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-gray-400 text-xs uppercase border-b border-gray-100">
+            <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/40 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
               <th className="px-5 py-3">Full Name</th>
               <th className="px-5 py-3">Email</th>
               <th className="px-5 py-3">Position</th>
@@ -109,16 +112,16 @@ const AdminEmployeesPage: React.FC = () => {
           <tbody>
             {employees.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-5 py-8 text-center text-gray-400">
+                <td colSpan={4} className="px-5 py-8 text-center text-[var(--oppa-text-muted)]">
                   No registered employees yet.
                 </td>
               </tr>
             )}
             {employees.map((emp) => (
-              <tr key={emp.id} className="border-b border-gray-50 last:border-0">
-                <td className="px-5 py-3 font-medium text-gray-800">{emp.fullName}</td>
-                <td className="px-5 py-3 text-gray-600">{emp.email}</td>
-                <td className="px-5 py-3 text-gray-600">{emp.position || '—'}</td>
+              <tr key={emp.id} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]">
+                <td className="px-5 py-3 font-medium text-[var(--oppa-text)]">{emp.fullName}</td>
+                <td className="px-5 py-3 text-[var(--oppa-text-muted)]">{emp.email}</td>
+                <td className="px-5 py-3 text-[var(--oppa-text-muted)]">{emp.position || '—'}</td>
                 <td className="px-5 py-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <button

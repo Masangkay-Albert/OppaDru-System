@@ -29,12 +29,15 @@ const AdminCustomersPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Registered Customers</h1>
+      <div className="mb-6">
+        <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Registered Customers</h1>
+        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">View accounts and manage customer passwords.</p>
+      </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto">
+      <div className="overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-gray-400 text-xs uppercase border-b border-gray-100">
+            <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/40 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
               <th className="px-5 py-3">Full Name</th>
               <th className="px-5 py-3">Email</th>
               <th className="px-5 py-3">Actions</th>
@@ -43,15 +46,15 @@ const AdminCustomersPage: React.FC = () => {
           <tbody>
             {customers.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-5 py-8 text-center text-gray-400">
+                <td colSpan={3} className="px-5 py-8 text-center text-[var(--oppa-text-muted)]">
                   No registered customers yet.
                 </td>
               </tr>
             )}
             {customers.map((c) => (
-              <tr key={c.id} className="border-b border-gray-50 last:border-0">
-                <td className="px-5 py-3 font-medium text-gray-800">{c.fullName}</td>
-                <td className="px-5 py-3 text-gray-600">{c.email}</td>
+              <tr key={c.id} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]">
+                <td className="px-5 py-3 font-medium text-[var(--oppa-text)]">{c.fullName}</td>
+                <td className="px-5 py-3 text-[var(--oppa-text-muted)]">{c.email}</td>
                 <td className="px-5 py-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <button

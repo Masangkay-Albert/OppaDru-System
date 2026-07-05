@@ -76,23 +76,28 @@ const AdminReportsPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">Sales Report</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Sales Report</h1>
+          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Review sales performance by period.</p>
+        </div>
         <button
           onClick={handleExportCSV}
-          className="flex items-center gap-2 bg-lime-700 hover:bg-lime-800 text-white px-4 py-2 rounded-lg text-sm font-medium"
+          className="bg-oppa-gradient flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
         >
           <Download size={16} /> Export CSV
         </button>
       </div>
 
-      <div className="flex gap-2 mb-6">
+      <div className="mb-6 flex gap-2">
         {(['daily', 'weekly', 'monthly', 'yearly'] as ReportRange[]).map((r) => (
           <button
             key={r}
             onClick={() => setRange(r)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize ${
-              range === r ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'
+            className={`rounded-full px-3 py-1.5 text-sm font-medium capitalize transition ${
+              range === r
+                ? 'bg-oppa-gradient text-white shadow-sm'
+                : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]/70'
             }`}
           >
             {r}
@@ -100,52 +105,54 @@ const AdminReportsPage: React.FC = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalSales)}</p>
-          <p className="text-sm text-gray-500 mt-1">Total Sales</p>
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+          <p className="text-2xl font-bold text-[var(--oppa-text)]">{formatCurrency(totalSales)}</p>
+          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Total Sales</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <p className="text-2xl font-bold text-gray-900">{totalOrders}</p>
-          <p className="text-sm text-gray-500 mt-1">Total Orders</p>
+        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+          <p className="text-2xl font-bold text-[var(--oppa-text)]">{totalOrders}</p>
+          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Total Orders</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <p className="text-2xl font-bold text-gray-900">{onlineCount}</p>
-          <p className="text-sm text-gray-500 mt-1">Online Orders</p>
+        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+          <p className="text-2xl font-bold text-[var(--oppa-text)]">{onlineCount}</p>
+          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Online Orders</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <p className="text-2xl font-bold text-gray-900">{onsiteCount}</p>
-          <p className="text-sm text-gray-500 mt-1">Onsite Orders</p>
+        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+          <p className="text-2xl font-bold text-[var(--oppa-text)]">{onsiteCount}</p>
+          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Onsite Orders</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-800">Items Sold</h2>
+      <div className="rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
+        <div className="border-b border-[var(--oppa-border)] px-5 py-4">
+          <h2 className="font-serif font-semibold text-[var(--oppa-text)]">Items Sold</h2>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-gray-400 text-xs uppercase border-b border-gray-100">
-              <th className="px-5 py-3">Item Name</th>
-              <th className="px-5 py-3">Quantity Sold</th>
-            </tr>
-          </thead>
-          <tbody>
-            {itemsSold.length === 0 && (
-              <tr>
-                <td colSpan={2} className="px-5 py-8 text-center text-gray-400">
-                  No sales recorded for this period.
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/40 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
+                <th className="px-5 py-3">Item Name</th>
+                <th className="px-5 py-3">Quantity Sold</th>
               </tr>
-            )}
-            {itemsSold.map(([name, qty]) => (
-              <tr key={name} className="border-b border-gray-50 last:border-0">
-                <td className="px-5 py-3 font-medium text-gray-800">{name}</td>
-                <td className="px-5 py-3 text-gray-600">{qty}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {itemsSold.length === 0 && (
+                <tr>
+                  <td colSpan={2} className="px-5 py-8 text-center text-[var(--oppa-text-muted)]">
+                    No sales recorded for this period.
+                  </td>
+                </tr>
+              )}
+              {itemsSold.map(([name, qty]) => (
+                <tr key={name} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]">
+                  <td className="px-5 py-3 font-medium text-[var(--oppa-text)]">{name}</td>
+                  <td className="px-5 py-3 text-[var(--oppa-text-muted)]">{qty}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </AdminLayout>
   );
