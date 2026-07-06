@@ -24,50 +24,50 @@ const AccountModal: React.FC<AccountModalProps> = ({ account, onClose, onResetPa
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md p-6 relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="relative w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-2xl">
+        <button onClick={onClose} className="absolute right-4 top-4 text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]">
           <X size={20} />
         </button>
 
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Account Details</h2>
+        <h2 className="mb-4 font-serif text-lg font-bold text-[var(--oppa-text)]">Account Details</h2>
 
-        <div className="space-y-2 text-sm mb-5">
-          <p><span className="text-gray-500">Full Name:</span> <span className="font-medium">{account.fullName}</span></p>
-          <p><span className="text-gray-500">Email:</span> <span className="font-medium">{account.email}</span></p>
-          <p><span className="text-gray-500">Role:</span> <span className="font-medium capitalize">{account.role}</span></p>
+        <div className="mb-5 space-y-2 text-sm">
+          <p><span className="text-[var(--oppa-text-muted)]">Full Name:</span> <span className="font-medium text-[var(--oppa-text)]">{account.fullName}</span></p>
+          <p><span className="text-[var(--oppa-text-muted)]">Email:</span> <span className="font-medium text-[var(--oppa-text)]">{account.email}</span></p>
+          <p><span className="text-[var(--oppa-text-muted)]">Role:</span> <span className="font-medium capitalize text-[var(--oppa-text)]">{account.role}</span></p>
           {account.position && (
-            <p><span className="text-gray-500">Position:</span> <span className="font-medium">{account.position}</span></p>
+            <p><span className="text-[var(--oppa-text-muted)]">Position:</span> <span className="font-medium text-[var(--oppa-text)]">{account.position}</span></p>
           )}
           {account.contactNumber && (
-            <p><span className="text-gray-500">Contact:</span> <span className="font-medium">{account.contactNumber}</span></p>
+            <p><span className="text-[var(--oppa-text-muted)]">Contact:</span> <span className="font-medium text-[var(--oppa-text)]">{account.contactNumber}</span></p>
           )}
           {account.address && (
-            <p><span className="text-gray-500">Address:</span> <span className="font-medium">{account.address}</span></p>
+            <p><span className="text-[var(--oppa-text-muted)]">Address:</span> <span className="font-medium text-[var(--oppa-text)]">{account.address}</span></p>
           )}
           {account.dateRegistered && (
-            <p><span className="text-gray-500">Registered:</span> <span className="font-medium">{new Date(account.dateRegistered).toLocaleDateString()}</span></p>
+            <p><span className="text-[var(--oppa-text-muted)]">Registered:</span> <span className="font-medium text-[var(--oppa-text)]">{new Date(account.dateRegistered).toLocaleDateString()}</span></p>
           )}
         </div>
 
-        <div className="border-t border-gray-100 pt-4">
-          <label className="block text-sm text-gray-600 mb-1">Reset Password</label>
-          <div className="flex gap-2">
+        <div className="border-t border-[var(--oppa-border)] pt-4">
+          <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Reset Password</label>
+          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               type="text"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="New password"
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-700"
+              className="flex-1 rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
             />
             <button
               onClick={handleReset}
-              className="bg-lime-700 hover:bg-lime-800 text-white text-sm font-medium px-4 py-2 rounded-lg"
+              className="bg-oppa-gradient rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
               Reset
             </button>
           </div>
-          {message && <p className="text-xs text-gray-500 mt-2">{message}</p>}
+          {message && <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">{message}</p>}
         </div>
       </div>
     </div>

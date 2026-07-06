@@ -29,19 +29,23 @@ const AdminDashboardPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
+      <h1 className="mb-1 font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Dashboard</h1>
+      <p className="mb-6 text-sm text-[var(--oppa-text-muted)]">Welcome back, here's what's happening today.</p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Total Orders" value={orders.length} icon={ShoppingBag} />
         <StatCard label="Total Users" value={totalUsers} icon={Users} />
         <StatCard label="Total Products" value={totalProducts} icon={Package} />
         <StatCard label="Out of Stock" value={outOfStock} icon={AlertTriangle} tone="warning" />
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-800">Recent Orders</h2>
-          <Link to="/admin/orders" className="text-orange-500 text-sm font-medium hover:underline">
+      <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4">
+          <h2 className="font-serif font-semibold text-[var(--oppa-text)]">Recent Orders</h2>
+          <Link
+            to="/admin/orders"
+            className="text-sm font-medium text-[var(--oppa-green-dark)] hover:underline"
+          >
             View All →
           </Link>
         </div>
@@ -49,7 +53,7 @@ const AdminDashboardPage: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-400 text-xs uppercase border-b border-gray-100">
+              <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/40 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
                 <th className="px-5 py-3">Order ID</th>
                 <th className="px-5 py-3">Customer</th>
                 <th className="px-5 py-3">Channel</th>
@@ -61,19 +65,22 @@ const AdminDashboardPage: React.FC = () => {
             <tbody>
               {recentOrders.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-gray-400">
+                  <td colSpan={6} className="px-5 py-8 text-center text-[var(--oppa-text-muted)]">
                     No orders yet.
                   </td>
                 </tr>
               )}
               {recentOrders.map((order) => (
-                <tr key={order.id} className="border-b border-gray-50 last:border-0">
-                  <td className="px-5 py-3 text-gray-500">#{order.id.slice(-6)}</td>
+                <tr
+                  key={order.id}
+                  className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]"
+                >
+                  <td className="px-5 py-3 text-[var(--oppa-text-muted)]">#{order.id.slice(-6)}</td>
                   <td className="px-5 py-3">
-                    <p className="font-medium text-gray-800">{order.customerName || 'Customer'}</p>
+                    <p className="font-medium text-[var(--oppa-text)]">{order.customerName || 'Customer'}</p>
                   </td>
-                  <td className="px-5 py-3 capitalize text-gray-600">{order.channel}</td>
-                  <td className="px-5 py-3 font-medium">{formatCurrency(order.total)}</td>
+                  <td className="px-5 py-3 capitalize text-[var(--oppa-text-muted)]">{order.channel}</td>
+                  <td className="px-5 py-3 font-medium text-[var(--oppa-text)]">{formatCurrency(order.total)}</td>
                   <td className="px-5 py-3">
                     <span
                       className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[order.status]}`}
@@ -81,7 +88,7 @@ const AdminDashboardPage: React.FC = () => {
                       {order.status.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-gray-500">
+                  <td className="px-5 py-3 text-[var(--oppa-text-muted)]">
                     {new Date(order.timestamp).toLocaleDateString()}
                   </td>
                 </tr>

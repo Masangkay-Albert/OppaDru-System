@@ -10,16 +10,18 @@ interface StatCardProps {
 }
 
 const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, tone = 'default' }) => {
-  const iconBg = tone === 'warning' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600';
+  const iconBg =
+    tone === 'warning' ? 'bg-red-100 text-red-600' : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]';
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-5 flex items-center justify-between">
+    <div className="hover-oppa-transition flex items-center justify-between rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:p-5">
       <div>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
-        <p className="text-sm text-gray-500 mt-1">{label}</p>
+        <p className="text-xl font-bold text-[var(--oppa-text)] sm:text-2xl">{value}</p>
+        <p className="mt-1 text-xs text-[var(--oppa-text-muted)] sm:text-sm">{label}</p>
       </div>
-      <div className={`p-3 rounded-xl ${iconBg}`}>
-        <Icon size={22} />
+      <div className={`rounded-xl p-2.5 sm:p-3 ${iconBg}`}>
+        <Icon size={20} className="sm:hidden" />
+        <Icon size={22} className="hidden sm:block" />
       </div>
     </div>
   );

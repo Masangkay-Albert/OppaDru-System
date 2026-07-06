@@ -55,53 +55,59 @@ const AdminAddProductPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Add Product</h1>
+      <div className="mb-6">
+        <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Add Product</h1>
+        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Create a new menu item for the shop.</p>
+      </div>
 
       {success && (
-        <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm">
+        <div className="mb-4 rounded-lg bg-green-100 p-3 text-sm text-green-700">
           Product added successfully!
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-200 p-6 max-w-2xl space-y-4">
+      <form
+        onSubmit={handleSubmit}
+        className="max-w-2xl space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-sm"
+      >
         <div>
-          <label className="block text-sm text-gray-600 mb-1">Product Name</label>
+          <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Product Name</label>
           <input
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-lime-700"
+            className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
           />
         </div>
 
         <div>
-          <label className="block text-sm text-gray-600 mb-1">Description</label>
+          <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Description</label>
           <textarea
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-lime-700"
+            className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
             rows={3}
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Price (₱)</label>
+            <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Price (₱)</label>
             <input
               type="number"
               required
               min={0}
               value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-lime-700"
+              className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Category</label>
+            <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Category</label>
             <select
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value as ProductCategory })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-lime-700"
+              className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
             >
               {categoryOptions.map((category) => (
                 <option key={category.value} value={category.value}>
@@ -113,25 +119,25 @@ const AdminAddProductPage: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-sm text-gray-600 mb-1">Food Image</label>
+          <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Food Image</label>
           <input
             type="file"
             accept="image/*"
             onChange={handleImageChange}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm"
           />
           {(imagePreview || form.image) && (
             <img
               src={imagePreview || form.image}
               alt="Product preview"
-              className="mt-3 h-32 w-full object-cover rounded-lg border border-gray-200"
+              className="mt-3 h-32 w-full rounded-lg border border-[var(--oppa-border)] object-cover"
             />
           )}
         </div>
 
         <button
           type="submit"
-          className="bg-lime-700 hover:bg-lime-800 text-white font-medium px-5 py-2 rounded-lg"
+          className="bg-oppa-gradient rounded-lg px-5 py-2 font-medium text-white transition hover:opacity-90"
         >
           Save Product
         </button>
