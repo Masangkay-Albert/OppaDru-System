@@ -21,11 +21,9 @@ export interface StoredAccount {
 
 const STORAGE_KEYS = {
   ADMIN_CURRENT: 'adminUser',
-  USERS: 'users', // shared with customer-side authService
+  USERS: 'users', 
 } as const;
 
-// Single hardcoded admin account for the capstone demo.
-// Change these values any time — this is the only account that can access /admin routes.
 const ADMIN_ACCOUNT: AdminUser & { password: string } = {
   id: 'admin-001',
   fullName: 'System Administrator',
