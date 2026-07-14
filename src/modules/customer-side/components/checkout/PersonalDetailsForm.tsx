@@ -1,5 +1,4 @@
-// src/modules/customer-side/components/checkout/PersonalDetailsForm.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../../contexts/Authcontext';
 import type { TempPerson } from '../../../../hooks/useCheckoutForm';
 
@@ -13,6 +12,15 @@ const PersonalDetailsForm: React.FC<PersonalDetailsFormProps> = ({ tempPerson, o
   const [isEditing, setIsEditing] = useState(false);
   const [editPerson, setEditPerson] = useState({ fullName: '', phone: '' });
 
+  useEffect(() => {
+    if (user) {
+      const savedPhone = localStorage.getItem(`phone_${user.id}`) || '';
+      if (savedPhone && !tempPerson.phone) {
+        onUpdatePerson('phone', savedPhone);
+      }
+    }
+  }, [user]);
+
   const startEdit = () => {
     setEditPerson({ fullName: tempPerson.fullName, phone: tempPerson.phone });
     setIsEditing(true);
@@ -21,6 +29,9 @@ const PersonalDetailsForm: React.FC<PersonalDetailsFormProps> = ({ tempPerson, o
   const saveEdit = () => {
     onUpdatePerson('fullName', editPerson.fullName);
     onUpdatePerson('phone', editPerson.phone);
+    if (user) {
+      localStorage.setItem(`phone_${user.id}`, editPerson.phone);
+    }
     setIsEditing(false);
   };
 

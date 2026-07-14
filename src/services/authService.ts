@@ -1,4 +1,3 @@
-// src/services/authService.ts
 interface User {
   id: string;
   fullName: string;
@@ -71,3 +70,19 @@ export const createUserObject = (
   password,
   role: 'customer'
 });
+
+export const updateUserPassword = (userId: string, newPassword: string): boolean => {
+  const users = getStoredUsers();
+  const userIndex = users.findIndex(u => u.id === userId);
+  
+  if (userIndex === -1) return false;
+  
+  users[userIndex] = { ...users[userIndex], password: newPassword };
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+  return true;
+};
+
+export const getUserById = (userId: string): StoredUser | null => {
+  const users = getStoredUsers();
+  return users.find(u => u.id === userId) || null;
+};

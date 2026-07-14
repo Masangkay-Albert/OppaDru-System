@@ -1,11 +1,11 @@
-// src/modules/customer-side/components/checkout/CheckoutSummary.tsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CartItem } from '../../../../types/product.types';
 import VoucherSection from './VoucherSection';
 import { useCartCalculations } from '../../../../hooks/useCartCalculations';
 import { formatCurrency } from '../../../../utils/formatters';
-import { calculateItemTotal } from '../../../../services/cartService'; 
+import { calculateItemTotal } from '../../../../services/cartService';
+import { useSettings } from '../../../../contexts/SettingsContext';
 
 interface CheckoutSummaryProps {
   cartItems: CartItem[];
@@ -16,22 +16,25 @@ interface CheckoutSummaryProps {
   isPlacingOrder?: boolean;
 }
 
-const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({ 
-  cartItems, 
-  deliveryType, 
+const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
+  cartItems,
+  deliveryType,
   onPlaceOrder,
   onVoucherApply,
   voucherDiscount,
   isPlacingOrder = false
 }) => {
   const navigate = useNavigate();
-  const { subtotal, deliveryFee, serviceFee, vat, total, hasItems } = useCartCalculations({
+  const { getActiveDiscount } = useSettings();
+  const activeDiscount = getActiveDiscount();
+
+  const { subtotal, deliveryFee, serviceFee, discountAmount, vat, total, hasItems } = useCartCalculations({
     cartItems,
     deliveryType,
-    voucherDiscount
+    voucherDiscount,
+    discount: activeDiscount.discountRate
   });
 
-  // Don't return null, always show something
   if (!hasItems) {
     return (
       <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-20">
@@ -53,24 +56,35 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         </div>
         <h2 className="text-lg font-semibold text-gray-800">Your order from</h2>
       </div>
-      
+
       <p className="text-gray-800 font-medium mb-4">Oppa Dru Korean Fried Chicken</p>
 
-      {/* Order Items */}
       <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
-        {cartItems.map((item) => (
-          <div key={item.id} className="text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-700">{item.quantity}x {item.name}</span>
-              <span className="font-medium text-gray-800">{formatCurrency(calculateItemTotal(item))}</span>
-            </div>
-            {item.selectedAddons && item.selectedAddons.length > 0 && (
-              <div className="text-xs text-gray-400 ml-4">
-                {item.selectedAddons.map(a => `+ ${a.name}`).join(', ')}
+        {cartItems.map((item) => {
+          const itemTotal = calculateItemTotal(item);
+          const itemDiscount = activeDiscount.discountRate > 0 ? itemTotal * activeDiscount.discountRate : 0;
+          const discountedPrice = itemTotal - itemDiscount;
+          return (
+            <div key={item.id} className="text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-700">{item.quantity}x {item.name}</span>
+                {activeDiscount.discountRate > 0 ? (
+                  <div className="text-right">
+                    <span className="text-gray-400 line-through text-xs mr-1">{formatCurrency(itemTotal)}</span>
+                    <span className="font-medium text-[#2d6a4f]">{formatCurrency(discountedPrice)}</span>
+                  </div>
+                ) : (
+                  <span className="font-medium text-gray-800">{formatCurrency(itemTotal)}</span>
+                )}
               </div>
-            )}
-          </div>
-        ))}
+              {item.selectedAddons && item.selectedAddons.length > 0 && (
+                <div className="text-xs text-gray-400 ml-4">
+                  {item.selectedAddons.map(a => `+ ${a.name}`).join(', ')}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <button onClick={() => navigate('/customer')} className="text-[#e76f51] text-sm font-medium mb-6 flex items-center gap-1 hover:underline">
@@ -79,7 +93,6 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
 
       <VoucherSection subtotal={subtotal} onVoucherApplied={onVoucherApply} onVoucherRemoved={() => onVoucherApply(0)} />
 
-      {/* Price Summary */}
       <div className="border-t border-gray-100 pt-4 space-y-2 text-sm">
         <div className="flex justify-between">
           <span className="text-gray-500">Subtotal</span>
@@ -93,6 +106,12 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
           <span className="text-gray-500">Service fee</span>
           <span className="text-gray-800">{formatCurrency(serviceFee)}</span>
         </div>
+        {activeDiscount.discountRate > 0 && (
+          <div className="flex justify-between text-[#2d6a4f] font-medium">
+            <span>{activeDiscount.type} Discount ({(activeDiscount.discountRate * 100)}%)</span>
+            <span>- {formatCurrency(discountAmount)}</span>
+          </div>
+        )}
         {voucherDiscount > 0 && (
           <div className="flex justify-between text-[#2d6a4f]">
             <span>Voucher discount</span>
@@ -112,12 +131,12 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         </div>
       </div>
 
-      <button 
-        onClick={onPlaceOrder} 
+      <button
+        onClick={onPlaceOrder}
         disabled={isPlacingOrder}
         className={`w-full mt-6 py-3 rounded-xl font-semibold transition ${
-          isPlacingOrder 
-            ? 'bg-gray-400 cursor-not-allowed' 
+          isPlacingOrder
+            ? 'bg-gray-400 cursor-not-allowed'
             : 'bg-[#2d6a4f] text-white hover:bg-[#1b4d3e]'
         }`}
       >

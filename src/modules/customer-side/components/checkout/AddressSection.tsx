@@ -1,6 +1,6 @@
-// src/modules/customer-side/components/checkout/AddressSection.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiMapPin, FiPlus, FiCheck, FiEdit2 } from 'react-icons/fi';
+import { useSettings } from '../../../../contexts/SettingsContext';
 import AddressCard from './AddressCard';
 import type { SavedAddress } from '../../../../hooks/useAddressManagement';
 
@@ -26,7 +26,7 @@ interface AddressSectionProps {
 }
 
 const AddressSection: React.FC<AddressSectionProps> = ({
-  addresses,
+  addresses: propAddresses,
   selectedId,
   selectedDetails,
   onSelect,
@@ -36,10 +36,20 @@ const AddressSection: React.FC<AddressSectionProps> = ({
   onAddNew,
   onSaveDetails,
 }) => {
+  const { addresses: settingsAddresses, addAddress, updateAddress } = useSettings();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<AddressDetails>(selectedDetails || {});
 
   const hasDetails = Boolean(selectedDetails && Object.keys(selectedDetails).length > 0);
+
+  useEffect(() => {
+    if (settingsAddresses.length > 0 && !selectedId) {
+      const defaultAddr = settingsAddresses.find(a => a.isDefault);
+      if (defaultAddr) {
+        onSelect(defaultAddr.id);
+      }
+    }
+  }, [settingsAddresses, selectedId, onSelect]);
 
   const handleSaveDetails = () => {
     onSaveDetails(formData);
@@ -49,6 +59,10 @@ const AddressSection: React.FC<AddressSectionProps> = ({
   const handleEditClick = () => {
     setFormData(selectedDetails || {});
     setIsEditing(true);
+  };
+
+  const handleAddNewAddress = () => {
+    onAddNew();
   };
 
   return (
@@ -61,7 +75,7 @@ const AddressSection: React.FC<AddressSectionProps> = ({
           <h2 className="text-lg font-semibold text-gray-800">Delivery Address</h2>
         </div>
         <button
-          onClick={onAddNew}
+          onClick={handleAddNewAddress}
           className="flex items-center gap-1 text-sm text-[#2d6a4f] font-medium hover:text-[#1b4d3e] transition"
         >
           <FiPlus size={16} />
@@ -70,7 +84,7 @@ const AddressSection: React.FC<AddressSectionProps> = ({
       </div>
 
       <div className="space-y-3">
-        {addresses.map((addr) => (
+        {propAddresses.map((addr) => (
           <AddressCard
             key={addr.id}
             {...addr}
@@ -82,12 +96,12 @@ const AddressSection: React.FC<AddressSectionProps> = ({
           />
         ))}
 
-        {addresses.length === 0 && (
+        {propAddresses.length === 0 && (
           <div className="text-center py-8">
             <FiMapPin className="text-4xl text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500">No saved addresses yet</p>
             <button
-              onClick={onAddNew}
+              onClick={handleAddNewAddress}
               className="mt-3 text-[#2d6a4f] font-medium hover:underline"
             >
               Add your first address
@@ -96,7 +110,7 @@ const AddressSection: React.FC<AddressSectionProps> = ({
         )}
       </div>
 
-      {selectedId && addresses.length > 0 && (
+      {selectedId && propAddresses.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-200">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-700">Additional Details</h3>

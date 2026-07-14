@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../../../contexts/Authcontext';
+import { useSettings } from '../../../../contexts/SettingsContext';
 import { useAddressManagement } from '../../../../hooks/useAddressManagement';
 import LocationPicker from '../common/LocationPicker';
 import AddressSection from './AddressSection';
@@ -11,13 +12,13 @@ interface AddressFormState {
   street: string;
   floor: string;
   note: string;
-  block: string; 
-  lot: string;   
+  block: string;
+  lot: string;
 }
 
 interface CheckoutFormProps {
-  address: AddressFormState; // ✅ UPDATED to use shared shape
-  updateAddress: (field: keyof AddressFormState, value: string) => void; // ✅ UPDATED
+  address: AddressFormState;
+  updateAddress: (field: keyof AddressFormState, value: string) => void;
   tempPerson: { fullName: string; email: string; phone: string };
   updatePerson: (field: keyof { fullName: string; email: string; phone: string }, value: string) => void;
   deliveryType: 'standard' | 'priority';
@@ -40,6 +41,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   onScheduleClick
 }) => {
   const { user } = useAuth();
+  const { getActiveDiscount } = useSettings();
+  const activeDiscount = getActiveDiscount();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   const {
@@ -61,8 +64,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       }
       if (details?.floor) updateAddress('floor', details.floor);
       if (details?.note) updateAddress('note', details.note);
-      updateAddress('block', details?.block || ''); 
-      updateAddress('lot', details?.lot || '');     
+      updateAddress('block', details?.block || '');
+      updateAddress('lot', details?.lot || '');
     }
   });
 
@@ -86,8 +89,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       updateDetails(selectedAddressId, details);
       if (details.floor) updateAddress('floor', details.floor);
       if (details.note) updateAddress('note', details.note);
-      updateAddress('block', details.block || ''); 
-      updateAddress('lot', details.lot || '');    
+      updateAddress('block', details.block || '');
+      updateAddress('lot', details.lot || '');
     }
   };
 
