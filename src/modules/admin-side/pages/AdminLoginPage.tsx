@@ -26,11 +26,18 @@ const AdminLoginPage: React.FC = () => {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center p-4">
-      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${oppaDruLogo})` }} />
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(13,22,16,0.90),rgba(46,122,69,0.78))]" />
+    <div
+      className="relative flex min-h-screen items-center justify-center p-4"
+      style={{
+        backgroundImage: `url(${oppaDruLogo})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      <div className="absolute inset-0 bg-black/50" />
 
-      <div className="relative w-full max-w-sm rounded-[24px] border border-white/20 bg-white/95 p-6 shadow-2xl backdrop-blur sm:p-8">
+      <div className="relative z-10 w-full max-w-md rounded-[24px] border border-white/20 bg-white/95 p-8 shadow-2xl backdrop-blur-sm sm:p-8">
         <div className="mb-6 flex flex-col items-center">
           <img
             src={oppaDruLogo}
