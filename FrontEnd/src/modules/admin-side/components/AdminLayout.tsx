@@ -149,7 +149,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <span className="font-serif text-sm font-bold text-[var(--oppa-text)]">Oppa Dru</span>
           </div>
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 sm:px-6">{children}</div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 sm:px-6">{children}</div>
       </main>
     </div>
   );

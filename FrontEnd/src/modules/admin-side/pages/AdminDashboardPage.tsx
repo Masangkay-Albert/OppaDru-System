@@ -29,7 +29,7 @@ const AdminDashboardPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <h1 className="mb-1 font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Dashboard</h1>
+      <h1 className="mb-1 mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">Dashboard</h1>
       <p className="mb-6 text-sm text-[var(--oppa-text-muted)]">Welcome back, here's what's happening today.</p>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

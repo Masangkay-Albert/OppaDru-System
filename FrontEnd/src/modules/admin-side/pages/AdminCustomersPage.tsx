@@ -35,7 +35,7 @@ const AdminCustomersPage: React.FC = () => {
   return (
     <AdminLayout>
       <div className="mb-6">
-        <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Registered Customers</h1>
+        <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">Registered Customers</h1>
         <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">View accounts and manage customer passwords.</p>
       </div>
 

@@ -56,7 +56,7 @@ const AdminAddProductPage: React.FC = () => {
   return (
     <AdminLayout>
       <div className="mb-6">
-        <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Add Product</h1>
+        <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">Add Product</h1>
         <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Create a new menu item for the shop.</p>
       </div>
 

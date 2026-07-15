@@ -52,7 +52,7 @@ const AdminEmployeesPage: React.FC = () => {
     <AdminLayout>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Registered Employees</h1>
+          <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">Registered Employees</h1>
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage staff accounts and access.</p>
         </div>
         <button

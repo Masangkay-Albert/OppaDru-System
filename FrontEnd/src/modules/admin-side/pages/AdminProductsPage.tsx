@@ -152,7 +152,7 @@ const AdminProductsPage: React.FC = () => {
       <div className="sticky top-0 z-20 -mx-4 border-b border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-4 pb-4 pt-1 sm:-mx-6 sm:px-6">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Products</h1>
+            <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">Products</h1>
             <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage your menu items and availability.</p>
           </div>
           <button
