@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Product } from '../types/product.types';
-import { useAuth } from '../contexts/Authcontext';
+import { useAuth } from './Authcontext';
 
 interface OrderCount {
   productId: string;

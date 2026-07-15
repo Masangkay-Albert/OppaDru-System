@@ -3,8 +3,8 @@
 import { useCallback } from 'react';
 import { searchLocationAPI } from './useLocationSearch';
 import type { LocationResult } from './useLocationSearch';
-import { getAddressFromCoords } from './../services/geocodingService';
-import { cleanAddress, getShortName } from './../utils/locationUtils';
+import { getAddressFromCoords } from '../services/geocodingService';
+import { cleanAddress, getShortName } from '../utils/locationUtils';
 
 interface Params {
   searchQuery: string;
