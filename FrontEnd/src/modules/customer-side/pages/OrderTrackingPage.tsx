@@ -34,9 +34,10 @@ const OrderTrackingPage: React.FC = () => {
   const [simulatedProgress, setSimulatedProgress] = useState(0);
   const [isSimulating, setIsSimulating] = useState(false);
 
+  // 1. Updated: Only start simulation on load IF status is ON_WAY
   const handleRouteLoaded = useCallback((points: [number, number][]) => {
     setRoutePoints(points);
-    if (points.length > 0 && !isSimulating && order?.status !== ORDER_STATUS.DELIVERED) {
+    if (points.length > 0 && !isSimulating && order?.status === ORDER_STATUS.ON_THE_WAY) {
       setIsSimulating(true);
     }
   }, [isSimulating, order]);
@@ -68,8 +69,17 @@ const OrderTrackingPage: React.FC = () => {
 
   }, [requestedOrderId, currentOrder, getOrderById, navigate]);
 
+  // 2. NEW: Listen for status changes. If the driver accepts the order while the customer 
+  // is watching the tracking page, this will trigger the car to start moving.
   useEffect(() => {
-    if (!order || order.status === ORDER_STATUS.DELIVERED || !isSimulating) return;
+    if (order?.status === ORDER_STATUS.ON_THE_WAY && routePoints.length > 0 && !isSimulating && simulatedProgress < 95) {
+      setIsSimulating(true);
+    }
+  }, [order?.status, routePoints.length, isSimulating, simulatedProgress]);
+
+  // 3. Updated: Ensure the interval only runs when the order is ON_WAY
+  useEffect(() => {
+    if (!order || order.status !== ORDER_STATUS.ON_THE_WAY || !isSimulating) return;
 
     const interval = setInterval(() => {
       setSimulatedProgress(prev => {
@@ -94,7 +104,8 @@ const OrderTrackingPage: React.FC = () => {
   }, [order, simulatedProgress, updateOrderStatus]);
 
   useEffect(() => {
-    if (simulatedProgress >= 95 && order && order.status !== ORDER_STATUS.DELIVERED && !isSimulating) {
+    
+    if (simulatedProgress >= 95 && order && order.status === ORDER_STATUS.ON_THE_WAY && !isSimulating) {
       const timer = setTimeout(() => {
         handleDeliver();
       }, 5000);
@@ -188,7 +199,7 @@ const OrderTrackingPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-3">
             <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${statusColor}`}>
-              {isDelivered ? 'Delivered' : order.status?.charAt(0).toUpperCase() + order.status?.slice(1) || 'Pending'}
+              {isDelivered ? 'Delivered' : order.status?.charAt(0).toUpperCase() + order.status?.slice(1).replace('_', ' ') || 'Pending'}
             </span>
           </div>
         </div>

@@ -1,4 +1,3 @@
-// src/services/driverOrderService.ts
 import { getOnlineOrders, type AdminOrder } from './adminOrderService';
 import type { Order } from '../contexts/OrderContext';
 
@@ -57,15 +56,21 @@ export const getAvailableDriverOrders = (): DriverOrder[] => {
 
 export const getActiveDeliveries = (): DriverOrder[] => {
   const allOrders = getOnlineOrders() as DriverOrder[];
-  // UPDATED: Now uses 'on_way' exactly as defined in your constants.ts
-  return allOrders.filter((o) => o.status === 'on_way');
+  
+  return allOrders.filter((o) => o.status === 'on_the_way');
 };
 
 export const acceptOrder = (orderId: string): void => {
-  // UPDATED: Now uses 'on_way' exactly as defined in your constants.ts
-  updateOrderStatusInStorage(orderId, 'on_way');
+
+  updateOrderStatusInStorage(orderId, 'on_the_way');
 };
 
 export const completeDelivery = (orderId: string): void => {
   updateOrderStatusInStorage(orderId, 'delivered');
+};
+
+// NEW: Added to support the History tab in the Driver Dashboard
+export const getDeliveredOrders = (): DriverOrder[] => {
+  const allOrders = getOnlineOrders() as DriverOrder[];
+  return allOrders.filter((o) => o.status === 'delivered');
 };

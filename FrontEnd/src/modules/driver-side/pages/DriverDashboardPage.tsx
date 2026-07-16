@@ -4,7 +4,8 @@ import { Truck, MapPin, CheckCircle, Phone, Clock, CreditCard } from 'lucide-rea
 import DriverLayout from '../components/DriverLayout';
 import { 
   getAvailableDriverOrders, 
-  getActiveDeliveries, 
+  getActiveDeliveries,
+  getDeliveredOrders, // Added this import
   acceptOrder, 
   completeDelivery,
   type DriverOrder
@@ -16,8 +17,9 @@ import { STATUS_COLORS } from '../../../utils/constants';
 const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap';
 const chipPrimary = `${chipBase} bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]/70`;
 const chipSuccess = `${chipBase} bg-green-50 text-green-600 hover:bg-green-100`;
+const chipDisabled = `${chipBase} bg-gray-100 text-gray-500 cursor-default`; // Added for history
 
-type TabView = 'available' | 'active';
+type TabView = 'available' | 'active' | 'history'; // Added 'history'
 
 const formatPaymentMethod = (method?: string) => {
   if (!method) return 'Unknown';
@@ -34,8 +36,10 @@ const DriverDashboardPage: React.FC = () => {
   const refresh = () => {
     if (activeTab === 'available') {
       setOrders(getAvailableDriverOrders());
-    } else {
+    } else if (activeTab === 'active') {
       setOrders(getActiveDeliveries());
+    } else {
+      setOrders(getDeliveredOrders()); // Fetch history
     }
   };
 
@@ -50,7 +54,7 @@ const DriverDashboardPage: React.FC = () => {
 
   const handleCompleteDelivery = (order: DriverOrder) => {
     completeDelivery(order.id);
-    refresh();
+    setActiveTab('history'); // Move to history tab after completing
   };
 
   return (
@@ -87,17 +91,29 @@ const DriverDashboardPage: React.FC = () => {
         >
           My Active Deliveries
         </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+            activeTab === 'history'
+              ? 'bg-oppa-gradient text-white shadow-sm'
+              : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]/70'
+          }`}
+        >
+          History
+        </button>
       </div>
 
       {orders.length === 0 && (
         <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">
           {activeTab === 'available' 
             ? 'No delivery orders available right now.' 
-            : 'You have no active deliveries.'}
+            : activeTab === 'active' 
+            ? 'You have no active deliveries.' 
+            : 'You have not completed any deliveries yet.'}
         </div>
       )}
 
-     
+      {/* Mobile / tablet: tidy stacked cards */}
       {orders.length > 0 && (
         <div className="space-y-3 md:hidden">
           {orders.map((order) => (
@@ -113,7 +129,6 @@ const DriverDashboardPage: React.FC = () => {
                   <p className="truncate font-medium text-[var(--oppa-text)]">{order.customerName || 'Customer'}</p>
                   <p className="text-xs text-[var(--oppa-text-muted)]">#{order.id.slice(-6)}</p>
                 </div>
-               
                 <span className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-medium capitalize ${STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-700'}`}>
                   {order.status.replace('_', ' ')}
                 </span>
@@ -152,10 +167,14 @@ const DriverDashboardPage: React.FC = () => {
                   <button onClick={() => handleAcceptOrder(order)} className={chipPrimary}>
                     <Truck size={14} /> Accept Order
                   </button>
-                ) : (
+                ) : activeTab === 'active' ? (
                   <button onClick={() => handleCompleteDelivery(order)} className={chipSuccess}>
                     <CheckCircle size={14} /> Mark Delivered
                   </button>
+                ) : (
+                  <span className={chipDisabled}>
+                    <CheckCircle size={14} /> Completed
+                  </span>
                 )}
               </div>
             </div>
@@ -163,7 +182,7 @@ const DriverDashboardPage: React.FC = () => {
         </div>
       )}
 
-      
+      {/* Desktop: full data table */}
       {orders.length > 0 && (
         <div className="hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
           <table className="w-full text-sm">
@@ -207,7 +226,6 @@ const DriverDashboardPage: React.FC = () => {
                     </p>
                   </td>
                   <td className="px-5 py-3">
-                    {/* Dynamically applying your constants.ts STATUS_COLORS */}
                     <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-700'}`}>
                       {order.status.replace('_', ' ')}
                     </span>
@@ -217,10 +235,14 @@ const DriverDashboardPage: React.FC = () => {
                       <button onClick={() => handleAcceptOrder(order)} className={chipPrimary}>
                         <Truck size={14} /> Accept
                       </button>
-                    ) : (
+                    ) : activeTab === 'active' ? (
                       <button onClick={() => handleCompleteDelivery(order)} className={chipSuccess}>
                         <CheckCircle size={14} /> Delivered
                       </button>
+                    ) : (
+                      <span className={chipDisabled}>
+                        <CheckCircle size={14} /> Done
+                      </span>
                     )}
                   </td>
                 </tr>
