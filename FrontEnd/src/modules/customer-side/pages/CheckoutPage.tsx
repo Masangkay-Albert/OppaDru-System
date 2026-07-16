@@ -137,13 +137,17 @@ const buildFullDeliveryAddress = () => {
       const { total } = calculateTotal();
       const fullDeliveryAddress = buildFullDeliveryAddress(); 
 
+      // UPDATED: Now passing phone, deliveryType, and scheduleDisplay
       placeOrder(
         cartItems,
         total,
         fullDeliveryAddress, 
         coords,
         paymentMethod,
-        paymentReference || undefined
+        paymentReference || undefined,
+        tempPerson.phone,
+        deliveryType,
+        scheduleDisplay
       );
 
       setOrderCompleted(true);

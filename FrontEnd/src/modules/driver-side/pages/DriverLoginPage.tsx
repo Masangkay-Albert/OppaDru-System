@@ -22,7 +22,7 @@ const DriverLoginPage: React.FC = () => {
       const result = await driverAuth.login(email, password);
 
       if (result.success) {
-        navigate("/driver/dashboard");
+        navigate("/delivery/dashboard");
       } else {
         setError(result.message || "Invalid email or password");
       }

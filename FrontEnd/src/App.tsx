@@ -32,6 +32,7 @@ import ProtectedAdminRoute from "./modules/admin-side/components/ProtectedAdminR
 
 // ============ DRIVER PAGES ============
 import DriverLoginPage from "./modules/driver-side/pages/DriverLoginPage";
+import DriverDashboardPage from "./modules/driver-side/pages/DriverDashboardPage";
 
 function App() {
   return (
@@ -71,6 +72,7 @@ function App() {
 
                       {/* ===== DRIVER ROUTES ===== */}
                       <Route path="/delivery/login" element={<DriverLoginPage />} />
+                      <Route path="/delivery/dashboard" element={<DriverDashboardPage/>}/>
                     </Routes>
                   </ToastProvider>
                 </BrowserRouter>

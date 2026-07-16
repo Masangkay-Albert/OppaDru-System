@@ -16,6 +16,9 @@ export interface Order {
   timestamp: string;
   paymentMethod: string;
   paymentReference?: string;
+  phone?: string;                           // ADDED: Customer phone
+  deliveryType?: 'standard' | 'priority';   // ADDED: Priority or Standard
+  scheduleDisplay?: string;                 // ADDED: Scheduled time
   eta?: number;
   currentRouteIndex?: number;
   deliveryAddress: string;
@@ -35,7 +38,10 @@ interface OrderContextType {
     address: string,
     coords: { lat: number; lng: number },
     paymentMethod: string,
-    paymentReference?: string
+    paymentReference?: string,
+    phone?: string,                         // ADDED
+    deliveryType?: 'standard' | 'priority', // ADDED
+    scheduleDisplay?: string                // ADDED
   ) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   updateDriverPosition: (orderId: string, position: { lat: number; lng: number }) => void;
@@ -58,7 +64,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [orders, setOrders] = useState<Order[]>([]);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
-  // Bawat user may sariling orders key, gaya ng ginawa sa CartContext.
   const getOrdersKey = useCallback(() => {
     if (user?.id) {
       return `orders_user_${user.id}`;
@@ -106,7 +111,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [user, getOrdersKey, getCurrentOrderKey]);
 
-  // Reload orders tuwing magpapalit ng naka-login na user (login/logout).
   useEffect(() => {
     loadOrders();
   }, [loadOrders]);
@@ -117,7 +121,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     address: string,
     coords: { lat: number; lng: number },
     paymentMethod: string,
-    paymentReference?: string
+    paymentReference?: string,
+    phone?: string,                         // ADDED
+    deliveryType?: 'standard' | 'priority', // ADDED
+    scheduleDisplay?: string                // ADDED
   ) => {
     if (!user) {
       console.error('Cannot place order: no user logged in');
@@ -136,6 +143,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       createdAt: new Date().toISOString(),
       paymentMethod,
       paymentReference,
+      phone,                                // ADDED
+      deliveryType,                         // ADDED
+      scheduleDisplay,                      // ADDED
       eta: 35,
       currentRouteIndex: 0,
       deliveryAddress: address,
