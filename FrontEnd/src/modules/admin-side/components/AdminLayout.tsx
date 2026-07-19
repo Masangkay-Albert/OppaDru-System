@@ -12,7 +12,8 @@ import {
   Home,
   Menu,
   X,
-  Car
+  Car,
+  ForkKnifeCrossed
 } from 'lucide-react';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
@@ -24,7 +25,10 @@ const navItems = [
   { to: '/admin/customers', label: 'Customers', icon: Users },
   { to: '/admin/employees', label: 'Employees', icon: Briefcase },
   { to: '/admin/reports', label: 'Reports', icon: FileBarChart },
-  { to: '/admin/delivery', label: 'Delivery', icon: Car },
+  {to: '/admin/kitchen', label: 'Kitchen', icon: ForkKnifeCrossed},
+  { to: '/admin/delivery', label: 'Delivery', icon: Car }
+  
+
 ];
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {

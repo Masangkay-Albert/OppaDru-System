@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PlusIcon, XIcon, TruckIcon, PhoneIcon, MailIcon } from "lucide-react";
+import { PlusIcon, XIcon,  PhoneIcon, MailIcon } from "lucide-react";
 import { addDriver } from "../../../services/addDriver";
 import type { DeliveryPartner } from "../../../types/driver.type";
 import AdminLayout from '../components/AdminLayout';

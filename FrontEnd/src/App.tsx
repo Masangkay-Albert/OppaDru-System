@@ -29,10 +29,14 @@ import AdminEmployeesPage from "./modules/admin-side/pages/AdminEmployeesPage";
 import AdminReportsPage from "./modules/admin-side/pages/AdminReportsPage";
 import AdminDelivery from "./modules/admin-side/pages/AdminDelivery";
 import ProtectedAdminRoute from "./modules/admin-side/components/ProtectedAdminRoute";
+import AdminKitchenPage from "./modules/admin-side/pages/AdminKitchenPage";
 
 // ============ DRIVER PAGES ============
 import DriverLoginPage from "./modules/driver-side/pages/DriverLoginPage";
 import DriverDashboardPage from "./modules/driver-side/pages/DriverDashboardPage";
+
+/// ============= Kitchen Page
+
 
 function App() {
   return (
@@ -69,10 +73,15 @@ function App() {
                       <Route path="/admin/customers" element={<ProtectedAdminRoute><AdminCustomersPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/employees" element={<ProtectedAdminRoute><AdminEmployeesPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/reports" element={<ProtectedAdminRoute><AdminReportsPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/kitchen" element={<ProtectedAdminRoute><AdminKitchenPage /></ProtectedAdminRoute>} />
 
                       {/* ===== DRIVER ROUTES ===== */}
                       <Route path="/delivery/login" element={<DriverLoginPage />} />
                       <Route path="/delivery/dashboard" element={<DriverDashboardPage/>}/>
+
+                      {/* ===== Kitchen ROUTES ===== */}
+
+
                     </Routes>
                   </ToastProvider>
                 </BrowserRouter>
