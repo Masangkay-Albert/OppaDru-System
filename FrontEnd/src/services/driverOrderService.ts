@@ -49,9 +49,12 @@ const updateOrderStatusInStorage = (orderId: string, newStatus: Order['status'])
   });
 };
 
+// Find this specific function and update it:
 export const getAvailableDriverOrders = (): DriverOrder[] => {
   const allOrders = getOnlineOrders() as DriverOrder[]; 
-  return allOrders.filter((o) => o.status === 'pending' || o.status === 'preparing');
+  
+
+  return allOrders.filter((o) => o.status === 'ready');
 };
 
 export const getActiveDeliveries = (): DriverOrder[] => {

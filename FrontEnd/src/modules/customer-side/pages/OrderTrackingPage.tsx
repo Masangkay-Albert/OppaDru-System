@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useOrder } from '../../../contexts/OrderContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
-import { ORDER_STATUS, STATUS_COLORS } from '../../../utils/constants';
+import { ORDER_STATUS, STATUS_COLORS, STATUS_MESSAGES } from '../../../utils/constants';
 import { OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
 import type { Order } from '../../../contexts/OrderContext';
 
@@ -31,10 +31,11 @@ const OrderTrackingPage: React.FC = () => {
   const [routePoints, setRoutePoints] = useState<[number, number][]>([]);
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [simulatedProgress, setSimulatedProgress] = useState(0);
+  
+  // This tracks the physical car on the map (0 to 100)
+  const [simulatedProgress, setSimulatedProgress] = useState(0); 
   const [isSimulating, setIsSimulating] = useState(false);
 
-  // 1. Updated: Only start simulation on load IF status is ON_WAY
   const handleRouteLoaded = useCallback((points: [number, number][]) => {
     setRoutePoints(points);
     if (points.length > 0 && !isSimulating && order?.status === ORDER_STATUS.ON_THE_WAY) {
@@ -69,15 +70,12 @@ const OrderTrackingPage: React.FC = () => {
 
   }, [requestedOrderId, currentOrder, getOrderById, navigate]);
 
-  // 2. NEW: Listen for status changes. If the driver accepts the order while the customer 
-  // is watching the tracking page, this will trigger the car to start moving.
   useEffect(() => {
     if (order?.status === ORDER_STATUS.ON_THE_WAY && routePoints.length > 0 && !isSimulating && simulatedProgress < 95) {
       setIsSimulating(true);
     }
   }, [order?.status, routePoints.length, isSimulating, simulatedProgress]);
 
-  // 3. Updated: Ensure the interval only runs when the order is ON_WAY
   useEffect(() => {
     if (!order || order.status !== ORDER_STATUS.ON_THE_WAY || !isSimulating) return;
 
@@ -104,7 +102,6 @@ const OrderTrackingPage: React.FC = () => {
   }, [order, simulatedProgress, updateOrderStatus]);
 
   useEffect(() => {
-    
     if (simulatedProgress >= 95 && order && order.status === ORDER_STATUS.ON_THE_WAY && !isSimulating) {
       const timer = setTimeout(() => {
         handleDeliver();
@@ -113,9 +110,24 @@ const OrderTrackingPage: React.FC = () => {
     }
   }, [simulatedProgress, order, isSimulating, handleDeliver]);
 
-  const getProgress = () => {
-    if (order?.status === ORDER_STATUS.DELIVERED) return 100;
-    return simulatedProgress;
+
+  const getBarProgress = () => {
+    if (!order) return 0;
+    switch (order.status) {
+      case 'pending': 
+        return 20; 
+      case 'preparing': 
+        return 40; 
+      case 'ready': 
+        return 60; 
+      case 'on_the_way': 
+        
+        return 60 + (simulatedProgress * 0.35); 
+      case 'delivered': 
+        return 100; 
+      default: 
+        return 0;
+    }
   };
 
   const formatDate = (date: string | Date) => {
@@ -169,7 +181,7 @@ const OrderTrackingPage: React.FC = () => {
     );
   }
 
-  const progress = getProgress();
+  const barProgress = getBarProgress();
   const statusColor = STATUS_COLORS[order.status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700';
   const isDelivered = order.status === ORDER_STATUS.DELIVERED;
 
@@ -177,6 +189,9 @@ const OrderTrackingPage: React.FC = () => {
     (OPPA_DRU_STORE_COORDS.lat + order.deliveryAddressCoords.lat) / 2,
     (OPPA_DRU_STORE_COORDS.lng + order.deliveryAddressCoords.lng) / 2
   ] : [OPPA_DRU_STORE_COORDS.lat, OPPA_DRU_STORE_COORDS.lng];
+
+  // Gets the exact message for the current phase from constants.ts
+  const currentMessageInfo = STATUS_MESSAGES[order.status as keyof typeof STATUS_MESSAGES];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
@@ -205,7 +220,15 @@ const OrderTrackingPage: React.FC = () => {
         </div>
 
         <div className="mb-6">
-          <ProgressBar status={isDelivered ? ORDER_STATUS.DELIVERED : order.status} progress={progress} />
+          {/* NEW: Explicitly displays "Preparing", "Delivering", etc. right above the progress bar */}
+          <div className="flex items-center gap-2 mb-2 ml-1">
+            <span className="text-2xl">{currentMessageInfo?.icon || '🔄'}</span>
+            <span className="font-semibold text-[#2d6a4f] tracking-wide">
+              {currentMessageInfo?.message || 'Updating status...'}
+            </span>
+          </div>
+          
+          <ProgressBar status={isDelivered ? ORDER_STATUS.DELIVERED : order.status} progress={barProgress} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -223,16 +246,17 @@ const OrderTrackingPage: React.FC = () => {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
                   />
                   
+                  {/* Driver Marker and Route stick to the map's simulatedProgress so they don't jump early */}
                   <RouteLayer 
                     start={OPPA_DRU_STORE_COORDS} 
                     end={order.deliveryAddressCoords || OPPA_DRU_STORE_COORDS} 
-                    progress={progress} 
+                    progress={simulatedProgress} 
                     onRouteLoaded={handleRouteLoaded} 
                   />
                   
                   <DriverMarker 
                     routePoints={routePoints} 
-                    progress={progress}
+                    progress={simulatedProgress}
                   />
                   
                   <Marker 
@@ -278,7 +302,7 @@ const OrderTrackingPage: React.FC = () => {
               formatDate={formatDate} 
             />
             
-            {!isDelivered && progress >= 95 && (
+            {!isDelivered && simulatedProgress >= 95 && (
               <button 
                 onClick={handleDeliver} 
                 className="w-full mt-4 py-3 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition shadow-md animate-pulse"

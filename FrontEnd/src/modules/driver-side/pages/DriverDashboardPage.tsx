@@ -1,4 +1,3 @@
-// src/modules/driver-side/pages/DriverDashboardPage.tsx
 import React, { useEffect, useState } from 'react';
 import { Truck, MapPin, CheckCircle, Phone, Clock, CreditCard } from 'lucide-react';
 import DriverLayout from '../components/DriverLayout';

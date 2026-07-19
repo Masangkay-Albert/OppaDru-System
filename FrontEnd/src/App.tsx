@@ -37,6 +37,7 @@ import DriverDashboardPage from "./modules/driver-side/pages/DriverDashboardPage
 
 /// ============= Kitchen Page
 import KitchenLoginPage from "./modules/kitchen-side/kitchenLogin";
+import KitchenDashboardPage from "./modules/kitchen-side/kitchenDashboard";
 
 function App() {
   return (
@@ -81,6 +82,7 @@ function App() {
 
                       {/* ===== Kitchen ROUTES ===== */}
                       <Route path="/kitchen/login" element={<KitchenLoginPage/>}/>
+                      <Route path="/kitchen/dashboard" element={<KitchenDashboardPage/>}/>
 
                     </Routes>
                   </ToastProvider>
