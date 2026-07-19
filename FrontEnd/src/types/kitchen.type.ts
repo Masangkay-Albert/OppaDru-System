@@ -3,6 +3,7 @@ export interface KitchenEmployee {
   name: string;
   email: string;
   phone: string;
+  password: string;
   role: string; 
   isActive: boolean;
 }
