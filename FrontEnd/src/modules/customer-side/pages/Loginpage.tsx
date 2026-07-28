@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
-import oppaLogo from "../../../assets/oppadrulogo.jpg";
-import { Bike } from 'lucide-react';
+import { LogIn, Mail, Lock, Eye, EyeOff, Shield, Truck, ArrowLeft } from "lucide-react";
+import heroSectionImg from "../../../assets/herosection.png";
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -32,116 +32,141 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  const handleRegisterClick = () => {
-    navigate("/register");
-  };
-
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center p-4 relative"
-      style={{
-        backgroundImage: `url(${oppaLogo})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
-      <div className="absolute inset-0 bg-black/50"></div>
-      
-      <div className="relative z-10 bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 max-w-md w-full">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <img 
-              src={oppaLogo} 
-              alt="Oppa Dru Logo" 
-              className="w-20 h-20 rounded-full object-cover border-2 border-lime-700"
-            />
-          </div>
-          <h1 className="text-3xl font-bold text-lime-700">Oppa Dru</h1>
-          <p className="text-gray-600 mt-2">Login to your account</p>
+    <div className="min-h-screen flex">
+      <div className="hidden lg:flex lg:w-1/2 bg-[var(--oppa-green)] relative items-center justify-center overflow-hidden">
+        <img
+          src={heroSectionImg}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover opacity-10"
+        />
+        <div className="relative text-center px-12">
+          <h2 className="text-4xl font-semibold text-white mb-4">
+            Welcome Back!
+          </h2>
+          <p className="text-white/70 font-serif text-xl max-w-sm mx-auto">
+            Sauced, tossed, and straight-up obsessed.
+          </p>
         </div>
-        
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-xl">
-            {error}
+      </div>
+
+      <div className="flex-1 flex items-center justify-center px-4 py-12 bg-[var(--oppa-cream)]">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <LogIn className="size-7 text-[var(--oppa-green)]" />
+              <span className="text-2xl font-semibold text-[var(--oppa-green)]">
+                Oppa Dru
+              </span>
+            </div>
+            <h1 className="text-2xl font-semibold text-[var(--oppa-green)] mb-2">
+              Welcome Back
+            </h1>
+            <p className="text-sm text-[var(--oppa-text-muted)]">
+              Login to your account
+            </p>
           </div>
-        )}
-        
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Email Address</label>
-            <input 
-              type="email" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              required
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-gray-700 font-medium mb-2">Password</label>
-            <div className="relative">
-              <input 
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent pr-12"
-              />
+
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
+
+          <form
+            onSubmit={handleSubmit}
+            className="bg-white rounded-2xl p-8 space-y-5 shadow-lg border border-[var(--oppa-border)]"
+          >
+            <div>
+              <label className="block text-sm font-medium text-[var(--oppa-green)] mb-1.5">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)] focus:border-transparent"
+                  placeholder="username@gmail.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[var(--oppa-green)] mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-12 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)] focus:border-transparent"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3 bg-[var(--oppa-green)] text-white font-semibold rounded-xl hover:bg-[var(--oppa-green-dark)] transition-colors disabled:opacity-60"
+            >
+              {isLoading ? "Signing in..." : "Sign In"}
+            </button>
+          </form>
+
+          <p className="text-center text-sm text-[var(--oppa-text-muted)] mt-6">
+            Don't have an account?{" "}
+            <button
+              onClick={() => navigate("/register")}
+              className="text-[var(--oppa-green)] font-semibold hover:underline"
+            >
+              Sign Up
+            </button>
+          </p>
+
+          <div className="mt-8 pt-6 border-t border-[var(--oppa-border)]">
+            <p className="text-xs text-[var(--oppa-text-muted)] text-center mb-4 font-medium uppercase tracking-wider">
+              Other Portals
+            </p>
+            <div className="grid grid-cols-2 gap-3">
               <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-lime-700"
+                onClick={() => navigate("/admin/login")}
+                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border-2 border-[var(--oppa-border)] text-[var(--oppa-green)] font-medium rounded-xl hover:bg-[var(--oppa-green)] hover:text-white hover:border-[var(--oppa-green)] transition-all duration-200"
               >
-                {showPassword ? "👁️" : "👁️‍🗨️"}
+                <Shield size={18} />
+                <span className="text-sm">Admin</span>
+              </button>
+              <button
+                onClick={() => navigate("/delivery/login")}
+                className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border-2 border-[var(--oppa-border)] text-[var(--oppa-green)] font-medium rounded-xl hover:bg-[var(--oppa-green)] hover:text-white hover:border-[var(--oppa-green)] transition-all duration-200"
+              >
+                <Truck size={18} />
+                <span className="text-sm">Delivery</span>
               </button>
             </div>
           </div>
-          
-          <button 
-            type="submit"
-            disabled={isLoading}
-            className={`w-full bg-lime-700 text-white py-3 rounded-xl font-semibold transition ${
-              isLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-lime-800"
-            }`}
-          >
-            {isLoading ? "Logging in..." : "Sign In"}
-          </button>
-        </form>
-        
-        <p className="text-center text-gray-500 mt-6">
-          Don't have an account?{" "}
-          <button 
-            onClick={handleRegisterClick}
-            className="text-lime-700 font-semibold hover:underline"
-          >
-            Sign up
-          </button>
-        </p>
 
-        <button 
-          onClick={() => navigate("/admin/login")}
-          className="w-full mt-4 text-lime-700 font-semibold hover:underline"
-        >
-          Go to Admin Portal
-        </button>
-
-        <button 
-          onClick={() => navigate("/delivery/login")}
-          className="w-full mt-2 text-lime-700 font-semibold hover:underline flex items-center justify-center gap-2"
-        >
-          <Bike size={20} /> Delivery Login
-        </button>
-        
-        <button 
-          onClick={() => navigate("/")}
-          className="w-full mt-2 text-gray-500 hover:text-gray-700 transition"
-        >
-          ← Back to Home
-        </button>
+          <button
+            onClick={() => navigate("/")}
+            className="w-full mt-6 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)] transition-colors flex items-center justify-center gap-1"
+          >
+            <ArrowLeft size={16} />
+            Back to Home
+          </button>
+        </div>
       </div>
     </div>
   );
