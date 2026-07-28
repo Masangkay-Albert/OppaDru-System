@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./contexts/Authcontext";
+import { AuthProvider } from "./contexts/Authcontext"; 
 import { AdminAuthProvider } from "./contexts/AdminAuthContext";
 import { CartProvider } from "./contexts/CartContext";
 import { FavoritesProvider } from "./contexts/FavoritesContext";
@@ -9,7 +9,7 @@ import ToastProvider from "./modules/customer-side/components/ToastProvider";
 
 // ============ CUSTOMER PAGES ============
 import LandingPage from "./modules/customer-side/pages/LandingPage";
-import LoginPage from "./modules/customer-side/pages/Loginpage";
+import LoginPage from "./modules/customer-side/pages/Loginpage";  
 import RegistrationPage from "./modules/customer-side/pages/RegistrationPage";
 import MenuPage from "./modules/customer-side/pages/MenuPage";
 import FavoritesPage from "./modules/customer-side/pages/FavoritesPage";

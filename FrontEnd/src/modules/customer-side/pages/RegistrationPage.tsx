@@ -8,8 +8,9 @@ const RegistrationPage: React.FC = () => {
   const { register, login } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -19,14 +20,13 @@ const RegistrationPage: React.FC = () => {
     setError("");
     setIsLoading(true);
 
-    // Validation
     if (!fullName || !email || !password) {
-      setError("Please fill in all fields");
+      setError("Please fill in all required fields");
       setIsLoading(false);
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (password !== passwordConfirmation) {
       setError("Passwords do not match");
       setIsLoading(false);
       return;
@@ -38,26 +38,31 @@ const RegistrationPage: React.FC = () => {
       return;
     }
 
-    // Register user
-    const success = await register(fullName, email, password);
-    if (success) {
-      // Auto-login after successful registration
-      const loginSuccess = await login(email, password);
-      if (loginSuccess) {
-        // Direct to customer page
-        navigate("/customer");
+    try {
+      const success = await register({
+        full_name: fullName,
+        email,
+        phone,
+        password,
+        password_confirmation: passwordConfirmation,
+      });
+
+      if (success) {
+        const loginSuccess = await login(email, password);
+        if (loginSuccess) {
+          navigate("/customer");
+        } else {
+          setError("Account created but login failed. Please try logging in.");
+          setIsLoading(false);
+        }
       } else {
-        setError("Account created but login failed. Please try logging in.");
+        setError("Email already exists or registration failed");
         setIsLoading(false);
       }
-    } else {
-      setError("Email already exists");
+    } catch (err: any) {
+      setError(err.message || "Registration failed");
       setIsLoading(false);
     }
-  };
-
-  const handleLoginClick = () => {
-    navigate("/login");
   };
 
   return (
@@ -70,10 +75,8 @@ const RegistrationPage: React.FC = () => {
         backgroundRepeat: "no-repeat",
       }}
     >
-      {/* Dark Overlay */}
       <div className="absolute inset-0 bg-black/50"></div>
       
-      {/* Registration Form */}
       <div className="relative z-10 bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 max-w-md w-full">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
@@ -87,7 +90,6 @@ const RegistrationPage: React.FC = () => {
           <p className="text-gray-600 mt-2">Sign up to get started</p>
         </div>
         
-        {/* Error Message */}
         {error && (
           <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-xl text-sm">
             {error}
@@ -96,7 +98,7 @@ const RegistrationPage: React.FC = () => {
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-gray-700 font-medium mb-2">Full Name</label>
+            <label className="block text-gray-700 font-medium mb-2">Full Name *</label>
             <input 
               type="text" 
               value={fullName}
@@ -108,7 +110,7 @@ const RegistrationPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium mb-2">Email Address</label>
+            <label className="block text-gray-700 font-medium mb-2">Email Address *</label>
             <input 
               type="email" 
               value={email}
@@ -118,9 +120,20 @@ const RegistrationPage: React.FC = () => {
               className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
             />
           </div>
+
+          <div>
+            <label className="block text-gray-700 font-medium mb-2">Phone Number</label>
+            <input 
+              type="tel" 
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Enter your phone number"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+            />
+          </div>
           
           <div>
-            <label className="block text-gray-700 font-medium mb-2">Password</label>
+            <label className="block text-gray-700 font-medium mb-2">Password *</label>
             <div className="relative">
               <input 
                 type={showPassword ? "text" : "password"}
@@ -141,11 +154,11 @@ const RegistrationPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium mb-2">Confirm Password</label>
+            <label className="block text-gray-700 font-medium mb-2">Confirm Password *</label>
             <input 
               type="password" 
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              value={passwordConfirmation}
+              onChange={(e) => setPasswordConfirmation(e.target.value)}
               placeholder="Confirm your password"
               required
               className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent"
@@ -166,7 +179,7 @@ const RegistrationPage: React.FC = () => {
         <p className="text-center text-gray-500 mt-6">
           Already have an account?{" "}
           <button 
-            onClick={handleLoginClick}
+            onClick={() => navigate("/login")}
             className="text-lime-700 font-semibold hover:underline"
           >
             Sign In

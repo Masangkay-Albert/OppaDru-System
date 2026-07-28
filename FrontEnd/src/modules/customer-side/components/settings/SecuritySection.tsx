@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
 import { useAuth } from '../../../../contexts/Authcontext';
-import { updateUserPassword, validateCredentials } from '../../../../services/authService';
+import { authService } from '../../../../services/authService';
 
 const SecuritySection: React.FC = () => {
   const { user } = useAuth();
@@ -33,27 +33,33 @@ const SecuritySection: React.FC = () => {
       return;
     }
 
-    const isValid = validateCredentials(user.email, formData.currentPassword);
-    if (!isValid) {
-      setMessage({ type: 'error', text: 'Current password is incorrect!' });
-      return;
-    }
-
     setIsSaving(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const success = updateUserPassword(user.id, formData.newPassword);
-      
-      if (success) {
+      const token = authService.getToken();
+      const response = await fetch('http://localhost:8000/api/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          current_password: formData.currentPassword,
+          new_password: formData.newPassword,
+          new_password_confirmation: formData.confirmPassword,
+        }),
+      });
+
+      if (response.ok) {
         setMessage({ type: 'success', text: 'Password changed successfully! Please login again.' });
         setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
         
         setTimeout(() => {
+          authService.logout();
           window.location.href = '/login';
         }, 2000);
       } else {
-        setMessage({ type: 'error', text: 'Failed to change password. Please try again.' });
+        const error = await response.json();
+        setMessage({ type: 'error', text: error.message || 'Current password is incorrect!' });
       }
     } catch {
       setMessage({ type: 'error', text: 'Failed to change password. Please try again.' });

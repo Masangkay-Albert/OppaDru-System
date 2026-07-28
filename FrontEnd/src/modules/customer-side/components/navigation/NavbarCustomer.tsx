@@ -12,6 +12,7 @@ const NavbarCustomer: React.FC = () => {
   const [showDropdown, setShowDropdown] = useState(false);
 
   const getInitials = (name: string) => {
+    if (!name) return "U";
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
@@ -69,9 +70,11 @@ const NavbarCustomer: React.FC = () => {
                   className="flex items-center gap-1 sm:gap-2 text-[var(--oppa-cream)] font-sans font-medium hover:text-white transition-colors duration-200"
                 >
                   <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/15 flex items-center justify-center text-[var(--oppa-cream)] font-bold text-xs sm:text-sm">
-                    {getInitials(user.fullName)}
+                    {getInitials(user.full_name)}
                   </div>
-                  <span className="hidden sm:inline text-sm md:text-base">{user.fullName.split(' ')[0]}</span>
+                  <span className="hidden sm:inline text-sm md:text-base">
+                    {user.full_name.split(' ')[0]}
+                  </span>
                   <ChevronDown size={14} className="sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
                 </button>
 
@@ -83,7 +86,9 @@ const NavbarCustomer: React.FC = () => {
                     />
                     <div className="absolute right-0 mt-2 w-48 sm:w-56 bg-white rounded-xl shadow-xl py-2 z-50 border border-gray-100 animate-fadeIn">
                       <div className="px-4 py-3 border-b border-gray-100">
-                        <p className="text-sm font-semibold text-gray-800 font-sans truncate">{user.fullName}</p>
+                        <p className="text-sm font-semibold text-gray-800 font-sans truncate">
+                          {user.full_name}
+                        </p>
                         <p className="text-xs text-gray-500 mt-0.5 font-sans truncate">{user.email}</p>
                       </div>
                       <button

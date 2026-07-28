@@ -1,20 +1,14 @@
-// src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import * as authService from '../services/authService';
-
-interface User {
-  id: string;
-  fullName: string;
-  email: string;
-  role: 'customer' | 'admin' | 'employee';
-}
+import { authService } from '../services/authService';
+import type { User, RegisterData } from '../services/authService';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (fullName: string, email: string, password: string) => Promise<boolean>;
+  register: (data: RegisterData) => Promise<boolean>;
   logout: () => void;
+  updateProfile: (data: Partial<User>) => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,12 +25,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const initializeUser = useCallback(() => {
-    const currentUser = authService.getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
+  const initializeUser = useCallback(async () => {
+    try {
+      const currentUser = authService.getUserFromStorage();
+      if (currentUser) {
+        setUser(currentUser);
+      } else {
+        setUser(null);
+      }
+    } catch {
+      setUser(null);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -46,62 +47,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const validUser = authService.validateCredentials(email, password);
-      
-      if (validUser) {
-        const userData: User = {
-          id: validUser.id,
-          fullName: validUser.fullName,
-          email: validUser.email,
-          role: validUser.role as 'customer'
-        };
-        setUser(userData);
-        authService.setCurrentUser(userData);
+      const response = await authService.login({ email, password });
+      if (response && response.user) {
+        setUser(response.user);
         setIsLoading(false);
         return true;
       }
       setIsLoading(false);
       return false;
-    } catch {
+    } catch (error: any) {
+      console.error('Login error:', error);
       setIsLoading(false);
       return false;
     }
   };
 
-  const register = async (fullName: string, email: string, password: string): Promise<boolean> => {
+  const register = async (data: RegisterData): Promise<boolean> => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      if (authService.isEmailTaken(email)) {
+      const response = await authService.register(data);
+      if (response && response.user) {
+        setUser(response.user);
         setIsLoading(false);
-        return false;
+        return true;
       }
-
-      const newUserId = Date.now().toString();
-      const newUser = authService.createUserObject(newUserId, fullName, email, password);
-      authService.saveUser(newUser);
       setIsLoading(false);
-      return true;
-    } catch {
-
+      return false;
+    } catch (error: any) {
+      console.error('Register error:', error);
       setIsLoading(false);
       return false;
     }
   };
 
   const logout = () => {
+    authService.logout();
     setUser(null);
-    authService.removeCurrentUser();
+  };
+
+  const updateProfile = async (data: Partial<User>): Promise<User | null> => {
+    try {
+      const updatedUser = await authService.updateProfile(data);
+      setUser(updatedUser);
+      return updatedUser;
+    } catch {
+      return null;
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
 };
-
-export type { User, AuthContextType };

@@ -1,88 +1,123 @@
-interface User {
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+export interface User {
   id: string;
-  fullName: string;
+  full_name: string;
   email: string;
-  role: 'customer' | 'admin' | 'employee';
+  phone: string;
+  role: 'customer' | 'admin' | 'driver' | 'kitchen';
+  created_at: string;
+  updated_at: string;
 }
 
-interface StoredUser {
-  id: string;
-  fullName: string;
+export interface RegisterData {
+  full_name: string;
+  email: string;
+  phone?: string;
+  password: string;
+  password_confirmation: string;
+}
+
+export interface LoginData {
   email: string;
   password: string;
-  role: string;
 }
 
-const STORAGE_KEYS = {
-  USERS: 'users',
-  CURRENT_USER: 'user'
-} as const;
+export interface AuthResponse {
+  user: User;
+  message: string;
+}
 
-export const getStoredUsers = (): StoredUser[] => {
-  return JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-};
+class AuthService {
+  private userKey = 'user';
 
-export const saveUser = (user: StoredUser): void => {
-  const users = getStoredUsers();
-  users.push(user);
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-};
+  async register(data: RegisterData): Promise<AuthResponse> {
+    const response = await fetch(`${API_URL}/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
 
-export const validateCredentials = (email: string, password: string): StoredUser | null => {
-  const users = getStoredUsers();
-  const user = users.find(u => u.email === email && u.password === password);
-  return user || null;
-};
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Registration failed');
+    }
 
-export const isEmailTaken = (email: string): boolean => {
-  const users = getStoredUsers();
-  return users.some(u => u.email === email);
-};
-
-export const setCurrentUser = (user: Omit<User, 'password'>): void => {
-  localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
-};
-
-export const getCurrentUser = (): User | null => {
-  const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-  if (!stored) return null;
-  
-  try {
-    return JSON.parse(stored) as User;
-  } catch {
-    return null;
+    const result = await response.json();
+    this.setUser(result.user);
+    return result;
   }
-};
 
-export const removeCurrentUser = (): void => {
-  localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
-};
+  async login(data: LoginData): Promise<AuthResponse> {
+    const response = await fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
 
-export const createUserObject = (
-  id: string, 
-  fullName: string, 
-  email: string, 
-  password: string
-): StoredUser => ({
-  id,
-  fullName,
-  email,
-  password,
-  role: 'customer'
-});
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Invalid email or password');
+    }
 
-export const updateUserPassword = (userId: string, newPassword: string): boolean => {
-  const users = getStoredUsers();
-  const userIndex = users.findIndex(u => u.id === userId);
-  
-  if (userIndex === -1) return false;
-  
-  users[userIndex] = { ...users[userIndex], password: newPassword };
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-  return true;
-};
+    const result = await response.json();
+    this.setUser(result.user);
+    return result;
+  }
 
-export const getUserById = (userId: string): StoredUser | null => {
-  const users = getStoredUsers();
-  return users.find(u => u.id === userId) || null;
-};
+  async logout(): Promise<void> {
+    await fetch(`${API_URL}/logout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    this.clearAuth();
+  }
+
+  async getUser(): Promise<User | null> {
+    return this.getUserFromStorage();
+  }
+
+  async updateProfile(data: Partial<User>): Promise<User> {
+    const response = await fetch(`${API_URL}/user/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Update failed');
+    }
+
+    const result = await response.json();
+    this.setUser(result.user);
+    return result.user;
+  }
+
+  setUser(user: User): void {
+    localStorage.setItem(this.userKey, JSON.stringify(user));
+  }
+
+  getUserFromStorage(): User | null {
+    const user = localStorage.getItem(this.userKey);
+    return user ? JSON.parse(user) : null;
+  }
+
+  clearAuth(): void {
+    localStorage.removeItem(this.userKey);
+  }
+
+  isAuthenticated(): boolean {
+    return !!this.getUserFromStorage();
+  }
+}
+
+export const authService = new AuthService();

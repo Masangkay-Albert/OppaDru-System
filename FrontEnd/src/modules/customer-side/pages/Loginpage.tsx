@@ -1,13 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
-import * as adminAuthService from "../../../services/adminAuthService";
 import oppaLogo from "../../../assets/oppadrulogo.jpg";
-import {Bike} from 'lucide-react';
+import { Bike } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { login: customerLogin } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,19 +18,16 @@ const LoginPage: React.FC = () => {
     setError("");
     setIsLoading(true);
 
-    const isAdminCredentials = adminAuthService.validateAdminCredentials(email, password);
-
-    if (isAdminCredentials) {
-      setError("Admin accounts must use the admin portal.");
-      setIsLoading(false);
-      return;
-    }
-
-    const success = await customerLogin(email, password);
-    if (success) {
-      navigate("/customer");
-    } else {
-      setError("Invalid email or password");
+    try {
+      const success = await login(email, password);
+      if (success) {
+        navigate("/customer");
+      } else {
+        setError("Invalid email or password. Please try again.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please try again.");
+    } finally {
       setIsLoading(false);
     }
   };
@@ -133,7 +129,12 @@ const LoginPage: React.FC = () => {
           Go to Admin Portal
         </button>
 
-          <Bike onClick={() => navigate("/delivery/login")}></Bike>
+        <button 
+          onClick={() => navigate("/delivery/login")}
+          className="w-full mt-2 text-lime-700 font-semibold hover:underline flex items-center justify-center gap-2"
+        >
+          <Bike size={20} /> Delivery Login
+        </button>
         
         <button 
           onClick={() => navigate("/")}
