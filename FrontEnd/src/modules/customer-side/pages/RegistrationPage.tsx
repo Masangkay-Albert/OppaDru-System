@@ -143,13 +143,7 @@ const RegistrationPage: React.FC = () => {
       });
 
       if (success) {
-        const loginSuccess = await login(email, password);
-        if (loginSuccess) {
-          navigate("/customer");
-        } else {
-          setError("Account created but login failed. Please try logging in.");
-          setIsLoading(false);
-        }
+        navigate("/customer");
       } else {
         setError("Email already exists or registration failed");
         setIsLoading(false);

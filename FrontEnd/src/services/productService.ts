@@ -17,6 +17,7 @@ export interface Product {
 
 class ProductService {
     private tokenKey = 'auth_token';
+    private cacheKey = 'cached_available_products';
 
     private getToken(): string | null {
         return localStorage.getItem(this.tokenKey);
@@ -28,6 +29,23 @@ class ProductService {
             'Content-Type': 'application/json',
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         };
+    }
+
+    private getCachedProducts(): Product[] {
+        const cached = localStorage.getItem(this.cacheKey);
+        if (!cached) {
+            return [];
+        }
+
+        try {
+            return JSON.parse(cached) as Product[];
+        } catch {
+            return [];
+        }
+    }
+
+    private saveCachedProducts(products: Product[]): void {
+        localStorage.setItem(this.cacheKey, JSON.stringify(products));
     }
 
     async getProducts(): Promise<Product[]> {
@@ -49,21 +67,29 @@ class ProductService {
     }
 
     async getAvailableProducts(): Promise<Product[]> {
-        const response = await fetch(`${API_URL}/products/available`, {
-            headers: this.getHeaders(),
-        });
+        try {
+            const response = await fetch(`${API_URL}/products/available`, {
+                headers: this.getHeaders(),
+            });
 
-        if (!response.ok) {
-            throw new Error('Failed to fetch available products');
+            if (!response.ok) {
+                throw new Error('Failed to fetch available products');
+            }
+
+            const products = await response.json();
+            const mappedProducts = products.map((p: any) => ({
+                ...p,
+                price: Number(p.price),
+                isAvailable: p.is_available,
+                image: getProductImage(p.image)
+            }));
+
+            this.saveCachedProducts(mappedProducts);
+            return mappedProducts;
+        } catch (error) {
+            console.error('Failed to fetch available products:', error);
+            return this.getCachedProducts();
         }
-
-        const products = await response.json();
-        return products.map((p: any) => ({
-            ...p,
-            price: Number(p.price),
-            isAvailable: p.is_available,
-            image: getProductImage(p.image)
-        }));
     }
 
     async getProductsByCategory(category: string): Promise<Product[]> {

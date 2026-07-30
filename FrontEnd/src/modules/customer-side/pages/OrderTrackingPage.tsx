@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useAuth } from '../../../contexts/Authcontext';
 import { useOrder } from '../../../contexts/OrderContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import { ORDER_STATUS, STATUS_COLORS, STATUS_MESSAGES } from '../../../utils/constants';
@@ -22,6 +23,7 @@ interface TrackingLocationState {
 const OrderTrackingPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const { currentOrder, getOrderById, updateOrderStatus, clearOrder } = useOrder();
 
   const locationState = location.state as TrackingLocationState | null;
@@ -53,7 +55,11 @@ const OrderTrackingPage: React.FC = () => {
     }
 
     if (!resolvedOrder) {
-      navigate('/customer');
+      if (user) {
+        navigate('/customer');
+      } else {
+        navigate('/login');
+      }
       setIsLoading(false);
       return;
     }

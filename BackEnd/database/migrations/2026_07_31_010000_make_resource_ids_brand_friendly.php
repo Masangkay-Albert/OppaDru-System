@@ -59,7 +59,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        // This migration intentionally does not revert generated IDs safely.
+
     }
 
     private function generateUserId(string $fullName): string

@@ -1,7 +1,9 @@
 import { getOnlineOrders, type AdminOrder } from './adminOrderService';
+import type { OrderStatus } from '../utils/constants';
 import type { Order } from '../contexts/OrderContext';
 
 export interface KitchenOrder extends AdminOrder {
+  status: OrderStatus;
   deliveryType?: 'standard' | 'priority';
   scheduleDisplay?: string;
 }

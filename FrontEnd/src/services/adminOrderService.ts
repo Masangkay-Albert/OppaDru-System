@@ -1,5 +1,5 @@
 // src/services/adminOrderService.ts
-import type { Order } from '../contexts/OrderContext';
+import type { Order } from '../../contexts/OrderContext';
 import type { CartItem } from '../types/product.types';
 import { getAccountDisplayName } from './adminAuthService';
 

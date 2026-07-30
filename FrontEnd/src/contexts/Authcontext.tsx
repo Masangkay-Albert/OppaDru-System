@@ -83,13 +83,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async (): Promise<void> => {
     setIsLoading(true);
-    try {
-      await authService.logout();
-    } finally {
-      authService.clearAuth();
-      setUser(null);
-      setIsLoading(false);
-    }
+    authService.logout().catch((error) => {
+      console.error('Logout error:', error);
+    });
+    authService.clearAuth();
+    setUser(null);
+    setIsLoading(false);
   };
 
   const updateProfile = async (data: Partial<User>): Promise<User | null> => {

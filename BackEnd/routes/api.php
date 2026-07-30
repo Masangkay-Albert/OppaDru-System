@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PaymentController;
 
 Route::get('/test', function () {
     return response()->json(['message' => 'API is working!']);
@@ -33,4 +34,9 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/orders/{id}', [OrderController::class, 'show']);
     Route::post('/orders', [OrderController::class, 'store']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);
+
+    Route::post('/payment/gcash/request-otp', [PaymentController::class, 'requestGCashOTP']);
+    Route::post('/payment/gcash/verify', [PaymentController::class, 'verifyGCash']);
+    Route::post('/payment/card/process', [PaymentController::class, 'processCard']);
+    Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 });

@@ -9,7 +9,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Normalize names and find duplicates (case-insensitive, trimmed)
         $groups = [];
 
         $products = DB::table('products')->get();
@@ -20,7 +19,6 @@ return new class extends Migration
             $groups[$norm][] = (array) $p;
         }
 
-        // For each group with more than one product, keep the earliest created_at
         foreach ($groups as $norm => $items) {
             if (count($items) <= 1) continue;
 
@@ -58,14 +56,11 @@ return new class extends Migration
                     }
                 }
 
-                // Delete duplicate product row
                 DB::table('products')->where('id', $dupId)->delete();
             }
         }
 
-        // Finally, add a unique index on normalized name to prevent future duplicates
         Schema::table('products', function (Blueprint $table) {
-            // we add a case-insensitive unique index on lower(name)
             DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS products_name_unique_ci ON products (LOWER(TRIM(name)));');
         });
     }
