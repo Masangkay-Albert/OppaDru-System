@@ -2,7 +2,6 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/navigation/navbar";
 import oppaLogo from "../../../assets/oppadrulogo.jpg";
-import oppaLocation from "../../../assets/oppadrulocation.jpg";
 import fbLogo from "../../../assets/facebook-logoo.png";
 import igLogo from "../../../assets/instagram-logoo.png";
 import { FiArrowRight, FiPhone, FiMail, FiMapPin } from "react-icons/fi";

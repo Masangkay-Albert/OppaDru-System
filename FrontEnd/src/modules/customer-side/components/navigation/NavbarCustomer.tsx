@@ -16,10 +16,10 @@ const NavbarCustomer: React.FC = () => {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
+  const handleLogout = async () => {
+    await logout();
     setShowDropdown(false);
+    navigate("/login");
   };
 
   const handleFavoritesClick = () => {

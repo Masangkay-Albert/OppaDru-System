@@ -63,7 +63,6 @@ const CheckoutPage: React.FC = () => {
   const [showGCashModal, setShowGCashModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [paymentReference, setPaymentReference] = useState('');
   const [scheduleDisplay, setScheduleDisplay] = useState('Select date & time');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -100,20 +99,20 @@ const CheckoutPage: React.FC = () => {
     };
   };
 
-const buildFullDeliveryAddress = () => {
-  const parts: string[] = [];
+  const buildFullDeliveryAddress = () => {
+    const parts: string[] = [];
 
-  if (address.block.trim()) {
-    parts.push(`Block ${address.block.trim()}`);
-  }
-  if (address.lot.trim()) {
-    parts.push(`Lot ${address.lot.trim()}`);
-  }
-  if (address.street.trim()) {
-    parts.push(address.street.trim());
-  }
-  return parts.join(', ');
-};
+    if (address.block.trim()) {
+      parts.push(`Block ${address.block.trim()}`);
+    }
+    if (address.lot.trim()) {
+      parts.push(`Lot ${address.lot.trim()}`);
+    }
+    if (address.street.trim()) {
+      parts.push(address.street.trim());
+    }
+    return parts.join(', ');
+  };
 
   const placeOrderDirect = async () => {
     setIsPlacingOrder(true);
@@ -135,26 +134,25 @@ const buildFullDeliveryAddress = () => {
       }
 
       const { total } = calculateTotal();
-      const fullDeliveryAddress = buildFullDeliveryAddress(); 
+      const fullDeliveryAddress = buildFullDeliveryAddress();
 
-      // UPDATED: Now passing phone, deliveryType, and scheduleDisplay
-      placeOrder(
+      const success = await placeOrder(
         cartItems,
         total,
-        fullDeliveryAddress, 
-        coords,
+        fullDeliveryAddress,
         paymentMethod,
-        paymentReference || undefined,
         tempPerson.phone,
-        deliveryType,
-        scheduleDisplay
+        coords
       );
 
-      setOrderCompleted(true);
-      clearCart();
-      showToast('Order placed successfully!', 'success');
-
-      navigate('/tracking');
+      if (success) {
+        setOrderCompleted(true);
+        clearCart();
+        showToast('Order placed successfully!', 'success');
+        navigate('/tracking');
+      } else {
+        showToast('Failed to place order. Please try again.', 'error');
+      }
 
     } catch (error) {
       showToast('Failed to place order. Please try again.', 'error');
@@ -166,7 +164,6 @@ const buildFullDeliveryAddress = () => {
 
   const handlePaymentComplete = (result: PaymentResult) => {
     if (result.success) {
-      setPaymentReference(result.referenceNumber || '');
       showToast('Payment successful!', 'success');
       setTimeout(placeOrderDirect, 1500);
     } else {

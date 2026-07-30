@@ -23,7 +23,7 @@ export default function AdminDelivery() {
     }
   };
 
-  const handleToggle = (id: string, isActive: boolean) => {
+  const handleToggle = (id: string) => {
     addDriver.toggleDriverStatus(id);
     setPartners(addDriver.getDrivers());
   };
@@ -57,7 +57,7 @@ export default function AdminDelivery() {
                 <p className="flex items-center gap-2"><MailIcon className="w-3.5 h-3.5" /> {p.email}</p>
                 <p className="flex items-center gap-2"><PhoneIcon className="w-3.5 h-3.5" /> {p.phone}</p>
               </div>
-              <button onClick={() => handleToggle(p._id, p.isActive)} className="w-full py-2 text-xs font-medium rounded-lg bg-[var(--oppa-green)]/10 text-[var(--oppa-green)] hover:bg-[var(--oppa-green)]/20">
+              <button onClick={() => handleToggle(p._id)} className="w-full py-2 text-xs font-medium rounded-lg bg-[var(--oppa-green)]/10 text-[var(--oppa-green)] hover:bg-[var(--oppa-green)]/20">
                 {p.isActive ? "Deactivate" : "Activate"}
               </button>
             </div>

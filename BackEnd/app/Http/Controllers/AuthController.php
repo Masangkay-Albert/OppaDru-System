@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -22,16 +23,20 @@ class AuthController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $token = Str::random(60);
+
         $user = User::create([
             'full_name' => $request->full_name,
             'email' => $request->email,
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
             'role' => 'customer',
+            'api_token' => hash('sha256', $token),
         ]);
 
         return response()->json([
             'user' => $user,
+            'token' => $token,
             'message' => 'Registration successful!'
         ], 201);
     }
@@ -55,14 +60,26 @@ class AuthController extends Controller
             ], 401);
         }
 
+        $token = Str::random(60);
+        $user->api_token = hash('sha256', $token);
+        $user->save();
+
         return response()->json([
             'user' => $user,
+            'token' => $token,
             'message' => 'Login successful!'
         ]);
     }
-
+ 
     public function logout(Request $request)
     {
+        $user = $request->user();
+
+        if ($user) {
+            $user->api_token = null;
+            $user->save();
+        }
+
         return response()->json(['message' => 'Logout successful!']);
     }
 

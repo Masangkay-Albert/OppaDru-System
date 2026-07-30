@@ -8,7 +8,10 @@ import { formatCurrency } from '../../../utils/formatters';
 import { categories } from '../../../data/mockData';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 
-const categoryOptions = [{ value: 'all' as const, label: 'All' }, ...categories.filter((c) => c.id !== 'all').map((c) => ({ value: c.id as ProductCategory, label: c.name }))];
+const categoryOptions: Array<{ value: ProductCategory | 'all'; label: string }> = [
+  { value: 'all', label: 'All' },
+  ...categories.filter((c) => c.id !== 'all').map((c) => ({ value: c.id, label: c.name })),
+];
 const DEFAULT_PRODUCT_IMAGE = oppaDruLogo;
 
 type ProductFormState = {
@@ -45,13 +48,15 @@ const AdminProductsPage: React.FC = () => {
   const [form, setForm] = useState<ProductFormState>(createEmptyForm());
   const [imagePreview, setImagePreview] = useState('');
 
-  const refresh = () => setProducts(getAllProducts());
+  const refresh = async () => {
+    setProducts(await getAllProducts());
+  };
 
   useEffect(() => {
     refresh();
   }, []);
 
-  const getCategoryLabel = (category: ProductCategory) => {
+  const getCategoryLabel = (category: string) => {
     return categories.find((item) => item.id === category)?.name || category.replace('-', ' ');
   };
 
@@ -68,14 +73,14 @@ const AdminProductsPage: React.FC = () => {
     return matchesCategory && matchesSearch;
   });
 
-  const handleToggle = (id: string) => {
-    toggleAvailability(id);
-    refresh();
+  const handleToggle = async (id: string) => {
+    await toggleAvailability(id);
+    await refresh();
   };
 
-  const handleDelete = (id: string) => {
-    deleteProduct(id);
-    refresh();
+  const handleDelete = async (id: string) => {
+    await deleteProduct(id);
+    await refresh();
   };
 
   const openAddModal = () => {
@@ -93,9 +98,9 @@ const AdminProductsPage: React.FC = () => {
       name: product.name,
       description: product.description,
       price: String(product.price),
-      category: product.category,
+      category: product.category as ProductCategory,
       image: product.image || '',
-      isAvailable: product.isAvailable,
+      isAvailable: product.isAvailable ?? product.is_available,
     });
     setImagePreview(product.image || '');
     setIsModalOpen(true);
@@ -125,7 +130,7 @@ const AdminProductsPage: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     const payload = {
@@ -134,17 +139,18 @@ const AdminProductsPage: React.FC = () => {
       price: Number(form.price) || 0,
       category: form.category,
       image: form.image,
+      is_available: form.isAvailable,
       isAvailable: form.isAvailable,
     };
 
     if (modalMode === 'edit' && selectedProductId) {
-      updateProduct(selectedProductId, payload);
+      await updateProduct(selectedProductId, payload);
     } else {
-      addProduct({ ...payload, isAvailable: true });
+      await addProduct({ ...payload, is_available: true, isAvailable: true });
     }
 
     closeModal();
-    refresh();
+    await refresh();
   };
 
   return (

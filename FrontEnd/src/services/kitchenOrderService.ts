@@ -1,7 +1,10 @@
 import { getOnlineOrders, type AdminOrder } from './adminOrderService';
 import type { Order } from '../contexts/OrderContext';
 
-export interface KitchenOrder extends AdminOrder {}
+export interface KitchenOrder extends AdminOrder {
+  deliveryType?: 'standard' | 'priority';
+  scheduleDisplay?: string;
+}
 
 const getKitchenStorageKeys = (): string[] => {
   const keys: string[] = [];

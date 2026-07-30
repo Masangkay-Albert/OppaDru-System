@@ -1,4 +1,3 @@
-// src/types/product.types.ts
 export type ProductCategory = 
   | 'all'
   | 'rice-meals'
@@ -23,14 +22,13 @@ export interface Product {
   name: string;
   description: string;
   price: number;
-  category: ProductCategory;
+  category: string;
   image: string;
-  isAvailable: boolean;
-  nutritionalInfo?: {
-    calories?: number;
-    protein?: number;
-    carbs?: number;
-  };
+  is_available: boolean;
+  isAvailable?: boolean;
+  addons?: Addon[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Category {

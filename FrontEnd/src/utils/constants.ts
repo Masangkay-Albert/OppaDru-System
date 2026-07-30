@@ -36,8 +36,9 @@ export const TRACKING_UPDATE_INTERVAL_MS = 2000;
 export const ORDER_STATUS = {
   PENDING: 'pending',
   PREPARING: 'preparing',
-  READY: 'ready',       // ADD THIS
+  READY: 'ready',
   ON_THE_WAY: 'on_the_way',
+  ON_WAY: 'on_the_way',
   DELIVERED: 'delivered'
 } as const;
 

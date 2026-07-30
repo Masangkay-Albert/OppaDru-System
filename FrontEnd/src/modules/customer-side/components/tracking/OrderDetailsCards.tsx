@@ -1,4 +1,3 @@
-// src/modules/customer-side/components/tracking/OrderDetailsCards.tsx
 import React from 'react';
 import { ORDER_STATUS } from '../../../../utils/constants';
 import type { Order } from '../../../../contexts/OrderContext';
@@ -16,8 +15,8 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
     return sum + (item.price + addonsTotal) * item.quantity;
   }, 0) || 0;
 
-  const deliveryFee = currentOrder.deliveryFee ?? 49;
-  const serviceFee = currentOrder.serviceFee ?? 29;
+  const deliveryFee = 49;
+  const serviceFee = 29;
   const vat = Math.max(0, currentOrder.total - subtotal - deliveryFee - serviceFee);
 
   return (
@@ -61,7 +60,7 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Delivery fee</span>
-            <span className="text-gray-800">{deliveryFee === 0 ? 'Free' : formatCurrency(deliveryFee)}</span>
+            <span className="text-gray-800">{formatCurrency(deliveryFee)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Service fee</span>
@@ -108,8 +107,8 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
             <span className="text-gray-700 font-mono text-xs">{currentOrder.id}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Placed on</span>
-            <span className="text-gray-700">{formatDate(currentOrder.timestamp || currentOrder.createdAt || new Date())}</span>
+            <span className="text-gray-500">Placed</span>
+            <span className="text-gray-700 font-medium">{formatDate(currentOrder.timestamp)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Payment Method</span>
@@ -117,17 +116,11 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
               {currentOrder.paymentMethod?.replace('_', ' ').toUpperCase() || 'N/A'}
             </span>
           </div>
-          {currentOrder.paymentReference && (
-            <div className="flex justify-between">
-              <span className="text-gray-500">Reference</span>
-              <span className="text-gray-700 font-mono text-xs">{currentOrder.paymentReference}</span>
-            </div>
-          )}
           <div className="flex justify-between">
             <span className="text-gray-500">Status</span>
             <span className={`font-medium ${
               currentOrder.status === ORDER_STATUS.DELIVERED ? 'text-[#2d6a4f]' :
-              currentOrder.status === ORDER_STATUS.ON_WAY ? 'text-[#e76f51]' :
+              currentOrder.status === ORDER_STATUS.ON_THE_WAY ? 'text-[#e76f51]' :
               'text-[#ca8a04]'
             }`}>
               {currentOrder.status?.charAt(0).toUpperCase() + currentOrder.status?.slice(1) || 'Pending'}

@@ -7,7 +7,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (data: RegisterData) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<User | null>;
 }
 
@@ -28,9 +28,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const initializeUser = useCallback(async () => {
     try {
       const currentUser = authService.getUserFromStorage();
-      if (currentUser) {
+      if (currentUser && authService.getToken()) {
         setUser(currentUser);
       } else {
+        authService.clearAuth();
         setUser(null);
       }
     } catch {
@@ -80,9 +81,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    authService.logout();
-    setUser(null);
+  const logout = async (): Promise<void> => {
+    setIsLoading(true);
+    try {
+      await authService.logout();
+    } finally {
+      authService.clearAuth();
+      setUser(null);
+      setIsLoading(false);
+    }
   };
 
   const updateProfile = async (data: Partial<User>): Promise<User | null> => {

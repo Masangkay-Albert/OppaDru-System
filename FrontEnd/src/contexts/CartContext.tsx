@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { CartItem } from '../types/product.types';
 import { useAuth } from './Authcontext';
+import { authService } from '../services/authService';
 import { generateCartItemId } from '../services/cartService';
 
 interface CartContextType {
@@ -26,31 +27,36 @@ export const useCart = () => {
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const resolvedUser = user ?? authService.getUserFromStorage();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
   const getCartKey = useCallback(() => {
-    if (user?.id) {
-      return `cart_user_${user.id}`;
+    if (resolvedUser?.id) {
+      return `cart_user_${resolvedUser.id}`;
     }
     return 'cart_guest';
-  }, [user]);
+  }, [resolvedUser]);
 
   useEffect(() => {
-    if (user) {
+    if (resolvedUser) {
       const savedCart = localStorage.getItem(getCartKey());
       setCartItems(savedCart ? JSON.parse(savedCart) : []);
     } else {
       setCartItems([]);
     }
-  }, [user, getCartKey]);
+  }, [resolvedUser, getCartKey]);
 
   useEffect(() => {
-    if (user) {
+    if (resolvedUser) {
       localStorage.setItem(getCartKey(), JSON.stringify(cartItems));
     }
-  }, [cartItems, user, getCartKey]);
+  }, [cartItems, resolvedUser, getCartKey]);
 
   const addToCart = (item: Omit<CartItem, 'cartItemId'>) => {
+    if (!item.id) {
+      return;
+    }
+    
     const cartItemId = generateCartItemId(item.id, item.selectedAddons, item.specialInstructions);
 
     setCartItems(prevItems => {
@@ -70,6 +76,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const editCartItem = (oldCartItemId: string, updatedItem: Omit<CartItem, 'cartItemId'>) => {
+    if (!updatedItem.id) {
+      return;
+    }
+    
     const newCartItemId = generateCartItemId(
       updatedItem.id,
       updatedItem.selectedAddons,

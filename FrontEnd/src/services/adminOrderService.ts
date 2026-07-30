@@ -114,6 +114,7 @@ export const addOnsiteOrder = (data: {
   const total = data.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const newOrder: AdminOrder = {
     id: `WI-${Date.now()}`,
+    email: '',
     userId: `onsite-${Date.now()}`,
     items: data.items.map((i) => {
       const cartItemId = `${i.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -125,6 +126,7 @@ export const addOnsiteOrder = (data: {
         price: i.price,
         category: 'chicken',
         image: '',
+        is_available: true,
         isAvailable: true,
         quantity: i.quantity,
       };

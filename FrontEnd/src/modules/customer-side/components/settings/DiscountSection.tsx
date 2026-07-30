@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiUser, FiCalendar, FiSave, FiCheckCircle, FiXCircle } from 'react-icons/fi';
+import { FiUser, FiCalendar, FiSave, FiCheckCircle } from 'react-icons/fi';
 import { useSettings } from '../../../../contexts/SettingsContext';
 
 const DiscountSection: React.FC = () => {

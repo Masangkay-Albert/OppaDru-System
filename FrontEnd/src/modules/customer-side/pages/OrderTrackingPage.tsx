@@ -1,4 +1,3 @@
-// src/modules/customer-side/pages/OrderTrackingPage.tsx
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -32,7 +31,6 @@ const OrderTrackingPage: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // This tracks the physical car on the map (0 to 100)
   const [simulatedProgress, setSimulatedProgress] = useState(0); 
   const [isSimulating, setIsSimulating] = useState(false);
 
@@ -114,16 +112,15 @@ const OrderTrackingPage: React.FC = () => {
   const getBarProgress = () => {
     if (!order) return 0;
     switch (order.status) {
-      case 'pending': 
+      case ORDER_STATUS.PENDING: 
         return 20; 
-      case 'preparing': 
+      case ORDER_STATUS.PREPARING: 
         return 40; 
-      case 'ready': 
+      case ORDER_STATUS.READY: 
         return 60; 
-      case 'on_the_way': 
-        
+      case ORDER_STATUS.ON_THE_WAY: 
         return 60 + (simulatedProgress * 0.35); 
-      case 'delivered': 
+      case ORDER_STATUS.DELIVERED: 
         return 100; 
       default: 
         return 0;
@@ -190,8 +187,7 @@ const OrderTrackingPage: React.FC = () => {
     (OPPA_DRU_STORE_COORDS.lng + order.deliveryAddressCoords.lng) / 2
   ] : [OPPA_DRU_STORE_COORDS.lat, OPPA_DRU_STORE_COORDS.lng];
 
-  // Gets the exact message for the current phase from constants.ts
-  const currentMessageInfo = STATUS_MESSAGES[order.status as keyof typeof STATUS_MESSAGES];
+  const currentMessageInfo = STATUS_MESSAGES[order.status as keyof typeof STATUS_MESSAGES] || { icon: '🔄', message: 'Updating status...' };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
@@ -220,11 +216,10 @@ const OrderTrackingPage: React.FC = () => {
         </div>
 
         <div className="mb-6">
-          {/* NEW: Explicitly displays "Preparing", "Delivering", etc. right above the progress bar */}
           <div className="flex items-center gap-2 mb-2 ml-1">
-            <span className="text-2xl">{currentMessageInfo?.icon || '🔄'}</span>
+            <span className="text-2xl">{currentMessageInfo.icon || '🔄'}</span>
             <span className="font-semibold text-[#2d6a4f] tracking-wide">
-              {currentMessageInfo?.message || 'Updating status...'}
+              {currentMessageInfo.message || 'Updating status...'}
             </span>
           </div>
           
@@ -246,7 +241,6 @@ const OrderTrackingPage: React.FC = () => {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
                   />
                   
-                  {/* Driver Marker and Route stick to the map's simulatedProgress so they don't jump early */}
                   <RouteLayer 
                     start={OPPA_DRU_STORE_COORDS} 
                     end={order.deliveryAddressCoords || OPPA_DRU_STORE_COORDS} 

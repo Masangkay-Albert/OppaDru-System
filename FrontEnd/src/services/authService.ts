@@ -25,11 +25,21 @@ export interface LoginData {
 
 export interface AuthResponse {
   user: User;
+  token: string;
   message: string;
 }
 
 class AuthService {
   private userKey = 'user';
+  private tokenKey = 'auth_token';
+
+  private getHeaders(): HeadersInit {
+    const token = this.getToken();
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  }
 
   async register(data: RegisterData): Promise<AuthResponse> {
     const response = await fetch(`${API_URL}/register`, {
@@ -47,6 +57,7 @@ class AuthService {
 
     const result = await response.json();
     this.setUser(result.user);
+    this.setToken(result.token);
     return result;
   }
 
@@ -66,17 +77,19 @@ class AuthService {
 
     const result = await response.json();
     this.setUser(result.user);
+    this.setToken(result.token);
     return result;
   }
 
   async logout(): Promise<void> {
-    await fetch(`${API_URL}/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    this.clearAuth();
+    try {
+      await fetch(`${API_URL}/logout`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+      });
+    } finally {
+      this.clearAuth();
+    }
   }
 
   async getUser(): Promise<User | null> {
@@ -86,9 +99,7 @@ class AuthService {
   async updateProfile(data: Partial<User>): Promise<User> {
     const response = await fetch(`${API_URL}/user/profile`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getHeaders(),
       body: JSON.stringify(data),
     });
 
@@ -106,6 +117,16 @@ class AuthService {
     localStorage.setItem(this.userKey, JSON.stringify(user));
   }
 
+  setToken(token?: string): void {
+    if (token) {
+      localStorage.setItem(this.tokenKey, token);
+    }
+  }
+
+  getToken(): string | null {
+    return localStorage.getItem(this.tokenKey);
+  }
+
   getUserFromStorage(): User | null {
     const user = localStorage.getItem(this.userKey);
     return user ? JSON.parse(user) : null;
@@ -113,10 +134,11 @@ class AuthService {
 
   clearAuth(): void {
     localStorage.removeItem(this.userKey);
+    localStorage.removeItem(this.tokenKey);
   }
 
   isAuthenticated(): boolean {
-    return !!this.getUserFromStorage();
+    return !!this.getUserFromStorage() && !!this.getToken();
   }
 }
 

@@ -1,4 +1,3 @@
-// src/modules/customer-side/pages/MenuPage.tsx
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from '../../../contexts/Authcontext';
 import { useCart } from '../../../contexts/CartContext';
@@ -15,7 +14,7 @@ import GreetingBanner from '../components/common/GreetingBanner';
 import { FiShoppingCart, FiMenu, FiX, FiSearch } from 'react-icons/fi';
 import foodpandaLogo from '../../../assets/foodpanda.png';
 import '../../../styles/global.css';
-import { getAllProducts } from '../../../services/adminProductService';
+import { productService } from '../../../services/productService';
 
 const MenuPage: React.FC = () => {
   const { user } = useAuth();
@@ -30,16 +29,22 @@ const MenuPage: React.FC = () => {
   const scrollPositionRef = useRef<number>(0);
   const mainContentRef = useRef<HTMLDivElement>(null);
 
-  const refreshProducts = useCallback(() => {
-    setProducts(getAllProducts());
+  const fetchProducts = useCallback(async () => {
+    try {
+      const data = await productService.getAvailableProducts();
+      setProducts(data);
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
+      setProducts([]);
+    }
   }, []);
 
   useEffect(() => {
-    refreshProducts();
-    const handleProductsUpdated = () => refreshProducts();
+    fetchProducts();
+    const handleProductsUpdated = () => fetchProducts();
     window.addEventListener('products-updated', handleProductsUpdated);
     return () => window.removeEventListener('products-updated', handleProductsUpdated);
-  }, [refreshProducts]);
+  }, [fetchProducts]);
 
   const handleOpenModal = useCallback((product: Product) => {
     scrollPositionRef.current = window.scrollY;
@@ -145,7 +150,7 @@ const MenuPage: React.FC = () => {
 
         <main ref={mainContentRef} className="flex-1 p-4 sm:p-6 lg:p-8">
           <GreetingBanner 
-            userName={user?.fullName?.split(' ')[0]}
+            userName={user?.full_name?.split(' ')[0]}
             onCategoryClick={handleCategoryChange}
           />
 

@@ -3,7 +3,7 @@ import { FiUser, FiMail, FiPhone, FiSave } from 'react-icons/fi';
 import { useAuth } from '../../../../contexts/Authcontext';
 
 const ProfileSection: React.FC = () => {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -16,9 +16,9 @@ const ProfileSection: React.FC = () => {
   useEffect(() => {
     if (user) {
       setFormData({
-        fullName: user.fullName || '',
+        fullName: user.full_name || '',
         email: user.email || '',
-        phone: localStorage.getItem(`phone_${user.id}`) || '',
+        phone: user.phone || '',
       });
     }
   }, [user]);
@@ -28,11 +28,10 @@ const ProfileSection: React.FC = () => {
     setMessage(null);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      if (user?.id) {
-        localStorage.setItem(`phone_${user.id}`, formData.phone);
-      }
+      await updateProfile({
+        full_name: formData.fullName,
+        phone: formData.phone,
+      });
 
       setMessage({ type: 'success', text: 'Profile updated successfully!' });
       setIsEditing(false);

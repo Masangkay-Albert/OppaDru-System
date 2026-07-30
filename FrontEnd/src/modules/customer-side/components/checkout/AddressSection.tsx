@@ -36,7 +36,7 @@ const AddressSection: React.FC<AddressSectionProps> = ({
   onAddNew,
   onSaveDetails,
 }) => {
-  const { addresses: settingsAddresses, addAddress, updateAddress } = useSettings();
+  const { addresses: settingsAddresses } = useSettings();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<AddressDetails>(selectedDetails || {});
 

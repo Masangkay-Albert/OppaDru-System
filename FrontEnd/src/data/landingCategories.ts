@@ -1,4 +1,3 @@
-import { products } from './mockData'; 
 import oppaLogo from '../assets/oppadrulogo.jpg';
 
 export interface LandingCategory {
@@ -9,52 +8,47 @@ export interface LandingCategory {
   color: string;
 }
 
-const getCategoryImage = (categoryId: string): string => {
-  const found = products.find((p) => p.category === categoryId);
-  return found ? found.image : oppaLogo;
-};
-
 export const landingCategories: LandingCategory[] = [
   {
     id: 'fresh-lemonade',
     name: 'Fresh Lemonade',
     desc: 'Refreshing citrus drinks',
-    image: getCategoryImage('fresh-lemonade'),
+    image: oppaLogo,
     color: '#eab308',
   },
   {
     id: 'noodles',
     name: 'Noodles',
     desc: 'Spicy Korean-style noodles',
-    image: getCategoryImage('noodles'),
+    image: oppaLogo,
     color: '#dc2626',
   },
   {
     id: 'fruity-soda-milk',
     name: 'Fruity Soda & Fruity Milk',
     desc: 'Cold fruity refreshments',
-    image: getCategoryImage('fruity-soda-milk'),
+    image: oppaLogo,
     color: '#db2777',
   },
   {
     id: 'snacks',
     name: 'Snacks',
     desc: 'Perfect anytime bites',
-    image: getCategoryImage('snacks'),
+    image: oppaLogo,
     color: '#c2410c',
   },
   {
     id: 'chicken',
     name: 'Chicken Meal',
     desc: 'Crispy Korean fried chicken',
-    image: getCategoryImage('chicken'),
+    image: oppaLogo,
     color: '#92400e',
   },
   {
     id: 'rice-meals',
     name: 'Rice Meal',
     desc: 'Busog meals everyday',
-    image: getCategoryImage('rice-meals'),
+    image: oppaLogo,
     color: '#4d7c0f',
   },
 ];

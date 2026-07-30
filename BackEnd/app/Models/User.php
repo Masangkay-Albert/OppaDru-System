@@ -21,10 +21,12 @@ class User extends Authenticatable
         'phone',
         'password',
         'role',
+        'api_token',
     ];
 
     protected $hidden = [
         'password',
+        'api_token',
     ];
 
     protected $casts = [
@@ -36,7 +38,10 @@ class User extends Authenticatable
         parent::boot();
         static::creating(function ($model) {
             if (empty($model->id)) {
-                $model->id = (string) Str::uuid();
+                $slug = Str::upper(Str::slug($model->full_name ?: 'customer', ''));
+                $slug = preg_replace('/[^A-Z0-9]/', '', $slug);
+                $slug = substr($slug, 0, 16);
+                $model->id = 'OPPA-USER-' . ($slug ?: 'CUST') . '-' . strtoupper(Str::random(4));
             }
         });
     }

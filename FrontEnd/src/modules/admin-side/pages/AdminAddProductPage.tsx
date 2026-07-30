@@ -39,14 +39,15 @@ const AdminAddProductPage: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    addProduct({
+    await addProduct({
       name: form.name,
       description: form.description,
       price: Number(form.price) || 0,
       category: form.category,
       image: form.image,
+      is_available: true,
       isAvailable: true,
     });
     setSuccess(true);

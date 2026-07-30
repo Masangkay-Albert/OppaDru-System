@@ -96,7 +96,7 @@ const PersonalDetailsForm: React.FC<PersonalDetailsFormProps> = ({ tempPerson, o
         <div className="space-y-2">
           <div className="flex items-center gap-2 py-1">
             <span className="text-sm text-gray-500 w-24">Full Name</span>
-            <span className="text-sm font-medium">{tempPerson.fullName || user?.fullName || 'Not set'}</span>
+            <span className="text-sm font-medium">{tempPerson.fullName || user?.full_name || 'Not set'}</span>
           </div>
           <div className="flex items-center gap-2 py-1">
             <span className="text-sm text-gray-500 w-24">Email</span>

@@ -2,7 +2,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Truck } from 'lucide-react';
-import { useAuth } from '../../../contexts/Authcontext'; // Adjust this import path if needed
+import { useAuth } from '../../../contexts/Authcontext'; 
 
 interface DriverLayoutProps {
   children: React.ReactNode;
@@ -10,14 +10,12 @@ interface DriverLayoutProps {
 
 const DriverLayout: React.FC<DriverLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
-  // Assuming your useAuth hook has a logout function. If not, you can remove this hook.
   const { logout } = useAuth(); 
 
   const handleLogout = () => {
     if (logout) {
       logout();
     }
-    // Redirect to home or login page after logout
     navigate('/'); 
   };
 

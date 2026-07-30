@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../../../contexts/Authcontext';
-import { useSettings } from '../../../../contexts/SettingsContext';
 import { useAddressManagement } from '../../../../hooks/useAddressManagement';
 import LocationPicker from '../common/LocationPicker';
 import AddressSection from './AddressSection';
@@ -41,8 +40,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   onScheduleClick
 }) => {
   const { user } = useAuth();
-  const { getActiveDiscount } = useSettings();
-  const activeDiscount = getActiveDiscount();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   const {

@@ -17,12 +17,24 @@ const AdminDashboardPage: React.FC = () => {
   const [outOfStock, setOutOfStock] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const loadDashboard = async () => {
+      const products = await getAllProducts();
+      if (!isMounted) return;
+
+      setTotalProducts(products.length);
+      setOutOfStock(products.filter((p) => !p.isAvailable).length);
+    };
+
     const allOrders = getAllOrders();
     setOrders(allOrders);
     setTotalUsers(getAllAccounts().length);
-    const products = getAllProducts();
-    setTotalProducts(products.length);
-    setOutOfStock(products.filter((p) => !p.isAvailable).length);
+    loadDashboard();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const recentOrders = orders.slice(0, 8);
