@@ -84,11 +84,10 @@ class ProductController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Normalize name for duplication prevention (case-insensitive, trimmed)
         $name = trim($request->name);
         $normName = strtolower(preg_replace('/\s+/', ' ', $name));
 
-        // Find existing product by normalized name (case-insensitive, trimmed)
+  
         $product = Product::whereRaw('LOWER(TRIM(name)) = ?', [$normName])->first();
 
         if ($product) {
