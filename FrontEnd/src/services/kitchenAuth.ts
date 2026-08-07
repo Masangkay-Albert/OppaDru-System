@@ -7,14 +7,14 @@ export const kitchenAuth = {
       setTimeout(() => {
         const employees = addKitchenService.getEmployees();
         
-        // Find the employee matching the email and password
+
         const employee = employees.find((e: KitchenEmployee) => e.email === email && e.password === password);
 
         if (employee) {
           if (!employee.isActive) {
             resolve({ success: false, message: "Account is inactive. Please contact admin." });
           } else {
-            // Save their session in local storage under a unique kitchen key
+
             localStorage.setItem("kitchen_auth", JSON.stringify(employee));
             resolve({ success: true, message: "Login successful" });
           }

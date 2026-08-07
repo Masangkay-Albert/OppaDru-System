@@ -44,12 +44,12 @@ const updateOrderStatusInStorage = (orderId: string, newStatus: Order['status'])
         localStorage.setItem(key, JSON.stringify(updatedOrders));
       }
     } catch {
-      // Ignore invalid storage entries.
+
     }
   });
 };
 
-// Find this specific function and update it:
+
 export const getAvailableDriverOrders = (): DriverOrder[] => {
   const allOrders = getOnlineOrders() as DriverOrder[]; 
   
@@ -72,7 +72,6 @@ export const completeDelivery = (orderId: string): void => {
   updateOrderStatusInStorage(orderId, 'delivered');
 };
 
-// NEW: Added to support the History tab in the Driver Dashboard
 export const getDeliveredOrders = (): DriverOrder[] => {
   const allOrders = getOnlineOrders() as DriverOrder[];
   return allOrders.filter((o) => o.status === 'delivered');

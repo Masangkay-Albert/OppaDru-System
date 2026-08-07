@@ -15,7 +15,7 @@ export interface StoredAccount {
   role: 'customer' | 'employee' | 'admin';
   contactNumber?: string;
   address?: string;
-  position?: string; // for employees (e.g. Cashier)
+  position?: string; 
   dateRegistered?: string;
 }
 
@@ -57,10 +57,6 @@ export const getCurrentAdmin = (): AdminUser | null => {
 export const removeCurrentAdmin = (): void => {
   localStorage.removeItem(STORAGE_KEYS.ADMIN_CURRENT);
 };
-
-// ---- Accounts management (customers + employees) ----
-// Reuses the same "users" localStorage key the customer-side authService writes to,
-// so any customer that registers on the customer side will automatically show up here.
 
 export const getAllAccounts = (): StoredAccount[] => {
   return JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');

@@ -105,7 +105,6 @@ class PaymentService {
         message: data.message,
       };
     } catch (error) {
-      // Fallback to local simulation if backend is unavailable
       await this.simulateDelay(600, 1200);
 
       if (!this.validateMobileNumber(mobileNumber)) {
@@ -156,7 +155,7 @@ class PaymentService {
         amount: data.amount || amount,
       };
     } catch (error) {
-      // Fallback to local simulation if backend is unavailable
+
       await this.simulateDelay(800, 1500);
 
       if (enteredOtp !== expectedOtp) {
@@ -231,7 +230,7 @@ class PaymentService {
         amount: result.amount || data.amount,
       };
     } catch (error) {
-      // Fallback to local simulation if backend is unavailable
+
       await this.simulateDelay(800, 2000);
 
       if (!this.validateCardNumber(data.cardNumber)) {

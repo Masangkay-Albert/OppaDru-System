@@ -37,7 +37,6 @@ const updateOnlineOrdersInStorage = (updater: (orders: Order[]) => Order[]): voi
         localStorage.setItem(key, JSON.stringify(updated));
       }
     } catch {
-      // Ignore invalid storage entries.
     }
   });
 };
@@ -50,9 +49,6 @@ export interface AdminOrder extends Order {
   served?: boolean;
 }
 
-// Online orders come from the customer-side OrderContext and are stored per user.
-// Onsite orders are simulated here since there is no cashier module yet —
-// admin can add a "walk-in" order manually and it is stored separately.
 
 const getStoredOnlineOrders = (): Order[] => {
   const seen = new Set<string>();
@@ -74,7 +70,7 @@ const getStoredOnlineOrders = (): Order[] => {
         }
       });
     } catch {
-      // Ignore invalid storage entries.
+
     }
   }
 
