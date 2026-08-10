@@ -5,7 +5,7 @@ import { ShoppingBag, Users, Package, AlertTriangle } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import StatCard from '../components/StatCard';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
-import { getAllAccounts } from '../../../services/adminAuthService';
+import { getAllAccounts, apiGetAdminCount } from '../../../services/adminAuthService';
 import { getAllProducts } from '../../../services/adminProductService';
 import { formatCurrency } from '../../../utils/formatters';
 import { STATUS_COLORS } from '../../../utils/constants';
@@ -15,6 +15,7 @@ const AdminDashboardPage: React.FC = () => {
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalProducts, setTotalProducts] = useState(0);
   const [outOfStock, setOutOfStock] = useState(0);
+  const [totalAdmins, setTotalAdmins] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -25,6 +26,9 @@ const AdminDashboardPage: React.FC = () => {
 
       setTotalProducts(products.length);
       setOutOfStock(products.filter((p) => !p.isAvailable).length);
+      const adminCount = await apiGetAdminCount();
+      if (!isMounted) return;
+      setTotalAdmins(adminCount);
     };
 
     const allOrders = getAllOrders();
@@ -48,6 +52,7 @@ const AdminDashboardPage: React.FC = () => {
         <StatCard label="Total Orders" value={orders.length} icon={ShoppingBag} />
         <StatCard label="Total Users" value={totalUsers} icon={Users} />
         <StatCard label="Total Products" value={totalProducts} icon={Package} />
+        <StatCard label="Total Admins" value={totalAdmins} icon={Users} />
         <StatCard label="Out of Stock" value={outOfStock} icon={AlertTriangle} tone="warning" />
       </div>
 

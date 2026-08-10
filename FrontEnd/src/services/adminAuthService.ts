@@ -115,3 +115,67 @@ export const addEmployeeAccount = (data: {
   saveAllAccounts(accounts);
   return newEmployee;
 };
+
+// API-backed admin operations
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+export const apiRegisterAdmin = async (data: { full_name: string; email: string; password: string; password_confirmation: string }) => {
+  // Use FormData to avoid backend JSON parsing issues in some environments
+  const form = new FormData();
+  form.append('full_name', data.full_name);
+  form.append('email', data.email);
+  form.append('password', data.password);
+  form.append('password_confirmation', data.password_confirmation);
+
+  const res = await fetch(`${API_URL}/admin/register`, {
+    method: 'POST',
+    body: form,
+  });
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (body && body.errors) {
+      const msgs = Object.values(body.errors).flat().join(' ');
+      throw new Error(msgs || 'Validation failed');
+    }
+    throw new Error((body && body.message) || 'Failed to register admin');
+  }
+  return body;
+};
+
+export const apiAdminLogin = async (email: string, password: string) => {
+  const res = await fetch(`${API_URL}/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Invalid admin credentials');
+  }
+
+  return res.json();
+};
+
+export const apiGetAdmins = async (): Promise<StoredAccount[] | null> => {
+  // try to use stored admin token to fetch
+  const token = localStorage.getItem('adminToken');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_URL}/admin/list`, { headers });
+  if (!res.ok) return null;
+  const body = await res.json();
+  return (body.data || []).map((a: any) => ({ id: String(a.id), fullName: a.full_name || a.fullName || '', email: a.email, role: 'admin', dateRegistered: a.created_at }));
+};
+
+export const apiGetAdminCount = async (): Promise<number> => {
+  const token = localStorage.getItem('adminToken');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}/admin/count`, { headers });
+  if (!res.ok) return 0;
+  const body = await res.json();
+  return body.count || 0;
+};

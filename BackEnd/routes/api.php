@@ -5,6 +5,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminAuthController;
 
 Route::get('/test', function () {
     return response()->json(['message' => 'API is working!']);
@@ -40,3 +42,10 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/payment/card/process', [PaymentController::class, 'processCard']);
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 });
+
+// Admin management - basic endpoints
+Route::post('/admin/register', [AdminController::class, 'store']);
+Route::post('/admin/login', [AdminAuthController::class, 'login']);
+Route::post('/admin/logout', [AdminAuthController::class, 'logout']);
+Route::get('/admin/list', [AdminController::class, 'index']);
+Route::get('/admin/count', [AdminController::class, 'count']);

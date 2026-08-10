@@ -23,6 +23,7 @@ const navItems = [
   { to: '/admin/products', label: 'Products', icon: Package },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
   { to: '/admin/customers', label: 'Customers', icon: Users },
+  { to: '/admin/admins', label: 'Admins', icon: Users },
   { to: '/admin/employees', label: 'Employees', icon: Briefcase },
   { to: '/admin/reports', label: 'Reports', icon: FileBarChart },
   {to: '/admin/kitchen', label: 'Kitchen', icon: ForkKnifeCrossed},

@@ -26,6 +26,7 @@ import AdminAddProductPage from "./modules/admin-side/pages/AdminAddProductPage"
 import AdminOrdersPage from "./modules/admin-side/pages/AdminOrdersPage";
 import AdminCustomersPage from "./modules/admin-side/pages/AdminCustomersPage";
 import AdminEmployeesPage from "./modules/admin-side/pages/AdminEmployeesPage";
+import AdminAdminsPage from "./modules/admin-side/pages/AdminAdminsPage";
 import AdminReportsPage from "./modules/admin-side/pages/AdminReportsPage";
 import AdminDelivery from "./modules/admin-side/pages/AdminDelivery";
 import ProtectedAdminRoute from "./modules/admin-side/components/ProtectedAdminRoute";
@@ -74,6 +75,7 @@ function App() {
                       <Route path="/admin/customers" element={<ProtectedAdminRoute><AdminCustomersPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/employees" element={<ProtectedAdminRoute><AdminEmployeesPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/reports" element={<ProtectedAdminRoute><AdminReportsPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/admins" element={<ProtectedAdminRoute><AdminAdminsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/kitchen" element={<ProtectedAdminRoute><AdminKitchenPage /></ProtectedAdminRoute>} />
 
                       {/* ===== DRIVER ROUTES ===== */}

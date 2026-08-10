@@ -36,13 +36,19 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const validAdmin = adminAuthService.validateAdminCredentials(email, password);
-    if (validAdmin) {
-      setAdmin(validAdmin);
-      adminAuthService.setCurrentAdmin(validAdmin);
-      setIsLoading(false);
-      return true;
+    try {
+      const res = await adminAuthService.apiAdminLogin(email, password);
+      const admin = res.admin;
+      const token = res.token;
+      if (admin) {
+        adminAuthService.setCurrentAdmin(admin);
+        if (token) localStorage.setItem('adminToken', token);
+        setAdmin(admin);
+        setIsLoading(false);
+        return true;
+      }
+    } catch (err) {
+      // fallthrough
     }
     setIsLoading(false);
     return false;
@@ -51,6 +57,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const logout = () => {
     setAdmin(null);
     adminAuthService.removeCurrentAdmin();
+    localStorage.removeItem('adminToken');
   };
 
   return (
