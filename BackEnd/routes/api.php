@@ -43,6 +43,16 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 });
 
+Route::prefix('admin')->group(function () {
+    Route::get('/products', [ProductController::class, 'getAllForAdmin']);
+    Route::get('/products/count', [ProductController::class, 'count']);
+    Route::post('/products/upload-image', [ProductController::class, 'uploadImage']);
+    Route::post('/products', [ProductController::class, 'store']);
+    Route::put('/products/{id}', [ProductController::class, 'update']);
+    Route::delete('/products/{id}', [ProductController::class, 'destroy']);
+    Route::patch('/products/{id}/toggle', [ProductController::class, 'toggleAvailability']);
+});
+
 // Admin management - basic endpoints
 Route::post('/admin/register', [AdminController::class, 'store']);
 Route::post('/admin/login', [AdminAuthController::class, 'login']);

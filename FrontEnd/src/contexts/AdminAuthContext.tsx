@@ -41,8 +41,12 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const admin = res.admin;
       const token = res.token;
       if (admin) {
-        adminAuthService.setCurrentAdmin(admin);
-        if (token) localStorage.setItem('adminToken', token);
+        const adminWithToken = token ? { ...admin, token } : admin;
+        adminAuthService.setCurrentAdmin(adminWithToken as any);
+        if (token) {
+          adminAuthService.setStoredAdminToken(token);
+          localStorage.setItem('adminToken', token);
+        }
         setAdmin(admin);
         setIsLoading(false);
         return true;

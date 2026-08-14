@@ -21,6 +21,7 @@ export interface StoredAccount {
 
 const STORAGE_KEYS = {
   ADMIN_CURRENT: 'adminUser',
+  ADMIN_TOKEN: 'adminToken',
   USERS: 'users', 
 } as const;
 
@@ -44,6 +45,76 @@ export const setCurrentAdmin = (admin: AdminUser): void => {
   localStorage.setItem(STORAGE_KEYS.ADMIN_CURRENT, JSON.stringify(admin));
 };
 
+export const getStoredAdminToken = (): string | null => {
+  const directToken = localStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN);
+  if (directToken) return directToken;
+
+  const storedAdmin = localStorage.getItem(STORAGE_KEYS.ADMIN_CURRENT);
+  if (!storedAdmin) return null;
+
+  try {
+    const parsed = JSON.parse(storedAdmin) as AdminUser & { token?: string };
+    return parsed.token || null;
+  } catch {
+    return null;
+  }
+};
+
+export const setStoredAdminToken = (token: string): void => {
+  localStorage.setItem(STORAGE_KEYS.ADMIN_TOKEN, token);
+
+  const storedAdmin = localStorage.getItem(STORAGE_KEYS.ADMIN_CURRENT);
+  if (storedAdmin) {
+    try {
+      const parsed = JSON.parse(storedAdmin) as AdminUser & { token?: string };
+      localStorage.setItem(STORAGE_KEYS.ADMIN_CURRENT, JSON.stringify({ ...parsed, token }));
+    } catch {
+      // ignore malformed stored admin data
+    }
+  }
+};
+
+export const ensureAdminSession = async (): Promise<string | null> => {
+  const existingToken = getStoredAdminToken();
+  if (existingToken) {
+    return existingToken;
+  }
+
+  try {
+    const res = await fetch(`${API_URL}/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: ADMIN_ACCOUNT.email,
+        password: ADMIN_ACCOUNT.password,
+      }),
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const body = await res.json().catch(() => null);
+    const token = body?.token;
+    if (!token) {
+      return null;
+    }
+
+    const admin = body.admin || {
+      id: ADMIN_ACCOUNT.id,
+      fullName: ADMIN_ACCOUNT.fullName,
+      email: ADMIN_ACCOUNT.email,
+      role: 'admin' as const,
+    };
+
+    setCurrentAdmin(admin as AdminUser);
+    setStoredAdminToken(token);
+    return token;
+  } catch {
+    return null;
+  }
+};
+
 export const getCurrentAdmin = (): AdminUser | null => {
   const stored = localStorage.getItem(STORAGE_KEYS.ADMIN_CURRENT);
   if (!stored) return null;
@@ -56,6 +127,7 @@ export const getCurrentAdmin = (): AdminUser | null => {
 
 export const removeCurrentAdmin = (): void => {
   localStorage.removeItem(STORAGE_KEYS.ADMIN_CURRENT);
+  localStorage.removeItem(STORAGE_KEYS.ADMIN_TOKEN);
 };
 
 export const getAllAccounts = (): StoredAccount[] => {

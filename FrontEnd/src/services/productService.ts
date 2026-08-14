@@ -1,5 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 import { getProductImage } from '../data/productImages';
+import { ensureAdminSession, getStoredAdminToken } from './adminAuthService';
 
 export interface Product {
     id: string;
@@ -15,19 +16,55 @@ export interface Product {
     updated_at: string;
 }
 
+const DEFAULT_PRODUCT_IMAGE = '/oppadrulogo.jpg';
+
 class ProductService {
     private tokenKey = 'auth_token';
+    private adminTokenKey = 'adminToken';
     private cacheKey = 'cached_available_products';
 
     private getToken(): string | null {
         return localStorage.getItem(this.tokenKey);
     }
 
-    private getHeaders(): HeadersInit {
-        const token = this.getToken();
+    private getAdminToken(): string | null {
+        const directToken = localStorage.getItem(this.adminTokenKey);
+        if (directToken) {
+            return directToken;
+        }
+
+        const fallbackToken = getStoredAdminToken();
+        if (fallbackToken) {
+            localStorage.setItem(this.adminTokenKey, fallbackToken);
+            return fallbackToken;
+        }
+
+        return null;
+    }
+
+    private async ensureValidAdminToken(): Promise<string | null> {
+        const token = this.getAdminToken() || await ensureAdminSession();
+        if (token) {
+            localStorage.setItem(this.adminTokenKey, token);
+        }
+        return token;
+    }
+
+    private getHeaders(useAdminToken = false): HeadersInit {
+        const token = useAdminToken ? this.getAdminToken() : this.getToken();
         return {
             'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
+    }
+
+    private mapProduct(product: any): Product {
+        return {
+            ...product,
+            price: Number(product.price ?? 0),
+            is_available: product.is_available ?? product.isAvailable ?? true,
+            isAvailable: product.is_available ?? product.isAvailable ?? true,
+            image: getProductImage(product.image || ''),
         };
     }
 
@@ -58,12 +95,47 @@ class ProductService {
         }
 
         const products = await response.json();
-        return products.map((p: any) => ({
-            ...p,
-            price: Number(p.price),
-            isAvailable: p.is_available,
-            image: getProductImage(p.image)
-        }));
+        return (Array.isArray(products) ? products : []).map((p: any) => this.mapProduct(p));
+    }
+
+    async getAdminProducts(): Promise<Product[]> {
+        const token = await this.ensureValidAdminToken();
+        if (!token) {
+            throw new Error('Failed to fetch admin products');
+        }
+
+        const response = await fetch(`${API_URL}/admin/products`, {
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.json().catch(() => ({}));
+            if (response.status === 401) {
+                localStorage.removeItem(this.adminTokenKey);
+                const retriedToken = await ensureAdminSession();
+                if (retriedToken) {
+                    const retry = await fetch(`${API_URL}/admin/products`, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${retriedToken}`,
+                        },
+                    });
+                    if (retry.ok) {
+                        const payload = await retry.json();
+                        const products = Array.isArray(payload) ? payload : payload.data ?? [];
+                        return products.map((p: any) => this.mapProduct(p));
+                    }
+                }
+            }
+            throw new Error(errorBody.message || 'Failed to fetch admin products');
+        }
+
+        const payload = await response.json();
+        const products = Array.isArray(payload) ? payload : payload.data ?? [];
+        return products.map((p: any) => this.mapProduct(p));
     }
 
     async getAvailableProducts(): Promise<Product[]> {
@@ -77,12 +149,7 @@ class ProductService {
             }
 
             const products = await response.json();
-            const mappedProducts = products.map((p: any) => ({
-                ...p,
-                price: Number(p.price),
-                isAvailable: p.is_available,
-                image: getProductImage(p.image)
-            }));
+            const mappedProducts = (Array.isArray(products) ? products : []).map((p: any) => this.mapProduct(p));
 
             this.saveCachedProducts(mappedProducts);
             return mappedProducts;
@@ -102,12 +169,7 @@ class ProductService {
         }
 
         const products = await response.json();
-        return products.map((p: any) => ({
-            ...p,
-            price: Number(p.price),
-            isAvailable: p.is_available,
-            image: getProductImage(p.image)
-        }));
+        return (Array.isArray(products) ? products : []).map((p: any) => this.mapProduct(p));
     }
 
     async getProduct(id: string): Promise<Product> {
@@ -120,43 +182,69 @@ class ProductService {
         }
 
         const product = await response.json();
-        return {
-            ...product,
-            price: Number(product.price),
-            isAvailable: product.is_available,
-            image: getProductImage(product.image)
-        };
+        return this.mapProduct(product);
     }
 
     async uploadImage(file: File, folder: string = 'products'): Promise<string> {
-        const token = this.getToken();
+        const token = this.getAdminToken() || await ensureAdminSession();
+        if (!token) {
+            throw new Error('Admin authentication token not found. Please login first.');
+        }
+
+        localStorage.setItem(this.adminTokenKey, token);
+
         const formData = new FormData();
         formData.append('image', file);
         formData.append('folder', folder);
 
-        const response = await fetch(`${API_URL}/products/upload-image`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-            },
-            body: formData,
-        });
+        try {
+            const response = await fetch(`${API_URL}/admin/products/upload-image`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+            });
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to upload image');
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                if (response.status === 401) {
+                    localStorage.removeItem(this.adminTokenKey);
+                    const retriedToken = await ensureAdminSession();
+                    if (retriedToken) {
+                        const retry = await fetch(`${API_URL}/admin/products/upload-image`, {
+                            method: 'POST',
+                            headers: {
+                                Authorization: `Bearer ${retriedToken}`,
+                            },
+                            body: formData,
+                        });
+                        if (retry.ok) {
+                            const result = await retry.json();
+                            return result.url || DEFAULT_PRODUCT_IMAGE;
+                        }
+                    }
+                }
+                console.warn('Supabase image upload failed, using default product image instead.', error);
+                return DEFAULT_PRODUCT_IMAGE;
+            }
+
+            const result = await response.json();
+            return result.url || DEFAULT_PRODUCT_IMAGE;
+        } catch (error) {
+            console.warn('Image upload request failed, using default product image instead.', error);
+            return DEFAULT_PRODUCT_IMAGE;
         }
-
-        const result = await response.json();
-        return result.url;
     }
 
     async createProduct(data: Omit<Product, 'id' | 'created_at' | 'updated_at'>, imageFile?: File): Promise<Product> {
-        let imageUrl = data.image || '';
+        let imageUrl = typeof data.image === 'string' ? data.image.trim() : '';
 
         if (imageFile) {
             const category = data.category || 'products';
             imageUrl = await this.uploadImage(imageFile, category);
+        } else if (!imageUrl) {
+            imageUrl = DEFAULT_PRODUCT_IMAGE;
         }
 
         const productData = {
@@ -164,24 +252,45 @@ class ProductService {
             image: imageUrl,
         };
 
-        const response = await fetch(`${API_URL}/products`, {
+        const token = await this.ensureValidAdminToken();
+        if (!token) {
+            throw new Error('Unauthorized');
+        }
+
+        const response = await fetch(`${API_URL}/admin/products`, {
             method: 'POST',
-            headers: this.getHeaders(),
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
             body: JSON.stringify(productData),
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to create product');
+            const error = await response.json().catch(() => ({}));
+            if (response.status === 401) {
+                localStorage.removeItem(this.adminTokenKey);
+                const retriedToken = await ensureAdminSession();
+                if (retriedToken) {
+                    const retry = await fetch(`${API_URL}/admin/products`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${retriedToken}`,
+                        },
+                        body: JSON.stringify(productData),
+                    });
+                    if (retry.ok) {
+                        const result = await retry.json();
+                        return this.mapProduct(result.product ?? result);
+                    }
+                }
+            }
+            throw new Error(error.message || error.errors?.name?.[0] || 'Failed to create product');
         }
 
         const result = await response.json();
-        return {
-            ...result.product,
-            price: Number(result.product.price),
-            isAvailable: result.product.is_available,
-            image: getProductImage(result.product.image)
-        };
+        return this.mapProduct(result.product ?? result);
     }
 
     async updateProduct(id: string, data: Partial<Product>, imageFile?: File): Promise<Product> {
@@ -193,54 +302,117 @@ class ProductService {
             data.image = imageUrl;
         }
 
-        const response = await fetch(`${API_URL}/products/${id}`, {
+        const token = await this.ensureValidAdminToken();
+        if (!token) {
+            throw new Error('Unauthorized');
+        }
+
+        const response = await fetch(`${API_URL}/admin/products/${id}`, {
             method: 'PUT',
-            headers: this.getHeaders(),
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
             body: JSON.stringify(data),
         });
 
         if (!response.ok) {
-            const error = await response.json();
+            const error = await response.json().catch(() => ({}));
+            if (response.status === 401) {
+                localStorage.removeItem(this.adminTokenKey);
+                const retriedToken = await ensureAdminSession();
+                if (retriedToken) {
+                    const retry = await fetch(`${API_URL}/admin/products/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${retriedToken}`,
+                        },
+                        body: JSON.stringify(data),
+                    });
+                    if (retry.ok) {
+                        const result = await retry.json();
+                        return this.mapProduct(result.product ?? result);
+                    }
+                }
+            }
             throw new Error(error.message || 'Failed to update product');
         }
 
         const result = await response.json();
-        return {
-            ...result.product,
-            price: Number(result.product.price),
-            isAvailable: result.product.is_available,
-            image: getProductImage(result.product.image)
-        };
+        return this.mapProduct(result.product ?? result);
     }
 
     async deleteProduct(id: string): Promise<void> {
-        const response = await fetch(`${API_URL}/products/${id}`, {
+        const token = await this.ensureValidAdminToken();
+        if (!token) {
+            throw new Error('Unauthorized');
+        }
+
+        const response = await fetch(`${API_URL}/admin/products/${id}`, {
             method: 'DELETE',
-            headers: this.getHeaders(),
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
         });
 
         if (!response.ok) {
-            throw new Error('Failed to delete product');
+            const error = await response.json().catch(() => ({}));
+            if (response.status === 401) {
+                localStorage.removeItem(this.adminTokenKey);
+                const retriedToken = await ensureAdminSession();
+                if (retriedToken) {
+                    const retry = await fetch(`${API_URL}/admin/products/${id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            Authorization: `Bearer ${retriedToken}`,
+                        },
+                    });
+                    if (retry.ok) {
+                        return;
+                    }
+                }
+            }
+            throw new Error(error.message || 'Failed to delete product');
         }
     }
 
     async toggleAvailability(id: string): Promise<Product> {
-        const response = await fetch(`${API_URL}/products/${id}/toggle`, {
+        const token = await this.ensureValidAdminToken();
+        if (!token) {
+            throw new Error('Unauthorized');
+        }
+
+        const response = await fetch(`${API_URL}/admin/products/${id}/toggle`, {
             method: 'PATCH',
-            headers: this.getHeaders(),
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
         });
 
         if (!response.ok) {
-            throw new Error('Failed to toggle product availability');
+            const error = await response.json().catch(() => ({}));
+            if (response.status === 401) {
+                localStorage.removeItem(this.adminTokenKey);
+                const retriedToken = await ensureAdminSession();
+                if (retriedToken) {
+                    const retry = await fetch(`${API_URL}/admin/products/${id}/toggle`, {
+                        method: 'PATCH',
+                        headers: {
+                            Authorization: `Bearer ${retriedToken}`,
+                        },
+                    });
+                    if (retry.ok) {
+                        const result = await retry.json();
+                        return this.mapProduct(result.product ?? result);
+                    }
+                }
+            }
+            throw new Error(error.message || 'Failed to toggle product availability');
         }
 
         const result = await response.json();
-        return {
-            ...result.product,
-            price: Number(result.product.price),
-            isAvailable: result.product.is_available,
-            image: getProductImage(result.product.image)
-        };
+        return this.mapProduct(result.product ?? result);
     }
 }
 
