@@ -140,21 +140,23 @@ class ProductService {
 
     async getAvailableProducts(): Promise<Product[]> {
         try {
-            const response = await fetch(`${API_URL}/products/available`, {
+            const response = await fetch(`${API_URL}/products`, {
                 headers: this.getHeaders(),
             });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch available products');
+                throw new Error('Failed to fetch products');
             }
 
             const products = await response.json();
             const mappedProducts = (Array.isArray(products) ? products : []).map((p: any) => this.mapProduct(p));
 
-            this.saveCachedProducts(mappedProducts);
-            return mappedProducts;
+            const orderedProducts = [...mappedProducts].sort((a, b) => Number(b.is_available) - Number(a.is_available));
+
+            this.saveCachedProducts(orderedProducts);
+            return orderedProducts;
         } catch (error) {
-            console.error('Failed to fetch available products:', error);
+            console.error('Failed to fetch products:', error);
             return this.getCachedProducts();
         }
     }

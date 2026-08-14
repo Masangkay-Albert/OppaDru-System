@@ -293,7 +293,10 @@ class ProductController extends Controller
     public function getAvailable()
     {
         try {
-            $products = Product::where('is_available', true)->get();
+            $products = Product::orderByRaw('is_available DESC')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
             return response()->json($products);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
