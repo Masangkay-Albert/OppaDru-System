@@ -44,6 +44,11 @@ class User extends Authenticatable
                 $slug = substr($slug, 0, 16);
                 $model->id = 'OPPA-USER-' . ($slug ?: 'CUST') . '-' . strtoupper(Str::random(4));
             }
+            
+            // Add this to manually set created_at
+            if (empty($model->created_at)) {
+                $model->created_at = now();
+            }
         });
     }
 }

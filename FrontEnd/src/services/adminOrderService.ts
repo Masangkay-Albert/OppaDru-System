@@ -117,8 +117,7 @@ export const getAllOrders = async (): Promise<AdminOrder[]> => {
       items: order.items || [],
       deliveryAddress: order.delivery_address || 'Onsite / Walk-in',
     }));
-  } catch (error) {
-    console.error('Failed to fetch orders from API, using local storage:', error);
+  } catch {
     return [...getOnlineOrders(), ...getOnsiteOrders()].sort(
       (a, b) => new Date(b.created_at || b.timestamp).getTime() - new Date(a.created_at || a.timestamp).getTime()
     );
@@ -129,8 +128,7 @@ export const updateOrderStatus = async (orderId: string, status: string): Promis
   try {
     await orderService.updateOrderStatus(orderId, status);
     return true;
-  } catch (error) {
-    console.error('Failed to update order status via API:', error);
+  } catch {
     return false;
   }
 };
@@ -149,8 +147,7 @@ export const getAllCustomers = async (): Promise<any[]> => {
 
     const result = await response.json();
     return result.data || [];
-  } catch (error) {
-    console.error('Failed to fetch customers:', error);
+  } catch {
     return [];
   }
 };

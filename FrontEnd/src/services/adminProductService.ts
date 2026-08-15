@@ -75,8 +75,7 @@ export const getAllProducts = async (): Promise<Product[]> => {
       if (a.category > b.category) return 1;
       return a.name.localeCompare(b.name);
     });
-  } catch (error) {
-    console.error('Failed to fetch products:', error);
+  } catch {
     const custom = getCustomProducts();
     return custom.sort((a, b) => {
       if (a.category < b.category) return -1;
@@ -90,8 +89,7 @@ export const toggleAvailability = async (productId: string): Promise<void> => {
   try {
     await productService.toggleAvailability(productId);
     notifyProductsUpdated();
-  } catch (error) {
-    console.error('Failed to toggle availability:', error);
+  } catch {
     const all = await getAllProducts();
     const product = all.find((p) => p.id === productId);
     if (!product) return;
@@ -111,8 +109,7 @@ export const updateProduct = async (productId: string, changes: Partial<Product>
   try {
     await productService.updateProduct(productId, withAvailability(changes as ProductInput));
     notifyProductsUpdated();
-  } catch (error) {
-    console.error('Failed to update product:', error);
+  } catch {
     const overrides = getOverrides();
     overrides[productId] = { ...overrides[productId], ...changes };
     saveOverrides(overrides);
@@ -127,8 +124,7 @@ export const addProduct = async (data: ProductInput): Promise<Product> => {
     const newProduct = await productService.createProduct(productData);
     notifyProductsUpdated();
     return newProduct;
-  } catch (error) {
-    console.error('Failed to add product to Supabase, saving locally:', error);
+  } catch {
     const now = new Date().toISOString();
     const newProduct: Product = {
       ...productData,
@@ -153,8 +149,7 @@ export const deleteProduct = async (productId: string): Promise<void> => {
     const custom = getCustomProducts().filter((p) => p.id !== productId);
     saveCustomProducts(custom);
     notifyProductsUpdated();
-  } catch (error) {
-    console.error('Failed to delete product from Supabase, marking as deleted locally:', error);
+  } catch {
     const deleted = new Set(getDeletedProducts());
     deleted.add(productId);
     saveDeletedProducts(Array.from(deleted));

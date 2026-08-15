@@ -154,9 +154,8 @@ const CheckoutPage: React.FC = () => {
         showToast('Failed to place order. Please try again.', 'error');
       }
 
-    } catch (error) {
+    } catch {
       showToast('Failed to place order. Please try again.', 'error');
-      console.error('Order placement error:', error);
     } finally {
       setIsPlacingOrder(false);
     }

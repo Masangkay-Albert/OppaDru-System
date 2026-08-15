@@ -12,8 +12,8 @@ export interface Product {
     is_available: boolean;
     isAvailable?: boolean;
     addons?: any[];
-    created_at: string;
-    updated_at: string;
+    created_at?: string;
+    updated_at?: string;
 }
 
 const DEFAULT_PRODUCT_IMAGE = '/oppadrulogo.jpg';
@@ -65,6 +65,8 @@ class ProductService {
             is_available: product.is_available ?? product.isAvailable ?? true,
             isAvailable: product.is_available ?? product.isAvailable ?? true,
             image: getProductImage(product.image || ''),
+            created_at: product.created_at || '',
+            updated_at: product.updated_at || '',
         };
     }
 
@@ -161,13 +163,7 @@ class ProductService {
             this.saveCachedProducts(orderedProducts);
             return orderedProducts;
         } catch (error) {
-            console.error('Failed to fetch products:', error);
-            const cached = this.getCachedProducts();
-            return cached.sort((a, b) => {
-                if (a.category < b.category) return -1;
-                if (a.category > b.category) return 1;
-                return a.name.localeCompare(b.name);
-            });
+            return this.getCachedProducts();
         }
     }
 
@@ -200,7 +196,6 @@ class ProductService {
     async uploadImage(file: File, folder: string = 'products'): Promise<string> {
         const token = this.getAdminToken() || await ensureAdminSession();
         if (!token) {
-            console.error('No admin token found');
             return DEFAULT_PRODUCT_IMAGE;
         }
 
@@ -209,8 +204,6 @@ class ProductService {
         formData.append('folder', folder);
 
         try {
-            console.log('Uploading image:', file.name, 'Size:', file.size);
-
             const response = await fetch(`${API_URL}/admin/products/upload-image`, {
                 method: 'POST',
                 headers: {
@@ -219,20 +212,13 @@ class ProductService {
                 body: formData,
             });
 
-            console.log('Upload response status:', response.status);
-
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Upload failed:', response.status, errorText);
                 return DEFAULT_PRODUCT_IMAGE;
             }
 
             const result = await response.json();
-            console.log('Upload result:', result);
-            
             return result.url || DEFAULT_PRODUCT_IMAGE;
         } catch (error) {
-            console.error('Upload error:', error);
             return DEFAULT_PRODUCT_IMAGE;
         }
     }

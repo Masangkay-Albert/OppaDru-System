@@ -33,8 +33,7 @@ const MenuPage: React.FC = () => {
     try {
       const data = await productService.getAvailableProducts();
       setProducts(data);
-    } catch (error) {
-      console.error('Failed to fetch products:', error);
+    } catch {
       setProducts([]);
     }
   }, []);

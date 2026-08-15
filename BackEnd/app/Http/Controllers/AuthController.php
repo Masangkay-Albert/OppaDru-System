@@ -30,7 +30,6 @@ class AuthController extends Controller
             'email' => $request->email,
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
-            'role' => 'customer',
             'api_token' => hash('sha256', $token),
         ]);
 
@@ -70,7 +69,7 @@ class AuthController extends Controller
             'message' => 'Login successful!'
         ]);
     }
- 
+
     public function logout(Request $request)
     {
         $user = $request->user();

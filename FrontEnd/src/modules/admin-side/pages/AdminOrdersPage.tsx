@@ -43,8 +43,7 @@ const AdminOrdersPage: React.FC = () => {
     try {
       const allOrders = await getAllOrders();
       setOrders(Array.isArray(allOrders) ? allOrders : []);
-    } catch (error) {
-      console.error('Failed to load orders:', error);
+    } catch {
       setOrders([]);
     } finally {
       setLoading(false);
@@ -57,13 +56,10 @@ const AdminOrdersPage: React.FC = () => {
 
   const handleMarkDelivered = async (orderId: string) => {
     try {
-      console.log('Marking order as delivered:', orderId);
-      const updatedOrder = await orderService.updateOrderStatus(orderId, 'delivered');
-      console.log('Order updated:', updatedOrder);
+      await orderService.updateOrderStatus(orderId, 'delivered');
       await loadOrders();
-    } catch (error) {
-      console.error('Failed to mark order as delivered:', error);
-      alert('Failed to update order status. Please try again.');
+    } catch {
+      // Silently fail
     }
   };
 
@@ -85,6 +81,18 @@ const AdminOrdersPage: React.FC = () => {
   const formatPrice = (price: number | string) => {
     const num = Number(price);
     return isNaN(num) ? 0 : num;
+  };
+
+  const formatDate = (date: string) => {
+    if (!date) return 'N/A';
+    const d = new Date(date);
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   return (
@@ -138,6 +146,7 @@ const AdminOrdersPage: React.FC = () => {
                 <th className="px-4 py-3">Items</th>
                 <th className="px-4 py-3">Total</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
@@ -183,6 +192,9 @@ const AdminOrdersPage: React.FC = () => {
                         <StatusIcon className="h-3 w-3" />
                         {statusLabels[order.status] || order.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-[var(--oppa-text-muted)]">
+                      {formatDate(order.created_at)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -261,6 +273,11 @@ const AdminOrdersPage: React.FC = () => {
                     {statusLabels[selectedOrder.status] || selectedOrder.status}
                   </span>
                 </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-[var(--oppa-text-muted)]">Order Date</p>
+                <p className="text-sm">{formatDate(selectedOrder.created_at)}</p>
               </div>
 
               <div>

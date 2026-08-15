@@ -11,7 +11,7 @@ class OrderController extends Controller
 {
     public function index()
     {
-        $orders = Order::with('user')->orderBy('id', 'desc')->get();
+        $orders = Order::with('user')->orderBy('created_at', 'desc')->get();
         
         $formattedOrders = $orders->map(function ($order) {
             return [
@@ -26,10 +26,41 @@ class OrderController extends Controller
                 'delivery_address' => $order->delivery_address,
                 'phone' => $order->phone,
                 'items' => $order->items,
+                'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
             ];
         });
 
         return response()->json($formattedOrders);
+    }
+
+    private function convertToPhilippineTime($timestamp)
+    {
+        if (!$timestamp) return null;
+        $date = new \DateTime($timestamp);
+        $date->setTimezone(new \DateTimeZone('Asia/Manila'));
+        return $date->format('Y-m-d H:i:s');
+    }
+
+    public function show($id)
+    {
+        $order = Order::with('user')->findOrFail($id);
+        
+        $formattedOrder = [
+            'id' => $order->id,
+            'order_number' => $order->order_number,
+            'email' => $order->email,
+            'customer_name' => $order->user ? $order->user->full_name : 'Guest',
+            'user_id' => $order->user_id,
+            'total' => $order->total,
+            'status' => $order->status,
+            'payment_method' => $order->payment_method,
+            'delivery_address' => $order->delivery_address,
+            'phone' => $order->phone,
+            'items' => $order->items,
+            'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
+        ];
+
+        return response()->json($formattedOrder);
     }
 
     public function store(Request $request)
@@ -86,27 +117,6 @@ class OrderController extends Controller
         ], 201);
     }
 
-    public function show($id)
-    {
-        $order = Order::with('user')->findOrFail($id);
-        
-        $formattedOrder = [
-            'id' => $order->id,
-            'order_number' => $order->order_number,
-            'email' => $order->email,
-            'customer_name' => $order->user ? $order->user->full_name : 'Guest',
-            'user_id' => $order->user_id,
-            'total' => $order->total,
-            'status' => $order->status,
-            'payment_method' => $order->payment_method,
-            'delivery_address' => $order->delivery_address,
-            'phone' => $order->phone,
-            'items' => $order->items,
-        ];
-
-        return response()->json($formattedOrder);
-    }
-
     public function updateStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
@@ -131,16 +141,30 @@ class OrderController extends Controller
     public function getUserOrders(Request $request)
     {
         $email = $request->user()->email;
-        return response()->json(
-            Order::where('email', $email)
-                ->orderBy('id', 'desc')
-                ->get()
-        );
+        $orders = Order::where('email', $email)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($order) {
+                return [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'email' => $order->email,
+                    'total' => $order->total,
+                    'status' => $order->status,
+                    'payment_method' => $order->payment_method,
+                    'delivery_address' => $order->delivery_address,
+                    'phone' => $order->phone,
+                    'items' => $order->items,
+                    'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
+                ];
+            });
+
+        return response()->json($orders);
     }
 
     public function getAllCustomers()
     {
-        $users = User::orderBy('id', 'desc')->get()->map(function ($user) {
+        $users = User::orderBy('created_at', 'desc')->get()->map(function ($user) {
             return [
                 'id' => $user->id,
                 'full_name' => $user->full_name,

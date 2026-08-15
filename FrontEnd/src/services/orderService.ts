@@ -107,7 +107,9 @@ class OrderService {
     }
 
     async updateOrderStatus(id: string, status: string): Promise<Order> {
-        const token = this.getAdminToken() || this.getToken();
+        const adminToken = this.getAdminToken();
+        const userToken = this.getToken();
+        const token = adminToken || userToken;
         
         const response = await fetch(`${API_URL}/orders/${id}/status`, {
             method: 'PATCH',
@@ -120,8 +122,7 @@ class OrderService {
 
         if (!response.ok) {
             const error = await response.json().catch(() => ({}));
-            console.error('Update status error:', error);
-            throw new Error(error.message || 'Failed to update order status');
+            throw new Error(error.message || error.error || 'Failed to update order status');
         }
 
         const result = await response.json();

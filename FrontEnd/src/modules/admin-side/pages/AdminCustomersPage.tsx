@@ -18,11 +18,9 @@ interface CustomerWithStats extends StoredAccount {
 
 const AdminCustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<StoredAccount | null>(null);
 
   const refresh = async () => {
-    setLoading(true);
     try {
       const localCustomers = getAccountsByRole('customer');
       const apiCustomers = await getAllCustomers();
@@ -39,18 +37,25 @@ const AdminCustomersPage: React.FC = () => {
       }));
       
       setCustomers(merged.length > 0 ? merged : localCustomers.map(c => ({ ...c, order_count: 0, total_spent: 0 })));
-    } catch (error) {
-      console.error('Failed to load customers:', error);
+    } catch {
       const localCustomers = getAccountsByRole('customer');
       setCustomers(localCustomers.map(c => ({ ...c, order_count: 0, total_spent: 0 })));
-    } finally {
-      setLoading(false);
     }
   };
 
   useEffect(() => {
     refresh();
   }, []);
+
+  const formatDate = (date: string) => {
+    if (!date) return 'N/A';
+    const d = new Date(date);
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
 
   const handleReset = (id: string, newPassword: string) => {
     resetAccountPassword(id, newPassword);
@@ -112,7 +117,7 @@ const AdminCustomersPage: React.FC = () => {
                     {formatCurrency(c.total_spent || 0)}
                   </td>
                   <td className="px-5 py-3 text-xs text-[var(--oppa-text-muted)]">
-                    {c.date_registered ? new Date(c.date_registered).toLocaleDateString() : 'N/A'}
+                    {formatDate(c.date_registered)}
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">

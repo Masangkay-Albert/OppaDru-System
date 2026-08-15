@@ -16,27 +16,65 @@ const AdminDashboardPage: React.FC = () => {
   const [totalAdmins, setTotalAdmins] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadDashboard = async () => {
       try {
-        const [fetchedOrders, fetchedUsers, fetchedProducts, adminCount] = await Promise.all([
-          getAllOrders().catch(() => []),
-          getAllCustomers().catch(() => []),
-          getAllProducts().catch(() => []),
-          apiGetAdminCount().catch(() => 0)
-        ]);
+        let allOrders: AdminOrder[] = [];
+        try {
+          const fetchedOrders = await getAllOrders();
+          allOrders = Array.isArray(fetchedOrders) ? fetchedOrders : [];
+        } catch {
+          allOrders = [];
+        }
+        
+        if (!isMounted) return;
+        setOrders(allOrders);
 
-        setOrders(Array.isArray(fetchedOrders) ? fetchedOrders : []);
-        setTotalUsers(Array.isArray(fetchedUsers) ? fetchedUsers.length : 0);
-        const productList = Array.isArray(fetchedProducts) ? fetchedProducts : [];
-        setTotalProducts(productList.length);
-        setOutOfStock(productList.filter((p) => !p.isAvailable).length);
-        setTotalAdmins(typeof adminCount === 'number' ? adminCount : 0);
-      } catch (error) {
-        console.error('Failed to load dashboard:', error);
+        let users: any[] = [];
+        try {
+          const fetchedUsers = await getAllCustomers();
+          users = Array.isArray(fetchedUsers) ? fetchedUsers : [];
+        } catch {
+          try {
+            const accounts = getAllAccounts();
+            users = Array.isArray(accounts) ? accounts : [];
+          } catch {
+            users = [];
+          }
+        }
+        
+        if (!isMounted) return;
+        setTotalUsers(users.length);
+
+        let products: any[] = [];
+        try {
+          const fetchedProducts = await getAllProducts();
+          products = Array.isArray(fetchedProducts) ? fetchedProducts : [];
+        } catch {
+          products = [];
+        }
+        
+        if (!isMounted) return;
+        setTotalProducts(products.length);
+        setOutOfStock(products.filter((p) => !p.isAvailable).length);
+
+        try {
+          const adminCount = await apiGetAdminCount();
+          setTotalAdmins(typeof adminCount === 'number' ? adminCount : 0);
+        } catch {
+          setTotalAdmins(0);
+        }
+      } catch {
+        // Silently fail
       }
     };
 
     loadDashboard();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const recentOrders = Array.isArray(orders) ? orders.slice(0, 8) : [];
