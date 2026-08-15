@@ -34,13 +34,18 @@ export interface Order {
 
 class OrderService {
     private tokenKey = 'auth_token';
+    private adminTokenKey = 'adminToken';
 
     private getToken(): string | null {
         return localStorage.getItem(this.tokenKey);
     }
 
-    private getHeaders(): HeadersInit {
-        const token = this.getToken();
+    private getAdminToken(): string | null {
+        return localStorage.getItem(this.adminTokenKey);
+    }
+
+    private getHeaders(useAdminToken = false): HeadersInit {
+        const token = useAdminToken ? this.getAdminToken() : this.getToken();
         return {
             'Content-Type': 'application/json',
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -102,14 +107,21 @@ class OrderService {
     }
 
     async updateOrderStatus(id: string, status: string): Promise<Order> {
+        const token = this.getAdminToken() || this.getToken();
+        
         const response = await fetch(`${API_URL}/orders/${id}/status`, {
             method: 'PATCH',
-            headers: this.getHeaders(),
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
             body: JSON.stringify({ status }),
         });
 
         if (!response.ok) {
-            throw new Error('Failed to update order status');
+            const error = await response.json().catch(() => ({}));
+            console.error('Update status error:', error);
+            throw new Error(error.message || 'Failed to update order status');
         }
 
         const result = await response.json();

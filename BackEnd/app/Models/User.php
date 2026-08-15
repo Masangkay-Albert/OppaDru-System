@@ -14,13 +14,14 @@ class User extends Authenticatable
     public $incrementing = false;
     protected $keyType = 'string';
 
+    public $timestamps = false;
+
     protected $fillable = [
         'id',
         'full_name',
         'email',
         'phone',
         'password',
-        'role',
         'api_token',
     ];
 

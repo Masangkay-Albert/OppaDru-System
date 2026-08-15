@@ -1,14 +1,12 @@
-// src/modules/admin-side/pages/AdminDashboardPage.tsx
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingBag, Users, Package, AlertTriangle } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import StatCard from '../components/StatCard';
-import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
+import { getAllOrders, type AdminOrder, getAllCustomers } from '../../../services/adminOrderService';
 import { getAllAccounts, apiGetAdminCount } from '../../../services/adminAuthService';
 import { getAllProducts } from '../../../services/adminProductService';
 import { formatCurrency } from '../../../utils/formatters';
-import { STATUS_COLORS } from '../../../utils/constants';
 
 const AdminDashboardPage: React.FC = () => {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
@@ -18,30 +16,30 @@ const AdminDashboardPage: React.FC = () => {
   const [totalAdmins, setTotalAdmins] = useState(0);
 
   useEffect(() => {
-    let isMounted = true;
-
     const loadDashboard = async () => {
-      const products = await getAllProducts();
-      if (!isMounted) return;
+      try {
+        const [fetchedOrders, fetchedUsers, fetchedProducts, adminCount] = await Promise.all([
+          getAllOrders().catch(() => []),
+          getAllCustomers().catch(() => []),
+          getAllProducts().catch(() => []),
+          apiGetAdminCount().catch(() => 0)
+        ]);
 
-      setTotalProducts(products.length);
-      setOutOfStock(products.filter((p) => !p.isAvailable).length);
-      const adminCount = await apiGetAdminCount();
-      if (!isMounted) return;
-      setTotalAdmins(adminCount);
+        setOrders(Array.isArray(fetchedOrders) ? fetchedOrders : []);
+        setTotalUsers(Array.isArray(fetchedUsers) ? fetchedUsers.length : 0);
+        const productList = Array.isArray(fetchedProducts) ? fetchedProducts : [];
+        setTotalProducts(productList.length);
+        setOutOfStock(productList.filter((p) => !p.isAvailable).length);
+        setTotalAdmins(typeof adminCount === 'number' ? adminCount : 0);
+      } catch (error) {
+        console.error('Failed to load dashboard:', error);
+      }
     };
 
-    const allOrders = getAllOrders();
-    setOrders(allOrders);
-    setTotalUsers(getAllAccounts().length);
     loadDashboard();
-
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
-  const recentOrders = orders.slice(0, 8);
+  const recentOrders = Array.isArray(orders) ? orders.slice(0, 8) : [];
 
   return (
     <AdminLayout>
@@ -73,7 +71,6 @@ const AdminDashboardPage: React.FC = () => {
               <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/40 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
                 <th className="px-5 py-3">Order ID</th>
                 <th className="px-5 py-3">Customer</th>
-                <th className="px-5 py-3">Channel</th>
                 <th className="px-5 py-3">Total</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3">Date</th>
@@ -82,7 +79,7 @@ const AdminDashboardPage: React.FC = () => {
             <tbody>
               {recentOrders.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-[var(--oppa-text-muted)]">
+                  <td colSpan={5} className="px-5 py-8 text-center text-[var(--oppa-text-muted)]">
                     No orders yet.
                   </td>
                 </tr>
@@ -92,21 +89,32 @@ const AdminDashboardPage: React.FC = () => {
                   key={order.id}
                   className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]"
                 >
-                  <td className="px-5 py-3 text-[var(--oppa-text-muted)]">#{order.id.slice(-6)}</td>
-                  <td className="px-5 py-3">
-                    <p className="font-medium text-[var(--oppa-text)]">{order.customerName || 'Customer'}</p>
+                  <td className="px-5 py-3 text-[var(--oppa-text-muted)]">
+                    #{order.order_number ? order.order_number.slice(-6) : order.id?.slice(-6)}
                   </td>
-                  <td className="px-5 py-3 capitalize text-[var(--oppa-text-muted)]">{order.channel}</td>
-                  <td className="px-5 py-3 font-medium text-[var(--oppa-text)]">{formatCurrency(order.total)}</td>
                   <td className="px-5 py-3">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[order.status]}`}
-                    >
-                      {order.status.replace('_', ' ')}
+                    <p className="font-medium text-[var(--oppa-text)]">
+                      {order.customerName || order.email || 'Customer'}
+                    </p>
+                  </td>
+                  <td className="px-5 py-3 font-medium text-[var(--oppa-text)]">
+                    {formatCurrency(order.total || 0)}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
+                      order.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                      order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                      order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                      order.status === 'preparing' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {order.status?.replace('_', ' ') || 'pending'}
                     </span>
                   </td>
                   <td className="px-5 py-3 text-[var(--oppa-text-muted)]">
-                    {new Date(order.timestamp).toLocaleDateString()}
+                    {order.created_at || order.timestamp 
+                      ? new Date(order.created_at || order.timestamp).toLocaleDateString() 
+                      : 'N/A'}
                   </td>
                 </tr>
               ))}

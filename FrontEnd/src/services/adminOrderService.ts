@@ -1,10 +1,11 @@
-// src/services/adminOrderService.ts
 import type { Order } from '../../contexts/OrderContext';
 import type { CartItem } from '../types/product.types';
 import { getAccountDisplayName } from './adminAuthService';
+import { orderService } from './orderService';
 
 const ORDERS_KEY = 'orders';
 const ONSITE_ORDERS_KEY = 'onsiteOrders';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 const getOnlineOrderStorageKeys = (): string[] => {
   const keys: string[] = [];
@@ -49,7 +50,6 @@ export interface AdminOrder extends Order {
   served?: boolean;
 }
 
-
 const getStoredOnlineOrders = (): Order[] => {
   const seen = new Set<string>();
   const orders: Order[] = [];
@@ -70,7 +70,6 @@ const getStoredOnlineOrders = (): Order[] => {
         }
       });
     } catch {
-
     }
   }
 
@@ -96,10 +95,64 @@ export const getOnsiteOrders = (): AdminOrder[] => {
   }
 };
 
-export const getAllOrders = (): AdminOrder[] => {
-  return [...getOnlineOrders(), ...getOnsiteOrders()].sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
+export const getAllOrders = async (): Promise<AdminOrder[]> => {
+  try {
+    const response = await fetch(`${API_URL}/orders`, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch orders from API');
+    }
+
+    const apiOrders = await response.json();
+    
+    return apiOrders.map((order: any) => ({
+      ...order,
+      channel: 'online' as const,
+      served: order.status === 'delivered',
+      customerName: order.customer_name || order.email || 'Customer',
+      items: order.items || [],
+      deliveryAddress: order.delivery_address || 'Onsite / Walk-in',
+    }));
+  } catch (error) {
+    console.error('Failed to fetch orders from API, using local storage:', error);
+    return [...getOnlineOrders(), ...getOnsiteOrders()].sort(
+      (a, b) => new Date(b.created_at || b.timestamp).getTime() - new Date(a.created_at || a.timestamp).getTime()
+    );
+  }
+};
+
+export const updateOrderStatus = async (orderId: string, status: string): Promise<boolean> => {
+  try {
+    await orderService.updateOrderStatus(orderId, status);
+    return true;
+  } catch (error) {
+    console.error('Failed to update order status via API:', error);
+    return false;
+  }
+};
+
+export const getAllCustomers = async (): Promise<any[]> => {
+  try {
+    const response = await fetch(`${API_URL}/orders/customers`, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch customers');
+    }
+
+    const result = await response.json();
+    return result.data || [];
+  } catch (error) {
+    console.error('Failed to fetch customers:', error);
+    return [];
+  }
 };
 
 export const addOnsiteOrder = (data: {

@@ -13,9 +13,12 @@ class Order extends Model
     public $incrementing = false;
     protected $keyType = 'string';
 
+    public $timestamps = false;
+
     protected $fillable = [
         'id',
         'email',
+        'user_id',
         'order_number',
         'total',
         'status',
@@ -41,5 +44,10 @@ class Order extends Model
                 $model->order_number = 'OPPA-ORD-' . date('Ymd') . '-' . strtoupper(Str::random(8));
             }
         });
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id', 'id');
     }
 }

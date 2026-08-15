@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -10,7 +11,25 @@ class OrderController extends Controller
 {
     public function index()
     {
-        return response()->json(Order::all());
+        $orders = Order::with('user')->orderBy('id', 'desc')->get();
+        
+        $formattedOrders = $orders->map(function ($order) {
+            return [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'email' => $order->email,
+                'customer_name' => $order->user ? $order->user->full_name : 'Guest',
+                'user_id' => $order->user_id,
+                'total' => $order->total,
+                'status' => $order->status,
+                'payment_method' => $order->payment_method,
+                'delivery_address' => $order->delivery_address,
+                'phone' => $order->phone,
+                'items' => $order->items,
+            ];
+        });
+
+        return response()->json($formattedOrders);
     }
 
     public function store(Request $request)
@@ -47,8 +66,12 @@ class OrderController extends Controller
             ];
         }
 
+        $user = User::where('email', $request->email)->first();
+        $userId = $user ? $user->id : null;
+
         $order = Order::create([
             'email' => $request->email,
+            'user_id' => $userId,
             'total' => $request->total,
             'status' => 'pending',
             'payment_method' => $request->payment_method,
@@ -65,7 +88,23 @@ class OrderController extends Controller
 
     public function show($id)
     {
-        return response()->json(Order::findOrFail($id));
+        $order = Order::with('user')->findOrFail($id);
+        
+        $formattedOrder = [
+            'id' => $order->id,
+            'order_number' => $order->order_number,
+            'email' => $order->email,
+            'customer_name' => $order->user ? $order->user->full_name : 'Guest',
+            'user_id' => $order->user_id,
+            'total' => $order->total,
+            'status' => $order->status,
+            'payment_method' => $order->payment_method,
+            'delivery_address' => $order->delivery_address,
+            'phone' => $order->phone,
+            'items' => $order->items,
+        ];
+
+        return response()->json($formattedOrder);
     }
 
     public function updateStatus(Request $request, $id)
@@ -83,6 +122,7 @@ class OrderController extends Controller
         $order->save();
 
         return response()->json([
+            'success' => true,
             'order' => $order,
             'message' => 'Order status updated!'
         ]);
@@ -93,8 +133,25 @@ class OrderController extends Controller
         $email = $request->user()->email;
         return response()->json(
             Order::where('email', $email)
-                ->orderBy('created_at', 'desc')
+                ->orderBy('id', 'desc')
                 ->get()
         );
+    }
+
+    public function getAllCustomers()
+    {
+        $users = User::orderBy('id', 'desc')->get()->map(function ($user) {
+            return [
+                'id' => $user->id,
+                'full_name' => $user->full_name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'date_registered' => $user->created_at,
+                'order_count' => Order::where('user_id', $user->id)->count(),
+                'total_spent' => Order::where('user_id', $user->id)->sum('total'),
+            ];
+        });
+
+        return response()->json(['data' => $users]);
     }
 }
