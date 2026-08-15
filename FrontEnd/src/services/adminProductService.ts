@@ -68,11 +68,21 @@ export const getAllProducts = async (): Promise<Product[]> => {
       .filter((p) => !deletedProductIds.has(p.id))
       .map((p) => withAvailability({ ...p, ...(overrides[p.id] || {}) }));
 
-    return [...filtered, ...custom];
+    const allProducts = [...filtered, ...custom];
+    
+    return allProducts.sort((a, b) => {
+      if (a.category < b.category) return -1;
+      if (a.category > b.category) return 1;
+      return a.name.localeCompare(b.name);
+    });
   } catch (error) {
     console.error('Failed to fetch products:', error);
     const custom = getCustomProducts();
-    return custom;
+    return custom.sort((a, b) => {
+      if (a.category < b.category) return -1;
+      if (a.category > b.category) return 1;
+      return a.name.localeCompare(b.name);
+    });
   }
 };
 

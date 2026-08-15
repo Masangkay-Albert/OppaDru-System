@@ -1,9 +1,9 @@
-// src/modules/admin-side/pages/AdminAddProductPage.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { addProduct } from '../../../services/adminProductService';
 import { categories } from '../../../data/mockData';
+import { productService } from '../../../services/productService';
 import type { ProductCategory } from '../../../types/product.types';
 
 const categoryOptions = categories
@@ -20,38 +20,61 @@ const AdminAddProductPage: React.FC = () => {
     image: '',
   });
   const [imagePreview, setImagePreview] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
-      setForm((prev) => ({ ...prev, image: '' }));
+      setSelectedFile(null);
       setImagePreview('');
+      setForm((prev) => ({ ...prev, image: '' }));
       return;
     }
 
+    setSelectedFile(file);
+    
     const reader = new FileReader();
     reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      setForm((prev) => ({ ...prev, image: result }));
-      setImagePreview(result);
+      setImagePreview(typeof reader.result === 'string' ? reader.result : '');
     };
     reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await addProduct({
-      name: form.name,
-      description: form.description,
-      price: Number(form.price) || 0,
-      category: form.category,
-      image: form.image,
-      is_available: true,
-      isAvailable: true,
-    });
-    setSuccess(true);
-    setTimeout(() => navigate('/admin/products'), 900);
+    setIsSubmitting(true);
+
+    try {
+      let imageUrl = '/oppadrulogo.jpg';
+
+      if (selectedFile) {
+        try {
+          imageUrl = await productService.uploadImage(selectedFile, form.category);
+        } catch (uploadError) {
+          console.warn('Image upload failed, using default:', uploadError);
+          imageUrl = '/oppadrulogo.jpg';
+        }
+      }
+
+      await addProduct({
+        name: form.name,
+        description: form.description,
+        price: Number(form.price) || 0,
+        category: form.category,
+        image: imageUrl,
+        is_available: true,
+        isAvailable: true,
+      });
+
+      setSuccess(true);
+      setTimeout(() => navigate('/admin/products'), 900);
+    } catch (error) {
+      console.error('Failed to add product:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -98,6 +121,7 @@ const AdminAddProductPage: React.FC = () => {
               type="number"
               required
               min={0}
+              step="0.01"
               value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value })}
               className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
@@ -127,9 +151,9 @@ const AdminAddProductPage: React.FC = () => {
             onChange={handleImageChange}
             className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm"
           />
-          {(imagePreview || form.image) && (
+          {imagePreview && (
             <img
-              src={imagePreview || form.image}
+              src={imagePreview}
               alt="Product preview"
               className="mt-3 h-32 w-full rounded-lg border border-[var(--oppa-border)] object-cover"
             />
@@ -138,9 +162,10 @@ const AdminAddProductPage: React.FC = () => {
 
         <button
           type="submit"
-          className="bg-oppa-gradient rounded-lg px-5 py-2 font-medium text-white transition hover:opacity-90"
+          disabled={isSubmitting}
+          className="bg-oppa-gradient rounded-lg px-5 py-2 font-medium text-white transition hover:opacity-90 disabled:opacity-50"
         >
-          Save Product
+          {isSubmitting ? 'Saving...' : 'Save Product'}
         </button>
       </form>
     </AdminLayout>

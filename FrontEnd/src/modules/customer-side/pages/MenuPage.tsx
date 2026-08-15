@@ -63,12 +63,18 @@ const MenuPage: React.FC = () => {
     setSelectedCategory(category);
   };
 
-  const filteredProducts = products.filter(product => {
-    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.description.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const filteredProducts = products
+    .filter(product => {
+      const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
+      const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           product.description.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesCategory && matchesSearch;
+    })
+    .sort((a, b) => {
+      if (a.category < b.category) return -1;
+      if (a.category > b.category) return 1;
+      return a.name.localeCompare(b.name);
+    });
 
   const totalItems = getTotalItems();
 

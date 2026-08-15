@@ -151,13 +151,23 @@ class ProductService {
             const products = await response.json();
             const mappedProducts = (Array.isArray(products) ? products : []).map((p: any) => this.mapProduct(p));
 
-            const orderedProducts = [...mappedProducts].sort((a, b) => Number(b.is_available) - Number(a.is_available));
+            const orderedProducts = [...mappedProducts]
+                .sort((a, b) => {
+                    if (a.category < b.category) return -1;
+                    if (a.category > b.category) return 1;
+                    return a.name.localeCompare(b.name);
+                });
 
             this.saveCachedProducts(orderedProducts);
             return orderedProducts;
         } catch (error) {
             console.error('Failed to fetch products:', error);
-            return this.getCachedProducts();
+            const cached = this.getCachedProducts();
+            return cached.sort((a, b) => {
+                if (a.category < b.category) return -1;
+                if (a.category > b.category) return 1;
+                return a.name.localeCompare(b.name);
+            });
         }
     }
 
@@ -190,16 +200,17 @@ class ProductService {
     async uploadImage(file: File, folder: string = 'products'): Promise<string> {
         const token = this.getAdminToken() || await ensureAdminSession();
         if (!token) {
-            throw new Error('Admin authentication token not found. Please login first.');
+            console.error('No admin token found');
+            return DEFAULT_PRODUCT_IMAGE;
         }
-
-        localStorage.setItem(this.adminTokenKey, token);
 
         const formData = new FormData();
         formData.append('image', file);
         formData.append('folder', folder);
 
         try {
+            console.log('Uploading image:', file.name, 'Size:', file.size);
+
             const response = await fetch(`${API_URL}/admin/products/upload-image`, {
                 method: 'POST',
                 headers: {
@@ -208,33 +219,20 @@ class ProductService {
                 body: formData,
             });
 
+            console.log('Upload response status:', response.status);
+
             if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
-                if (response.status === 401) {
-                    localStorage.removeItem(this.adminTokenKey);
-                    const retriedToken = await ensureAdminSession();
-                    if (retriedToken) {
-                        const retry = await fetch(`${API_URL}/admin/products/upload-image`, {
-                            method: 'POST',
-                            headers: {
-                                Authorization: `Bearer ${retriedToken}`,
-                            },
-                            body: formData,
-                        });
-                        if (retry.ok) {
-                            const result = await retry.json();
-                            return result.url || DEFAULT_PRODUCT_IMAGE;
-                        }
-                    }
-                }
-                console.warn('Supabase image upload failed, using default product image instead.', error);
+                const errorText = await response.text();
+                console.error('Upload failed:', response.status, errorText);
                 return DEFAULT_PRODUCT_IMAGE;
             }
 
             const result = await response.json();
+            console.log('Upload result:', result);
+            
             return result.url || DEFAULT_PRODUCT_IMAGE;
         } catch (error) {
-            console.warn('Image upload request failed, using default product image instead.', error);
+            console.error('Upload error:', error);
             return DEFAULT_PRODUCT_IMAGE;
         }
     }

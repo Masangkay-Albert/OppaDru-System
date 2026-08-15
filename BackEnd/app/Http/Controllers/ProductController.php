@@ -25,7 +25,9 @@ class ProductController extends Controller
     public function index()
     {
         try {
-            $products = Product::all();
+            $products = Product::orderBy('category', 'asc')
+                ->orderBy('name', 'asc')
+                ->get();
             return response()->json($products);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -48,7 +50,8 @@ class ProductController extends Controller
         }
 
         $products = Product::select('id', 'name', 'description', 'price', 'category', 'image', 'is_available', 'created_at', 'updated_at')
-            ->orderBy('created_at', 'desc')
+            ->orderBy('category', 'asc')
+            ->orderBy('name', 'asc')
             ->get();
 
         return response()->json(['data' => $products]);
@@ -56,7 +59,7 @@ class ProductController extends Controller
 
     private function getSupabaseStorageKey(): ?string
     {
-        foreach (['SUPABASE_SERVICE_ROLE', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_KEY'] as $envKey) {
+        foreach (['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE', 'SUPABASE_KEY', 'SUPABASE_ANON_KEY'] as $envKey) {
             $value = env($envKey);
             if (!empty($value)) {
                 return (string) $value;
@@ -71,6 +74,8 @@ class ProductController extends Controller
         $bucketCheck = Http::withHeaders([
             'Authorization' => 'Bearer ' . $supabaseKey,
             'Content-Type' => 'application/json',
+        ])->withOptions([
+            'verify' => false,
         ])->get($supabaseUrl . '/storage/v1/bucket/' . rawurlencode($bucketName));
 
         if ($bucketCheck->successful()) {
@@ -80,6 +85,8 @@ class ProductController extends Controller
         $create = Http::withHeaders([
             'Authorization' => 'Bearer ' . $supabaseKey,
             'Content-Type' => 'application/json',
+        ])->withOptions([
+            'verify' => false,
         ])->post($supabaseUrl . '/storage/v1/bucket', [
             'name' => $bucketName,
             'public' => true,
@@ -118,21 +125,27 @@ class ProductController extends Controller
             $supabaseKey = $this->getSupabaseStorageKey();
 
             if (!$supabaseUrl || !$supabaseKey) {
+                $base64 = base64_encode(file_get_contents($file->getRealPath()));
+                $mimeType = $file->getMimeType();
+                $dataUrl = 'data:' . $mimeType . ';base64,' . $base64;
+                
                 return response()->json([
                     'success' => true,
-                    'url' => '/oppadrulogo.jpg',
+                    'url' => $dataUrl,
                     'path' => $filePath,
-                    'warning' => 'Supabase storage key is missing; default image used.',
                 ]);
             }
 
             $bucketReady = $this->ensureBucketExists($supabaseUrl, $supabaseKey, $folder);
             if (!$bucketReady) {
+                $base64 = base64_encode(file_get_contents($file->getRealPath()));
+                $mimeType = $file->getMimeType();
+                $dataUrl = 'data:' . $mimeType . ';base64,' . $base64;
+                
                 return response()->json([
                     'success' => true,
-                    'url' => '/oppadrulogo.jpg',
+                    'url' => $dataUrl,
                     'path' => $filePath,
-                    'warning' => 'Supabase bucket is unavailable; default image used.',
                 ]);
             }
 
@@ -145,24 +158,48 @@ class ProductController extends Controller
                 'Authorization' => 'Bearer ' . $supabaseKey,
                 'Content-Type' => $file->getMimeType(),
                 'x-upsert' => 'true',
+            ])->withOptions([
+                'verify' => false,
             ])->withBody($content, $file->getMimeType())
                 ->put($supabaseUrl . '/storage/v1/object/' . rawurlencode($folder) . '/' . rawurlencode($fileName));
 
             if (!$response->successful()) {
+                $base64 = base64_encode($content);
+                $mimeType = $file->getMimeType();
+                $dataUrl = 'data:' . $mimeType . ';base64,' . $base64;
+                
                 return response()->json([
                     'success' => true,
-                    'url' => '/oppadrulogo.jpg',
+                    'url' => $dataUrl,
                     'path' => $filePath,
-                    'warning' => 'Supabase upload failed; default image used.',
                 ]);
             }
 
+            $publicUrl = rtrim($supabaseUrl, '/') . '/storage/v1/object/public/' . $folder . '/' . $fileName;
+
             return response()->json([
                 'success' => true,
-                'url' => rtrim($supabaseUrl, '/') . '/storage/v1/object/public/' . $folder . '/' . $fileName,
+                'url' => $publicUrl,
                 'path' => $filePath,
             ]);
         } catch (\Exception $e) {
+            try {
+                $file = $request->file('image');
+                if ($file && $file->isValid()) {
+                    $base64 = base64_encode(file_get_contents($file->getRealPath()));
+                    $mimeType = $file->getMimeType();
+                    $dataUrl = 'data:' . $mimeType . ';base64,' . $base64;
+                    
+                    return response()->json([
+                        'success' => true,
+                        'url' => $dataUrl,
+                        'path' => $filePath ?? null,
+                    ]);
+                }
+            } catch (\Exception $inner) {
+                // Fall through
+            }
+            
             return response()->json([
                 'success' => true,
                 'url' => '/oppadrulogo.jpg',
@@ -193,7 +230,7 @@ class ProductController extends Controller
             'description' => 'required|string',
             'price' => 'required|numeric|min:0.01',
             'category' => 'required|string',
-            'image' => 'required|string',
+            'image' => 'nullable|string',
             'is_available' => 'sometimes|boolean',
         ]);
 
@@ -209,6 +246,7 @@ class ProductController extends Controller
         if ($product) {
             $product->update($payload);
         } else {
+            $payload['id'] = 'PROD-' . Str::random(8) . '-' . strtoupper(Str::random(4));
             $product = Product::create($payload);
         }
 
@@ -246,7 +284,7 @@ class ProductController extends Controller
             'description' => 'sometimes|string',
             'price' => 'sometimes|numeric|min:0.01',
             'category' => 'sometimes|string',
-            'image' => 'sometimes|string',
+            'image' => 'nullable|string',
             'is_available' => 'sometimes|boolean',
         ]);
 
@@ -293,8 +331,8 @@ class ProductController extends Controller
     public function getAvailable()
     {
         try {
-            $products = Product::orderByRaw('is_available DESC')
-                ->orderBy('created_at', 'desc')
+            $products = Product::orderBy('category', 'asc')
+                ->orderBy('name', 'asc')
                 ->get();
 
             return response()->json($products);
@@ -306,7 +344,9 @@ class ProductController extends Controller
     public function getByCategory($category)
     {
         try {
-            $products = Product::where('category', $category)->get();
+            $products = Product::where('category', $category)
+                ->orderBy('name', 'asc')
+                ->get();
             return response()->json($products);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);

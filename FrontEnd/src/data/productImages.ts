@@ -52,7 +52,6 @@ import yakultLemon from '../assets/Lemonade/yakult-lemon.jpg';
 import passionfruitLemon from '../assets/Lemonade/passionfruit-lemon.jpg';
 
 export const productImages: Record<string, string> = {
-    // Rice Meals
     'soygarlic-rice.jpg': soygarlicRice,
     'spicybbq-rice.jpg': spicybbqRice,
     'yangnyeom-rice.jpg': yangnyeomRice,
@@ -63,7 +62,6 @@ export const productImages: Record<string, string> = {
     'springonion-rice.jpg': springonionRice,
     'yangyeom2.0-rice.jpg': yangyeom20Rice,
 
-    // Chicken Meals
     'original-chicken.jpg': originalChicken,
     'soygarlic-chicken.jpg': soygarlicChicken,
     'classicbbq-chicken.jpg': classicbbqChicken,
@@ -74,12 +72,10 @@ export const productImages: Record<string, string> = {
     'yangneomgarlic-chicken.jpg': yangneomgarlicChicken,
     'springonion-chicken.jpg': springonionChicken,
 
-    // Snacks
     'crispychicken-sandwich.jpg': crispychickenSandwich,
     'tteokkboki.jpg': tteokkbokij,
     'fries.jpg': fries,
 
-    // Soda & Milk
     'mangomilk.jpg': mangomilk,
     'strawberry-soda.jpg': strawberrySoda,
     'kiwi-soda.jpg': kiwiSoda,
@@ -90,10 +86,8 @@ export const productImages: Record<string, string> = {
     'passionfruit-soda.jpg': passionfruitSoda,
     'blueberry-milk.jpg': blueberryMilk,
 
-    // Noodles
     'samyang.jpg': samyang,
 
-    // Lemonade
     'strawberry-lemonade.jpg': strawberryLemonade,
     'classic-lemon.jpg': classicLemon,
     'lychee-lemon.jpg': lycheeLemon,
@@ -105,17 +99,25 @@ export const productImages: Record<string, string> = {
 };
 
 export const getProductImage = (imagePath: string): string => {
-    if (!imagePath) return oppaLogo;
-    
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    if (!imagePath || imagePath === '') {
+        return oppaLogo;
+    }
+
+    if (
+        imagePath.startsWith('http://') ||
+        imagePath.startsWith('https://') ||
+        imagePath.startsWith('data:image') ||
+        imagePath.startsWith('blob:') ||
+        imagePath.startsWith('/')
+    ) {
         return imagePath;
     }
-    
+
     const filename = imagePath.split('/').pop() || '';
-    
+
     if (productImages[filename]) {
         return productImages[filename];
     }
-    
-    return oppaLogo;
+
+    return imagePath;
 };

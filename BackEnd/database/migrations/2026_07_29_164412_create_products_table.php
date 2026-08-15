@@ -14,7 +14,7 @@ return new class extends Migration
             $table->text('description');
             $table->decimal('price', 10, 2);
             $table->string('category');
-            $table->string('image');
+            $table->text('image'); // ✅ Changed from string to text
             $table->boolean('is_available')->default(true);
             $table->timestamps();
         });

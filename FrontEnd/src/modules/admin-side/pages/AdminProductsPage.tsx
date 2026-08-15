@@ -1,8 +1,8 @@
-// src/modules/admin-side/pages/AdminProductsPage.tsx
 import React, { useEffect, useState } from 'react';
 import { PlusSquare, Search, Trash2, X, Pencil, RefreshCcw } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllProducts, toggleAvailability, deleteProduct, updateProduct, addProduct } from '../../../services/adminProductService';
+import { productService } from '../../../services/productService';
 import type { Product, ProductCategory } from '../../../types/product.types';
 import { formatCurrency } from '../../../utils/formatters';
 import { categories } from '../../../data/mockData';
@@ -32,7 +32,6 @@ const createEmptyForm = (): ProductFormState => ({
   isAvailable: true,
 });
 
-// Shared action-button styles so every list/table on this page uses one consistent toolbar look.
 const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap';
 const chipNeutral = `${chipBase} bg-[var(--oppa-cream)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]`;
 const chipInfo = `${chipBase} bg-blue-50 text-blue-600 hover:bg-blue-100`;
@@ -47,6 +46,7 @@ const AdminProductsPage: React.FC = () => {
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductFormState>(createEmptyForm());
   const [imagePreview, setImagePreview] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const refresh = async () => {
     setProducts(await getAllProducts());
@@ -62,16 +62,22 @@ const AdminProductsPage: React.FC = () => {
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
-  const filteredProducts = products.filter((product) => {
-    const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
-    const matchesSearch =
-      normalizedSearch.length === 0 ||
-      product.name.toLowerCase().includes(normalizedSearch) ||
-      product.description.toLowerCase().includes(normalizedSearch) ||
-      getCategoryLabel(product.category).toLowerCase().includes(normalizedSearch);
+  const filteredProducts = products
+    .filter((product) => {
+      const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        product.name.toLowerCase().includes(normalizedSearch) ||
+        product.description.toLowerCase().includes(normalizedSearch) ||
+        getCategoryLabel(product.category).toLowerCase().includes(normalizedSearch);
 
-    return matchesCategory && matchesSearch;
-  });
+      return matchesCategory && matchesSearch;
+    })
+    .sort((a, b) => {
+      if (a.category < b.category) return -1;
+      if (a.category > b.category) return 1;
+      return a.name.localeCompare(b.name);
+    });
 
   const handleToggle = async (id: string) => {
     await toggleAvailability(id);
@@ -88,6 +94,7 @@ const AdminProductsPage: React.FC = () => {
     setSelectedProductId(null);
     setForm(createEmptyForm());
     setImagePreview('');
+    setSelectedFile(null);
     setIsModalOpen(true);
   };
 
@@ -103,6 +110,7 @@ const AdminProductsPage: React.FC = () => {
       isAvailable: product.isAvailable ?? product.is_available,
     });
     setImagePreview(product.image || '');
+    setSelectedFile(null);
     setIsModalOpen(true);
   };
 
@@ -111,21 +119,23 @@ const AdminProductsPage: React.FC = () => {
     setSelectedProductId(null);
     setForm(createEmptyForm());
     setImagePreview('');
+    setSelectedFile(null);
   };
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
-      setForm((prev) => ({ ...prev, image: '' }));
+      setSelectedFile(null);
       setImagePreview('');
+      setForm((prev) => ({ ...prev, image: '' }));
       return;
     }
 
+    setSelectedFile(file);
+    
     const reader = new FileReader();
     reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      setForm((prev) => ({ ...prev, image: result }));
-      setImagePreview(result);
+      setImagePreview(typeof reader.result === 'string' ? reader.result : '');
     };
     reader.readAsDataURL(file);
   };
@@ -133,24 +143,38 @@ const AdminProductsPage: React.FC = () => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    const payload = {
-      name: form.name,
-      description: form.description,
-      price: Number(form.price) || 0,
-      category: form.category,
-      image: form.image,
-      is_available: form.isAvailable,
-      isAvailable: form.isAvailable,
-    };
+    try {
+      let imageUrl = form.image || '/oppadrulogo.jpg';
 
-    if (modalMode === 'edit' && selectedProductId) {
-      await updateProduct(selectedProductId, payload);
-    } else {
-      await addProduct({ ...payload, is_available: true, isAvailable: true });
+      if (selectedFile) {
+        try {
+          imageUrl = await productService.uploadImage(selectedFile, form.category);
+        } catch (uploadError) {
+          console.warn('Image upload failed, using existing/default:', uploadError);
+        }
+      }
+
+      const payload = {
+        name: form.name,
+        description: form.description,
+        price: Number(form.price) || 0,
+        category: form.category,
+        image: imageUrl,
+        is_available: form.isAvailable,
+        isAvailable: form.isAvailable,
+      };
+
+      if (modalMode === 'edit' && selectedProductId) {
+        await updateProduct(selectedProductId, payload);
+      } else {
+        await addProduct(payload);
+      }
+
+      closeModal();
+      await refresh();
+    } catch (error) {
+      console.error('Failed to save product:', error);
     }
-
-    closeModal();
-    await refresh();
   };
 
   return (
@@ -205,7 +229,6 @@ const AdminProductsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Mobile / tablet: tidy stacked cards so nothing feels scattered on small screens */}
       {filteredProducts.length > 0 && (
         <div className="mt-4 space-y-3 md:hidden">
           {filteredProducts.map((product) => (
@@ -257,7 +280,6 @@ const AdminProductsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Desktop: full data table */}
       {filteredProducts.length > 0 && (
         <div className="mt-4 hidden max-h-[calc(100vh-270px)] overflow-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
           <table className="w-full min-w-[720px] text-sm">
@@ -368,6 +390,7 @@ const AdminProductsPage: React.FC = () => {
                     type="number"
                     required
                     min={0}
+                    step="0.01"
                     value={form.price}
                     onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
                     className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
