@@ -1,51 +1,116 @@
-// src/modules/admin-side/pages/AdminEmployeesPage.tsx
 import React, { useEffect, useState } from 'react';
 import { Trash2, UserPlus, KeyRound } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import AccountModal from '../components/AccountModal';
-import {
-  getAccountsByRole,
-  resetAccountPassword,
-  addEmployeeAccount,
-  deleteAccount,
-  type StoredAccount,
-} from '../../../services/adminAuthService';
 
-// Shared action-button styles so every list/table here uses one consistent toolbar look.
+// 1. Interface matching your Laravel Database
+export interface EmployeeAccount {
+  id: string;
+  fullName: string;
+  email: string;
+  position: string;
+}
+
 const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap';
 const chipInfo = `${chipBase} bg-blue-50 text-blue-600 hover:bg-blue-100`;
 const iconDangerBtn = 'inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-500 transition hover:bg-red-100 hover:text-red-700';
 
-const AdminEmployeesPage: React.FC = () => {
-  const [employees, setEmployees] = useState<StoredAccount[]>([]);
-  const [selected, setSelected] = useState<StoredAccount | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', position: 'Cashier', contactNumber: '' });
+// 2. Base API URL (uses Vite env variable or defaults to localhost:8000)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
-  const refresh = () => setEmployees(getAccountsByRole('employee'));
+const AdminEmployeesPage: React.FC = () => {
+  const [employees, setEmployees] = useState<EmployeeAccount[]>([]);
+  const [selected, setSelected] = useState<EmployeeAccount | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // State matches exactly what Laravel expects
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', position: 'cashier' });
+
+  // FETCH Employees
+  const refresh = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/employees`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await response.json();
+      setEmployees(data);
+    } catch (error) {
+      console.error('Failed to fetch employees:', error);
+    }
+  };
 
   useEffect(() => {
     refresh();
   }, []);
 
-  const handleReset = (id: string, newPassword: string) => {
-    resetAccountPassword(id, newPassword);
-    refresh();
-  };
+  // ADD Employee
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/employees`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(form),
+      });
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Delete this employee account?')) {
-      deleteAccount(id);
-      refresh();
+      if (response.ok) {
+        setForm({ fullName: '', email: '', password: '', position: 'cashier' });
+        setShowForm(false);
+        refresh();
+      } else {
+        const errorData = await response.json();
+        alert('Error: ' + (errorData.message || 'Failed to add employee'));
+      }
+    } catch (error) {
+      console.error('Add employee error:', error);
+      alert('Network error. Is your Laravel server running?');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleAdd = (e: React.FormEvent) => {
-    e.preventDefault();
-    addEmployeeAccount(form);
-    setForm({ fullName: '', email: '', password: '', position: 'Cashier', contactNumber: '' });
-    setShowForm(false);
-    refresh();
+  // DELETE Employee
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Delete this employee account?')) {
+      try {
+        await fetch(`${API_BASE_URL}/employees/${id}`, {
+          method: 'DELETE',
+          headers: { 'Accept': 'application/json' }
+        });
+        refresh();
+      } catch (error) {
+        console.error('Delete error:', error);
+      }
+    }
+  };
+
+  // RESET Password
+  const handleReset = async (id: string, newPassword: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/employees/${id}/reset-password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      
+      if (response.ok) {
+        alert('Password updated successfully');
+        setSelected(null); // Close modal on success
+      } else {
+        const errorData = await response.json();
+        alert('Error: ' + (errorData.message || 'Failed to reset password'));
+      }
+    } catch (error) {
+      console.error('Reset password error:', error);
+    }
   };
 
   return (
@@ -57,7 +122,7 @@ const AdminEmployeesPage: React.FC = () => {
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="bg-oppa-gradient flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+          className="bg-[var(--oppa-green)] flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
         >
           <UserPlus size={16} /> Add Employee
         </button>
@@ -95,14 +160,15 @@ const AdminEmployeesPage: React.FC = () => {
             onChange={(e) => setForm({ ...form, position: e.target.value })}
             className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
           >
-            <option>Cashier</option>
-            <option>Kitchen Staff</option>
+            <option value="cashier">Cashier</option>
+            <option value="kitchen staff">Kitchen Staff</option>
           </select>
           <button
             type="submit"
-            className="bg-oppa-gradient rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 sm:col-span-2 lg:col-span-1"
+            disabled={isLoading}
+            className="bg-[var(--oppa-green)] rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 sm:col-span-2 lg:col-span-1 disabled:opacity-50"
           >
-            Save Employee
+            {isLoading ? 'Saving...' : 'Save Employee'}
           </button>
         </form>
       )}
@@ -113,7 +179,7 @@ const AdminEmployeesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Mobile / tablet: tidy stacked cards */}
+      {/* Mobile view */}
       {employees.length > 0 && (
         <div className="space-y-3 md:hidden">
           {employees.map((emp) => (
@@ -123,7 +189,7 @@ const AdminEmployeesPage: React.FC = () => {
                   <p className="truncate font-medium text-[var(--oppa-text)]">{emp.fullName}</p>
                   <p className="truncate text-xs text-[var(--oppa-text-muted)]">{emp.email}</p>
                 </div>
-                <span className="flex-shrink-0 rounded-full bg-[var(--oppa-green-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--oppa-text)]">
+                <span className="flex-shrink-0 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700 capitalize">
                   {emp.position || '—'}
                 </span>
               </div>
@@ -140,12 +206,12 @@ const AdminEmployeesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Desktop: full data table */}
+      {/* Desktop view */}
       {employees.length > 0 && (
         <div className="hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/40 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
+              <tr className="border-b border-[var(--oppa-border)] bg-gray-50 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
                 <th className="px-5 py-3">Full Name</th>
                 <th className="px-5 py-3">Email</th>
                 <th className="px-5 py-3">Position</th>
@@ -154,10 +220,10 @@ const AdminEmployeesPage: React.FC = () => {
             </thead>
             <tbody>
               {employees.map((emp) => (
-                <tr key={emp.id} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]">
+                <tr key={emp.id} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-gray-50">
                   <td className="px-5 py-3 font-medium text-[var(--oppa-text)]">{emp.fullName}</td>
                   <td className="px-5 py-3 text-[var(--oppa-text-muted)]">{emp.email}</td>
-                  <td className="px-5 py-3 text-[var(--oppa-text-muted)]">{emp.position || '—'}</td>
+                  <td className="px-5 py-3 text-[var(--oppa-text-muted)] capitalize">{emp.position || '—'}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
                       <button onClick={() => setSelected(emp)} className={chipInfo}>
@@ -176,7 +242,11 @@ const AdminEmployeesPage: React.FC = () => {
       )}
 
       {selected && (
-        <AccountModal account={selected} onClose={() => setSelected(null)} onResetPassword={handleReset} />
+        <AccountModal 
+          account={selected} 
+          onClose={() => setSelected(null)} 
+          onResetPassword={handleReset} 
+        />
       )}
     </AdminLayout>
   );

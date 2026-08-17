@@ -1,10 +1,23 @@
 // src/modules/admin-side/components/AccountModal.tsx
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import type { StoredAccount } from '../../../services/adminAuthService';
+
+// 1. Define a flexible interface here instead of importing StoredAccount
+export interface ModalAccount {
+  id: string;
+  fullName?: string; // For employees
+  full_name?: string; // For users
+  email: string;
+  role?: string;
+  position?: string;
+  contactNumber?: string;
+  phone?: string;
+  address?: string;
+  created_at?: string; // Laravel uses created_at instead of dateRegistered
+}
 
 interface AccountModalProps {
-  account: StoredAccount;
+  account: ModalAccount;
   onClose: () => void;
   onResetPassword: (id: string, newPassword: string) => void;
 }
@@ -14,14 +27,19 @@ const AccountModal: React.FC<AccountModalProps> = ({ account, onClose, onResetPa
   const [message, setMessage] = useState('');
 
   const handleReset = () => {
-    if (newPassword.trim().length < 4) {
-      setMessage('Password must be at least 4 characters.');
+    if (newPassword.trim().length < 6) { // Updated to 6 to match Laravel validation
+      setMessage('Password must be at least 6 characters.');
       return;
     }
     onResetPassword(account.id, newPassword.trim());
     setMessage('Password reset successfully.');
     setNewPassword('');
   };
+
+  // Helper to safely get the name whether it's an Employee (fullName) or User (full_name)
+  const displayName = account.fullName || account.full_name || 'N/A';
+  // Helper to safely get contact info
+  const displayContact = account.contactNumber || account.phone;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -33,20 +51,27 @@ const AccountModal: React.FC<AccountModalProps> = ({ account, onClose, onResetPa
         <h2 className="mb-4 font-serif text-lg font-bold text-[var(--oppa-text)]">Account Details</h2>
 
         <div className="mb-5 space-y-2 text-sm">
-          <p><span className="text-[var(--oppa-text-muted)]">Full Name:</span> <span className="font-medium text-[var(--oppa-text)]">{account.fullName}</span></p>
+          <p><span className="text-[var(--oppa-text-muted)]">Full Name:</span> <span className="font-medium text-[var(--oppa-text)]">{displayName}</span></p>
           <p><span className="text-[var(--oppa-text-muted)]">Email:</span> <span className="font-medium text-[var(--oppa-text)]">{account.email}</span></p>
-          <p><span className="text-[var(--oppa-text-muted)]">Role:</span> <span className="font-medium capitalize text-[var(--oppa-text)]">{account.role}</span></p>
+          
+          {account.role && (
+            <p><span className="text-[var(--oppa-text-muted)]">Role:</span> <span className="font-medium capitalize text-[var(--oppa-text)]">{account.role}</span></p>
+          )}
+          
           {account.position && (
-            <p><span className="text-[var(--oppa-text-muted)]">Position:</span> <span className="font-medium text-[var(--oppa-text)]">{account.position}</span></p>
+            <p><span className="text-[var(--oppa-text-muted)]">Position:</span> <span className="font-medium capitalize text-[var(--oppa-text)]">{account.position}</span></p>
           )}
-          {account.contactNumber && (
-            <p><span className="text-[var(--oppa-text-muted)]">Contact:</span> <span className="font-medium text-[var(--oppa-text)]">{account.contactNumber}</span></p>
+          
+          {displayContact && (
+            <p><span className="text-[var(--oppa-text-muted)]">Contact:</span> <span className="font-medium text-[var(--oppa-text)]">{displayContact}</span></p>
           )}
+          
           {account.address && (
             <p><span className="text-[var(--oppa-text-muted)]">Address:</span> <span className="font-medium text-[var(--oppa-text)]">{account.address}</span></p>
           )}
-          {account.dateRegistered && (
-            <p><span className="text-[var(--oppa-text-muted)]">Registered:</span> <span className="font-medium text-[var(--oppa-text)]">{new Date(account.dateRegistered).toLocaleDateString()}</span></p>
+          
+          {account.created_at && (
+            <p><span className="text-[var(--oppa-text-muted)]">Registered:</span> <span className="font-medium text-[var(--oppa-text)]">{new Date(account.created_at).toLocaleDateString()}</span></p>
           )}
         </div>
 

@@ -7,27 +7,42 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminAuthController;
+use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\DriverController;
+use Illuminate\Http\Request;
 
 Route::get('/test', function () {
     return response()->json(['message' => 'API is working!']);
 });
 
-// Auth Routes
+
+Route::get('/employees', [EmployeeController::class, 'index']);
+Route::post('/employees', [EmployeeController::class, 'store']);
+Route::delete('/employees/{id}', [EmployeeController::class, 'destroy']);
+Route::put('/employees/{id}/reset-password', [EmployeeController::class, 'resetPassword']);
+
+Route::get('/drivers', [DriverController::class, 'index']);
+Route::get('/drivers/{id}', [DriverController::class, 'show']);
+Route::post('/drivers', [DriverController::class, 'store']);
+Route::put('/drivers/{id}', [DriverController::class, 'update']);
+Route::delete('/drivers/{id}', [DriverController::class, 'destroy']);
+Route::put('/drivers/{id}/reset-password', [DriverController::class, 'resetPassword']);
+
+
+
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
-// Public Product Routes
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/available', [ProductController::class, 'getAvailable']);
 Route::get('/products/category/{category}', [ProductController::class, 'getByCategory']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
 
-// Public Order Routes (for customers to view orders)
 Route::get('/orders', [OrderController::class, 'index']);
 Route::get('/orders/customers', [OrderController::class, 'getAllCustomers']);
 Route::get('/orders/{id}', [OrderController::class, 'show']);
 
-// Protected Routes (require authentication)
+
 Route::middleware('auth:api')->group(function () {
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -53,7 +68,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 });
 
-// Admin Routes (no auth middleware - uses internal checkAdminAuth)
+
 Route::prefix('admin')->group(function () {
     // Product Management
     Route::get('/products', [ProductController::class, 'getAllForAdmin']);
