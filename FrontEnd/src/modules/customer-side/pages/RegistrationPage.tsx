@@ -6,7 +6,7 @@ import heroSectionImg from "../../../assets/herosection.png";
 
 const RegistrationPage: React.FC = () => {
   const navigate = useNavigate();
-  const { register, login } = useAuth();
+  const { register } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");

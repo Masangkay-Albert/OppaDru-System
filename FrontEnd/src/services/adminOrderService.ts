@@ -1,4 +1,4 @@
-import type { Order } from '../../contexts/OrderContext';
+import type { Order } from '../contexts/OrderContext';
 import type { CartItem } from '../types/product.types';
 import { getAccountDisplayName } from './adminAuthService';
 import { orderService } from './orderService';
@@ -48,6 +48,8 @@ export interface AdminOrder extends Order {
   channel: OrderChannel;
   customerName?: string;
   served?: boolean;
+  order_number?: string;
+  created_at?: string;
 }
 
 const getStoredOnlineOrders = (): Order[] => {

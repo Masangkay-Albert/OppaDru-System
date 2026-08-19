@@ -1,6 +1,5 @@
 import { ORDER_STATUS } from './constants';
 import { FaHourglassHalf, FaUtensils, FaTruck, FaCheckDouble } from 'react-icons/fa';
-import { FiPackage } from 'react-icons/fi';
 
 export const STATUS_DISPLAY: Record<string, { label: string; icon: React.ReactNode; badgeClass: string }> = {
   [ORDER_STATUS.PENDING]: {

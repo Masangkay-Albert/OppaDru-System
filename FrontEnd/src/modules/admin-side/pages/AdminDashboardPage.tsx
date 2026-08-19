@@ -141,7 +141,7 @@ const AdminDashboardPage: React.FC = () => {
                   <td className="px-5 py-3">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${
                       order.status === 'delivered' ? 'bg-green-100 text-green-700' :
-                      order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                      String(order.status) === 'cancelled' ? 'bg-red-100 text-red-700' :
                       order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
                       order.status === 'preparing' ? 'bg-blue-100 text-blue-700' :
                       'bg-gray-100 text-gray-700'

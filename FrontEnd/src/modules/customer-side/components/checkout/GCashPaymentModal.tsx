@@ -5,15 +5,12 @@ import {
   FaTimesCircle, 
   FaShieldAlt, 
   FaRedo, 
-  FaQrcode,
-  FaUserCircle,
   FaWallet,
   FaPhoneAlt,
   FaLock,
   FaSpinner
 } from 'react-icons/fa';
 import { IoClose, IoArrowBack } from 'react-icons/io5';
-import { HiOutlineUser } from 'react-icons/hi';
 import { usePayment } from '../../../../hooks/usePayment';
 
 interface PaymentResult {

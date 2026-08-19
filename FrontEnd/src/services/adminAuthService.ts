@@ -17,6 +17,7 @@ export interface StoredAccount {
   address?: string;
   position?: string; 
   dateRegistered?: string;
+  created_at?: string;
 }
 
 const STORAGE_KEYS = {

@@ -32,7 +32,11 @@ const AdminReportsPage: React.FC = () => {
   const [range, setRange] = useState<ReportRange>('daily');
 
   useEffect(() => {
-    setOrders(getAllOrders());
+    const loadOrders = async () => {
+      setOrders(await getAllOrders());
+    };
+
+    loadOrders();
   }, []);
 
   const filtered = useMemo(() => orders.filter((o) => isWithinRange(o.timestamp, range)), [orders, range]);
