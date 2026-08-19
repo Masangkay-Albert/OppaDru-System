@@ -1,165 +1,360 @@
-// src/modules/admin-side/pages/AdminReportsPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download } from 'lucide-react';
+import { BarChart3, Download, Globe2, RefreshCw, Store, TrendingUp } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
+import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
 import { formatCurrency } from '../../../utils/formatters';
 
-type ReportRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
+type ReportRange = 'daily' | 'weekly' | 'monthly';
 
-const isWithinRange = (dateStr: string, range: ReportRange): boolean => {
-  const date = new Date(dateStr);
-  const now = new Date();
-  switch (range) {
-    case 'daily':
-      return date.toDateString() === now.toDateString();
-    case 'weekly': {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(now.getDate() - 7);
-      return date >= weekAgo && date <= now;
-    }
-    case 'monthly':
-      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-    case 'yearly':
-      return date.getFullYear() === now.getFullYear();
-    default:
-      return true;
+const ALL_YEARS = 'all';
+const ALL_FILTER = 'all';
+const getOrderDate = (order: AdminOrder): Date | null => {
+  const value = order.created_at || order.timestamp;
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+interface ReportFilters {
+  year: string;
+  month: string;
+  week: string;
+  day: string;
+}
+
+const isWithinRange = (order: AdminOrder, filters: ReportFilters): boolean => {
+  const date = getOrderDate(order);
+  if (!date) return false;
+
+  if (filters.year !== ALL_YEARS && date.getFullYear() !== Number(filters.year)) return false;
+  if (filters.month !== ALL_FILTER && date.getMonth() !== Number(filters.month)) return false;
+  if (filters.day !== ALL_FILTER && date.getDay() !== Number(filters.day)) return false;
+  if (filters.week !== ALL_FILTER && Math.ceil(date.getDate() / 7) !== Number(filters.week)) return false;
+  return true;
+};
+
+const csvCell = (value: string | number): string => `"${String(value).replace(/"/g, '""')}"`;
+
+interface TrendBucket {
+  label: string;
+  sales: number;
+  orders: number;
+}
+
+const getDaysForTimeline = (filters: ReportFilters): number => {
+  if (filters.month === ALL_FILTER) return 31;
+
+  const month = Number(filters.month);
+  if (filters.year === ALL_YEARS) {
+    // Include February 29 when the history spans multiple years.
+    return month === 1 ? 29 : new Date(2000, month + 1, 0).getDate();
   }
+
+  return new Date(Number(filters.year), month + 1, 0).getDate();
+};
+
+const getTrendBuckets = (orders: AdminOrder[], range: ReportRange, filters: ReportFilters): TrendBucket[] => {
+  const buckets: TrendBucket[] = [];
+  const getBucket = (label: string) => {
+    const bucket = buckets.find((item) => item.label === label);
+    if (bucket) return bucket;
+    const next = { label, sales: 0, orders: 0 };
+    buckets.push(next);
+    return next;
+  };
+
+  if (range === 'daily') {
+    for (let hour = 1; hour <= 12; hour += 1) getBucket(`${hour}:00`);
+  } else if (range === 'weekly') {
+    ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach((day) => getBucket(day));
+  } else if (range === 'monthly') {
+    const daysInMonth = getDaysForTimeline(filters);
+    for (let day = 1; day <= daysInMonth; day += 1) getBucket(String(day));
+  }
+
+  orders.forEach((order) => {
+    const date = getOrderDate(order);
+    if (!date) return;
+    const label = range === 'daily'
+      ? `${date.getHours() % 12 || 12}:00`
+      : range === 'weekly'
+        ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]
+        : range === 'monthly'
+          ? String(date.getDate())
+          : date.toLocaleString('en-US', { month: 'short' });
+    const bucket = getBucket(label);
+    bucket.sales += Number(order.total || 0);
+    bucket.orders += 1;
+  });
+
+  return buckets;
 };
 
 const AdminReportsPage: React.FC = () => {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const [range, setRange] = useState<ReportRange>('daily');
+  const [filters, setFilters] = useState<ReportFilters>({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER });
+  const [goal, setGoal] = useState(0);
+  const [goalBeforeEdit, setGoalBeforeEdit] = useState(0);
+  const [goalDirty, setGoalDirty] = useState(false);
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [goalSaving, setGoalSaving] = useState(false);
+  const [goalError, setGoalError] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const loadOrders = async () => {
+    setLoading(true);
+    try {
+      const allOrders = await getAllOrders();
+      setOrders(Array.isArray(allOrders) ? allOrders : []);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadOrders = async () => {
-      setOrders(await getAllOrders());
-    };
-
     loadOrders();
+    getTargetProfitSale()
+      .then((savedGoal) => {
+        setGoal(savedGoal);
+        setGoalBeforeEdit(savedGoal);
+        setGoalDirty(false);
+        setEditingGoal(false);
+      })
+      .catch(() => setGoalError('Sales target could not be loaded.'));
   }, []);
 
-  const filtered = useMemo(() => orders.filter((o) => isWithinRange(o.timestamp, range)), [orders, range]);
+  const filteredOrders = useMemo(
+    () => orders.filter((order) => isWithinRange(order, filters)),
+    [orders, filters]
+  );
 
-  const totalSales = filtered.reduce((sum, o) => sum + o.total, 0);
-  const totalOrders = filtered.length;
-  const onlineCount = filtered.filter((o) => o.channel === 'online').length;
-  const onsiteCount = filtered.filter((o) => o.channel === 'onsite').length;
+  const timelineRange: ReportRange = filters.day !== ALL_FILTER
+    ? 'daily'
+    : filters.week !== ALL_FILTER
+      ? 'weekly'
+      : 'monthly';
 
-  const itemsSold = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filtered.forEach((o) => {
-      o.items.forEach((item) => {
-        counts[item.name] = (counts[item.name] || 0) + item.quantity;
+  const years = useMemo(() => [...new Set(orders.map((order) => getOrderDate(order)?.getFullYear()).filter(Boolean))].sort((a, b) => Number(b) - Number(a)), [orders]);
+
+  const metrics = useMemo(() => {
+    const onlineOrders = filteredOrders.filter((order) => order.channel === 'online');
+    const onsiteOrders = filteredOrders.filter((order) => order.channel === 'onsite');
+    return {
+      totalSales: filteredOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+      totalOrders: filteredOrders.length,
+      onlineOrders,
+      onsiteOrders,
+      onlineSales: onlineOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+      onsiteSales: onsiteOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+    };
+  }, [filteredOrders]);
+
+  const topProductsByChannel = useMemo(() => {
+    const getTop = (channel: 'online' | 'onsite') => {
+      const products = new Map<string, number>();
+      filteredOrders.filter((order) => order.channel === channel).forEach((order) => {
+        order.items?.forEach((item: any) => {
+          const name = item.product_name || item.name || 'Unnamed item';
+          products.set(name, (products.get(name) || 0) + Number(item.quantity || 0));
+        });
       });
-    });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  }, [filtered]);
+      return [...products.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    };
+    return { online: getTop('online'), onsite: getTop('onsite') };
+  }, [filteredOrders]);
+
+  const trendBuckets = useMemo(() => getTrendBuckets(filteredOrders, timelineRange, filters), [filteredOrders, timelineRange, filters]);
+  const highestTrendSales = Math.max(...trendBuckets.map((bucket) => bucket.sales), 1);
+  const goalReached = goal > 0 && metrics.totalSales >= goal;
+  const goalSet = goal > 0;
+
+  const updateFilter = (key: keyof ReportFilters, value: string) => setFilters((current) => ({ ...current, [key]: value }));
+
+  const saveGoal = async () => {
+    setGoalSaving(true);
+    setGoalError('');
+    try {
+      setGoal(await updateTargetProfitSale(goal));
+      setGoalBeforeEdit(goal);
+      setGoalDirty(false);
+      setEditingGoal(false);
+    } catch {
+      setGoalError('Sales target could not be saved.');
+    } finally {
+      setGoalSaving(false);
+    }
+  };
+
+  const clearGoal = async () => {
+    setGoalSaving(true);
+    setGoalError('');
+    try {
+      await deleteTargetProfitSale();
+      setGoal(0);
+      setGoalBeforeEdit(0);
+      setGoalDirty(false);
+      setEditingGoal(false);
+    } catch {
+      setGoalError('Sales target could not be removed.');
+    } finally {
+      setGoalSaving(false);
+    }
+  };
+
+  const handleGoalAction = () => {
+    if (goalSet && !editingGoal) {
+      setGoalBeforeEdit(goal);
+      setGoalDirty(false);
+      setEditingGoal(true);
+      return;
+    }
+    if (editingGoal && goalDirty) void saveGoal();
+  };
+
+  const handleGoalChange = (value: number) => {
+    setGoal(value);
+    setGoalDirty(value !== goalBeforeEdit);
+  };
+
+  const handleGoalBlur = () => {
+    if (editingGoal && !goalDirty) void saveGoal();
+  };
 
   const handleExportCSV = () => {
     const rows = [
       ['Order ID', 'Customer', 'Channel', 'Total', 'Status', 'Date'],
-      ...filtered.map((o) => [
-        o.id,
-        o.customerName || 'Customer',
-        o.channel,
-        o.total.toString(),
-        o.status,
-        new Date(o.timestamp).toLocaleString(),
+      ...filteredOrders.map((order) => [
+        order.order_number || order.id,
+        order.customerName || order.email || 'Customer',
+        order.channel,
+        Number(order.total || 0).toFixed(2),
+        String(order.status || 'pending'),
+        getOrderDate(order)?.toLocaleString() || 'N/A',
       ]),
     ];
-    const csvContent = rows.map((r) => r.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
+    const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = `sales-report-${range}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `sales-report-${timelineRange}-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
   return (
     <AdminLayout>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">Sales Report</h1>
-          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Review sales performance by period.</p>
+          <h1 className="font-serif text-3xl font-bold leading-tight text-[var(--oppa-text)]">Sales report</h1>
+          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">A clear view of revenue and order performance across every channel.</p>
         </div>
-        <button
-          onClick={handleExportCSV}
-          className="bg-oppa-gradient flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
-        >
-          <Download size={16} /> Export CSV
-        </button>
-      </div>
-
-      <div className="mb-6 flex gap-2">
-        {(['daily', 'weekly', 'monthly', 'yearly'] as ReportRange[]).map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium capitalize transition ${
-              range === r
-                ? 'bg-oppa-gradient text-white shadow-sm'
-                : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]/70'
-            }`}
-          >
-            {r}
+        <div className="flex flex-wrap gap-2">
+          <button onClick={loadOrders} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-50">
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
           </button>
-        ))}
-      </div>
-
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:p-5">
-          <p className="text-2xl font-bold text-[var(--oppa-text)]">{formatCurrency(totalSales)}</p>
-          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Total Sales</p>
-        </div>
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:p-5">
-          <p className="text-2xl font-bold text-[var(--oppa-text)]">{totalOrders}</p>
-          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Total Orders</p>
-        </div>
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:p-5">
-          <p className="text-2xl font-bold text-[var(--oppa-text)]">{onlineCount}</p>
-          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Online Orders</p>
-        </div>
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:p-5">
-          <p className="text-2xl font-bold text-[var(--oppa-text)]">{onsiteCount}</p>
-          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Onsite Orders</p>
+          <button onClick={handleExportCSV} disabled={loading} className="bg-oppa-gradient inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50">
+            <Download size={15} /> Export CSV
+          </button>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
-        <div className="border-b border-[var(--oppa-border)] px-5 py-4">
-          <h2 className="font-serif font-semibold text-[var(--oppa-text)]">Items Sold</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/40 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
-                <th className="px-5 py-3">Item Name</th>
-                <th className="px-5 py-3">Quantity Sold</th>
-              </tr>
-            </thead>
-            <tbody>
-              {itemsSold.length === 0 && (
-                <tr>
-                  <td colSpan={2} className="px-5 py-8 text-center text-[var(--oppa-text-muted)]">
-                    No sales recorded for this period.
-                  </td>
-                </tr>
-              )}
-              {itemsSold.map(([name, qty]) => (
-                <tr key={name} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]">
-                  <td className="px-5 py-3 font-medium text-[var(--oppa-text)]">{name}</td>
-                  <td className="px-5 py-3 text-[var(--oppa-text-muted)]">{qty}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="mb-6 grid gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
+        <FilterSelect label="Year" value={filters.year} onChange={(value) => updateFilter('year', value)} options={[{ value: ALL_YEARS, label: 'All years' }, ...years.map((year) => ({ value: String(year), label: String(year) }))]} />
+        <FilterSelect label="Month" value={filters.month} onChange={(value) => updateFilter('month', value)} options={[{ value: ALL_FILTER, label: 'All months' }, ...['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((label, index) => ({ value: String(index), label }))]} />
+        <FilterSelect label="Week of month" value={filters.week} onChange={(value) => updateFilter('week', value)} options={[{ value: ALL_FILTER, label: 'All weeks' }, ...[1, 2, 3, 4, 5].map((week) => ({ value: String(week), label: `Week ${week}` }))]} />
+        <FilterSelect label="Day of week" value={filters.day} onChange={(value) => updateFilter('day', value)} options={[{ value: ALL_FILTER, label: 'All days' }, ...['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((label, index) => ({ value: String(index), label }))]} />
       </div>
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl bg-[var(--oppa-green)] p-5 text-white shadow-sm sm:col-span-2 xl:col-span-1">
+          <div className="flex items-center justify-between"><p className="text-sm text-white/75">Total sales</p><TrendingUp size={19} /></div>
+          <p className="mt-5 text-3xl font-bold">{formatCurrency(metrics.totalSales)}</p>
+          <p className="mt-1 text-xs text-white/70">Based on selected filters</p>
+        </div>
+        <MetricCard icon={<BarChart3 size={18} />} label="Total orders" value={metrics.totalOrders} detail="All channels" />
+        <MetricCard icon={<Globe2 size={18} />} label="Online orders" value={metrics.onlineOrders.length} detail={formatCurrency(metrics.onlineSales)} />
+        <MetricCard icon={<Store size={18} />} label="Onsite orders" value={metrics.onsiteOrders.length} detail={formatCurrency(metrics.onsiteSales)} />
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <GoalCard goal={goal} sales={metrics.totalSales} goalReached={goalReached} goalSet={goalSet} editing={editingGoal} dirty={goalDirty} saving={goalSaving} error={goalError} onGoalChange={handleGoalChange} onBlur={handleGoalBlur} onAction={handleGoalAction} onClear={clearGoal} />
+        <TopProductCard channel="Online" products={topProductsByChannel.online} />
+        <TopProductCard channel="Onsite" products={topProductsByChannel.onsite} />
+      </div>
+
+      <section className="mb-6 rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4"><div><h2 className="font-serif font-semibold text-[var(--oppa-text)]">Channel performance</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Revenue contribution for the selected filters.</p></div><BarChart3 size={19} className="text-[var(--oppa-green-dark)]" /></div>
+        <div className="space-y-5 p-5"><ChannelRow label="Online" count={metrics.onlineOrders.length} sales={metrics.onlineSales} total={metrics.totalSales} color="bg-[var(--oppa-green)]" /><ChannelRow label="Onsite" count={metrics.onsiteOrders.length} sales={metrics.onsiteSales} total={metrics.totalSales} color="bg-amber-400" /></div>
+      </section>
+
+      <section className="mb-6 rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
+        <div className="flex flex-col gap-1 border-b border-[var(--oppa-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-serif font-semibold text-[var(--oppa-text)]">Sales timeline</h2>
+            <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">
+              {timelineRange === 'daily' ? 'Hourly activity for the selected day.' : timelineRange === 'weekly' ? 'Daily activity grouped by weekday.' : 'Daily activity grouped by calendar date.'}
+            </p>
+          </div>
+          <span className="text-xs text-[var(--oppa-text-muted)]">Based on selected filters</span>
+        </div>
+        <div className="overflow-x-auto p-5">
+          <div className="flex min-w-[620px] items-end gap-2" style={{ height: 190 }}>
+            {trendBuckets.map((bucket) => (
+              <div key={bucket.label} className="group flex min-w-[22px] flex-1 flex-col items-center justify-end gap-2">
+                <div className="invisible rounded-md bg-[var(--oppa-text)] px-2 py-1 text-center text-[10px] text-white opacity-0 transition group-hover:visible group-hover:opacity-100">
+                  {formatCurrency(bucket.sales)}<br />{bucket.orders} {bucket.orders === 1 ? 'order' : 'orders'}
+                </div>
+                <div className="w-full rounded-t-md bg-[var(--oppa-green)] transition-all group-hover:bg-[var(--oppa-green-dark)]" style={{ height: `${Math.max(bucket.sales > 0 ? (bucket.sales / highestTrendSales) * 125 : 3, 3)}px` }} />
+                <span className="text-[10px] text-[var(--oppa-text-muted)]">{bucket.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
     </AdminLayout>
   );
 };
+
+const MetricCard = ({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: number; detail: string }) => <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm"><div className="flex items-center gap-2 text-[var(--oppa-green-dark)]">{icon}<span className="text-sm font-medium text-[var(--oppa-text-muted)]">{label}</span></div><p className="mt-5 text-3xl font-bold text-[var(--oppa-text)]">{value}</p><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{detail}</p></div>;
+
+const ChannelRow = ({ label, count, sales, total, color }: { label: string; count: number; sales: number; total: number; color: string }) => {
+  const percentage = total > 0 ? Math.round((sales / total) * 100) : 0;
+  return <div><div className="mb-2 flex items-center justify-between text-sm"><span className="font-medium text-[var(--oppa-text)]">{label}</span><span className="text-[var(--oppa-text-muted)]">{count} orders · {formatCurrency(sales)}</span></div><div className="h-2 overflow-hidden rounded-full bg-[var(--oppa-green-soft)]"><div className={`h-full rounded-full ${color}`} style={{ width: `${percentage}%` }} /></div><p className="mt-1 text-right text-xs text-[var(--oppa-text-muted)]">{percentage}% of sales</p></div>;
+};
+
+const FilterSelect = ({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) => (
+  <label className="text-xs font-medium text-[var(--oppa-text-muted)]">
+    {label}
+    <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 block w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-normal text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)]">
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
+  </label>
+);
+
+const GoalCard = ({ goal, sales, goalReached, goalSet, editing, dirty, saving, error, onGoalChange, onBlur, onAction, onClear }: { goal: number; sales: number; goalReached: boolean; goalSet: boolean; editing: boolean; dirty: boolean; saving: boolean; error: string; onGoalChange: (value: number) => void; onBlur: () => void; onAction: () => void; onClear: () => void }) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  return (
+    <div className={`rounded-2xl border p-5 shadow-sm ${!goalSet ? 'border-[var(--oppa-border)] bg-white' : goalReached ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+      <div className="flex items-center justify-between"><div><p className="text-sm font-semibold text-[var(--oppa-text)]">Sales target</p><p className={`mt-1 text-xs font-medium ${!goalSet ? 'text-[var(--oppa-text-muted)]' : goalReached ? 'text-green-700' : 'text-red-700'}`}>{!goalSet ? 'No target set' : goalReached ? 'Profit target reached' : 'Below profit target'}</p></div><TrendingUp size={19} className={!goalSet ? 'text-[var(--oppa-text-muted)]' : goalReached ? 'text-green-600' : 'text-red-600'} /></div>
+      <div className="mt-4 flex gap-2"><input ref={inputRef} type="number" min="0" value={goal || ''} onChange={(event) => onGoalChange(Number(event.target.value))} onBlur={onBlur} disabled={goalSet && !editing} placeholder="Set target" className="min-w-0 flex-1 rounded-lg border border-white bg-white px-3 py-2 text-sm text-[var(--oppa-text)] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500" /><button onClick={onAction} disabled={saving || (editing && !dirty)} className="rounded-lg bg-[var(--oppa-text)] px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">{saving ? 'Saving' : goalSet ? editing ? dirty ? 'Update' : 'No changes' : 'Edit' : 'Save'}</button></div>
+      <div className="mt-3 flex items-center justify-between"><p className="text-xs text-[var(--oppa-text-muted)]">Sales: {formatCurrency(sales)} / Target: {formatCurrency(goal)}</p>{goalSet && <button onClick={onClear} disabled={saving} className="text-xs font-medium text-[var(--oppa-text-muted)] underline hover:text-[var(--oppa-text)] disabled:opacity-50">Remove</button>}</div>
+      {error && <p className="mt-2 text-xs font-medium text-red-700">{error}</p>}
+    </div>
+  );
+};
+
+const TopProductCard = ({ channel, products }: { channel: string; products: [string, number][] }) => (
+  <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+    <p className="text-sm font-semibold text-[var(--oppa-text)]">Top 5 {channel} products</p>
+    {products.length === 0 ? <p className="mt-5 text-sm text-[var(--oppa-text-muted)]">No product sales in this filter.</p> : <div className="mt-4 space-y-3">{products.map(([name, quantity], index) => <div key={name} className="flex items-center gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-xs font-bold text-[var(--oppa-green-dark)]">{index + 1}</span><span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--oppa-text)]">{name}</span><span className="shrink-0 text-xs font-semibold text-[var(--oppa-text-muted)]">{quantity} sold</span></div>)}</div>}
+  </div>
+);
 
 export default AdminReportsPage;

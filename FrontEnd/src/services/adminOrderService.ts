@@ -111,14 +111,18 @@ export const getAllOrders = async (): Promise<AdminOrder[]> => {
 
     const apiOrders = await response.json();
     
-    return apiOrders.map((order: any) => ({
+    const onlineOrders: AdminOrder[] = apiOrders.map((order: any) => ({
       ...order,
-      channel: 'online' as const,
+      channel: order.channel === 'onsite' ? 'onsite' : 'online',
       served: order.status === 'delivered',
       customerName: order.customer_name || order.email || 'Customer',
       items: order.items || [],
       deliveryAddress: order.delivery_address || 'Onsite / Walk-in',
     }));
+
+    return [...onlineOrders, ...getOnsiteOrders()].sort(
+      (a, b) => new Date(b.created_at || b.timestamp).getTime() - new Date(a.created_at || a.timestamp).getTime()
+    );
   } catch {
     return [...getOnlineOrders(), ...getOnsiteOrders()].sort(
       (a, b) => new Date(b.created_at || b.timestamp).getTime() - new Date(a.created_at || a.timestamp).getTime()

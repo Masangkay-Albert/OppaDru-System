@@ -9,6 +9,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\DriverController;
+use App\Http\Controllers\TargetProfitSaleController;
 use Illuminate\Http\Request;
 
 Route::get('/test', function () {
@@ -85,4 +86,7 @@ Route::prefix('admin')->group(function () {
     Route::post('/logout', [AdminAuthController::class, 'logout']);
     Route::get('/list', [AdminController::class, 'index']);
     Route::get('/count', [AdminController::class, 'count']);
+    Route::get('/target-profit-sales', [TargetProfitSaleController::class, 'show']);
+    Route::put('/target-profit-sales', [TargetProfitSaleController::class, 'update']);
+    Route::delete('/target-profit-sales', [TargetProfitSaleController::class, 'destroy']);
 });
