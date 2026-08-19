@@ -116,6 +116,47 @@ export const ensureAdminSession = async (): Promise<string | null> => {
   }
 };
 
+let adminSessionRefresh: Promise<string | null> | null = null;
+
+const refreshAdminSession = async (): Promise<string | null> => {
+  localStorage.removeItem(STORAGE_KEYS.ADMIN_TOKEN);
+  const storedAdmin = getCurrentAdmin();
+  if (storedAdmin) {
+    const { token: _staleToken, ...adminWithoutToken } = storedAdmin as AdminUser & { token?: string };
+    setCurrentAdmin(adminWithoutToken);
+  }
+
+  if (!adminSessionRefresh) {
+    adminSessionRefresh = ensureAdminSession().finally(() => {
+      adminSessionRefresh = null;
+    });
+  }
+
+  return adminSessionRefresh;
+};
+
+export const fetchWithAdminAuth = async (url: string, init: RequestInit = {}): Promise<Response> => {
+  const token = await ensureAdminSession();
+  const headers = new Headers(init.headers);
+  headers.set('Content-Type', 'application/json');
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await fetch(url, { ...init, headers });
+  if (response.status !== 401) {
+    return response;
+  }
+
+  const refreshedToken = await refreshAdminSession();
+  if (!refreshedToken) {
+    return response;
+  }
+
+  headers.set('Authorization', `Bearer ${refreshedToken}`);
+  return fetch(url, { ...init, headers });
+};
+
 export const getCurrentAdmin = (): AdminUser | null => {
   const stored = localStorage.getItem(STORAGE_KEYS.ADMIN_CURRENT);
   if (!stored) return null;
@@ -232,22 +273,14 @@ export const apiAdminLogin = async (email: string, password: string) => {
 };
 
 export const apiGetAdmins = async (): Promise<StoredAccount[] | null> => {
-  // try to use stored admin token to fetch
-  const token = localStorage.getItem('adminToken');
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  const res = await fetch(`${API_URL}/admin/list`, { headers });
+  const res = await fetchWithAdminAuth(`${API_URL}/admin/list`);
   if (!res.ok) return null;
   const body = await res.json();
   return (body.data || []).map((a: any) => ({ id: String(a.id), fullName: a.full_name || a.fullName || '', email: a.email, role: 'admin', dateRegistered: a.created_at }));
 };
 
 export const apiGetAdminCount = async (): Promise<number> => {
-  const token = localStorage.getItem('adminToken');
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${API_URL}/admin/count`, { headers });
+  const res = await fetchWithAdminAuth(`${API_URL}/admin/count`);
   if (!res.ok) return 0;
   const body = await res.json();
   return body.count || 0;
