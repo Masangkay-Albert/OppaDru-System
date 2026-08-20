@@ -5,14 +5,17 @@ import { getAllOrders, type AdminOrder } from '../../../services/adminOrderServi
 import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
 import { formatCurrency } from '../../../utils/formatters';
 
-type ReportRange = 'daily' | 'weekly' | 'monthly';
+type ReportRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 const ALL_YEARS = 'all';
 const ALL_FILTER = 'all';
+const ALL_CHANNELS = 'all';
+const MIN_REPORT_YEAR = new Date().getFullYear();
 const getOrderDate = (order: AdminOrder): Date | null => {
   const value = order.created_at || order.timestamp;
   if (!value) return null;
-  const date = new Date(value);
+  const normalizedValue = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value) ? value : `${value.replace(' ', 'T')}+08:00`;
+  const date = new Date(normalizedValue);
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
@@ -21,6 +24,8 @@ interface ReportFilters {
   month: string;
   week: string;
   day: string;
+  date: string;
+  channel: string;
 }
 
 const isWithinRange = (order: AdminOrder, filters: ReportFilters): boolean => {
@@ -31,7 +36,39 @@ const isWithinRange = (order: AdminOrder, filters: ReportFilters): boolean => {
   if (filters.month !== ALL_FILTER && date.getMonth() !== Number(filters.month)) return false;
   if (filters.day !== ALL_FILTER && date.getDay() !== Number(filters.day)) return false;
   if (filters.week !== ALL_FILTER && Math.ceil(date.getDate() / 7) !== Number(filters.week)) return false;
+  if (filters.date !== '' && `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` !== filters.date) return false;
+  if (filters.channel !== ALL_CHANNELS && order.channel !== filters.channel) return false;
   return true;
+};
+
+const isLeapYear = (year: number): boolean => year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+
+const getDaysInSelectedMonth = (filters: ReportFilters): number => {
+  if (filters.month === ALL_FILTER) return 31;
+
+  const month = Number(filters.month);
+  if (month === 1) {
+    return filters.year === ALL_YEARS || isLeapYear(Number(filters.year)) ? 29 : 28;
+  }
+
+  return new Date(2000, month + 1, 0).getDate();
+};
+
+const getWeekCount = (filters: ReportFilters): number => Math.ceil(getDaysInSelectedMonth(filters) / 7);
+
+const getWeekDateRange = (filters: ReportFilters): [Date, Date] | null => {
+  if (filters.month === ALL_FILTER || filters.year === ALL_YEARS || filters.week === ALL_FILTER) return null;
+
+  const month = Number(filters.month);
+  const week = Number(filters.week);
+  const start = new Date(Number(filters.year), month, (week - 1) * 7 + 1);
+  const end = new Date(Number(filters.year), month, Math.min(week * 7, new Date(Number(filters.year), month + 1, 0).getDate()));
+  return [start, end];
+};
+
+const formatDateRange = (range: [Date, Date]): string => {
+  const formatDate = (date: Date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `${formatDate(range[0])} - ${formatDate(range[1])}`;
 };
 
 const csvCell = (value: string | number): string => `"${String(value).replace(/"/g, '""')}"`;
@@ -65,21 +102,34 @@ const getTrendBuckets = (orders: AdminOrder[], range: ReportRange, filters: Repo
   };
 
   if (range === 'daily') {
-    for (let hour = 1; hour <= 12; hour += 1) getBucket(`${hour}:00`);
+    for (let hour = 11; hour <= 23; hour += 1) getBucket(`${hour % 12 || 12}:00 ${hour >= 12 ? 'PM' : 'AM'}`);
   } else if (range === 'weekly') {
-    ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach((day) => getBucket(day));
+    const weekRange = getWeekDateRange(filters);
+    if (weekRange) {
+      const [start, end] = weekRange;
+      for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+        getBucket(`${date.toLocaleDateString('en-US', { weekday: 'short' })}\n${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`);
+      }
+    } else {
+      ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach((day) => getBucket(day));
+    }
   } else if (range === 'monthly') {
     const daysInMonth = getDaysForTimeline(filters);
     for (let day = 1; day <= daysInMonth; day += 1) getBucket(String(day));
+  } else if (range === 'yearly') {
+    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].forEach((month) => getBucket(month));
   }
 
   orders.forEach((order) => {
     const date = getOrderDate(order);
     if (!date) return;
+    if (range === 'daily' && (date.getHours() < 11 || date.getHours() > 23)) return;
     const label = range === 'daily'
-      ? `${date.getHours() % 12 || 12}:00`
+      ? `${date.getHours() % 12 || 12}:00 ${date.getHours() >= 12 ? 'PM' : 'AM'}`
       : range === 'weekly'
-        ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]
+        ? getWeekDateRange(filters)
+          ? `${date.toLocaleDateString('en-US', { weekday: 'short' })}\n${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+          : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]
         : range === 'monthly'
           ? String(date.getDate())
           : date.toLocaleString('en-US', { month: 'short' });
@@ -93,7 +143,7 @@ const getTrendBuckets = (orders: AdminOrder[], range: ReportRange, filters: Repo
 
 const AdminReportsPage: React.FC = () => {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
-  const [filters, setFilters] = useState<ReportFilters>({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER });
+  const [filters, setFilters] = useState<ReportFilters>({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
   const [goal, setGoal] = useState(0);
   const [goalBeforeEdit, setGoalBeforeEdit] = useState(0);
   const [goalDirty, setGoalDirty] = useState(false);
@@ -129,11 +179,13 @@ const AdminReportsPage: React.FC = () => {
     [orders, filters]
   );
 
-  const timelineRange: ReportRange = filters.day !== ALL_FILTER
+  const timelineRange: ReportRange = filters.date !== '' || filters.day !== ALL_FILTER
     ? 'daily'
     : filters.week !== ALL_FILTER
       ? 'weekly'
-      : 'monthly';
+      : filters.month !== ALL_FILTER
+        ? 'monthly'
+        : 'yearly';
 
   const years = useMemo(() => [...new Set(orders.map((order) => getOrderDate(order)?.getFullYear()).filter(Boolean))].sort((a, b) => Number(b) - Number(a)), [orders]);
 
@@ -165,11 +217,47 @@ const AdminReportsPage: React.FC = () => {
   }, [filteredOrders]);
 
   const trendBuckets = useMemo(() => getTrendBuckets(filteredOrders, timelineRange, filters), [filteredOrders, timelineRange, filters]);
+  const weekDateRange = getWeekDateRange(filters);
+  const weekOptions = Array.from({ length: getWeekCount(filters) }, (_, index) => {
+    const week = index + 1;
+    const range = getWeekDateRange({ ...filters, week: String(week) });
+    return { value: String(week), label: range ? `Week ${week} (${formatDateRange(range).replace(`, ${filters.year}`, '')})` : `Week ${week}` };
+  });
   const highestTrendSales = Math.max(...trendBuckets.map((bucket) => bucket.sales), 1);
   const goalReached = goal > 0 && metrics.totalSales >= goal;
   const goalSet = goal > 0;
 
-  const updateFilter = (key: keyof ReportFilters, value: string) => setFilters((current) => ({ ...current, [key]: value }));
+  const updateFilter = (key: keyof ReportFilters, value: string) => setFilters((current) => {
+    if (key === 'date' && value !== '') {
+      const selectedDate = new Date(`${value}T00:00:00+08:00`);
+      if (selectedDate.getFullYear() < MIN_REPORT_YEAR) return current;
+      return {
+        ...current,
+        year: String(selectedDate.getFullYear()),
+        month: String(selectedDate.getMonth()),
+        week: String(Math.ceil(selectedDate.getDate() / 7)),
+        day: String(selectedDate.getDay()),
+        date: value,
+      };
+    }
+
+    return {
+      ...current,
+      [key]: value,
+      ...(['year', 'month', 'week', 'day'].includes(key) ? { date: '' } : {}),
+      ...(key === 'year' || key === 'month' ? { week: ALL_FILTER } : {}),
+    };
+  });
+
+  const clearFilters = () => setFilters({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
+
+  const activeFilterSummary = [
+    filters.date ? new Date(`${filters.date}T00:00:00+08:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : filters.year !== ALL_YEARS ? filters.year : 'All years',
+    !filters.date && filters.month !== ALL_FILTER ? ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][Number(filters.month)] : null,
+    !filters.date && filters.week !== ALL_FILTER ? `Week ${filters.week}` : null,
+    !filters.date && filters.day !== ALL_FILTER ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][Number(filters.day)] : null,
+    filters.channel === ALL_CHANNELS ? 'All channels' : filters.channel === 'online' ? 'Online' : 'Onsite',
+  ].filter(Boolean).join(' · ');
 
   const saveGoal = async () => {
     setGoalSaving(true);
@@ -259,12 +347,15 @@ const AdminReportsPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="mb-6 grid gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-3 grid gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <FilterSelect label="Year" value={filters.year} onChange={(value) => updateFilter('year', value)} options={[{ value: ALL_YEARS, label: 'All years' }, ...years.map((year) => ({ value: String(year), label: String(year) }))]} />
         <FilterSelect label="Month" value={filters.month} onChange={(value) => updateFilter('month', value)} options={[{ value: ALL_FILTER, label: 'All months' }, ...['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((label, index) => ({ value: String(index), label }))]} />
-        <FilterSelect label="Week of month" value={filters.week} onChange={(value) => updateFilter('week', value)} options={[{ value: ALL_FILTER, label: 'All weeks' }, ...[1, 2, 3, 4, 5].map((week) => ({ value: String(week), label: `Week ${week}` }))]} />
+        <FilterSelect label="Week of month" value={filters.week} onChange={(value) => updateFilter('week', value)} options={[{ value: ALL_FILTER, label: 'All weeks' }, ...weekOptions]} />
         <FilterSelect label="Day of week" value={filters.day} onChange={(value) => updateFilter('day', value)} options={[{ value: ALL_FILTER, label: 'All days' }, ...['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((label, index) => ({ value: String(index), label }))]} />
+        <label className="text-xs font-medium text-[var(--oppa-text-muted)]">Exact date<input type="date" min={`${MIN_REPORT_YEAR}-01-01`} value={filters.date} onChange={(event) => updateFilter('date', event.target.value)} className="mt-1 block w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-normal text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)]" /></label>
+        <FilterSelect label="Channel" value={filters.channel} onChange={(value) => updateFilter('channel', value)} options={[{ value: ALL_CHANNELS, label: 'All channels' }, { value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} />
       </div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[var(--oppa-text-muted)]"><span>Showing: <strong className="font-semibold text-[var(--oppa-text)]">{activeFilterSummary}</strong></span><button onClick={clearFilters} className="font-semibold text-[var(--oppa-green-dark)] underline hover:text-[var(--oppa-text)]">Clear filters</button></div>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl bg-[var(--oppa-green)] p-5 text-white shadow-sm sm:col-span-2 xl:col-span-1">
@@ -285,7 +376,10 @@ const AdminReportsPage: React.FC = () => {
 
       <section className="mb-6 rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4"><div><h2 className="font-serif font-semibold text-[var(--oppa-text)]">Channel performance</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Revenue contribution for the selected filters.</p></div><BarChart3 size={19} className="text-[var(--oppa-green-dark)]" /></div>
-        <div className="space-y-5 p-5"><ChannelRow label="Online" count={metrics.onlineOrders.length} sales={metrics.onlineSales} total={metrics.totalSales} color="bg-[var(--oppa-green)]" /><ChannelRow label="Onsite" count={metrics.onsiteOrders.length} sales={metrics.onsiteSales} total={metrics.totalSales} color="bg-amber-400" /></div>
+        <div className="space-y-5 p-5">
+          {(filters.channel === ALL_CHANNELS || filters.channel === 'online') && <ChannelRow label="Online" count={metrics.onlineOrders.length} sales={metrics.onlineSales} total={metrics.totalSales} color="bg-[var(--oppa-green)]" />}
+          {(filters.channel === ALL_CHANNELS || filters.channel === 'onsite') && <ChannelRow label="Onsite" count={metrics.onsiteOrders.length} sales={metrics.onsiteSales} total={metrics.totalSales} color="bg-amber-400" />}
+        </div>
       </section>
 
       <section className="mb-6 rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
@@ -293,23 +387,23 @@ const AdminReportsPage: React.FC = () => {
           <div>
             <h2 className="font-serif font-semibold text-[var(--oppa-text)]">Sales timeline</h2>
             <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">
-              {timelineRange === 'daily' ? 'Hourly activity for the selected day.' : timelineRange === 'weekly' ? 'Daily activity grouped by weekday.' : 'Daily activity grouped by calendar date.'}
+              {timelineRange === 'daily' ? 'Hourly activity from 11:00 AM to 11:00 PM.' : timelineRange === 'weekly' ? weekDateRange ? `Daily activity for ${formatDateRange(weekDateRange)}.` : 'Daily activity grouped by weekday.' : timelineRange === 'monthly' ? 'Daily activity grouped by calendar date.' : 'Monthly activity grouped from January to December.'}
             </p>
           </div>
-          <span className="text-xs text-[var(--oppa-text-muted)]">Based on selected filters</span>
+          <span className="text-xs text-[var(--oppa-text-muted)]">{filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}</span>
         </div>
         <div className="overflow-x-auto p-5">
-          <div className="flex min-w-[620px] items-end gap-2" style={{ height: 190 }}>
+          {trendBuckets.some((bucket) => bucket.orders > 0) ? <div className="flex min-w-[620px] items-end gap-2" style={{ height: 190 }}>
             {trendBuckets.map((bucket) => (
               <div key={bucket.label} className="group flex min-w-[22px] flex-1 flex-col items-center justify-end gap-2">
                 <div className="invisible rounded-md bg-[var(--oppa-text)] px-2 py-1 text-center text-[10px] text-white opacity-0 transition group-hover:visible group-hover:opacity-100">
                   {formatCurrency(bucket.sales)}<br />{bucket.orders} {bucket.orders === 1 ? 'order' : 'orders'}
                 </div>
                 <div className="w-full rounded-t-md bg-[var(--oppa-green)] transition-all group-hover:bg-[var(--oppa-green-dark)]" style={{ height: `${Math.max(bucket.sales > 0 ? (bucket.sales / highestTrendSales) * 125 : 3, 3)}px` }} />
-                <span className="text-[10px] text-[var(--oppa-text-muted)]">{bucket.label}</span>
+                <span className="whitespace-pre-line text-center text-[10px] text-[var(--oppa-text-muted)]">{bucket.label}</span>
               </div>
             ))}
-          </div>
+          </div> : <div className="flex h-[190px] items-center justify-center text-sm text-[var(--oppa-text-muted)]">No sales found for these filters.</div>}
         </div>
       </section>
 

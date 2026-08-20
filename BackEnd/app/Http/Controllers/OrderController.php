@@ -38,7 +38,7 @@ class OrderController extends Controller
         if (!$timestamp) return null;
         $date = new \DateTime($timestamp);
         $date->setTimezone(new \DateTimeZone('Asia/Manila'));
-        return $date->format('Y-m-d H:i:s');
+        return $date->format('Y-m-d\TH:i:sP');
     }
 
     public function show($id)
