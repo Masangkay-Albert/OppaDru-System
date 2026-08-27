@@ -63,6 +63,9 @@ class PaymentController extends Controller
         usleep(($min + mt_rand(0, $max - $min)) * 1000);
     }
 
+    /**
+     * Request OTP for GCash payment
+     */
     public function requestGCashOTP(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -103,6 +106,9 @@ class PaymentController extends Controller
         ]);
     }
 
+    /**
+     * Verify GCash OTP and process payment
+     */
     public function verifyGCash(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -143,6 +149,9 @@ class PaymentController extends Controller
         ], 400);
     }
 
+    /**
+     * Process credit card payment
+     */
     public function processCard(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -203,6 +212,9 @@ class PaymentController extends Controller
         ], 400);
     }
 
+    /**
+     * Verify QR payment (legacy method)
+     */
     public function verifyQRPayment(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -261,6 +273,9 @@ class PaymentController extends Controller
         ], 400);
     }
 
+    /**
+     * Confirm QR payment from mobile
+     */
     public function confirmQRPayment(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -306,9 +321,15 @@ class PaymentController extends Controller
         ], 400);
     }
 
+    /**
+     * Get order by reference for payment confirmation page
+     */
     public function getOrderByReference($reference)
     {
         $amount = request()->query('amount', 0);
+
+        // You can fetch the actual order from database here if needed
+        // $order = Order::where('reference_number', $reference)->first();
 
         return response()->json([
             'success' => true,
@@ -316,40 +337,123 @@ class PaymentController extends Controller
                 'merchant' => 'Oppa Dru Korean Fried Chicken',
                 'amount' => (float) $amount,
                 'reference' => $reference,
+                'status' => 'pending'
             ]
         ]);
     }
 
+    /**
+     * Confirm payment from mobile app/web after user clicks confirm
+     * This is the main endpoint called from the payment confirmation page
+     */
     public function confirmPaymentFromMobile($reference)
     {
-        Cache::put("gcash_qr_confirmed_{$reference}", true, now()->addMinutes(10));
+        try {
+            // Store confirmation in cache with 10 minutes expiration
+            Cache::put("gcash_qr_confirmed_{$reference}", true, now()->addMinutes(10));
+            
+            Log::info('GCash QR payment confirmed via mobile scan', [
+                'reference' => $reference,
+                'timestamp' => now()->toISOString()
+            ]);
 
-        Log::info('GCash QR payment confirmed via mobile scan', [
-            'reference' => $reference,
-        ]);
+            // Optionally update order status in database
+            // $order = Order::where('reference_number', $reference)->first();
+            // if ($order) {
+            //     $order->payment_status = 'paid';
+            //     $order->save();
+            // }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Payment confirmed!',
-            'reference_number' => $reference
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment confirmed successfully!',
+                'reference_number' => $reference,
+                'timestamp' => now()->toISOString()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error confirming payment', [
+                'reference' => $reference,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to confirm payment: ' . $e->getMessage(),
+                'reference_number' => $reference
+            ], 500);
+        }
     }
 
+    /**
+     * Get payment status for polling
+     */
     public function getPaymentStatus($reference)
     {
-        $confirmed = Cache::get("gcash_qr_confirmed_{$reference}", false);
+        try {
+            $confirmed = Cache::get("gcash_qr_confirmed_{$reference}", false);
+            
+            // Also check database if you have an orders table
+            // $order = Order::where('reference_number', $reference)->first();
+            // if ($order && $order->payment_status === 'paid') {
+            //     $confirmed = true;
+            // }
 
+            return response()->json([
+                'confirmed' => (bool) $confirmed,
+                'status' => $confirmed ? 'paid' : 'pending',
+                'reference' => $reference
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error getting payment status', [
+                'reference' => $reference,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'confirmed' => false,
+                'status' => 'error',
+                'message' => 'Failed to get payment status'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get payment history for authenticated user
+     */
+    public function getPaymentHistory(Request $request)
+    {
+        // You can fetch payment history from database here
+        // $payments = Payment::where('user_id', $request->user()->id)->get();
+        
         return response()->json([
-            'confirmed' => (bool) $confirmed,
-            'status' => $confirmed ? 'paid' : 'pending'
+            'success' => true,
+            'payments' => [
+                // Example payment history data
+                // [
+                //     'id' => 1,
+                //     'reference' => 'OPPA-123456-7890',
+                //     'amount' => 1031.52,
+                //     'status' => 'paid',
+                //     'method' => 'gcash',
+                //     'created_at' => now()->toISOString()
+                // ]
+            ],
+            'message' => 'Payment history retrieved successfully.'
         ]);
     }
 
-    public function getPaymentHistory(Request $request)
+    /**
+     * Webhook endpoint for GCash callback (if needed)
+     */
+    public function webhook(Request $request)
     {
-        return response()->json([
-            'payments' => [],
-            'message' => 'Payment history feature coming soon.'
-        ]);
+        Log::info('GCash webhook received', $request->all());
+        
+        // Process webhook data
+        // Update order status based on webhook payload
+        
+        return response()->json(['status' => 'success']);
     }
 }

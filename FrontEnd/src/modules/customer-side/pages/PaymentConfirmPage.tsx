@@ -9,28 +9,45 @@ const PaymentConfirmPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const amount = parseFloat(searchParams.get('amount') || '0');
   const [status, setStatus] = useState<'confirming' | 'loading' | 'success' | 'error'>('confirming');
+  const [message, setMessage] = useState<string>('');
 
   const handleConfirm = async () => {
     setStatus('loading');
+    setMessage('Processing your payment...');
+    
     try {
       const response = await fetch(`${API_URL}/payment/confirm/${reference}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          reference: reference,
+          amount: amount,
+        }),
       });
+      
       const data = await response.json();
 
       if (data.success) {
         setStatus('success');
+        setMessage('Payment confirmed successfully!');
+        
+        // Store confirmation in localStorage
+        localStorage.setItem(`payment_${reference}_confirmed`, 'true');
+        
+        // Auto close after 3 seconds
         setTimeout(() => {
           window.close();
         }, 3000);
       } else {
         setStatus('error');
+        setMessage(data.message || 'Payment confirmation failed. Please try again.');
       }
     } catch (error) {
+      console.error('Error confirming payment:', error);
       setStatus('error');
+      setMessage('Failed to connect to server. Please try again.');
     }
   };
 
@@ -45,8 +62,11 @@ const PaymentConfirmPage: React.FC = () => {
           <div className="flex justify-center">
             <FaSpinner className="text-5xl text-[#2d6a4f] animate-spin" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mt-4">Loading...</h3>
-          <p className="text-sm text-gray-500 mt-2">Please wait</p>
+          <h3 className="text-xl font-semibold text-gray-800 mt-4">Processing Payment</h3>
+          <p className="text-sm text-gray-500 mt-2">{message}</p>
+          <div className="mt-4 h-1 w-full bg-gray-200 rounded-full overflow-hidden">
+            <div className="h-full bg-[#2d6a4f] rounded-full animate-pulse w-1/2"></div>
+          </div>
         </div>
       </div>
     );
@@ -60,11 +80,16 @@ const PaymentConfirmPage: React.FC = () => {
             <FaCheckCircle className="text-5xl text-green-500" />
           </div>
           <h3 className="text-2xl font-bold text-green-600 mt-4">Payment Confirmed!</h3>
-          <p className="text-gray-500 mt-2">Your payment has been successfully processed.</p>
-          <p className="text-xs text-gray-400 mt-4">This window will close automatically...</p>
-          <div className="mt-6 p-4 bg-gray-50 rounded-xl">
-            <p className="text-sm text-gray-500">Reference: <span className="font-mono font-bold">{reference}</span></p>
+          <p className="text-gray-600 mt-2">{message}</p>
+          <div className="mt-4 p-4 bg-gray-50 rounded-xl">
+            <p className="text-sm text-gray-500">Reference</p>
+            <p className="font-mono font-bold text-[#2d6a4f] mt-1">{reference}</p>
           </div>
+          <div className="mt-4 p-4 bg-gray-50 rounded-xl">
+            <p className="text-sm text-gray-500">Amount</p>
+            <p className="text-xl font-bold text-[#2d6a4f]">{formatCurrency(amount)}</p>
+          </div>
+          <p className="text-xs text-gray-400 mt-4">This window will close automatically...</p>
         </div>
       </div>
     );
@@ -78,12 +103,18 @@ const PaymentConfirmPage: React.FC = () => {
             <FaTimesCircle className="text-5xl text-red-500" />
           </div>
           <h3 className="text-2xl font-bold text-red-600 mt-4">Payment Failed</h3>
-          <p className="text-gray-500 mt-2">Something went wrong. Please try again.</p>
+          <p className="text-gray-600 mt-2">{message}</p>
           <button
             onClick={handleConfirm}
-            className="mt-6 w-full py-3 bg-[#2d6a4f] text-white rounded-xl font-semibold"
+            className="mt-6 w-full py-3 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4332] transition shadow-lg shadow-[#2d6a4f]/30"
           >
             Try Again
+          </button>
+          <button
+            onClick={() => window.close()}
+            className="mt-3 w-full py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition"
+          >
+            Close
           </button>
         </div>
       </div>

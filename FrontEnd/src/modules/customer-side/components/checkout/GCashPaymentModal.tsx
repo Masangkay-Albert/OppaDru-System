@@ -136,7 +136,8 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   };
 
   const generateQRData = () => {
-    const baseUrl = window.location.origin;
+    // Use the deployed URL or localhost for development
+    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     return `${baseUrl}/payment/confirm/${referenceNumber}?amount=${amount}`;
   };
 
