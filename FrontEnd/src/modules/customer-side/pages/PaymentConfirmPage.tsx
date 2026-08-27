@@ -1,45 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { FaSpinner, FaCheckCircle, FaTimesCircle, FaWallet } from 'react-icons/fa';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 const PaymentConfirmPage: React.FC = () => {
   const { reference } = useParams<{ reference: string }>();
-  const [status, setStatus] = useState<'loading' | 'confirming' | 'success' | 'error'>('loading');
-  const [orderData, setOrderData] = useState<any>(null);
-
-  useEffect(() => {
-    const fetchOrderDetails = async () => {
-      try {
-        const response = await fetch(`http://localhost:8000/api/payment/order/${reference}`);
-        const data = await response.json();
-        if (data.success) {
-          setOrderData(data.order);
-          setStatus('confirming');
-        } else {
-          setStatus('error');
-        }
-      } catch (error) {
-        setStatus('error');
-      }
-    };
-
-    if (reference) {
-      fetchOrderDetails();
-    }
-  }, [reference]);
+  const [searchParams] = useSearchParams();
+  const amount = parseFloat(searchParams.get('amount') || '0');
+  const [status, setStatus] = useState<'confirming' | 'loading' | 'success' | 'error'>('confirming');
 
   const handleConfirm = async () => {
     setStatus('loading');
     try {
-      const response = await fetch(`http://localhost:8000/api/payment/confirm/${reference}`, {
+      const response = await fetch(`${API_URL}/payment/confirm/${reference}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       });
       const data = await response.json();
-      
+
       if (data.success) {
         setStatus('success');
         setTimeout(() => {
@@ -53,8 +34,8 @@ const PaymentConfirmPage: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return `₱${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+  const formatCurrency = (amt: number) => {
+    return `₱${amt.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
   };
 
   if (status === 'loading') {
@@ -99,10 +80,10 @@ const PaymentConfirmPage: React.FC = () => {
           <h3 className="text-2xl font-bold text-red-600 mt-4">Payment Failed</h3>
           <p className="text-gray-500 mt-2">Something went wrong. Please try again.</p>
           <button
-            onClick={() => window.close()}
-            className="mt-6 w-full py-3 bg-[#e76f51] text-white rounded-xl font-semibold"
+            onClick={handleConfirm}
+            className="mt-6 w-full py-3 bg-[#2d6a4f] text-white rounded-xl font-semibold"
           >
-            Close
+            Try Again
           </button>
         </div>
       </div>
@@ -120,22 +101,20 @@ const PaymentConfirmPage: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">Confirm your payment</p>
         </div>
 
-        {orderData && (
-          <div className="mt-6 space-y-3">
-            <div className="flex justify-between py-2 border-b border-gray-100">
-              <span className="text-gray-500">Merchant</span>
-              <span className="font-medium">{orderData.merchant || 'Oppa Dru Korean Fried Chicken'}</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-gray-100">
-              <span className="text-gray-500">Reference</span>
-              <span className="font-mono font-bold text-sm">{reference}</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-gray-100">
-              <span className="text-gray-500">Amount</span>
-              <span className="font-bold text-[#2d6a4f] text-lg">{formatCurrency(orderData.amount || 0)}</span>
-            </div>
+        <div className="mt-6 space-y-3">
+          <div className="flex justify-between py-2 border-b border-gray-100">
+            <span className="text-gray-500">Merchant</span>
+            <span className="font-medium">Oppa Dru Korean Fried Chicken</span>
           </div>
-        )}
+          <div className="flex justify-between py-2 border-b border-gray-100">
+            <span className="text-gray-500">Reference</span>
+            <span className="font-mono font-bold text-sm">{reference}</span>
+          </div>
+          <div className="flex justify-between py-2 border-b border-gray-100">
+            <span className="text-gray-500">Amount</span>
+            <span className="font-bold text-[#2d6a4f] text-lg">{formatCurrency(amount)}</span>
+          </div>
+        </div>
 
         <button
           onClick={handleConfirm}

@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  FaMobileAlt, 
-  FaCheckCircle, 
-  FaTimesCircle, 
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  FaMobileAlt,
+  FaCheckCircle,
+  FaTimesCircle,
   FaWallet,
   FaSpinner,
-  FaQrcode,
   FaCopy,
   FaClock,
 } from 'react-icons/fa';
 import { IoClose } from 'react-icons/io5';
-import { usePayment } from '../../../../hooks/usePayment';
 import { QRCodeCanvas } from 'qrcode.react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 interface PaymentResult {
   success: boolean;
@@ -33,42 +33,45 @@ interface GCashPaymentModalProps {
 
 type Step = 'display' | 'confirming' | 'result';
 
+const formatCurrency = (amount: number): string => {
+  return `₱${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+};
+
 const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   isOpen,
   onClose,
   amount,
   onPaymentComplete,
-  onPaymentConfirmed
+  onPaymentConfirmed,
 }) => {
   const [step, setStep] = useState<Step>('display');
   const [referenceNumber, setReferenceNumber] = useState<string>('');
   const [timeRemaining, setTimeRemaining] = useState<number>(300);
   const [isCopied, setIsCopied] = useState(false);
-  const [isPolling, setIsPolling] = useState(false);
-
-  const {
-    isProcessing,
-    result,
-    confirmQRPayment,
-    formatCurrency,
-    reset
-  } = usePayment();
+  const [result, setResult] = useState<PaymentResult | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      const ref = `OPPA-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      const ref = `OPPA-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 10000)
+        .toString()
+        .padStart(4, '0')}`;
       setReferenceNumber(ref);
-      setTimeRemaining(300);
       setStep('display');
+      setTimeRemaining(300);
       setIsCopied(false);
-      reset();
-      setIsPolling(false);
+      setResult(null);
     }
-  }, [isOpen, reset]);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || step !== 'display') return;
-    
+
     const timer = setInterval(() => {
       setTimeRemaining(prev => {
         if (prev <= 1) {
@@ -87,34 +90,42 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
 
     const checkPaymentStatus = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/payment/status/${referenceNumber}`);
+        const response = await fetch(`${API_URL}/payment/status/${referenceNumber}`);
         const data = await response.json();
-        
+
         if (data.confirmed) {
-          setIsPolling(false);
+          if (pollRef.current) clearInterval(pollRef.current);
           setStep('confirming');
-          const paymentResult = await confirmQRPayment(referenceNumber, amount);
-          if (paymentResult) {
-            setStep('result');
-            if (paymentResult.success) {
-              if (onPaymentConfirmed) {
-                onPaymentConfirmed();
-              }
-              onPaymentComplete(paymentResult);
-            }
-          }
+
+          const successResult: PaymentResult = {
+            success: true,
+            referenceNumber,
+            message: 'Payment confirmed!',
+            timestamp: new Date().toISOString(),
+            paymentMethod: 'gcash',
+            amount,
+          };
+
+          setResult(successResult);
+          setStep('result');
+          onPaymentConfirmed?.();
+          onPaymentComplete(successResult);
+
+          autoCloseRef.current = setTimeout(() => {
+            handleClose();
+          }, 2000);
         }
       } catch (error) {
         console.log('Polling error:', error);
       }
     };
 
-    if (!isPolling) {
-      setIsPolling(true);
-      const interval = setInterval(checkPaymentStatus, 2000);
-      return () => clearInterval(interval);
-    }
-  }, [isOpen, step, referenceNumber, amount, confirmQRPayment, onPaymentComplete, onPaymentConfirmed, isPolling]);
+    pollRef.current = setInterval(checkPaymentStatus, 2000);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [isOpen, step, referenceNumber, amount, onPaymentComplete, onPaymentConfirmed]);
 
   if (!isOpen) return null;
 
@@ -126,7 +137,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
 
   const generateQRData = () => {
     const baseUrl = window.location.origin;
-    return `${baseUrl}/payment/confirm/${referenceNumber}`;
+    return `${baseUrl}/payment/confirm/${referenceNumber}?amount=${amount}`;
   };
 
   const handleCopyReference = () => {
@@ -136,20 +147,24 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   };
 
   const handleClose = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
     setStep('display');
-    reset();
+    setResult(null);
     onClose();
   };
 
   const handleRetry = () => {
     setStep('display');
-    reset();
-    const ref = `OPPA-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-    setReferenceNumber(ref);
+    setResult(null);
     setTimeRemaining(300);
+    const ref = `OPPA-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 10000)
+      .toString()
+      .padStart(4, '0')}`;
+    setReferenceNumber(ref);
   };
 
-  if (isProcessing) {
+  if (step === 'confirming') {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
         <div className="bg-white rounded-2xl max-w-md w-full p-8 text-center shadow-2xl">
@@ -168,7 +183,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
     );
   }
 
-  if (result) {
+  if (step === 'result' && result) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
         <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl animate-scaleIn">
@@ -231,88 +246,54 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
         </div>
 
         <div className="p-6">
-          {step === 'display' ? (
-            <>
-              <div className="bg-gray-50 rounded-xl p-4 text-center mb-4 border border-gray-100">
-                <p className="text-sm text-gray-500">Amount to Pay</p>
-                <p className="text-3xl font-bold text-[#2d6a4f]">{formatCurrency(amount)}</p>
-              </div>
+          <div className="bg-gray-50 rounded-xl p-4 text-center mb-4 border border-gray-100">
+            <p className="text-sm text-gray-500">Amount to Pay</p>
+            <p className="text-3xl font-bold text-[#2d6a4f]">{formatCurrency(amount)}</p>
+          </div>
 
-              <div className="flex flex-col items-center">
-                <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-md">
-                  <QRCodeCanvas
-                    value={generateQRData()}
-                    size={220}
-                    level="H"
-                    includeMargin={true}
-                    fgColor="#1a472a"
-                  />
-                </div>
+          <div className="flex flex-col items-center">
+            <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-md">
+              <QRCodeCanvas
+                value={generateQRData()}
+                size={220}
+                level="H"
+                includeMargin={true}
+                fgColor="#1a472a"
+              />
+            </div>
 
-                <div className="mt-4 w-full">
-                  <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2 border border-gray-200">
-                    <span className="text-sm text-gray-500">Reference:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-sm text-[#2d6a4f]">{referenceNumber}</span>
-                      <button
-                        onClick={handleCopyReference}
-                        className="text-gray-400 hover:text-[#2d6a4f] transition"
-                      >
-                        <FaCopy size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  {isCopied && (
-                    <p className="text-xs text-green-600 mt-1 text-center">Copied to clipboard!</p>
-                  )}
-                </div>
-
-                <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
-                  <FaClock size={14} />
-                  <span>Time remaining: <span className={`font-semibold ${timeRemaining < 60 ? 'text-red-500' : 'text-[#2d6a4f]'}`}>{formatTime(timeRemaining)}</span></span>
-                </div>
-
-                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100 w-full">
-                  <h4 className="text-sm font-semibold text-blue-800">How to pay using GCash:</h4>
-                  <ol className="text-xs text-blue-700 mt-2 space-y-1 list-decimal list-inside">
-                    <li>Open your GCash app</li>
-                    <li>Tap "Pay QR" or "Scan to Pay"</li>
-                    <li>Scan the QR code above</li>
-                    <li>You will be redirected to confirmation page</li>
-                    <li>Click "Confirm Payment" on your phone</li>
-                    <li>This modal will close automatically</li>
-                  </ol>
-                </div>
-
-                <div className="mt-3 p-3 bg-yellow-50 rounded-xl border border-yellow-200 w-full">
-                  <p className="text-xs text-yellow-700 flex items-center gap-2">
-                    <FaQrcode size={14} />
-                    <span>QR contains: {generateQRData()}</span>
-                  </p>
-                </div>
-
-                {timeRemaining === 0 && (
+            <div className="mt-4 w-full">
+              <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2 border border-gray-200">
+                <span className="text-sm text-gray-500">Reference:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-sm text-[#2d6a4f]">{referenceNumber}</span>
                   <button
-                    onClick={handleRetry}
-                    className="mt-2 text-sm text-[#e76f51] font-medium hover:underline"
+                    onClick={handleCopyReference}
+                    className="text-gray-400 hover:text-[#2d6a4f] transition"
                   >
-                    Generate new QR code
+                    <FaCopy size={14} />
                   </button>
-                )}
-              </div>
-            </>
-          ) : step === 'confirming' ? (
-            <>
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-[#2d6a4f]/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <FaSpinner className="text-3xl text-[#2d6a4f] animate-spin" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-800">Waiting for Confirmation</h3>
-                <p className="text-sm text-gray-500 mt-1">Please confirm payment on your mobile...</p>
-                <p className="text-xs text-gray-400 mt-3">Reference: {referenceNumber}</p>
               </div>
-            </>
-          ) : null}
+              {isCopied && (
+                <p className="text-xs text-green-600 mt-1 text-center">Copied to clipboard!</p>
+              )}
+            </div>
+
+            <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+              <FaClock size={14} />
+              <span>Time remaining: <span className={`font-semibold ${timeRemaining < 60 ? 'text-red-500' : 'text-[#2d6a4f]'}`}>{formatTime(timeRemaining)}</span></span>
+            </div>
+
+            {timeRemaining === 0 && (
+              <button
+                onClick={handleRetry}
+                className="mt-4 text-sm text-[#e76f51] font-medium hover:underline"
+              >
+                Generate new QR code
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="border-t border-gray-100 px-6 py-3 bg-gray-50/50">

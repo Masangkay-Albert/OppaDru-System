@@ -6,6 +6,7 @@ use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class PaymentController extends Controller
@@ -307,53 +308,40 @@ class PaymentController extends Controller
 
     public function getOrderByReference($reference)
     {
-        $order = Order::where('order_number', $reference)->first();
-        
-        if ($order) {
-            return response()->json([
-                'success' => true,
-                'order' => [
-                    'merchant' => 'Oppa Dru Korean Fried Chicken',
-                    'amount' => $order->total,
-                    'reference' => $order->order_number,
-                ]
-            ]);
-        }
-        
+        $amount = request()->query('amount', 0);
+
         return response()->json([
-            'success' => false,
-            'message' => 'Order not found'
-        ], 404);
+            'success' => true,
+            'order' => [
+                'merchant' => 'Oppa Dru Korean Fried Chicken',
+                'amount' => (float) $amount,
+                'reference' => $reference,
+            ]
+        ]);
     }
 
     public function confirmPaymentFromMobile($reference)
     {
-        $order = Order::where('order_number', $reference)->first();
-        
-        if (!$order) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Order not found'
-            ], 404);
-        }
-        
-        $order->status = 'paid';
-        $order->save();
-        
+        Cache::put("gcash_qr_confirmed_{$reference}", true, now()->addMinutes(10));
+
+        Log::info('GCash QR payment confirmed via mobile scan', [
+            'reference' => $reference,
+        ]);
+
         return response()->json([
             'success' => true,
             'message' => 'Payment confirmed!',
-            'reference_number' => $order->order_number
+            'reference_number' => $reference
         ]);
     }
 
     public function getPaymentStatus($reference)
     {
-        $order = Order::where('order_number', $reference)->first();
-        
+        $confirmed = Cache::get("gcash_qr_confirmed_{$reference}", false);
+
         return response()->json([
-            'confirmed' => $order && $order->status === 'paid',
-            'status' => $order ? $order->status : 'not_found'
+            'confirmed' => (bool) $confirmed,
+            'status' => $confirmed ? 'paid' : 'pending'
         ]);
     }
 

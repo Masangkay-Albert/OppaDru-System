@@ -16,7 +16,6 @@ Route::get('/test', function () {
     return response()->json(['message' => 'API is working!']);
 });
 
-
 Route::get('/employees', [EmployeeController::class, 'index']);
 Route::post('/employees', [EmployeeController::class, 'store']);
 Route::delete('/employees/{id}', [EmployeeController::class, 'destroy']);
@@ -28,8 +27,6 @@ Route::post('/drivers', [DriverController::class, 'store']);
 Route::put('/drivers/{id}', [DriverController::class, 'update']);
 Route::delete('/drivers/{id}', [DriverController::class, 'destroy']);
 Route::put('/drivers/{id}/reset-password', [DriverController::class, 'resetPassword']);
-
-
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -43,42 +40,34 @@ Route::get('/orders', [OrderController::class, 'index']);
 Route::get('/orders/customers', [OrderController::class, 'getAllCustomers']);
 Route::get('/orders/{id}', [OrderController::class, 'show']);
 
+Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);
+Route::post('/payment/confirm/{reference}', [PaymentController::class, 'confirmPaymentFromMobile']);
+Route::get('/payment/status/{reference}', [PaymentController::class, 'getPaymentStatus']);
 
 Route::middleware('auth:api')->group(function () {
-    // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
     Route::put('/user/profile', [AuthController::class, 'updateProfile']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
 
-    // Product Management
     Route::post('/products', [ProductController::class, 'store']);
     Route::put('/products/{id}', [ProductController::class, 'update']);
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
     Route::patch('/products/{id}/toggle', [ProductController::class, 'toggleAvailability']);
 
-    // Order Management
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/user', [OrderController::class, 'getUserOrders']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);
 
-    // Payment Routes (OTP - Kept as fallback)
     Route::post('/payment/gcash/request-otp', [PaymentController::class, 'requestGCashOTP']);
     Route::post('/payment/gcash/verify', [PaymentController::class, 'verifyGCash']);
     Route::post('/payment/card/process', [PaymentController::class, 'processCard']);
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 
-    // GCash QR Payment Routes
     Route::post('/payment/gcash/qr/confirm', [PaymentController::class, 'confirmQRPayment']);
-
-    Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);
-    Route::post('/payment/confirm/{reference}', [PaymentController::class, 'confirmPaymentFromMobile']);
-    Route::get('/payment/status/{reference}', [PaymentController::class, 'getPaymentStatus']);
 });
 
-
 Route::prefix('admin')->group(function () {
-    // Product Management
     Route::get('/products', [ProductController::class, 'getAllForAdmin']);
     Route::get('/products/count', [ProductController::class, 'count']);
     Route::post('/products/upload-image', [ProductController::class, 'uploadImage']);
@@ -86,8 +75,7 @@ Route::prefix('admin')->group(function () {
     Route::put('/products/{id}', [ProductController::class, 'update']);
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
     Route::patch('/products/{id}/toggle', [ProductController::class, 'toggleAvailability']);
-    
-    // Admin Management
+
     Route::post('/register', [AdminController::class, 'store']);
     Route::post('/login', [AdminAuthController::class, 'login']);
     Route::post('/logout', [AdminAuthController::class, 'logout']);
