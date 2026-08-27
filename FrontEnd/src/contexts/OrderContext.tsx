@@ -34,7 +34,8 @@ interface OrderContextType {
     address: string,
     paymentMethod: string,
     phone?: string,
-    deliveryAddressCoords?: { lat: number; lng: number }
+    deliveryAddressCoords?: { lat: number; lng: number },
+    paymentReference?: string
   ) => Promise<boolean>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   clearOrder: () => void;
@@ -154,7 +155,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     address: string,
     paymentMethod: string,
     phone?: string,
-    deliveryAddressCoords?: { lat: number; lng: number }
+    deliveryAddressCoords?: { lat: number; lng: number },
+    paymentReference?: string
   ): Promise<boolean> => {
     const activeUser = user ?? authService.getUserFromStorage();
     if (!activeUser) {
@@ -191,6 +193,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         delivery_address: address,
         payment_method: paymentMethod as 'cash_on_delivery' | 'gcash' | 'credit_card',
         phone: phone || '',
+        payment_reference: paymentReference,
       };
 
       const apiOrder = await orderService.createOrder(data);

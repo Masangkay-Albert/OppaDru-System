@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -78,10 +79,19 @@ class OrderController extends Controller
             'delivery_address' => 'required|string',
             'payment_method' => 'required|string|in:cash_on_delivery,gcash,credit_card',
             'phone' => 'required|string',
+            'payment_reference' => 'required_if:payment_method,gcash|nullable|string|exists:payments,reference',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $payment = null;
+        if ($request->payment_method === 'gcash') {
+            $payment = Payment::where('reference', $request->payment_reference)->first();
+            if (!$payment || $payment->status !== 'paid' || (float) $payment->amount !== (float) $request->total) {
+                return response()->json(['message' => 'GCash payment is not confirmed for this order.'], 422);
+            }
         }
 
         $orderItems = [];
@@ -109,7 +119,11 @@ class OrderController extends Controller
             'delivery_address' => $request->delivery_address,
             'phone' => $request->phone,
             'items' => $orderItems,
+            'payment_reference' => $payment?->reference,
+            'payment_status' => $payment ? 'paid' : 'pending',
         ]);
+
+        $payment?->update(['order_id' => $order->id]);
 
         return response()->json([
             'order' => $order,

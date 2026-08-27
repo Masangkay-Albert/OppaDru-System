@@ -26,6 +26,8 @@ class Order extends Model
         'delivery_address',
         'phone',
         'items',
+        'payment_reference',
+        'payment_status',
     ];
 
     protected $casts = [
@@ -49,5 +51,10 @@ class Order extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id', 'id');
+    }
+
+    public function payment()
+    {
+        return $this->hasOne(Payment::class, 'order_id', 'id');
     }
 }

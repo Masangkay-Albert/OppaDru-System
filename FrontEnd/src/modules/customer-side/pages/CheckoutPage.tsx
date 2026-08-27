@@ -63,6 +63,7 @@ const CheckoutPage: React.FC = () => {
   const [showGCashModal, setShowGCashModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [gcashReference, setGCashReference] = useState<string | undefined>();
   const [scheduleDisplay, setScheduleDisplay] = useState('Select date & time');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -142,7 +143,8 @@ const CheckoutPage: React.FC = () => {
         fullDeliveryAddress,
         paymentMethod,
         tempPerson.phone,
-        coords
+        coords,
+        gcashReference
       );
 
       if (success) {
@@ -173,6 +175,7 @@ const CheckoutPage: React.FC = () => {
   };
 
   const handlePaymentConfirmed = () => {
+    setGCashReference(undefined);
     setShowGCashModal(false);
     setTimeout(placeOrderDirect, 500);
   };
@@ -315,6 +318,7 @@ const CheckoutPage: React.FC = () => {
         amount={total}
         onPaymentComplete={handlePaymentComplete}
         onPaymentConfirmed={handlePaymentConfirmed}
+        onPaymentCreated={setGCashReference}
       />
 
       <CreditCardPaymentModal

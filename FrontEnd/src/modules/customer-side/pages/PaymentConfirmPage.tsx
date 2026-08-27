@@ -8,10 +8,10 @@ const API_URL = 'https://oppadru-system.onrender.com/api';
 const PaymentConfirmPage: React.FC = () => {
   const { reference } = useParams<{ reference: string }>();
   const [searchParams] = useSearchParams();
-  const amount = parseFloat(searchParams.get('amount') || '0');
+  const [amount, setAmount] = useState(parseFloat(searchParams.get('amount') || '0'));
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<'confirming' | 'loading' | 'success' | 'error'>('confirming');
   const [message, setMessage] = useState<string>('');
-  const [orderData, setOrderData] = useState<any>(null);
 
   // Fetch order data when page loads
   useEffect(() => {
@@ -22,7 +22,8 @@ const PaymentConfirmPage: React.FC = () => {
         const data = await response.json();
         
         if (data.success) {
-          setOrderData(data.order);
+          setAmount(data.order.amount);
+          setCheckoutUrl(data.order.checkout_url);
           console.log('Order data fetched:', data.order);
         } else {
           console.error('Failed to fetch order data:', data);
@@ -30,74 +31,47 @@ const PaymentConfirmPage: React.FC = () => {
       } catch (error) {
         console.error('Error fetching order data:', error);
         // Still proceed with the amount from URL parameter
-        setOrderData({
-          merchant: 'Oppa Dru Korean Fried Chicken',
-          amount: amount,
-          reference: reference
-        });
       }
     };
 
     if (reference) {
       fetchOrderData();
     }
-  }, [reference, amount]);
+  }, [reference]);
 
-  const handleConfirm = async () => {
-    setStatus('loading');
-    setMessage('Processing your payment...');
-    
-    try {
-      console.log('Confirming payment for reference:', reference);
-      console.log('API URL:', `${API_URL}/payment/confirm/${reference}`);
-      
-      const response = await fetch(`${API_URL}/payment/confirm/${reference}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          reference: reference,
-          amount: amount,
-        }),
-      });
-      
-      const data = await response.json();
-      console.log('Payment confirmation response:', data);
-
-      if (data.success) {
-        setStatus('success');
-        setMessage('Payment confirmed successfully!');
-        
-        // Store confirmation in localStorage
-        localStorage.setItem(`payment_${reference}_confirmed`, 'true');
-        
-        // Notify the parent window if it exists
-        if (window.opener) {
-          try {
-            window.opener.postMessage({
-              type: 'PAYMENT_CONFIRMED',
-              reference: reference,
-              amount: amount
-            }, '*');
-          } catch (e) {
-            console.log('Could not notify parent window');
-          }
+  useEffect(() => {
+    if (!reference) return;
+    let active = true;
+    const checkStatus = async () => {
+      try {
+        const response = await fetch(`${API_URL}/payment/status/${reference}`);
+        const data = await response.json();
+        if (!active) return;
+        if (data.amount) setAmount(data.amount);
+        if (data.status === 'paid') {
+          setStatus('success');
+          setMessage('Payment confirmed by GCash.');
+        } else if (['failed', 'cancelled'].includes(data.status)) {
+          setStatus('error');
+          setMessage(`Payment ${data.status}.`);
+        } else if (data.status === 'expired') {
+          setStatus('error');
+          setMessage('Payment expired. Please generate a new QR code.');
+        } else {
+          setStatus('confirming');
+          setMessage('Waiting for GCash payment confirmation...');
         }
-        
-        // Auto close after 3 seconds
-        setTimeout(() => {
-          window.close();
-        }, 3000);
-      } else {
-        setStatus('error');
-        setMessage(data.message || 'Payment confirmation failed. Please try again.');
+      } catch {
+        if (active) setMessage('Unable to retrieve payment status.');
       }
-    } catch (error) {
-      console.error('Error confirming payment:', error);
-      setStatus('error');
-      setMessage('Failed to connect to server. Please try again.');
-    }
+    };
+    const timer = setInterval(checkStatus, 2000);
+    checkStatus();
+    return () => { active = false; clearInterval(timer); };
+  }, [reference]);
+
+  const handleConfirm = () => {
+    if (checkoutUrl) window.location.assign(checkoutUrl);
   };
 
   const formatCurrency = (amt: number) => {
@@ -206,7 +180,7 @@ const PaymentConfirmPage: React.FC = () => {
           onClick={handleConfirm}
           className="mt-6 w-full py-3.5 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4332] transition shadow-lg shadow-[#2d6a4f]/30"
         >
-          Confirm Payment
+            Continue to GCash
         </button>
 
         <p className="text-xs text-gray-400 text-center mt-4">

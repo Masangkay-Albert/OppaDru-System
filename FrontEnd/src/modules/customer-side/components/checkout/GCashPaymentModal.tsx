@@ -31,6 +31,7 @@ interface GCashPaymentModalProps {
   amount: number;
   onPaymentComplete: (result: PaymentResult) => void;
   onPaymentConfirmed?: () => void;
+  onPaymentCreated?: (reference: string) => void;
 }
 
 type Step = 'display' | 'confirming' | 'result';
@@ -45,6 +46,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   amount,
   onPaymentComplete,
   onPaymentConfirmed,
+  onPaymentCreated,
 }) => {
   const [step, setStep] = useState<Step>('display');
   const [referenceNumber, setReferenceNumber] = useState<string>('');
@@ -56,20 +58,34 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      const ref = `OPPA-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 10000)
-        .toString()
-        .padStart(4, '0')}`;
-      setReferenceNumber(ref);
+      setReferenceNumber('');
       setStep('display');
       setTimeRemaining(300);
       setIsCopied(false);
       setResult(null);
+      fetch(`${API_URL}/payment/gcash/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount }),
+      }).then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success || !data.reference) {
+          setResult({ success: false, message: data.message || 'Unable to start GCash payment.', timestamp: new Date().toISOString(), paymentMethod: 'gcash', amount });
+          setStep('result');
+          return;
+        }
+        setReferenceNumber(data.reference);
+        onPaymentCreated?.(data.reference);
+      }).catch(() => {
+        setResult({ success: false, message: 'Unable to connect to the payment server.', timestamp: new Date().toISOString(), paymentMethod: 'gcash', amount });
+        setStep('result');
+      });
     }
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
     };
-  }, [isOpen]);
+  }, [isOpen, amount, onPaymentCreated]);
 
   useEffect(() => {
     if (!isOpen || step !== 'display') return;
@@ -97,7 +113,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
         const data = await response.json();
         console.log('Payment status response:', data);
 
-        if (data.confirmed) {
+        if (data.status === 'paid') {
           if (pollRef.current) clearInterval(pollRef.current);
           setStep('confirming');
 
@@ -118,6 +134,10 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
           autoCloseRef.current = setTimeout(() => {
             handleClose();
           }, 2000);
+        } else if (['failed', 'expired', 'cancelled'].includes(data.status)) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setResult({ success: false, referenceNumber, message: `Payment ${data.status}.`, timestamp: new Date().toISOString(), paymentMethod: 'gcash', amount });
+          setStep('result');
         }
       } catch (error) {
         console.log('Polling error:', error);
@@ -140,7 +160,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   };
 
   const generateQRData = () => {
-    return `${APP_URL}/payment/confirm/${referenceNumber}?amount=${amount}`;
+    return `${APP_URL}/payment/confirm/${referenceNumber}`;
   };
 
   const handleCopyReference = () => {
@@ -161,10 +181,8 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
     setStep('display');
     setResult(null);
     setTimeRemaining(300);
-    const ref = `OPPA-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 10000)
-      .toString()
-      .padStart(4, '0')}`;
-    setReferenceNumber(ref);
+    setReferenceNumber('');
+    setCheckoutUrl(null);
   };
 
   // ... rest of the component (same as before)
