@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { FaSpinner, FaCheckCircle, FaTimesCircle, FaWallet } from 'react-icons/fa';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system.onrender.com/api';
+// Use production API URL - no localhost fallback
+const API_URL = 'https://oppadru-system.onrender.com/api';
 
 const PaymentConfirmPage: React.FC = () => {
   const { reference } = useParams<{ reference: string }>();
@@ -10,12 +11,46 @@ const PaymentConfirmPage: React.FC = () => {
   const amount = parseFloat(searchParams.get('amount') || '0');
   const [status, setStatus] = useState<'confirming' | 'loading' | 'success' | 'error'>('confirming');
   const [message, setMessage] = useState<string>('');
+  const [orderData, setOrderData] = useState<any>(null);
+
+  // Fetch order data when page loads
+  useEffect(() => {
+    const fetchOrderData = async () => {
+      try {
+        console.log('Fetching order data for reference:', reference);
+        const response = await fetch(`${API_URL}/payment/order/${reference}?amount=${amount}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setOrderData(data.order);
+          console.log('Order data fetched:', data.order);
+        } else {
+          console.error('Failed to fetch order data:', data);
+        }
+      } catch (error) {
+        console.error('Error fetching order data:', error);
+        // Still proceed with the amount from URL parameter
+        setOrderData({
+          merchant: 'Oppa Dru Korean Fried Chicken',
+          amount: amount,
+          reference: reference
+        });
+      }
+    };
+
+    if (reference) {
+      fetchOrderData();
+    }
+  }, [reference, amount]);
 
   const handleConfirm = async () => {
     setStatus('loading');
     setMessage('Processing your payment...');
     
     try {
+      console.log('Confirming payment for reference:', reference);
+      console.log('API URL:', `${API_URL}/payment/confirm/${reference}`);
+      
       const response = await fetch(`${API_URL}/payment/confirm/${reference}`, {
         method: 'POST',
         headers: {
@@ -28,6 +63,7 @@ const PaymentConfirmPage: React.FC = () => {
       });
       
       const data = await response.json();
+      console.log('Payment confirmation response:', data);
 
       if (data.success) {
         setStatus('success');
@@ -35,6 +71,19 @@ const PaymentConfirmPage: React.FC = () => {
         
         // Store confirmation in localStorage
         localStorage.setItem(`payment_${reference}_confirmed`, 'true');
+        
+        // Notify the parent window if it exists
+        if (window.opener) {
+          try {
+            window.opener.postMessage({
+              type: 'PAYMENT_CONFIRMED',
+              reference: reference,
+              amount: amount
+            }, '*');
+          } catch (e) {
+            console.log('Could not notify parent window');
+          }
+        }
         
         // Auto close after 3 seconds
         setTimeout(() => {
@@ -104,6 +153,12 @@ const PaymentConfirmPage: React.FC = () => {
           </div>
           <h3 className="text-2xl font-bold text-red-600 mt-4">Payment Failed</h3>
           <p className="text-gray-600 mt-2">{message}</p>
+          <div className="mt-4 p-4 bg-gray-50 rounded-xl text-left">
+            <p className="text-xs text-gray-500">Debug Info:</p>
+            <p className="text-xs text-gray-400 mt-1">Reference: {reference}</p>
+            <p className="text-xs text-gray-400">Amount: {formatCurrency(amount)}</p>
+            <p className="text-xs text-gray-400">API: {API_URL}</p>
+          </div>
           <button
             onClick={handleConfirm}
             className="mt-6 w-full py-3 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4332] transition shadow-lg shadow-[#2d6a4f]/30"

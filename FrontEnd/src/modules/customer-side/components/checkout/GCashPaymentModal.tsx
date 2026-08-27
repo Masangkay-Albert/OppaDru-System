@@ -11,7 +11,9 @@ import {
 import { IoClose } from 'react-icons/io5';
 import { QRCodeCanvas } from 'qrcode.react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system.onrender.com/api';
+// Use production API URL - no localhost fallback
+const API_URL = 'https://oppadru-system.onrender.com/api';
+const APP_URL = 'https://oppa-drusystem.vercel.app';
 
 interface PaymentResult {
   success: boolean;
@@ -90,8 +92,10 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
 
     const checkPaymentStatus = async () => {
       try {
+        console.log('Checking payment status for:', referenceNumber);
         const response = await fetch(`${API_URL}/payment/status/${referenceNumber}`);
         const data = await response.json();
+        console.log('Payment status response:', data);
 
         if (data.confirmed) {
           if (pollRef.current) clearInterval(pollRef.current);
@@ -136,9 +140,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   };
 
   const generateQRData = () => {
-    // Use the deployed URL or localhost for development
-    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-    return `${baseUrl}/payment/confirm/${referenceNumber}?amount=${amount}`;
+    return `${APP_URL}/payment/confirm/${referenceNumber}?amount=${amount}`;
   };
 
   const handleCopyReference = () => {
@@ -164,6 +166,8 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
       .padStart(4, '0')}`;
     setReferenceNumber(ref);
   };
+
+  // ... rest of the component (same as before)
 
   if (step === 'confirming') {
     return (
