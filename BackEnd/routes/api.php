@@ -41,6 +41,7 @@ Route::get('/orders/customers', [OrderController::class, 'getAllCustomers']);
 Route::get('/orders/{id}', [OrderController::class, 'show']);
 
 Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);
+Route::post('/payment/confirm/{reference}', [PaymentController::class, 'confirmPaymentFromMobile']);
 Route::post('/payment/gcash/create', [PaymentController::class, 'createGCashPayment']);
 Route::post('/payment/gcash/webhook', [PaymentController::class, 'webhook']);
 Route::get('/payment/status/{reference}', [PaymentController::class, 'getPaymentStatus']);

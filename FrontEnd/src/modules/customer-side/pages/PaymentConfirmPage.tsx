@@ -9,7 +9,6 @@ const PaymentConfirmPage: React.FC = () => {
   const { reference } = useParams<{ reference: string }>();
   const [searchParams] = useSearchParams();
   const [amount, setAmount] = useState(parseFloat(searchParams.get('amount') || '0'));
-  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<'confirming' | 'loading' | 'success' | 'error'>('confirming');
   const [message, setMessage] = useState<string>('');
 
@@ -23,7 +22,6 @@ const PaymentConfirmPage: React.FC = () => {
         
         if (data.success) {
           setAmount(data.order.amount);
-          setCheckoutUrl(data.order.checkout_url);
           console.log('Order data fetched:', data.order);
         } else {
           console.error('Failed to fetch order data:', data);
@@ -70,16 +68,35 @@ const PaymentConfirmPage: React.FC = () => {
     return () => { active = false; clearInterval(timer); };
   }, [reference]);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!reference) return;
 
-    window.opener?.postMessage({
-      type: 'GCASH_CONFIRM_CLICKED',
-      reference,
-    }, window.location.origin);
-    localStorage.setItem(`gcash_confirm_clicked_${reference}`, Date.now().toString());
+    setStatus('loading');
+    setMessage('Confirming your payment...');
 
-    if (checkoutUrl) window.location.assign(checkoutUrl);
+    try {
+      const response = await fetch(`${API_URL}/payment/confirm/${reference}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Payment confirmation failed.');
+      }
+
+      setAmount(Number(data.amount));
+      setStatus('success');
+      setMessage('Payment confirmed successfully.');
+      window.opener?.postMessage({
+        type: 'GCASH_PAYMENT_CONFIRMED',
+        reference,
+      }, window.location.origin);
+      localStorage.setItem(`gcash_payment_confirmed_${reference}`, Date.now().toString());
+    } catch (error) {
+      setStatus('error');
+      setMessage(error instanceof Error ? error.message : 'Payment confirmation failed.');
+    }
   };
 
   const formatCurrency = (amt: number) => {

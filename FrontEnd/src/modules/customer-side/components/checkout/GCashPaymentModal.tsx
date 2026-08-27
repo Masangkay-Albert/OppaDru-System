@@ -89,24 +89,39 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   useEffect(() => {
     if (!isOpen || !referenceNumber) return;
 
-    const closeAfterConfirmClick = (event: MessageEvent) => {
-      if (event.data?.type === 'GCASH_CONFIRM_CLICKED' && event.data.reference === referenceNumber) {
-        handleClose();
+    const handlePaymentConfirmed = () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      const successResult: PaymentResult = {
+        success: true,
+        referenceNumber,
+        message: 'Payment confirmed!',
+        timestamp: new Date().toISOString(),
+        paymentMethod: 'gcash',
+        amount,
+      };
+      setResult(successResult);
+      setStep('result');
+      onPaymentComplete(successResult);
+      autoCloseRef.current = setTimeout(handleClose, 1500);
+    };
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'GCASH_PAYMENT_CONFIRMED' && event.data.reference === referenceNumber) {
+        handlePaymentConfirmed();
       }
     };
     const closeAfterStorageUpdate = (event: StorageEvent) => {
-      if (event.key === `gcash_confirm_clicked_${referenceNumber}`) {
-        handleClose();
+      if (event.key === `gcash_payment_confirmed_${referenceNumber}`) {
+        handlePaymentConfirmed();
       }
     };
 
-    window.addEventListener('message', closeAfterConfirmClick);
+    window.addEventListener('message', handleMessage);
     window.addEventListener('storage', closeAfterStorageUpdate);
     return () => {
-      window.removeEventListener('message', closeAfterConfirmClick);
+      window.removeEventListener('message', handleMessage);
       window.removeEventListener('storage', closeAfterStorageUpdate);
     };
-  }, [isOpen, referenceNumber]);
+  }, [isOpen, referenceNumber, amount, onPaymentComplete]);
 
   useEffect(() => {
     if (!isOpen || step !== 'display') return;

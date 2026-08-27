@@ -77,7 +77,25 @@ class PaymentController extends Controller
 
         $secretKey = config('services.paymongo.secret_key');
         if (!$secretKey) {
-            return response()->json(['success' => false, 'message' => 'GCash payments are not configured.'], 503);
+            $payment = \App\Models\Payment::create([
+                'reference' => $this->generateReferenceNumber(),
+                'provider' => 'sandbox',
+                'amount' => $request->amount,
+                'status' => 'pending',
+                'expires_at' => now()->addMinutes(5),
+                'metadata' => [
+                    'sandbox' => true,
+                    'checkout_url' => null,
+                ],
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'reference' => $payment->reference,
+                'checkout_url' => null,
+                'expires_at' => $payment->expires_at?->toISOString(),
+                'amount' => (float) $payment->amount,
+            ], 201);
         }
 
         $reference = $this->generateReferenceNumber();
@@ -412,8 +430,37 @@ class PaymentController extends Controller
     public function confirmPaymentFromMobile($reference)
     {
         try {
-            // Store confirmation in cache with 10 minutes expiration
-            Cache::put("gcash_qr_confirmed_{$reference}", true, now()->addMinutes(10));
+            $payment = \App\Models\Payment::where('reference', $reference)->firstOrFail();
+
+            if ($payment->status === 'pending' && $payment->expires_at?->isPast()) {
+                $payment->update(['status' => 'expired']);
+            }
+
+            if ($payment->status !== 'pending') {
+                return response()->json([
+                    'success' => $payment->status === 'paid',
+                    'message' => $payment->status === 'paid'
+                        ? 'Payment was already confirmed.'
+                        : 'Payment cannot be confirmed in its current state.',
+                    'reference_number' => $reference,
+                    'status' => $payment->status,
+                    'amount' => (float) $payment->amount,
+                ], $payment->status === 'paid' ? 200 : 422);
+            }
+
+            DB::transaction(function () use ($payment) {
+                $payment->update([
+                    'status' => 'paid',
+                    'paid_at' => now(),
+                ]);
+
+                if ($payment->order) {
+                    $payment->order->update([
+                        'payment_status' => 'paid',
+                        'status' => 'pending',
+                    ]);
+                }
+            });
             
             Log::info('GCash QR payment confirmed via mobile scan', [
                 'reference' => $reference,
@@ -431,6 +478,8 @@ class PaymentController extends Controller
                 'success' => true,
                 'message' => 'Payment confirmed successfully!',
                 'reference_number' => $reference,
+                'status' => 'paid',
+                'amount' => (float) $payment->amount,
                 'timestamp' => now()->toISOString()
             ]);
 
