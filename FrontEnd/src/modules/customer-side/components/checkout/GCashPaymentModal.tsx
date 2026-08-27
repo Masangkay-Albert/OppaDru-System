@@ -8,7 +8,6 @@ import {
   FaQrcode,
   FaCopy,
   FaClock,
-  FaArrowRight
 } from 'react-icons/fa';
 import { IoClose } from 'react-icons/io5';
 import { usePayment } from '../../../../hooks/usePayment';

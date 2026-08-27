@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { FaSpinner, FaCheckCircle, FaTimesCircle, FaWallet } from 'react-icons/fa';
+
 
 const PaymentConfirmPage: React.FC = () => {
   const { reference } = useParams<{ reference: string }>();
-  const navigate = useNavigate();
   const [status, setStatus] = useState<'loading' | 'confirming' | 'success' | 'error'>('loading');
   const [orderData, setOrderData] = useState<any>(null);
 

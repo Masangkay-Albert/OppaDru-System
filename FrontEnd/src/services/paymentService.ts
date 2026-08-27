@@ -285,7 +285,7 @@ class PaymentService {
       return {
         success: true,
         transactionId: `QR-${Date.now()}`,
-        referenceNumber: this.generateReferenceNumber(),
+        referenceNumber, // use the reference that was actually being polled/confirmed
         message: 'Payment confirmed!',
         timestamp: new Date().toISOString(),
         paymentMethod: 'gcash',
@@ -295,6 +295,7 @@ class PaymentService {
 
     return {
       success: false,
+      referenceNumber,
       message: 'Payment verification failed. Please try again.',
       timestamp: new Date().toISOString(),
       paymentMethod: 'gcash',
