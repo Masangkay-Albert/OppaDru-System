@@ -65,7 +65,6 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/payment/card/process', [PaymentController::class, 'processCard']);
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 
-    Route::post('/payment/gcash/qr/confirm', [PaymentController::class, 'confirmQRPayment']);
 });
 
 Route::prefix('admin')->group(function () {

@@ -177,7 +177,6 @@ const CheckoutPage: React.FC = () => {
   const handlePaymentConfirmed = () => {
     setGCashReference(undefined);
     setShowGCashModal(false);
-    setTimeout(placeOrderDirect, 500);
   };
 
   const handleScheduleConfirm = () => {

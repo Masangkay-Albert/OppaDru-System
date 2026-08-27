@@ -182,7 +182,6 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
     setResult(null);
     setTimeRemaining(300);
     setReferenceNumber('');
-    setCheckoutUrl(null);
   };
 
   // ... rest of the component (same as before)
