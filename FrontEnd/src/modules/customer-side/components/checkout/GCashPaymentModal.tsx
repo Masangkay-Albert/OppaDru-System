@@ -12,7 +12,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 
 // Use production API URL - no localhost fallback
 const API_URL = 'https://oppadru-system.onrender.com/api';
-const APP_URL = 'https://oppa-drusystem.vercel.app';
+const APP_URL = import.meta.env.VITE_APP_URL || 'https://oppa-dru-system.vercel.app';
 
 interface PaymentResult {
   success: boolean;

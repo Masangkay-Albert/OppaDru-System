@@ -15,7 +15,7 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
-    'frontend_url' => env('FRONTEND_URL', 'https://oppa-drusystem.vercel.app'),
+    'frontend_url' => env('FRONTEND_URL', 'https://oppa-dru-system.vercel.app'),
 
     /*
     |--------------------------------------------------------------------------
