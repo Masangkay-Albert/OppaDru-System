@@ -71,6 +71,14 @@ const PaymentConfirmPage: React.FC = () => {
   }, [reference]);
 
   const handleConfirm = () => {
+    if (!reference) return;
+
+    window.opener?.postMessage({
+      type: 'GCASH_CONFIRM_CLICKED',
+      reference,
+    }, window.location.origin);
+    localStorage.setItem(`gcash_confirm_clicked_${reference}`, Date.now().toString());
+
     if (checkoutUrl) window.location.assign(checkoutUrl);
   };
 
@@ -180,7 +188,7 @@ const PaymentConfirmPage: React.FC = () => {
           onClick={handleConfirm}
           className="mt-6 w-full py-3.5 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4332] transition shadow-lg shadow-[#2d6a4f]/30"
         >
-            Continue to GCash
+            Confirm Payment
         </button>
 
         <p className="text-xs text-gray-400 text-center mt-4">

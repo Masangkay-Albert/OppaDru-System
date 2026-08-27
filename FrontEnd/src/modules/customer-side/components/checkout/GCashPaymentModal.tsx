@@ -3,7 +3,6 @@ import {
   FaMobileAlt,
   FaCheckCircle,
   FaTimesCircle,
-  FaWallet,
   FaSpinner,
   FaCopy,
   FaClock,
@@ -86,6 +85,28 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
       if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
     };
   }, [isOpen, amount, onPaymentCreated]);
+
+  useEffect(() => {
+    if (!isOpen || !referenceNumber) return;
+
+    const closeAfterConfirmClick = (event: MessageEvent) => {
+      if (event.data?.type === 'GCASH_CONFIRM_CLICKED' && event.data.reference === referenceNumber) {
+        handleClose();
+      }
+    };
+    const closeAfterStorageUpdate = (event: StorageEvent) => {
+      if (event.key === `gcash_confirm_clicked_${referenceNumber}`) {
+        handleClose();
+      }
+    };
+
+    window.addEventListener('message', closeAfterConfirmClick);
+    window.addEventListener('storage', closeAfterStorageUpdate);
+    return () => {
+      window.removeEventListener('message', closeAfterConfirmClick);
+      window.removeEventListener('storage', closeAfterStorageUpdate);
+    };
+  }, [isOpen, referenceNumber]);
 
   useEffect(() => {
     if (!isOpen || step !== 'display') return;
@@ -262,9 +283,6 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
               <IoClose size={24} />
             </button>
           </div>
-          <div className="text-center mt-1">
-            <p className="text-white/80 text-xs">Scan the QR code with your GCash app</p>
-          </div>
         </div>
 
         <div className="p-6">
@@ -318,12 +336,6 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
           </div>
         </div>
 
-        <div className="border-t border-gray-100 px-6 py-3 bg-gray-50/50">
-          <div className="flex items-center justify-center gap-1 text-xs text-gray-400">
-            <FaWallet size={12} className="text-[#2d6a4f]" />
-            <span>Powered by GCash • Secure QR Payment</span>
-          </div>
-        </div>
       </div>
     </div>
   );
