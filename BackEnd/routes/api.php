@@ -62,11 +62,18 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/orders/user', [OrderController::class, 'getUserOrders']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);
 
-    // Payment Routes
+    // Payment Routes (OTP - Kept as fallback)
     Route::post('/payment/gcash/request-otp', [PaymentController::class, 'requestGCashOTP']);
     Route::post('/payment/gcash/verify', [PaymentController::class, 'verifyGCash']);
     Route::post('/payment/card/process', [PaymentController::class, 'processCard']);
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
+
+    // GCash QR Payment Routes
+    Route::post('/payment/gcash/qr/confirm', [PaymentController::class, 'confirmQRPayment']);
+
+    Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);
+    Route::post('/payment/confirm/{reference}', [PaymentController::class, 'confirmPaymentFromMobile']);
+    Route::get('/payment/status/{reference}', [PaymentController::class, 'getPaymentStatus']);
 });
 
 

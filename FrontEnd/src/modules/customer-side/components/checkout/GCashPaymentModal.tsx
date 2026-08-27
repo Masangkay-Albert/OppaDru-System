@@ -1,17 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FaMobileAlt, 
   FaCheckCircle, 
   FaTimesCircle, 
-  FaShieldAlt, 
-  FaRedo, 
   FaWallet,
-  FaPhoneAlt,
-  FaLock,
-  FaSpinner
+  FaSpinner,
+  FaQrcode,
+  FaCopy,
+  FaClock,
+  FaArrowRight
 } from 'react-icons/fa';
-import { IoClose, IoArrowBack } from 'react-icons/io5';
+import { IoClose } from 'react-icons/io5';
 import { usePayment } from '../../../../hooks/usePayment';
+import { QRCodeCanvas } from 'qrcode.react';
 
 interface PaymentResult {
   success: boolean;
@@ -28,113 +29,128 @@ interface GCashPaymentModalProps {
   onClose: () => void;
   amount: number;
   onPaymentComplete: (result: PaymentResult) => void;
+  onPaymentConfirmed?: () => void;
 }
 
-type Step = 'number' | 'otp';
-
-const RESEND_SECONDS = 30;
+type Step = 'display' | 'confirming' | 'result';
 
 const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   isOpen,
   onClose,
   amount,
-  onPaymentComplete
+  onPaymentComplete,
+  onPaymentConfirmed
 }) => {
-  const [step, setStep] = useState<Step>('number');
-  const [mobileNumber, setMobileNumber] = useState('');
-  const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''));
-  const [issuedOtp, setIssuedOtp] = useState('');
-  const [otpError, setOtpError] = useState('');
-  const [resendTimer, setResendTimer] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [step, setStep] = useState<Step>('display');
+  const [referenceNumber, setReferenceNumber] = useState<string>('');
+  const [timeRemaining, setTimeRemaining] = useState<number>(300);
+  const [isCopied, setIsCopied] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
 
   const {
-    isSendingOtp,
     isProcessing,
     result,
-    requestGCashOTP,
-    processGCash,
+    confirmQRPayment,
     formatCurrency,
     reset
   } = usePayment();
 
   useEffect(() => {
-    if (resendTimer <= 0) return;
-    const timer = setTimeout(() => setResendTimer(t => t - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [resendTimer]);
+    if (isOpen) {
+      const ref = `OPPA-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      setReferenceNumber(ref);
+      setTimeRemaining(300);
+      setStep('display');
+      setIsCopied(false);
+      reset();
+      setIsPolling(false);
+    }
+  }, [isOpen, reset]);
+
+  useEffect(() => {
+    if (!isOpen || step !== 'display') return;
+    
+    const timer = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isOpen, step]);
+
+  useEffect(() => {
+    if (!isOpen || step !== 'display' || !referenceNumber) return;
+
+    const checkPaymentStatus = async () => {
+      try {
+        const response = await fetch(`http://localhost:8000/api/payment/status/${referenceNumber}`);
+        const data = await response.json();
+        
+        if (data.confirmed) {
+          setIsPolling(false);
+          setStep('confirming');
+          const paymentResult = await confirmQRPayment(referenceNumber, amount);
+          if (paymentResult) {
+            setStep('result');
+            if (paymentResult.success) {
+              if (onPaymentConfirmed) {
+                onPaymentConfirmed();
+              }
+              onPaymentComplete(paymentResult);
+            }
+          }
+        }
+      } catch (error) {
+        console.log('Polling error:', error);
+      }
+    };
+
+    if (!isPolling) {
+      setIsPolling(true);
+      const interval = setInterval(checkPaymentStatus, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, step, referenceNumber, amount, confirmQRPayment, onPaymentComplete, onPaymentConfirmed, isPolling]);
 
   if (!isOpen) return null;
 
-  const handleSendOtp = async () => {
-    setOtpError('');
-    setIsLoading(true);
-    const response = await requestGCashOTP(mobileNumber);
-    setIsLoading(false);
-    if (response.success && response.otp) {
-      setIssuedOtp(response.otp);
-      setOtpDigits(Array(6).fill(''));
-      setStep('otp');
-      setResendTimer(RESEND_SECONDS);
-      setTimeout(() => otpRefs.current[0]?.focus(), 100);
-    } else {
-      setOtpError(response.message);
-    }
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleOtpChange = (index: number, value: string) => {
-    const digit = value.replace(/\D/g, '').slice(-1);
-    const next = [...otpDigits];
-    next[index] = digit;
-    setOtpDigits(next);
-    if (digit && index < 5) {
-      otpRefs.current[index + 1]?.focus();
-    }
+  const generateQRData = () => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/payment/confirm/${referenceNumber}`;
   };
 
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleVerify = async () => {
-    const enteredOtp = otpDigits.join('');
-    setIsLoading(true);
-    const response = await processGCash(mobileNumber, enteredOtp, issuedOtp, amount);
-    setIsLoading(false);
-    if (response?.success) {
-      onPaymentComplete(response);
-    }
-  };
-
-  const handleResend = async () => {
-    if (resendTimer > 0) return;
-    setIsLoading(true);
-    const response = await requestGCashOTP(mobileNumber);
-    setIsLoading(false);
-    if (response.success && response.otp) {
-      setIssuedOtp(response.otp);
-      setOtpDigits(Array(6).fill(''));
-      setResendTimer(RESEND_SECONDS);
-      otpRefs.current[0]?.focus();
-    }
+  const handleCopyReference = () => {
+    navigator.clipboard.writeText(referenceNumber);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   const handleClose = () => {
-    setStep('number');
-    setMobileNumber('');
-    setOtpDigits(Array(6).fill(''));
-    setIssuedOtp('');
-    setOtpError('');
-    setResendTimer(0);
+    setStep('display');
     reset();
     onClose();
   };
 
-  if (isProcessing || isSendingOtp) {
+  const handleRetry = () => {
+    setStep('display');
+    reset();
+    const ref = `OPPA-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+    setReferenceNumber(ref);
+    setTimeRemaining(300);
+  };
+
+  if (isProcessing) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
         <div className="bg-white rounded-2xl max-w-md w-full p-8 text-center shadow-2xl">
@@ -142,9 +158,9 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
             <FaSpinner className="text-5xl text-[#2d6a4f] animate-spin" />
           </div>
           <h3 className="text-xl font-semibold text-gray-800 mt-4">
-            {isSendingOtp ? 'Sending Code' : 'Processing Payment'}
+            Verifying Payment
           </h3>
-          <p className="text-sm text-gray-500 mt-2">Please wait...</p>
+          <p className="text-sm text-gray-500 mt-2">Please wait while we confirm your payment...</p>
           <div className="mt-4 h-1 w-full bg-gray-200 rounded-full overflow-hidden">
             <div className="h-full bg-[#2d6a4f] rounded-full animate-pulse w-1/2"></div>
           </div>
@@ -179,9 +195,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
               if (result.success) {
                 handleClose();
               } else {
-                reset();
-                setStep('number');
-                setOtpDigits(Array(6).fill(''));
+                handleRetry();
               }
             }}
             className={`mt-6 w-full py-3 rounded-xl font-semibold transition ${
@@ -200,175 +214,112 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
       <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl relative overflow-hidden">
-        {/* Header with gradient */}
-        <div className="bg-gradient-to-r from-[#1a472a] to-[#2d6a4f] px-6 py-5">
+        <div className="bg-gradient-to-r from-[#1a472a] to-[#2d6a4f] px-6 py-4">
           <div className="flex items-center justify-between">
-            {step === 'otp' && (
-              <button
-                onClick={() => setStep('number')}
-                className="text-white/80 hover:text-white transition"
-              >
-                <IoArrowBack size={24} />
-              </button>
-            )}
-            <div className="flex items-center gap-3 mx-auto">
+            <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                 <FaMobileAlt className="text-white text-xl" />
               </div>
-              <span className="text-white font-bold text-lg">GCash</span>
+              <span className="text-white font-bold text-lg">GCash Payment</span>
             </div>
             <button onClick={handleClose} className="text-white/80 hover:text-white transition">
               <IoClose size={24} />
             </button>
           </div>
-          <div className="text-center mt-2">
-            <p className="text-white/80 text-sm">Pay securely using your GCash account</p>
+          <div className="text-center mt-1">
+            <p className="text-white/80 text-xs">Scan the QR code with your GCash app</p>
           </div>
         </div>
 
         <div className="p-6">
-          {step === 'number' ? (
+          {step === 'display' ? (
             <>
-              {/* Amount Display */}
-              <div className="bg-gray-50 rounded-xl p-4 text-center mb-6 border border-gray-100">
+              <div className="bg-gray-50 rounded-xl p-4 text-center mb-4 border border-gray-100">
                 <p className="text-sm text-gray-500">Amount to Pay</p>
                 <p className="text-3xl font-bold text-[#2d6a4f]">{formatCurrency(amount)}</p>
               </div>
 
-              {/* Mobile Number Input */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Mobile Number <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                    <FaPhoneAlt size={16} />
+              <div className="flex flex-col items-center">
+                <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-md">
+                  <QRCodeCanvas
+                    value={generateQRData()}
+                    size={220}
+                    level="H"
+                    includeMargin={true}
+                    fgColor="#1a472a"
+                  />
+                </div>
+
+                <div className="mt-4 w-full">
+                  <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2 border border-gray-200">
+                    <span className="text-sm text-gray-500">Reference:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-sm text-[#2d6a4f]">{referenceNumber}</span>
+                      <button
+                        onClick={handleCopyReference}
+                        className="text-gray-400 hover:text-[#2d6a4f] transition"
+                      >
+                        <FaCopy size={14} />
+                      </button>
+                    </div>
                   </div>
-                  <input
-                    type="tel"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value.replace(/\s/g, ''))}
-                    placeholder="09123456789"
-                    className="w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-lg"
-                    maxLength={11}
-                    autoFocus
-                  />
-                </div>
-                <p className="text-xs text-gray-400">Enter your GCash registered mobile number</p>
-                {otpError && (
-                  <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
-                    <FaTimesCircle size={12} /> {otpError}
-                  </p>
-                )}
-              </div>
-
-              {/* Demo Info */}
-              <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                <p className="text-xs text-blue-600 flex items-center gap-2">
-                  <FaShieldAlt size={14} />
-                  <span>Demo: OTP will be shown after clicking "Send Code"</span>
-                </p>
-              </div>
-
-              {/* Send Button */}
-              <button
-                onClick={handleSendOtp}
-                disabled={!mobileNumber || isLoading}
-                className={`mt-5 w-full py-3.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 ${
-                  mobileNumber && !isLoading
-                    ? 'bg-[#2d6a4f] text-white hover:bg-[#1b4332] shadow-lg shadow-[#2d6a4f]/30'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                {isLoading ? (
-                  <FaSpinner className="animate-spin" />
-                ) : (
-                  <FaShieldAlt size={18} />
-                )}
-                {isLoading ? 'Sending...' : 'Send Code'}
-              </button>
-            </>
-          ) : (
-            <>
-              {/* OTP Verification */}
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-[#2d6a4f]/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <FaShieldAlt className="text-3xl text-[#2d6a4f]" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-800">Verify It's You</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  Enter the 6-digit code sent to{' '}
-                  <span className="font-semibold text-[#2d6a4f]">{mobileNumber}</span>
-                </p>
-              </div>
-
-              {/* OTP Inputs */}
-              <div className="flex justify-center gap-2">
-                {otpDigits.map((digit, i) => (
-                  <input
-                    key={i}
-                    ref={(el) => { otpRefs.current[i] = el; }}
-                    type="text"
-                    inputMode="numeric"
-                    value={digit}
-                    onChange={(e) => handleOtpChange(i, e.target.value)}
-                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    maxLength={1}
-                    className="w-12 h-14 text-center text-xl font-bold border-2 rounded-xl focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20 transition"
-                  />
-                ))}
-              </div>
-
-              {/* OTP Error */}
-              {otpError && (
-                <p className="text-center text-xs text-red-500 mt-2">{otpError}</p>
-              )}
-
-              {/* Resend & Demo Code */}
-              <div className="flex justify-between items-center mt-4">
-                <div className="text-xs">
-                  {resendTimer > 0 ? (
-                    <span className="text-gray-400">Resend in {resendTimer}s</span>
-                  ) : (
-                    <button
-                      onClick={handleResend}
-                      className="text-[#2d6a4f] font-medium flex items-center gap-1 hover:underline"
-                    >
-                      <FaRedo size={12} /> Resend Code
-                    </button>
+                  {isCopied && (
+                    <p className="text-xs text-green-600 mt-1 text-center">Copied to clipboard!</p>
                   )}
                 </div>
-                <div className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-lg">
-                  Demo code: <span className="font-mono font-bold text-[#2d6a4f]">{issuedOtp}</span>
-                </div>
-              </div>
 
-              {/* Verify Button */}
-              <button
-                onClick={handleVerify}
-                disabled={otpDigits.some(d => !d) || isLoading}
-                className={`mt-5 w-full py-3.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 ${
-                  otpDigits.every(d => d) && !isLoading
-                    ? 'bg-[#2d6a4f] text-white hover:bg-[#1b4332] shadow-lg shadow-[#2d6a4f]/30'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                {isLoading ? (
-                  <FaSpinner className="animate-spin" />
-                ) : (
-                  <FaWallet size={18} />
+                <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+                  <FaClock size={14} />
+                  <span>Time remaining: <span className={`font-semibold ${timeRemaining < 60 ? 'text-red-500' : 'text-[#2d6a4f]'}`}>{formatTime(timeRemaining)}</span></span>
+                </div>
+
+                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100 w-full">
+                  <h4 className="text-sm font-semibold text-blue-800">How to pay using GCash:</h4>
+                  <ol className="text-xs text-blue-700 mt-2 space-y-1 list-decimal list-inside">
+                    <li>Open your GCash app</li>
+                    <li>Tap "Pay QR" or "Scan to Pay"</li>
+                    <li>Scan the QR code above</li>
+                    <li>You will be redirected to confirmation page</li>
+                    <li>Click "Confirm Payment" on your phone</li>
+                    <li>This modal will close automatically</li>
+                  </ol>
+                </div>
+
+                <div className="mt-3 p-3 bg-yellow-50 rounded-xl border border-yellow-200 w-full">
+                  <p className="text-xs text-yellow-700 flex items-center gap-2">
+                    <FaQrcode size={14} />
+                    <span>QR contains: {generateQRData()}</span>
+                  </p>
+                </div>
+
+                {timeRemaining === 0 && (
+                  <button
+                    onClick={handleRetry}
+                    className="mt-2 text-sm text-[#e76f51] font-medium hover:underline"
+                  >
+                    Generate new QR code
+                  </button>
                 )}
-                {isLoading ? 'Processing...' : `Pay ${formatCurrency(amount)}`}
-              </button>
+              </div>
             </>
-          )}
+          ) : step === 'confirming' ? (
+            <>
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-[#2d6a4f]/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <FaSpinner className="text-3xl text-[#2d6a4f] animate-spin" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Waiting for Confirmation</h3>
+                <p className="text-sm text-gray-500 mt-1">Please confirm payment on your mobile...</p>
+                <p className="text-xs text-gray-400 mt-3">Reference: {referenceNumber}</p>
+              </div>
+            </>
+          ) : null}
         </div>
 
-        {/* Secure Footer */}
         <div className="border-t border-gray-100 px-6 py-3 bg-gray-50/50">
           <div className="flex items-center justify-center gap-1 text-xs text-gray-400">
-            <FaLock size={12} className="text-[#2d6a4f]" />
-            <span>Your payment is secure and encrypted</span>
+            <FaWallet size={12} className="text-[#2d6a4f]" />
+            <span>Powered by GCash • Secure QR Payment</span>
           </div>
         </div>
       </div>

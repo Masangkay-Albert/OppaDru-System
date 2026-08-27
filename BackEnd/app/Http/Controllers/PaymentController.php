@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
@@ -199,6 +200,161 @@ class PaymentController extends Controller
             'payment_method' => 'credit_card',
             'amount' => (float) $request->amount
         ], 400);
+    }
+
+    public function verifyQRPayment(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'qr_data' => 'required|string',
+            'amount' => 'required|numeric|min:0.01',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first()
+            ], 422);
+        }
+
+        $this->simulateDelay(600, 1200);
+
+        $qrData = $request->qr_data;
+        $isValidQR = stripos($qrData, 'GCASH') !== false;
+
+        if (!$isValidQR) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid QR code. Please scan a valid GCash QR code.',
+                'timestamp' => now()->toISOString(),
+                'payment_method' => 'gcash',
+                'amount' => (float) $request->amount
+            ], 400);
+        }
+
+        $success = mt_rand(1, 100) <= 92;
+
+        if ($success) {
+            Log::info('GCash QR payment successful', [
+                'qr_data' => $qrData,
+                'amount' => $request->amount,
+                'user_id' => $request->user()?->id
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'transaction_id' => 'QR-' . time(),
+                'reference_number' => $this->generateReferenceNumber(),
+                'message' => 'GCash QR payment successful!',
+                'timestamp' => now()->toISOString(),
+                'payment_method' => 'gcash',
+                'amount' => (float) $request->amount
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'QR payment failed. Please try again.',
+            'timestamp' => now()->toISOString(),
+            'payment_method' => 'gcash',
+            'amount' => (float) $request->amount
+        ], 400);
+    }
+
+    public function confirmQRPayment(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'reference_number' => 'required|string',
+            'amount' => 'required|numeric|min:0.01',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first()
+            ], 422);
+        }
+
+        $this->simulateDelay(600, 1200);
+
+        $success = mt_rand(1, 100) <= 92;
+
+        if ($success) {
+            Log::info('GCash QR payment confirmed', [
+                'reference_number' => $request->reference_number,
+                'amount' => $request->amount,
+                'user_id' => $request->user()?->id
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'transaction_id' => 'QR-' . time(),
+                'reference_number' => $this->generateReferenceNumber(),
+                'message' => 'GCash payment confirmed!',
+                'timestamp' => now()->toISOString(),
+                'payment_method' => 'gcash',
+                'amount' => (float) $request->amount
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Payment verification failed. Please try again.',
+            'timestamp' => now()->toISOString(),
+            'payment_method' => 'gcash',
+            'amount' => (float) $request->amount
+        ], 400);
+    }
+
+    public function getOrderByReference($reference)
+    {
+        $order = Order::where('order_number', $reference)->first();
+        
+        if ($order) {
+            return response()->json([
+                'success' => true,
+                'order' => [
+                    'merchant' => 'Oppa Dru Korean Fried Chicken',
+                    'amount' => $order->total,
+                    'reference' => $order->order_number,
+                ]
+            ]);
+        }
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Order not found'
+        ], 404);
+    }
+
+    public function confirmPaymentFromMobile($reference)
+    {
+        $order = Order::where('order_number', $reference)->first();
+        
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found'
+            ], 404);
+        }
+        
+        $order->status = 'paid';
+        $order->save();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment confirmed!',
+            'reference_number' => $order->order_number
+        ]);
+    }
+
+    public function getPaymentStatus($reference)
+    {
+        $order = Order::where('order_number', $reference)->first();
+        
+        return response()->json([
+            'confirmed' => $order && $order->status === 'paid',
+            'status' => $order ? $order->status : 'not_found'
+        ]);
     }
 
     public function getPaymentHistory(Request $request)

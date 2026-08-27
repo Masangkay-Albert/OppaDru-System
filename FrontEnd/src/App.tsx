@@ -18,6 +18,7 @@ import OrderTrackingPage from "./modules/customer-side/pages/OrderTrackingPage";
 import MyOrdersPage from "./modules/customer-side/pages/MyOrdersPage";
 import SettingsPage from "./modules/customer-side/pages/SettingsPage";
 
+
 // ============ ADMIN PAGES ============
 import AdminLoginPage from "./modules/admin-side/pages/AdminLoginPage";
 import AdminDashboardPage from "./modules/admin-side/pages/AdminDashboardPage";
@@ -39,6 +40,7 @@ import DriverDashboardPage from "./modules/driver-side/pages/DriverDashboardPage
 /// ============= Kitchen Page
 import KitchenLoginPage from "./modules/kitchen-side/kitchenLogin";
 import KitchenDashboardPage from "./modules/kitchen-side/kitchenDashboard";
+import PaymentConfirmPage from "./modules/customer-side/pages/PaymentConfirmPage";
 
 function App() {
   return (
@@ -63,6 +65,7 @@ function App() {
                       <Route path="/customer/settings" element={<SettingsPage />} />
                       <Route path="/checkout" element={<CheckoutPage />} />
                       <Route path="/tracking" element={<OrderTrackingPage />} />
+                      <Route path="/payment/confirm/:reference" element={<PaymentConfirmPage />} />
 
                       {/* ===== ADMIN ROUTES ===== */}
                       <Route path="/admin/login" element={<AdminLoginPage />} />

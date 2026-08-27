@@ -155,7 +155,6 @@ class PaymentService {
         amount: data.amount || amount,
       };
     } catch (error) {
-
       await this.simulateDelay(800, 1500);
 
       if (enteredOtp !== expectedOtp) {
@@ -230,7 +229,6 @@ class PaymentService {
         amount: result.amount || data.amount,
       };
     } catch (error) {
-
       await this.simulateDelay(800, 2000);
 
       if (!this.validateCardNumber(data.cardNumber)) {
@@ -276,6 +274,32 @@ class PaymentService {
         amount: data.amount,
       };
     }
+  }
+
+  async confirmQRPayment(referenceNumber: string, amount: number): Promise<PaymentResult> {
+    await this.simulateDelay(800, 1500);
+
+    const success = Math.random() < 0.92;
+
+    if (success) {
+      return {
+        success: true,
+        transactionId: `QR-${Date.now()}`,
+        referenceNumber: this.generateReferenceNumber(),
+        message: 'Payment confirmed!',
+        timestamp: new Date().toISOString(),
+        paymentMethod: 'gcash',
+        amount,
+      };
+    }
+
+    return {
+      success: false,
+      message: 'Payment verification failed. Please try again.',
+      timestamp: new Date().toISOString(),
+      paymentMethod: 'gcash',
+      amount,
+    };
   }
 
   formatCurrency(amount: number): string {

@@ -172,6 +172,11 @@ const CheckoutPage: React.FC = () => {
     }
   };
 
+  const handlePaymentConfirmed = () => {
+    setShowGCashModal(false);
+    setTimeout(placeOrderDirect, 500);
+  };
+
   const handleScheduleConfirm = () => {
     if (selectedDate && selectedTime) {
       const dateStr = selectedDate.toLocaleDateString('en-US', {
@@ -309,6 +314,7 @@ const CheckoutPage: React.FC = () => {
         onClose={() => setShowGCashModal(false)}
         amount={total}
         onPaymentComplete={handlePaymentComplete}
+        onPaymentConfirmed={handlePaymentConfirmed}
       />
 
       <CreditCardPaymentModal

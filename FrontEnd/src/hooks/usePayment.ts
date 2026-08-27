@@ -89,6 +89,29 @@ export const usePayment = () => {
     }
   }, [showToast]);
 
+  const confirmQRPayment = useCallback(async (referenceNumber: string, amount: number): Promise<PaymentResult | null> => {
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const response = await paymentService.confirmQRPayment(referenceNumber, amount);
+      setResult(response);
+      if (response.success) {
+        showToast(response.message, 'success');
+      } else {
+        showToast(response.message, 'error');
+      }
+      return response;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Payment verification failed';
+      setError(message);
+      showToast(message, 'error');
+      return null;
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [showToast]);
+
   const reset = useCallback(() => {
     setIsProcessing(false);
     setIsSendingOtp(false);
@@ -108,6 +131,7 @@ export const usePayment = () => {
     requestGCashOTP,
     processGCash,
     processCard,
+    confirmQRPayment,
     reset,
     formatCurrency
   };
