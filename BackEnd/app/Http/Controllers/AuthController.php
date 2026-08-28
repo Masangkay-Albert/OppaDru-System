@@ -45,6 +45,10 @@ class AuthController extends Controller
                 'user_id' => $user->id,
                 'exception' => $exception,
             ]);
+
+            return response()->json([
+                'message' => 'We could not send the verification email. Please try again later.',
+            ], 503);
         }
 
         return response()->json([
@@ -67,9 +71,15 @@ class AuthController extends Controller
 
         $user = User::whereRaw('LOWER(email) = ?', [$request->email])->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (!$user) {
             return response()->json([
-                'message' => 'Invalid email or password. If you do not have an account, please register first.'
+                'message' => 'This email is not registered. Please register first.',
+            ], 404);
+        }
+
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Invalid email or password.'
             ], 401);
         }
 

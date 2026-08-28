@@ -34,10 +34,10 @@ const LoginPage: React.FC = () => {
       if (success) {
         navigate("/customer");
       } else {
-        setError("Invalid email or password. If you do not have an account, please register first.");
+        setError("Invalid email or password.");
       }
-    } catch (err: any) {
-      setError(err.message || "Login failed. Please try again.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -48,8 +48,8 @@ const LoginPage: React.FC = () => {
     setResendMessage("");
     try {
       setResendMessage(await authService.resendVerification(email));
-    } catch (err: any) {
-      setResendMessage(err.message || "Unable to resend verification email");
+    } catch (err: unknown) {
+      setResendMessage(err instanceof Error ? err.message : "Unable to resend verification email");
     } finally {
       setIsResending(false);
     }

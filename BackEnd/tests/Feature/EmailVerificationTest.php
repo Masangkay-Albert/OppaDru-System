@@ -13,6 +13,17 @@ class EmailVerificationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_new_users_are_unverified_by_default(): void
+    {
+        $user = User::create([
+            'full_name' => 'New Customer',
+            'email' => 'new@example.com',
+            'password' => 'Password1!',
+        ]);
+
+        $this->assertNull($user->email_verified_at);
+    }
+
     public function test_registration_accepts_non_gmail_email_without_logging_in(): void
     {
         Notification::fake();
@@ -63,5 +74,14 @@ class EmailVerificationTest extends TestCase
             'email' => $user->email,
             'password' => 'Password1!',
         ])->assertOk()->assertJsonStructure(['user', 'token', 'message']);
+    }
+
+    public function test_login_reports_when_email_is_not_registered(): void
+    {
+        $this->postJson('/api/login', [
+            'email' => 'missing@example.com',
+            'password' => 'Password1!',
+        ])->assertNotFound()
+            ->assertJsonPath('message', 'This email is not registered. Please register first.');
     }
 }

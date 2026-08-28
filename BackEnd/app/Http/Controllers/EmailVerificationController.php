@@ -4,13 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Log;
 
 class EmailVerificationController extends Controller
 {
     public function verify(Request $request, string $id, string $hash)
     {
+        abort_unless($request->hasValidSignature(), 403, 'Invalid or expired verification link.');
+
         $user = User::findOrFail($id);
 
         abort_unless(
@@ -36,11 +37,28 @@ class EmailVerificationController extends Controller
         $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
 
         if ($user && !$user->hasVerifiedEmail()) {
-            $user->sendEmailVerificationNotification();
+            try {
+                $user->sendEmailVerificationNotification();
+            } catch (\Throwable $exception) {
+                Log::error('Verification email could not be resent.', [
+                    'user_id' => $user->id,
+                    'exception' => $exception,
+                ]);
+
+                return response()->json([
+                    'message' => 'We could not send the verification email. Please try again later.',
+                ], 503);
+            }
+
+            return response()->json([
+                'message' => 'Verification email accepted for delivery.',
+            ]);
         }
 
         return response()->json([
-            'message' => 'If an unverified account exists for that email, a verification email has been sent.',
-        ]);
+            'message' => $user
+                ? 'This email address is already verified.'
+                : 'This email is not registered. Please register first.',
+        ], $user ? 409 : 404);
     }
 }

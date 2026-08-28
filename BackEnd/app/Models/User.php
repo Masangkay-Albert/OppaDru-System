@@ -49,13 +49,8 @@ class User extends Authenticatable implements MustVerifyEmail
                 $model->id = 'OPPA-USER-' . ($slug ?: 'CUST') . '-' . strtoupper(Str::random(4));
             }
             
-            // Add this to manually set created_at
             if (empty($model->created_at)) {
                 $model->created_at = now();
-            }
-
-            if (!array_key_exists('email_verified_at', $model->getAttributes())) {
-                $model->email_verified_at = now();
             }
         });
     }

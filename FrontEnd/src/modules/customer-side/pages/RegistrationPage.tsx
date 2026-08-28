@@ -148,8 +148,8 @@ const RegistrationPage: React.FC = () => {
         setError("Email already exists or registration failed");
         setIsLoading(false);
       }
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Registration failed");
       setIsLoading(false);
     }
   };

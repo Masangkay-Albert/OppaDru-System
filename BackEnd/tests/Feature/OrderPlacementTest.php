@@ -20,6 +20,7 @@ class OrderPlacementTest extends TestCase
             'phone' => '09171234567',
             'password' => Hash::make('password123'),
             'role' => 'customer',
+            'email_verified_at' => now(),
         ]);
 
         $product = Product::create([
