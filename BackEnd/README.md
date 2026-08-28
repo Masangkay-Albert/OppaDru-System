@@ -46,6 +46,14 @@ The SMTP account must have permission to send mail and should use an app passwor
 
 Registration returns an error instead of claiming success when SMTP rejects the message. The signed verification URL expires after 60 minutes, is validated by Laravel, marks `email_verified_at`, and redirects to the frontend login page.
 
+To test real delivery from the Render Shell without exposing a public diagnostic endpoint, run:
+
+```bash
+php artisan mail:test your-real-test-address@example.com
+```
+
+This command uses the same mail configuration as registration. If it fails, copy the exception from the Render logs; it will identify the provider, credential, TLS, DNS, or connection problem.
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
