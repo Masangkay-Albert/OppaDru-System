@@ -16,6 +16,10 @@ Route::get('/test', function () {
     return response()->json(['message' => 'API is working!']);
 });
 
+Route::get('/health', function () {
+    return response()->json(['status' => 'ok']);
+});
+
 Route::get('/employees', [EmployeeController::class, 'index']);
 Route::post('/employees', [EmployeeController::class, 'store']);
 Route::delete('/employees/{id}', [EmployeeController::class, 'destroy']);
