@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('Login error:', error);
       setIsLoading(false);
-      return false;
+    throw error;
     }
   };
 
@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       console.error('Register error:', error);
       setIsLoading(false);
-      return false;
+      throw error;
     }
   };
 

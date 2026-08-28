@@ -1,17 +1,28 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
+import { authService } from "../../../services/authService";
 import { LogIn, Mail, Lock, Eye, EyeOff, Shield, Truck, ArrowLeft } from "lucide-react";
 import heroSectionImg from "../../../assets/herosection.png";
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const [isResending, setIsResending] = useState(false);
+  const isVerificationError = error === "Please verify your email address before logging in.";
+
+  const registeredMessage = new URLSearchParams(location.search).get("registered") === "1"
+    ? "Account created. Check your email to verify your account before signing in."
+    : new URLSearchParams(location.search).get("verified") === "1"
+      ? "Email verified. You can now sign in."
+      : "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,12 +34,24 @@ const LoginPage: React.FC = () => {
       if (success) {
         navigate("/customer");
       } else {
-        setError("Invalid email or password. Please try again.");
+        setError("Invalid email or password. If you do not have an account, please register first.");
       }
     } catch (err: any) {
       setError(err.message || "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setIsResending(true);
+    setResendMessage("");
+    try {
+      setResendMessage(await authService.resendVerification(email));
+    } catch (err: any) {
+      setResendMessage(err.message || "Unable to resend verification email");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -70,6 +93,28 @@ const LoginPage: React.FC = () => {
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm">
               {error}
+              {isVerificationError && (
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={!email || isResending}
+                  className="block mt-2 font-semibold underline disabled:opacity-50"
+                >
+                  {isResending ? "Sending..." : "Resend verification email"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {registeredMessage && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl text-sm">
+              {registeredMessage}
+            </div>
+          )}
+
+          {resendMessage && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl text-sm">
+              {resendMessage}
             </div>
           )}
 
@@ -89,7 +134,7 @@ const LoginPage: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)] focus:border-transparent"
-                  placeholder="username@gmail.com"
+                  placeholder="you@example.com"
                 />
               </div>
             </div>

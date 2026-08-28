@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentController;
@@ -34,6 +35,7 @@ Route::put('/drivers/{id}/reset-password', [DriverController::class, 'resetPassw
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/verification/resend', [EmailVerificationController::class, 'resend'])->middleware('throttle:6,1');
 
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/available', [ProductController::class, 'getAvailable']);
@@ -42,6 +44,7 @@ Route::get('/products/{id}', [ProductController::class, 'show']);
 
 Route::get('/orders', [OrderController::class, 'index']);
 Route::get('/orders/customers', [OrderController::class, 'getAllCustomers']);
+Route::middleware(['auth:api', 'verified-user'])->get('/orders/user', [OrderController::class, 'getUserOrders']);
 Route::get('/orders/{id}', [OrderController::class, 'show']);
 
 Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);
@@ -50,7 +53,7 @@ Route::post('/payment/gcash/create', [PaymentController::class, 'createGCashPaym
 Route::post('/payment/gcash/webhook', [PaymentController::class, 'webhook']);
 Route::get('/payment/status/{reference}', [PaymentController::class, 'getPaymentStatus']);
 
-Route::middleware('auth:api')->group(function () {
+Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
     Route::put('/user/profile', [AuthController::class, 'updateProfile']);
@@ -62,7 +65,6 @@ Route::middleware('auth:api')->group(function () {
     Route::patch('/products/{id}/toggle', [ProductController::class, 'toggleAvailability']);
 
     Route::post('/orders', [OrderController::class, 'store']);
-    Route::get('/orders/user', [OrderController::class, 'getUserOrders']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);
 
     Route::post('/payment/gcash/request-otp', [PaymentController::class, 'requestGCashOTP']);

@@ -6,42 +6,48 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
     public function register(Request $request)
     {
+        $request->merge(['email' => strtolower(trim((string) $request->email))]);
+
         $validator = Validator::make($request->all(), [
             'full_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
+            'email' => [
+                'required', 'string', 'email', 'max:255',
+                Rule::unique('users', 'email')->where(fn ($query) => $query->whereRaw('LOWER(email) = ?', [$request->email])),
+            ],
             'phone' => 'nullable|string|max:20',
-            'password' => 'required|string|min:6|confirmed',
+            'password' => 'required|string|min:8|confirmed',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $token = Str::random(60);
-
         $user = User::create([
             'full_name' => $request->full_name,
             'email' => $request->email,
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
-            'api_token' => hash('sha256', $token),
+            'email_verified_at' => null,
         ]);
 
+        $user->sendEmailVerificationNotification();
+
         return response()->json([
-            'user' => $user,
-            'token' => $token,
-            'message' => 'Registration successful!'
+            'user' => $user->makeHidden(['password', 'api_token']),
+            'message' => 'Registration successful. Please verify your email address before logging in.',
         ], 201);
     }
 
     public function login(Request $request)
     {
+        $request->merge(['email' => strtolower(trim((string) $request->email))]);
         $validator = Validator::make($request->all(), [
             'email' => 'required|string|email',
             'password' => 'required|string',
@@ -51,12 +57,18 @@ class AuthController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::whereRaw('LOWER(email) = ?', [$request->email])->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json([
-                'message' => 'Invalid credentials'
+                'message' => 'Invalid email or password. If you do not have an account, please register first.'
             ], 401);
+        }
+
+        if (!$user->hasVerifiedEmail()) {
+            return response()->json([
+                'message' => 'Please verify your email address before logging in.',
+            ], 403);
         }
 
         $token = Str::random(60);
@@ -64,7 +76,7 @@ class AuthController extends Controller
         $user->save();
 
         return response()->json([
-            'user' => $user,
+            'user' => $user->makeHidden(['password', 'api_token']),
             'token' => $token,
             'message' => 'Login successful!'
         ]);

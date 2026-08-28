@@ -41,6 +41,7 @@ import DriverDashboardPage from "./modules/driver-side/pages/DriverDashboardPage
 import KitchenLoginPage from "./modules/kitchen-side/kitchenLogin";
 import KitchenDashboardPage from "./modules/kitchen-side/kitchenDashboard";
 import PaymentConfirmPage from "./modules/customer-side/pages/PaymentConfirmPage";
+import ProtectedRoute from "./modules/customer-side/components/ProtectedRoute";
 
 function App() {
   return (
@@ -59,12 +60,12 @@ function App() {
                       <Route path="/register" element={<RegistrationPage />} />
 
                       {/* ===== CUSTOMER ROUTES ===== */}
-                      <Route path="/customer" element={<MenuPage />} />
-                      <Route path="/customer/favorites" element={<FavoritesPage />} />
-                      <Route path="/customer/orders" element={<MyOrdersPage />} />
-                      <Route path="/customer/settings" element={<SettingsPage />} />
-                      <Route path="/checkout" element={<CheckoutPage />} />
-                      <Route path="/tracking" element={<OrderTrackingPage />} />
+                      <Route path="/customer" element={<ProtectedRoute><MenuPage /></ProtectedRoute>} />
+                      <Route path="/customer/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
+                      <Route path="/customer/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
+                      <Route path="/customer/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                      <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+                      <Route path="/tracking" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
                       <Route path="/payment/confirm/:reference" element={<PaymentConfirmPage />} />
 
                       {/* ===== ADMIN ROUTES ===== */}
