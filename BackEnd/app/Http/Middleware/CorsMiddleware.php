@@ -29,14 +29,11 @@ class CorsMiddleware
         }
 
         $headers = [
+            'Access-Control-Allow-Origin' => $isAllowed ? $origin : '',
             'Access-Control-Allow-Methods' => 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
             'Access-Control-Allow-Headers' => $request->headers->get('Access-Control-Request-Headers', 'Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN'),
             'Access-Control-Allow-Credentials' => 'true',
         ];
-
-        if ($isAllowed) {
-            $headers['Access-Control-Allow-Origin'] = $origin;
-        }
 
         if ($request->isMethod('OPTIONS')) {
             return response('', 204, $headers);
@@ -44,8 +41,8 @@ class CorsMiddleware
 
         $response = $next($request);
 
-        if ($isAllowed) {
-            foreach ($headers as $key => $value) {
+        foreach ($headers as $key => $value) {
+            if ($value !== '') {
                 $response->headers->set($key, $value);
             }
         }
