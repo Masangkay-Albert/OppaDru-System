@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
 import { useAuth } from '../../../../contexts/Authcontext';
 import { authService } from '../../../../services/authService';
+import { API_URL } from '../../../../services/apiConfig';
 
 const SecuritySection: React.FC = () => {
   const { user } = useAuth();
@@ -36,7 +37,7 @@ const SecuritySection: React.FC = () => {
     setIsSaving(true);
     try {
       const token = authService.getToken();
-      const response = await fetch('http://localhost:8000/api/change-password', {
+      const response = await fetch(`${API_URL}/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

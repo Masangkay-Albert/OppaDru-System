@@ -2,11 +2,10 @@ import type { Order } from '../contexts/OrderContext';
 import type { CartItem } from '../types/product.types';
 import { getAccountDisplayName } from './adminAuthService';
 import { orderService } from './orderService';
+import { API_URL } from './apiConfig';
 
 const ORDERS_KEY = 'orders';
 const ONSITE_ORDERS_KEY = 'onsiteOrders';
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-
 const getOnlineOrderStorageKeys = (): string[] => {
   const keys: string[] = [];
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { PlusIcon, XIcon, PhoneIcon, MailIcon, Power, Trash2 } from "lucide-react";
 import AdminLayout from '../components/AdminLayout';
+import { API_URL } from '../../../services/apiConfig';
 
 // Interface matching your Laravel Database
 export interface DeliveryPartner {
@@ -12,8 +13,6 @@ export interface DeliveryPartner {
   isActive: boolean;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-
 export default function AdminDelivery() {
   const [partners, setPartners] = useState<DeliveryPartner[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -23,7 +22,7 @@ export default function AdminDelivery() {
   // FETCH Drivers from Laravel (Supabase)
   const refresh = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/drivers`, {
+      const res = await fetch(`${API_URL}/drivers`, {
         headers: { 'Accept': 'application/json' }
       });
       if (res.ok) {
@@ -51,7 +50,7 @@ export default function AdminDelivery() {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/drivers`, {
+      const res = await fetch(`${API_URL}/drivers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,7 +77,7 @@ export default function AdminDelivery() {
   // TOGGLE Driver Status
   const handleToggle = async (partner: DeliveryPartner) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/drivers/${partner.id}`, {
+      const res = await fetch(`${API_URL}/drivers/${partner.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -99,7 +98,7 @@ export default function AdminDelivery() {
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this delivery partner?')) {
       try {
-        const res = await fetch(`${API_BASE_URL}/drivers/${id}`, {
+        const res = await fetch(`${API_URL}/drivers/${id}`, {
           method: 'DELETE',
           headers: { 'Accept': 'application/json' },
         });

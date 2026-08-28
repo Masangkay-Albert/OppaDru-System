@@ -178,15 +178,29 @@ class OrderController extends Controller
 
     public function getAllCustomers()
     {
-        $users = User::orderBy('created_at', 'desc')->get()->map(function ($user) {
+        $customerStats = Order::query()
+            ->select('user_id')
+            ->selectRaw('COUNT(*) as order_count')
+            ->selectRaw('COALESCE(SUM(total), 0) as total_spent')
+            ->whereNotNull('user_id')
+            ->groupBy('user_id')
+            ->get()
+            ->keyBy('user_id');
+
+        $users = User::select('id', 'full_name', 'email', 'phone', 'created_at')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($user) use ($customerStats) {
+            $stats = $customerStats->get($user->id);
+
             return [
                 'id' => $user->id,
                 'full_name' => $user->full_name,
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'date_registered' => $user->created_at,
-                'order_count' => Order::where('user_id', $user->id)->count(),
-                'total_spent' => Order::where('user_id', $user->id)->sum('total'),
+                'order_count' => (int) ($stats->order_count ?? 0),
+                'total_spent' => (float) ($stats->total_spent ?? 0),
             ];
         });
 
