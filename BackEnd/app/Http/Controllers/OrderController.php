@@ -86,11 +86,20 @@ class OrderController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $total = (int) round((float) $request->total);
         $payment = null;
         if ($request->payment_method === 'gcash') {
             $payment = Payment::where('reference', $request->payment_reference)->first();
-            if (!$payment || $payment->status !== 'paid' || (float) $payment->amount !== (float) $request->total) {
+            if (!$payment || $payment->status !== 'paid' || (float) $payment->amount !== $total) {
                 return response()->json(['message' => 'GCash payment is not confirmed for this order.'], 422);
+            }
+
+            $existingOrder = Order::where('payment_reference', $payment->reference)->first();
+            if ($existingOrder) {
+                return response()->json([
+                    'order' => $existingOrder,
+                    'message' => 'Order was already placed.'
+                ]);
             }
         }
 
@@ -113,7 +122,7 @@ class OrderController extends Controller
         $order = Order::create([
             'email' => $request->email,
             'user_id' => $userId,
-            'total' => $request->total,
+            'total' => $total,
             'status' => 'pending',
             'payment_method' => $request->payment_method,
             'delivery_address' => $request->delivery_address,

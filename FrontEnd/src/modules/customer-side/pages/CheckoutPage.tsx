@@ -12,8 +12,9 @@ import CreditCardPaymentModal from '../components/checkout/CreditCardPaymentModa
 import ScheduleModal from '../components/checkout/ScheduleModal';
 import { useCheckoutForm } from '../../../hooks/useCheckoutForm';
 import { geocodeAddress, OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
-import { FEES } from '../../../utils/constants';
 import { cleanAddress } from '../../../utils/locationUtils';
+import { useCartCalculations } from '../../../hooks/useCartCalculations';
+import { useSettings } from '../../../contexts/SettingsContext';
 
 interface PaymentResult {
   success: boolean;
@@ -57,6 +58,8 @@ const CheckoutPage: React.FC = () => {
   const { cartItems, clearCart } = useCart();
   const { placeOrder } = useOrder();
   const { showToast } = useToast();
+  const { getActiveDiscount } = useSettings();
+  const activeDiscount = getActiveDiscount();
 
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [orderCompleted, setOrderCompleted] = useState(false);
@@ -80,25 +83,12 @@ const CheckoutPage: React.FC = () => {
     voucherDiscount,
   } = useCheckoutForm();
 
-  const calculateTotal = () => {
-    const subtotal = cartItems.reduce((sum, item) => {
-      const addonsTotal = item.selectedAddons?.reduce((s, a) => s + a.price, 0) || 0;
-      return sum + (item.price + addonsTotal) * item.quantity;
-    }, 0);
-
-    const deliveryFee = deliveryType === 'priority' ? FEES.DELIVERY.PRIORITY : FEES.DELIVERY.STANDARD;
-    const serviceFee = FEES.SERVICE;
-    const vatRate = FEES.VAT_RATE;
-    const total = subtotal + deliveryFee + serviceFee + ((subtotal + deliveryFee + serviceFee - voucherDiscount) * vatRate);
-
-    return {
-      subtotal,
-      deliveryFee,
-      serviceFee,
-      vat: (subtotal + deliveryFee + serviceFee - voucherDiscount) * vatRate,
-      total
-    };
-  };
+  const { total } = useCartCalculations({
+    cartItems,
+    deliveryType,
+    voucherDiscount,
+    discount: activeDiscount.discountRate,
+  });
 
   const buildFullDeliveryAddress = () => {
     const parts: string[] = [];
@@ -134,12 +124,12 @@ const CheckoutPage: React.FC = () => {
         coords = { ...OPPA_DRU_STORE_COORDS };
       }
 
-      const { total } = calculateTotal();
+      const orderTotal = Math.round(total);
       const fullDeliveryAddress = buildFullDeliveryAddress();
 
       const success = await placeOrder(
         cartItems,
-        total,
+        orderTotal,
         fullDeliveryAddress,
         paymentMethod,
         tempPerson.phone,
@@ -166,7 +156,7 @@ const CheckoutPage: React.FC = () => {
   const handlePaymentComplete = (result: PaymentResult) => {
     if (result.success) {
       showToast('Payment successful!', 'success');
-      setTimeout(placeOrderDirect, 1500);
+      void placeOrderDirect();
     } else {
       showToast(result.message || 'Payment failed. Please try again.', 'error');
       setShowGCashModal(false);
@@ -192,6 +182,8 @@ const CheckoutPage: React.FC = () => {
   };
 
   const handlePlaceOrder = () => {
+    if (isPlacingOrder) return;
+
     if (!address.street) {
       showToast('Please select a delivery address', 'error');
       return;
@@ -222,8 +214,6 @@ const CheckoutPage: React.FC = () => {
       return;
     }
   };
-
-  const { total } = calculateTotal();
 
   if (cartItems.length === 0 && !orderCompleted) {
     return (

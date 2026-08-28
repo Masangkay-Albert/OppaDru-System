@@ -1,7 +1,6 @@
 // src/utils/formatters.ts
 
 export const formatCurrency = (amount: number): string => {
-  // Add comma separators for 4+ digit numbers
   const formatted = Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return `₱${formatted}`;
 };

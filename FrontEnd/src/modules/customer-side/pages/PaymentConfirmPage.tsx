@@ -47,12 +47,15 @@ const PaymentConfirmPage: React.FC = () => {
         if (!active) return;
         if (data.amount) setAmount(data.amount);
         if (data.status === 'paid') {
+          clearInterval(timer);
           setStatus('success');
           setMessage('Payment confirmed by GCash.');
         } else if (['failed', 'cancelled'].includes(data.status)) {
+          clearInterval(timer);
           setStatus('error');
           setMessage(`Payment ${data.status}.`);
         } else if (data.status === 'expired') {
+          clearInterval(timer);
           setStatus('error');
           setMessage('Payment expired. Please generate a new QR code.');
         } else {
@@ -69,7 +72,7 @@ const PaymentConfirmPage: React.FC = () => {
   }, [reference]);
 
   const handleConfirm = async () => {
-    if (!reference) return;
+    if (!reference || status === 'loading') return;
 
     setStatus('loading');
     setMessage('Confirming your payment...');

@@ -36,7 +36,7 @@ interface GCashPaymentModalProps {
 type Step = 'display' | 'confirming' | 'result';
 
 const formatCurrency = (amount: number): string => {
-  return `₱${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+  return `₱${Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
 
 const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
@@ -54,15 +54,27 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   const [result, setResult] = useState<PaymentResult | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completionHandledRef = useRef(false);
+  const paymentCreationRef = useRef<Promise<void> | null>(null);
+
+  const handleClose = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
+    setStep('display');
+    setResult(null);
+    onClose();
+  };
 
   useEffect(() => {
     if (isOpen) {
+      completionHandledRef.current = false;
       setReferenceNumber('');
       setStep('display');
       setTimeRemaining(300);
       setIsCopied(false);
       setResult(null);
-      fetch(`${API_URL}/payment/gcash/create`, {
+      if (paymentCreationRef.current) return;
+      paymentCreationRef.current = fetch(`${API_URL}/payment/gcash/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount }),
@@ -78,6 +90,8 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
       }).catch(() => {
         setResult({ success: false, message: 'Unable to connect to the payment server.', timestamp: new Date().toISOString(), paymentMethod: 'gcash', amount });
         setStep('result');
+      }).finally(() => {
+        paymentCreationRef.current = null;
       });
     }
     return () => {
@@ -90,6 +104,8 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
     if (!isOpen || !referenceNumber) return;
 
     const handlePaymentConfirmed = () => {
+      if (completionHandledRef.current) return;
+      completionHandledRef.current = true;
       if (pollRef.current) clearInterval(pollRef.current);
       const successResult: PaymentResult = {
         success: true,
@@ -150,9 +166,10 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
         console.log('Payment status response:', data);
 
         if (data.status === 'paid') {
-          if (pollRef.current) clearInterval(pollRef.current);
           setStep('confirming');
-
+          if (completionHandledRef.current) return;
+          completionHandledRef.current = true;
+          if (pollRef.current) clearInterval(pollRef.current);
           const successResult: PaymentResult = {
             success: true,
             referenceNumber,
@@ -161,15 +178,11 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
             paymentMethod: 'gcash',
             amount,
           };
-
           setResult(successResult);
           setStep('result');
           onPaymentConfirmed?.();
           onPaymentComplete(successResult);
-
-          autoCloseRef.current = setTimeout(() => {
-            handleClose();
-          }, 2000);
+          autoCloseRef.current = setTimeout(handleClose, 1500);
         } else if (['failed', 'expired', 'cancelled'].includes(data.status)) {
           if (pollRef.current) clearInterval(pollRef.current);
           setResult({ success: false, referenceNumber, message: `Payment ${data.status}.`, timestamp: new Date().toISOString(), paymentMethod: 'gcash', amount });
@@ -203,14 +216,6 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
     navigator.clipboard.writeText(referenceNumber);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
-  };
-
-  const handleClose = () => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
-    setStep('display');
-    setResult(null);
-    onClose();
   };
 
   const handleRetry = () => {
