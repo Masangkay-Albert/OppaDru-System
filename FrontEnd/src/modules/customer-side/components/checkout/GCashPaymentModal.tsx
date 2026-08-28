@@ -10,6 +10,7 @@ import {
 import { IoClose } from 'react-icons/io5';
 import { QRCodeCanvas } from 'qrcode.react';
 import { formatCurrency } from '../../../../utils/formatters';
+import type { CartItem } from '../../../../types/product.types';
 
 // Use production API URL - no localhost fallback
 const API_URL = 'https://oppadru-system.onrender.com/api';
@@ -29,6 +30,8 @@ interface GCashPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   amount: number;
+  items: CartItem[];
+  deliveryType: 'standard' | 'priority';
   onPaymentComplete: (result: PaymentResult) => void;
   onPaymentConfirmed?: () => void;
   onPaymentCreated?: (reference: string) => void;
@@ -40,6 +43,8 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   isOpen,
   onClose,
   amount,
+  items,
+  deliveryType,
   onPaymentComplete,
   onPaymentConfirmed,
   onPaymentCreated,
@@ -74,7 +79,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
       paymentCreationRef.current = fetch(`${API_URL}/payment/gcash/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ amount, delivery_type: deliveryType, items: items.map(item => ({ product_id: item.id, quantity: item.quantity })) }),
       }).then(async response => {
         const data = await response.json();
         if (!response.ok || !data.success || !data.reference) {
@@ -95,7 +100,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
       if (pollRef.current) clearInterval(pollRef.current);
       if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
     };
-  }, [isOpen, amount, onPaymentCreated]);
+  }, [isOpen, amount, deliveryType, items, onPaymentCreated]);
 
   useEffect(() => {
     if (!isOpen || !referenceNumber) return;

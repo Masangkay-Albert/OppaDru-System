@@ -7,6 +7,8 @@ use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use App\Services\PricingService;
+use App\Models\Product;
 
 class OrderController extends Controller
 {
@@ -81,20 +83,33 @@ class OrderController extends Controller
             'total' => 'required|numeric|min:0',
             'delivery_address' => 'required|string',
             'payment_method' => 'required|string|in:cash_on_delivery,gcash,credit_card',
+            'delivery_type' => 'nullable|string|in:standard,priority',
+            'voucher_discount' => 'nullable|numeric|min:0',
+            'discount_rate' => 'nullable|numeric|min:0|max:1',
             'phone' => 'required|string',
-            'payment_reference' => 'required_if:payment_method,gcash|nullable|string|exists:payments,reference',
+            'payment_reference' => 'required_if:payment_method,gcash,credit_card|nullable|string|exists:payments,reference',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $total = round((float) $request->total, 2);
+        try {
+            $pricing = app(PricingService::class)->calculate(
+                $request->items,
+                $request->input('delivery_type', 'standard'),
+                (float) $request->input('voucher_discount', 0),
+                (float) $request->input('discount_rate', 0)
+            );
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+        $total = $pricing['total'];
         $payment = null;
-        if ($request->payment_method === 'gcash') {
+        if (in_array($request->payment_method, ['gcash', 'credit_card'], true)) {
             $payment = Payment::where('reference', $request->payment_reference)->first();
-            if (!$payment || $payment->status !== 'paid' || (float) $payment->amount !== (float) $total) {
-                return response()->json(['message' => 'GCash payment is not confirmed for this order.'], 422);
+            if (!$payment || $payment->status !== 'paid' || round((float) $payment->amount, 2) !== $total) {
+                return response()->json(['message' => 'Payment is not confirmed for this order.'], 422);
             }
 
             $existingOrder = Order::where('payment_reference', $payment->reference)->first();
@@ -109,10 +124,11 @@ class OrderController extends Controller
         $orderItems = [];
 
         foreach ($request->items as $item) {
+            $product = Product::find($item['product_id']);
             $orderItems[] = [
                 'product_id' => $item['product_id'],
-                'product_name' => $item['product_name'],
-                'product_price' => $item['product_price'],
+                'product_name' => $product->name,
+                'product_price' => $product->price,
                 'quantity' => $item['quantity'],
                 'selected_addons' => $item['selected_addons'] ?? [],
                 'special_instructions' => $item['special_instructions'] ?? null,

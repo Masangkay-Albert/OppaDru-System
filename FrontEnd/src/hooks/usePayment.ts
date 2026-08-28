@@ -66,6 +66,8 @@ export const usePayment = () => {
     expiryYear: string;
     cvv: string;
     amount: number;
+    items: Array<{ id: string; quantity: number }>;
+    deliveryType: 'standard' | 'priority';
   }) => {
     setIsProcessing(true);
     setError(null);

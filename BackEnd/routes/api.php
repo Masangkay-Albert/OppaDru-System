@@ -11,6 +11,7 @@ use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\DriverController;
 use App\Http\Controllers\TargetProfitSaleController;
+use App\Http\Controllers\SettingController;
 use Illuminate\Http\Request;
 
 Route::get('/test', function () {
@@ -20,6 +21,8 @@ Route::get('/test', function () {
 Route::get('/health', function () {
     return response()->json(['status' => 'ok']);
 });
+
+Route::get('/settings/pricing', [SettingController::class, 'index']);
 
 Route::get('/employees', [EmployeeController::class, 'index']);
 Route::post('/employees', [EmployeeController::class, 'store']);
@@ -63,6 +66,7 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::put('/products/{id}', [ProductController::class, 'update']);
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
     Route::patch('/products/{id}/toggle', [ProductController::class, 'toggleAvailability']);
+    Route::put('/settings/pricing', [SettingController::class, 'update']);
 
     Route::post('/orders', [OrderController::class, 'store']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);

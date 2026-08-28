@@ -9,10 +9,7 @@ const toFiniteNumber = (amount: NumericValue): number => {
 
 export const formatCurrency = (amount: NumericValue): string => {
   const safeAmount = toFiniteNumber(amount);
-  const formatted = safeAmount.toFixed(2)
-    .replace(/\.00$/, '')
-    .replace(/(\.\d)0$/, '$1')
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const formatted = safeAmount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return `₱${formatted}`;
 };
 

@@ -34,6 +34,7 @@ const AdminAdminsPage = lazy(() => import("./modules/admin-side/pages/AdminAdmin
 const AdminReportsPage = lazy(() => import("./modules/admin-side/pages/AdminReportsPage"));
 const AdminDelivery = lazy(() => import("./modules/admin-side/pages/AdminDelivery"));
 const AdminKitchenPage = lazy(() => import("./modules/admin-side/pages/AdminKitchenPage"));
+const AdminPricingSettingsPage = lazy(() => import("./modules/admin-side/pages/AdminPricingSettingsPage"));
 
 // ============ DRIVER PAGES ============
 import DriverLoginPage from "./modules/driver-side/pages/DriverLoginPage";
@@ -84,6 +85,7 @@ function App() {
                       <Route path="/admin/reports" element={<ProtectedAdminRoute><AdminReportsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/admins" element={<ProtectedAdminRoute><AdminAdminsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/kitchen" element={<ProtectedAdminRoute><AdminKitchenPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/settings/pricing" element={<ProtectedAdminRoute><AdminPricingSettingsPage /></ProtectedAdminRoute>} />
 
                       {/* ===== DRIVER ROUTES ===== */}
                       <Route path="/delivery/login" element={<DriverLoginPage />} />

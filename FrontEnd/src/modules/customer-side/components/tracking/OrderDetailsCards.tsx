@@ -3,6 +3,7 @@ import { ORDER_STATUS } from '../../../../utils/constants';
 import type { Order } from '../../../../contexts/OrderContext';
 import type { CartItem, Addon } from '../../../../types/product.types';
 import { formatCurrency } from '../../../../utils/formatters';
+import { useSettings } from '../../../../contexts/SettingsContext';
 
 interface OrderDetailsCardsProps {
   currentOrder: Order;
@@ -10,13 +11,14 @@ interface OrderDetailsCardsProps {
 }
 
 const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, formatDate }) => {
+  const { pricing } = useSettings();
   const subtotal = currentOrder.items?.reduce((sum: number, item: CartItem) => {
     const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + a.price, 0) || 0;
     return sum + (item.price + addonsTotal) * item.quantity;
   }, 0) || 0;
 
-  const deliveryFee = 49;
-  const serviceFee = 29;
+  const deliveryFee = pricing.delivery_fee_standard;
+  const serviceFee = pricing.service_fee;
   const vat = Math.max(0, currentOrder.total - subtotal - deliveryFee - serviceFee);
 
   return (

@@ -35,11 +35,19 @@ export interface DiscountInfo {
   expiryDate: string;
 }
 
+export interface PricingSettings {
+  service_fee: number;
+  delivery_fee_standard: number;
+  delivery_fee_priority: number;
+  vat_rate: number;
+}
+
 interface SettingsContextType {
   addresses: Address[];
   paymentMethods: PaymentMethod[];
   preferences: UserPreferences;
   discountInfo: DiscountInfo;
+  pricing: PricingSettings;
   isLoading: boolean;
   addAddress: (address: Omit<Address, 'id'>) => void;
   updateAddress: (id: string, address: Partial<Address>) => void;
@@ -80,13 +88,28 @@ const defaultDiscountInfo: DiscountInfo = {
   expiryDate: '',
 };
 
+const defaultPricing: PricingSettings = {
+  service_fee: 0,
+  delivery_fee_standard: 0,
+  delivery_fee_priority: 0,
+  vat_rate: 0.12,
+};
+
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences);
   const [discountInfo, setDiscountInfo] = useState<DiscountInfo>(defaultDiscountInfo);
+  const [pricing, setPricing] = useState<PricingSettings>(defaultPricing);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system.onrender.com/api'}/settings/pricing`)
+      .then(response => response.json())
+      .then(data => { if (data.settings) setPricing(data.settings); })
+      .catch(() => setPricing(defaultPricing));
+  }, []);
 
   useEffect(() => {
     if (user?.id) {
@@ -226,6 +249,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         paymentMethods,
         preferences,
         discountInfo,
+        pricing,
         isLoading,
         addAddress,
         updateAddress,

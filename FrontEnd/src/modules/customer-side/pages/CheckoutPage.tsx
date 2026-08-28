@@ -15,6 +15,7 @@ import { geocodeAddress, OPPA_DRU_STORE_COORDS } from '../../../services/geocodi
 import { cleanAddress } from '../../../utils/locationUtils';
 import { useCartCalculations } from '../../../hooks/useCartCalculations';
 import { useSettings } from '../../../contexts/SettingsContext';
+import { getAvailableDates, generateTimeSlots } from '../../../services/checkoutService';
 
 interface PaymentResult {
   success: boolean;
@@ -25,33 +26,6 @@ interface PaymentResult {
   paymentMethod: 'gcash' | 'credit_card' | 'cash_on_delivery';
   amount: number;
 }
-
-const getAvailableDates = () => {
-  const dates = [];
-  const today = new Date();
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + i);
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    dates.push({
-      date: date,
-      label: i === 0 ? 'Today' : dayNames[date.getDay()]
-    });
-  }
-  return dates;
-};
-
-const getTimeSlots = () => {
-  const slots = [];
-  for (let hour = 8; hour <= 22; hour++) {
-    for (let min = 0; min < 60; min += 30) {
-      const h = hour.toString().padStart(2, '0');
-      const m = min.toString().padStart(2, '0');
-      slots.push(`${h}:${m}`);
-    }
-  }
-  return slots;
-};
 
 const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
@@ -296,7 +270,7 @@ const CheckoutPage: React.FC = () => {
           setSelectedTime(null);
         }}
         availableDates={getAvailableDates()}
-        timeSlots={getTimeSlots()}
+        timeSlots={generateTimeSlots()}
         selectedDate={selectedDate}
         selectedTime={selectedTime}
         onSelectDate={setSelectedDate}
@@ -311,6 +285,8 @@ const CheckoutPage: React.FC = () => {
         isOpen={showGCashModal}
         onClose={() => setShowGCashModal(false)}
         amount={total}
+        items={cartItems}
+        deliveryType={deliveryType}
         onPaymentComplete={handlePaymentComplete}
         onPaymentCreated={setGCashReference}
       />
@@ -319,6 +295,8 @@ const CheckoutPage: React.FC = () => {
         isOpen={showCardModal}
         onClose={() => setShowCardModal(false)}
         amount={total}
+        items={cartItems}
+        deliveryType={deliveryType}
         onPaymentComplete={handlePaymentComplete}
       />
     </div>

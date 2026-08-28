@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 import type { CartItem } from '../types/product.types';
 import { calculateSubtotal } from '../services/cartService';
-import { getDeliveryFee } from '../services/checkoutService';
-import { FEES } from '../utils/constants';
+import { useSettings } from '../contexts/SettingsContext';
 
 interface UseCartCalculationsProps {
   cartItems: CartItem[];
@@ -17,15 +16,16 @@ export const useCartCalculations = ({
   voucherDiscount, 
   discount = 0 
 }: UseCartCalculationsProps) => {
+  const { pricing } = useSettings();
   return useMemo(() => {
     const subtotal = calculateSubtotal(cartItems);
-    const deliveryFee = getDeliveryFee(deliveryType);
-    const serviceFee = FEES.SERVICE;
+    const deliveryFee = deliveryType === 'priority' ? pricing.delivery_fee_priority : pricing.delivery_fee_standard;
+    const serviceFee = pricing.service_fee;
     
     const subtotalWithFees = subtotal + deliveryFee + serviceFee;
     const discountAmount = subtotalWithFees * discount;
     const afterDiscount = subtotalWithFees - discountAmount - voucherDiscount;
-    const vat = afterDiscount * FEES.VAT_RATE;
+    const vat = afterDiscount * pricing.vat_rate;
     const total = Math.round((afterDiscount + vat) * 100) / 100;
     
     return {
@@ -37,5 +37,5 @@ export const useCartCalculations = ({
       total,
       hasItems: cartItems.length > 0
     };
-  }, [cartItems, deliveryType, voucherDiscount, discount]);
+  }, [cartItems, deliveryType, voucherDiscount, discount, pricing]);
 };

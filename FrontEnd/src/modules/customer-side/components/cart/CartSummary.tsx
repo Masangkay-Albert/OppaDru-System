@@ -1,7 +1,7 @@
 // src/modules/customer-side/components/cart/CartSummary.tsx
 import React from 'react';
-import { FEES } from '../../../../utils/constants'; 
 import { formatCurrency } from '../../../../utils/formatters'; 
+import { useSettings } from '../../../../contexts/SettingsContext';
 
 interface CartSummaryProps {
   subtotal: number;
@@ -11,10 +11,11 @@ interface CartSummaryProps {
 }
 
 const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutlery, onCutleryChange }) => {
-  const deliveryFee = FEES.DELIVERY.STANDARD;
-  const serviceFee = FEES.SERVICE;
-  const vat = (subtotal + deliveryFee + serviceFee) * FEES.VAT_RATE;
-  const total = subtotal + deliveryFee + serviceFee + vat;
+  const { pricing } = useSettings();
+  const deliveryFee = pricing.delivery_fee_standard;
+  const serviceFee = pricing.service_fee;
+  const vat = (subtotal + deliveryFee + serviceFee) * pricing.vat_rate;
+  const total = Math.round((subtotal + deliveryFee + serviceFee + vat) * 100) / 100;
 
   return (
     <div className="border-t border-gray-200 bg-white">

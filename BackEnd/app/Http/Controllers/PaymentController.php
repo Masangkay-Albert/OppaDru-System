@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use App\Services\PricingService;
 
 class PaymentController extends Controller
 {
@@ -69,13 +70,17 @@ class PaymentController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'amount' => 'required|numeric|min:0.01',
+            'items' => 'required|array|min:1',
+            'delivery_type' => 'nullable|string|in:standard,priority',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
         }
 
-        $amount = round((float) $request->amount, 2);
+        $pricing = app(PricingService::class)->calculate($request->items, $request->input('delivery_type', 'standard'), (float) $request->input('voucher_discount', 0), (float) $request->input('discount_rate', 0));
+        if (round((float) $request->amount, 2) !== $pricing['total']) return response()->json(['success' => false, 'message' => 'The checkout total has changed. Please review your order.'], 422);
+        $amount = $pricing['total'];
         $secretKey = config('services.paymongo.secret_key');
         if (!$secretKey) {
             $payment = \App\Models\Payment::create([
@@ -243,6 +248,8 @@ class PaymentController extends Controller
             'expiry_year' => 'required|string|size:4',
             'cvv' => 'required|string|min:3|max:4',
             'amount' => 'required|numeric|min:0.01',
+            'items' => 'required|array|min:1',
+            'delivery_type' => 'nullable|string|in:standard,priority',
         ]);
 
         if ($validator->fails()) {
@@ -268,30 +275,26 @@ class PaymentController extends Controller
             ], 400);
         }
 
-        $this->simulateDelay(800, 2000);
-
-        $success = mt_rand(1, 100) <= 88;
-
-        if ($success) {
-            $masked = '****' . substr($cardNumber, -4);
-            return response()->json([
-                'success' => true,
-                'transaction_id' => 'CARD-' . time(),
-                'reference_number' => $this->generateReferenceNumber(),
-                'message' => "Payment successful! Card ending in {$masked}",
-                'timestamp' => now()->toISOString(),
-                'payment_method' => 'credit_card',
-                'amount' => (float) $request->amount
-            ]);
+        $pricing = app(PricingService::class)->calculate($request->items, $request->input('delivery_type', 'standard'), (float) $request->input('voucher_discount', 0), (float) $request->input('discount_rate', 0));
+        if (round((float) $request->amount, 2) !== $pricing['total']) {
+            return response()->json(['success' => false, 'message' => 'The checkout total has changed. Please review your order.'], 422);
         }
 
-        return response()->json([
-            'success' => false,
-            'message' => 'Card declined. Please try again.',
-            'timestamp' => now()->toISOString(),
-            'payment_method' => 'credit_card',
-            'amount' => (float) $request->amount
-        ], 400);
+        $secretKey = config('services.paymongo.secret_key');
+        if (!$secretKey || !str_starts_with($secretKey, 'sk_test_')) {
+            return response()->json(['success' => false, 'message' => 'Card sandbox payments are not configured.'], 503);
+        }
+
+        $reference = $this->generateReferenceNumber();
+        $headers = Http::withBasicAuth($secretKey, '')->acceptJson();
+        $intent = $headers->post(config('services.paymongo.base_url') . '/payment_intents', ['data' => ['attributes' => ['amount' => (int) round($pricing['total'] * 100), 'currency' => 'PHP', 'payment_method_allowed' => ['card']]]]);
+        if ($intent->failed()) return response()->json(['success' => false, 'message' => 'Unable to start card payment.'], 502);
+        $method = $headers->post(config('services.paymongo.base_url') . '/payment_methods', ['data' => ['attributes' => ['type' => 'card', 'details' => ['card_number' => $cardNumber, 'exp_month' => (int) $request->expiry_month, 'exp_year' => (int) $request->expiry_year, 'cvc' => $request->cvv]]]]);
+        if ($method->failed()) return response()->json(['success' => false, 'message' => 'Card details were rejected by the sandbox.'], 400);
+        $attached = $headers->post(config('services.paymongo.base_url') . '/payment_intents/' . $intent->json('data.id') . '/attach', ['data' => ['attributes' => ['payment_method' => $method->json('data.id')]]]);
+        $status = $attached->json('data.attributes.status');
+        $payment = \App\Models\Payment::create(['reference' => $reference, 'provider' => 'paymongo_test', 'provider_id' => $intent->json('data.id'), 'amount' => $pricing['total'], 'status' => $status === 'succeeded' ? 'paid' : 'failed', 'paid_at' => $status === 'succeeded' ? now() : null, 'failure_reason' => $status === 'succeeded' ? null : 'PayMongo sandbox declined the card.', 'metadata' => ['sandbox' => true, 'payment_method_id' => $method->json('data.id')]]);
+        return response()->json(['success' => $status === 'succeeded', 'transaction_id' => $intent->json('data.id'), 'reference_number' => $payment->reference, 'message' => $status === 'succeeded' ? 'Payment successful.' : 'Card declined by the sandbox.', 'timestamp' => now()->toISOString(), 'payment_method' => 'credit_card', 'amount' => (float) $payment->amount], $status === 'succeeded' ? 200 : 400);
     }
 
     /**

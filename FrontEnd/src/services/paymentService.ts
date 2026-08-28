@@ -60,32 +60,6 @@ class PaymentService {
     return /^(09|\+639)\d{9}$/.test(mobile.replace(/\s/g, ''));
   }
 
-  private validateCardNumber(card: string): boolean {
-    const clean = card.replace(/\s/g, '');
-    if (!/^\d{16}$/.test(clean)) return false;
-
-    let sum = 0;
-    let isEven = false;
-    for (let i = clean.length - 1; i >= 0; i--) {
-      let digit = parseInt(clean[i]);
-      if (isEven) {
-        digit *= 2;
-        if (digit > 9) digit -= 9;
-      }
-      sum += digit;
-      isEven = !isEven;
-    }
-    return sum % 10 === 0;
-  }
-
-  private isCardExpired(month: string, year: string): boolean {
-    const now = new Date();
-    const expYear = parseInt(year);
-    const expMonth = parseInt(month);
-    return expYear < now.getFullYear() ||
-           (expYear === now.getFullYear() && expMonth < now.getMonth() + 1);
-  }
-
   async requestGCashOTP(mobileNumber: string): Promise<OTPRequestResult> {
     try {
       const response = await fetch(`${API_URL}/payment/gcash/request-otp`, {
@@ -199,6 +173,8 @@ class PaymentService {
     expiryYear: string;
     cvv: string;
     amount: number;
+    items: Array<{ id: string; quantity: number }>;
+    deliveryType: 'standard' | 'priority';
   }): Promise<PaymentResult> {
     try {
       const response = await fetch(`${API_URL}/payment/card/process`, {
@@ -211,6 +187,8 @@ class PaymentService {
           expiry_year: data.expiryYear,
           cvv: data.cvv,
           amount: data.amount,
+          items: data.items.map(item => ({ product_id: item.id, quantity: item.quantity })),
+          delivery_type: data.deliveryType,
         }),
       });
 
@@ -230,46 +208,9 @@ class PaymentService {
         amount: result.amount || data.amount,
       };
     } catch (error) {
-      await this.simulateDelay(800, 2000);
-
-      if (!this.validateCardNumber(data.cardNumber)) {
-        return {
-          success: false,
-          message: 'Invalid card number.',
-          timestamp: new Date().toISOString(),
-          paymentMethod: 'credit_card',
-          amount: data.amount,
-        };
-      }
-
-      if (this.isCardExpired(data.expiryMonth, data.expiryYear)) {
-        return {
-          success: false,
-          message: 'Card has expired.',
-          timestamp: new Date().toISOString(),
-          paymentMethod: 'credit_card',
-          amount: data.amount,
-        };
-      }
-
-      const success = Math.random() < 0.88;
-
-      if (success) {
-        const masked = '****' + data.cardNumber.replace(/\s/g, '').slice(-4);
-        return {
-          success: true,
-          transactionId: `CARD-${Date.now()}`,
-          referenceNumber: this.generateReferenceNumber(),
-          message: `Payment successful! Card ending in ${masked}`,
-          timestamp: new Date().toISOString(),
-          paymentMethod: 'credit_card',
-          amount: data.amount,
-        };
-      }
-
       return {
         success: false,
-        message: 'Card declined. Try again.',
+        message: error instanceof Error ? error.message : 'Card payment failed.',
         timestamp: new Date().toISOString(),
         paymentMethod: 'credit_card',
         amount: data.amount,
