@@ -72,13 +72,16 @@ class PaymentController extends Controller
             'amount' => 'required|numeric|min:0.01',
             'items' => 'required|array|min:1',
             'delivery_type' => 'nullable|string|in:standard,priority',
+            'delivery_coordinates' => 'nullable|array',
+            'delivery_coordinates.lat' => 'required_with:delivery_coordinates|numeric|between:-90,90',
+            'delivery_coordinates.lng' => 'required_with:delivery_coordinates|numeric|between:-180,180',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
         }
 
-        $pricing = app(PricingService::class)->calculate($request->items, $request->input('delivery_type', 'standard'), (float) $request->input('voucher_discount', 0), (float) $request->input('discount_rate', 0));
+        $pricing = app(PricingService::class)->calculate($request->items, $request->input('delivery_type', 'standard'), (float) $request->input('voucher_discount', 0), (float) $request->input('discount_rate', 0), $request->input('delivery_coordinates'));
         if (round((float) $request->amount, 2) !== $pricing['total']) return response()->json(['success' => false, 'message' => 'The checkout total has changed. Please review your order.'], 422);
         $amount = $pricing['total'];
         $secretKey = config('services.paymongo.secret_key');
@@ -250,6 +253,9 @@ class PaymentController extends Controller
             'amount' => 'required|numeric|min:0.01',
             'items' => 'required|array|min:1',
             'delivery_type' => 'nullable|string|in:standard,priority',
+            'delivery_coordinates' => 'nullable|array',
+            'delivery_coordinates.lat' => 'required_with:delivery_coordinates|numeric|between:-90,90',
+            'delivery_coordinates.lng' => 'required_with:delivery_coordinates|numeric|between:-180,180',
         ]);
 
         if ($validator->fails()) {
@@ -275,7 +281,7 @@ class PaymentController extends Controller
             ], 400);
         }
 
-        $pricing = app(PricingService::class)->calculate($request->items, $request->input('delivery_type', 'standard'), (float) $request->input('voucher_discount', 0), (float) $request->input('discount_rate', 0));
+        $pricing = app(PricingService::class)->calculate($request->items, $request->input('delivery_type', 'standard'), (float) $request->input('voucher_discount', 0), (float) $request->input('discount_rate', 0), $request->input('delivery_coordinates'));
         if (round((float) $request->amount, 2) !== $pricing['total']) {
             return response()->json(['success' => false, 'message' => 'The checkout total has changed. Please review your order.'], 422);
         }

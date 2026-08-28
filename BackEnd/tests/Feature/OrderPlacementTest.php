@@ -53,7 +53,7 @@ class OrderPlacementTest extends TestCase
                         'quantity' => 2,
                     ],
                 ],
-                'total' => 476.56,
+                'total' => 0,
                 'delivery_address' => 'Block 1, Lot 2, Dasmarinas, Cavite',
                 'payment_method' => 'cash_on_delivery',
                 'phone' => '09171234567',
@@ -62,7 +62,9 @@ class OrderPlacementTest extends TestCase
         $orderResponse
             ->assertCreated()
             ->assertJsonPath('order.email', $user->email)
-            ->assertJsonPath('order.total', '476.56')
+            ->assertJsonPath('order.total', '517.44')
+            ->assertJsonPath('order.delivery_fee', '49.00')
+            ->assertJsonPath('order.service_fee', '15.00')
             ->assertJsonPath('order.items.0.product_id', $product->id);
     }
 }

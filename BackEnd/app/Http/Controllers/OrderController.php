@@ -17,6 +17,7 @@ class OrderController extends Controller
         $orders = Order::select([
             'id', 'order_number', 'email', 'user_id', 'total', 'status',
             'payment_method', 'delivery_address', 'phone', 'items', 'created_at',
+            'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'service_fee', 'service_fee_rule',
         ])->with('user:id,full_name')->orderBy('created_at', 'desc')->get();
         
         $formattedOrders = $orders->map(function ($order) {
@@ -32,6 +33,11 @@ class OrderController extends Controller
                 'delivery_address' => $order->delivery_address,
                 'phone' => $order->phone,
                 'items' => $order->items,
+                'delivery_fee' => $order->delivery_fee,
+                'delivery_distance_km' => $order->delivery_distance_km,
+                'delivery_calculation_method' => $order->delivery_calculation_method,
+                'service_fee' => $order->service_fee,
+                'service_fee_rule' => $order->service_fee_rule,
                 'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
             ];
         });
@@ -63,6 +69,11 @@ class OrderController extends Controller
             'delivery_address' => $order->delivery_address,
             'phone' => $order->phone,
             'items' => $order->items,
+            'delivery_fee' => $order->delivery_fee,
+            'delivery_distance_km' => $order->delivery_distance_km,
+            'delivery_calculation_method' => $order->delivery_calculation_method,
+            'service_fee' => $order->service_fee,
+            'service_fee_rule' => $order->service_fee_rule,
             'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
         ];
 
@@ -80,12 +91,15 @@ class OrderController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.selected_addons' => 'nullable|array',
             'items.*.special_instructions' => 'nullable|string',
-            'total' => 'required|numeric|min:0',
+            'total' => 'nullable|numeric|min:0',
             'delivery_address' => 'required|string',
             'payment_method' => 'required|string|in:cash_on_delivery,gcash,credit_card',
             'delivery_type' => 'nullable|string|in:standard,priority',
             'voucher_discount' => 'nullable|numeric|min:0',
             'discount_rate' => 'nullable|numeric|min:0|max:1',
+            'delivery_coordinates' => 'nullable|array',
+            'delivery_coordinates.lat' => 'required_with:delivery_coordinates|numeric|between:-90,90',
+            'delivery_coordinates.lng' => 'required_with:delivery_coordinates|numeric|between:-180,180',
             'phone' => 'required|string',
             'payment_reference' => 'required_if:payment_method,gcash,credit_card|nullable|string|exists:payments,reference',
         ]);
@@ -99,7 +113,8 @@ class OrderController extends Controller
                 $request->items,
                 $request->input('delivery_type', 'standard'),
                 (float) $request->input('voucher_discount', 0),
-                (float) $request->input('discount_rate', 0)
+                (float) $request->input('discount_rate', 0),
+                $request->input('delivery_coordinates')
             );
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
@@ -142,6 +157,11 @@ class OrderController extends Controller
             'email' => $request->email,
             'user_id' => $userId,
             'total' => $total,
+            'delivery_fee' => $pricing['deliveryFee'],
+            'delivery_distance_km' => $pricing['deliveryDistanceKm'],
+            'delivery_calculation_method' => $pricing['deliveryCalculationMethod'],
+            'service_fee' => $pricing['serviceFee'],
+            'service_fee_rule' => $pricing['serviceFeeRule'],
             'status' => 'pending',
             'payment_method' => $request->payment_method,
             'delivery_address' => $request->delivery_address,
@@ -197,6 +217,11 @@ class OrderController extends Controller
                     'delivery_address' => $order->delivery_address,
                     'phone' => $order->phone,
                     'items' => $order->items,
+                    'delivery_fee' => $order->delivery_fee,
+                    'delivery_distance_km' => $order->delivery_distance_km,
+                    'delivery_calculation_method' => $order->delivery_calculation_method,
+                    'service_fee' => $order->service_fee,
+                    'service_fee_rule' => $order->service_fee_rule,
                     'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
                 ];
             });

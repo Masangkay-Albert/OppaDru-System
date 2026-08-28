@@ -21,6 +21,11 @@ class Order extends Model
         'user_id',
         'order_number',
         'total',
+        'delivery_fee',
+        'delivery_distance_km',
+        'delivery_calculation_method',
+        'service_fee',
+        'service_fee_rule',
         'status',
         'payment_method',
         'delivery_address',
@@ -32,6 +37,9 @@ class Order extends Model
 
     protected $casts = [
         'total' => 'decimal:2',
+        'delivery_fee' => 'decimal:2',
+        'delivery_distance_km' => 'decimal:3',
+        'service_fee' => 'decimal:2',
         'items' => 'array',
     ];
 

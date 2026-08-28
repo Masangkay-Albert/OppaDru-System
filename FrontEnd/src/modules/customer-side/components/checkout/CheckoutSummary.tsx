@@ -13,6 +13,7 @@ interface CheckoutSummaryProps {
   onPlaceOrder: () => void;
   onVoucherApply: (discount: number) => void;
   voucherDiscount: number;
+  deliveryCoordinates?: { lat: number; lng: number };
   isPlacingOrder?: boolean;
 }
 
@@ -22,6 +23,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   onPlaceOrder,
   onVoucherApply,
   voucherDiscount,
+  deliveryCoordinates,
   isPlacingOrder = false
 }) => {
   const navigate = useNavigate();
@@ -32,7 +34,8 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
     cartItems,
     deliveryType,
     voucherDiscount,
-    discount: activeDiscount.discountRate
+    discount: activeDiscount.discountRate,
+    deliveryCoordinates,
   });
 
   if (!hasItems) {

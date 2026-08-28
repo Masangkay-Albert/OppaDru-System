@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiShoppingCart } from 'react-icons/fi';
 import { useCart } from '../../../contexts/CartContext';
@@ -11,7 +11,7 @@ import GCashPaymentModal from '../components/checkout/GCashPaymentModal';
 import CreditCardPaymentModal from '../components/checkout/CreditCardPaymentModal';
 import ScheduleModal from '../components/checkout/ScheduleModal';
 import { useCheckoutForm } from '../../../hooks/useCheckoutForm';
-import { geocodeAddress, OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
+import { geocodeAddress, OPPA_DRU_STORE_COORDS, type Coordinates } from '../../../services/geocodingService';
 import { cleanAddress } from '../../../utils/locationUtils';
 import { useCartCalculations } from '../../../hooks/useCartCalculations';
 import { useSettings } from '../../../contexts/SettingsContext';
@@ -44,6 +44,7 @@ const CheckoutPage: React.FC = () => {
   const [scheduleDisplay, setScheduleDisplay] = useState('Select date & time');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates>(OPPA_DRU_STORE_COORDS);
   const orderRequestRef = useRef<Promise<void> | null>(null);
 
   const {
@@ -58,11 +59,26 @@ const CheckoutPage: React.FC = () => {
     voucherDiscount,
   } = useCheckoutForm();
 
+  useEffect(() => {
+    if (!address.street.trim()) {
+      setDeliveryCoordinates(OPPA_DRU_STORE_COORDS);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      const coords = await geocodeAddress(cleanAddress(address.street));
+      setDeliveryCoordinates(coords || OPPA_DRU_STORE_COORDS);
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [address.street]);
+
   const { total } = useCartCalculations({
     cartItems,
     deliveryType,
     voucherDiscount,
     discount: activeDiscount.discountRate,
+    deliveryCoordinates,
   });
 
   const buildFullDeliveryAddress = () => {
@@ -256,6 +272,7 @@ const CheckoutPage: React.FC = () => {
               onPlaceOrder={handlePlaceOrder}
               onVoucherApply={() => {}}
               voucherDiscount={voucherDiscount}
+              deliveryCoordinates={deliveryCoordinates}
               isPlacingOrder={isPlacingOrder}
             />
           </div>
@@ -289,6 +306,7 @@ const CheckoutPage: React.FC = () => {
         deliveryType={deliveryType}
         voucherDiscount={voucherDiscount}
         discountRate={activeDiscount.discountRate}
+        deliveryCoordinates={deliveryCoordinates}
         onPaymentComplete={handlePaymentComplete}
         onPaymentCreated={setGCashReference}
       />
@@ -301,6 +319,7 @@ const CheckoutPage: React.FC = () => {
         deliveryType={deliveryType}
         voucherDiscount={voucherDiscount}
         discountRate={activeDiscount.discountRate}
+        deliveryCoordinates={deliveryCoordinates}
         onPaymentComplete={handlePaymentComplete}
       />
     </div>

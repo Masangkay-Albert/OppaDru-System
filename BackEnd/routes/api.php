@@ -49,6 +49,7 @@ Route::get('/orders', [OrderController::class, 'index']);
 Route::get('/orders/customers', [OrderController::class, 'getAllCustomers']);
 Route::middleware(['auth:api', 'verified-user'])->get('/orders/user', [OrderController::class, 'getUserOrders']);
 Route::get('/orders/{id}', [OrderController::class, 'show']);
+Route::get('/settings/pricing', [SettingController::class, 'index']);
 
 Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);
 Route::post('/payment/confirm/{reference}', [PaymentController::class, 'confirmPaymentFromMobile']);

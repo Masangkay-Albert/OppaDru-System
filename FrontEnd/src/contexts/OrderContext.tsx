@@ -193,6 +193,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         delivery_address: address,
         payment_method: paymentMethod as 'cash_on_delivery' | 'gcash' | 'credit_card',
         phone: phone || '',
+        delivery_coordinates: deliveryAddressCoords,
         payment_reference: paymentReference,
       };
 

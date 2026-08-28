@@ -177,6 +177,7 @@ class PaymentService {
     deliveryType: 'standard' | 'priority';
     voucherDiscount: number;
     discountRate: number;
+    deliveryCoordinates?: { lat: number; lng: number };
   }): Promise<PaymentResult> {
     try {
       const response = await fetch(`${API_URL}/payment/card/process`, {
@@ -197,6 +198,7 @@ class PaymentService {
           delivery_type: data.deliveryType,
           voucher_discount: data.voucherDiscount,
           discount_rate: data.discountRate,
+          delivery_coordinates: data.deliveryCoordinates,
         }),
       });
 

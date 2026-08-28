@@ -16,6 +16,7 @@ export interface CreateOrderData {
     delivery_address: string;
     payment_method: 'cash_on_delivery' | 'gcash' | 'credit_card';
     phone: string;
+    delivery_coordinates?: { lat: number; lng: number };
     payment_reference?: string;
 }
 

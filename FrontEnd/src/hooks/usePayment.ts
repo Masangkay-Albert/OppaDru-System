@@ -70,6 +70,7 @@ export const usePayment = () => {
     deliveryType: 'standard' | 'priority';
     voucherDiscount: number;
     discountRate: number;
+    deliveryCoordinates?: { lat: number; lng: number };
   }) => {
     setIsProcessing(true);
     setError(null);

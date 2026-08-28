@@ -10,14 +10,21 @@ class PricingService
     public function settings(): array
     {
         return [
-            'service_fee' => $this->setting('service_fee', 29),
-            'delivery_fee_standard' => $this->setting('delivery_fee_standard', 49),
-            'delivery_fee_priority' => $this->setting('delivery_fee_priority', 99),
+            'delivery_base_fee' => $this->setting('delivery_base_fee', 49),
+            'delivery_base_distance_km' => $this->setting('delivery_base_distance_km', 3),
+            'delivery_per_km_rate' => $this->setting('delivery_per_km_rate', 10),
+            'delivery_free_subtotal' => $this->setting('delivery_free_subtotal', 999),
+            'delivery_max_fee' => $this->setting('delivery_max_fee', 150),
+            'service_fee_rate' => $this->setting('service_fee_rate', 0.03, 4),
+            'service_fee_min' => $this->setting('service_fee_min', 15),
+            'service_fee_max' => $this->setting('service_fee_max', 80),
+            'merchant_latitude' => $this->setting('merchant_latitude', 14.329, 6),
+            'merchant_longitude' => $this->setting('merchant_longitude', 120.936, 6),
             'vat_rate' => 0.12,
         ];
     }
 
-    public function calculate(array $items, string $deliveryType = 'standard', float $voucherDiscount = 0, float $discountRate = 0): array
+    public function calculate(array $items, string $deliveryType = 'standard', float $voucherDiscount = 0, float $discountRate = 0, ?array $deliveryCoordinates = null): array
     {
         $productIds = collect($items)->pluck('product_id')->filter()->unique();
         $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
@@ -32,17 +39,45 @@ class PricingService
         }
 
         $settings = $this->settings();
-        $deliveryFee = $deliveryType === 'priority' ? $settings['delivery_fee_priority'] : $settings['delivery_fee_standard'];
-        $discountAmount = round(($subtotal + $deliveryFee + $settings['service_fee']) * max(0, $discountRate), 2);
-        $afterDiscount = max(0, $subtotal + $deliveryFee + $settings['service_fee'] - $discountAmount - max(0, $voucherDiscount));
+        $deliveryDistanceKm = $this->distanceInKilometers($deliveryCoordinates, $settings);
+        $deliveryFee = $subtotal >= $settings['delivery_free_subtotal']
+            ? 0.0
+            : min(
+                $settings['delivery_max_fee'],
+                $settings['delivery_base_fee'] + max(0, $deliveryDistanceKm - $settings['delivery_base_distance_km']) * $settings['delivery_per_km_rate']
+            );
+        $serviceFee = min($settings['service_fee_max'], max($settings['service_fee_min'], $subtotal * $settings['service_fee_rate']));
+        $discountAmount = round(($subtotal + $deliveryFee + $serviceFee) * max(0, $discountRate), 2);
+        $afterDiscount = max(0, $subtotal + $deliveryFee + $serviceFee - $discountAmount - max(0, $voucherDiscount));
         $vat = round($afterDiscount * $settings['vat_rate'], 2);
         $total = round($afterDiscount + $vat, 2);
 
-        return compact('subtotal', 'deliveryFee', 'discountAmount', 'vat', 'total') + ['serviceFee' => $settings['service_fee']];
+        return compact('subtotal', 'deliveryFee', 'serviceFee', 'deliveryDistanceKm', 'discountAmount', 'vat', 'total') + [
+            'deliveryCalculationMethod' => $subtotal >= $settings['delivery_free_subtotal']
+                ? 'free_delivery_subtotal_threshold'
+                : 'base_fee_plus_distance_rate_capped',
+            'serviceFeeRule' => 'clamped_percentage:' . ($settings['service_fee_rate'] * 100) . '%_min_' . $settings['service_fee_min'] . '_max_' . $settings['service_fee_max'],
+        ];
     }
 
-    private function setting(string $key, float $default): float
+    private function distanceInKilometers(?array $coordinates, array $settings): float
     {
-        return round((float) (SystemSetting::where('key', $key)->value('value') ?? $default), 2);
+        if (!$coordinates || !isset($coordinates['lat'], $coordinates['lng'])) {
+            return 0.0;
+        }
+
+        $earthRadiusKm = 6371;
+        $latitudeDelta = deg2rad((float) $coordinates['lat'] - $settings['merchant_latitude']);
+        $longitudeDelta = deg2rad((float) $coordinates['lng'] - $settings['merchant_longitude']);
+        $latitude = deg2rad($settings['merchant_latitude']);
+        $destinationLatitude = deg2rad((float) $coordinates['lat']);
+        $a = sin($latitudeDelta / 2) ** 2 + cos($latitude) * cos($destinationLatitude) * sin($longitudeDelta / 2) ** 2;
+
+        return round($earthRadiusKm * 2 * atan2(sqrt($a), sqrt(1 - $a)), 3);
+    }
+
+    private function setting(string $key, float $default, int $decimals = 2): float
+    {
+        return round((float) (SystemSetting::where('key', $key)->value('value') ?? $default), $decimals);
     }
 }
