@@ -83,6 +83,12 @@ const AdminOrdersPage: React.FC = () => {
     return isNaN(num) ? 0 : num;
   };
 
+  const getOrderDate = (order: Pick<AdminOrder, 'created_at' | 'order_number'>) => {
+    if (order.created_at) return order.created_at;
+    const match = order.order_number?.match(/(\d{4})(\d{2})(\d{2})/);
+    return match ? `${match[1]}-${match[2]}-${match[3]}T00:00:00` : '';
+  };
+
   const formatDate = (date: string) => {
     if (!date) return 'N/A';
     const d = new Date(date);
@@ -194,7 +200,7 @@ const AdminOrdersPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-[var(--oppa-text-muted)]">
-                      {formatDate(order.created_at)}
+                      {formatDate(getOrderDate(order))}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -277,7 +283,7 @@ const AdminOrdersPage: React.FC = () => {
 
               <div>
                 <p className="text-xs text-[var(--oppa-text-muted)]">Order Date</p>
-                <p className="text-sm">{formatDate(selectedOrder.created_at)}</p>
+                <p className="text-sm">{formatDate(getOrderDate(selectedOrder))}</p>
               </div>
 
               <div>
