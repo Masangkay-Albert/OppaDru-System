@@ -49,6 +49,8 @@ class AuthController extends Controller
 
             return response()->json([
                 'message' => 'We could not send the verification email. Please try again later.',
+                'debug_error' => $exception->getMessage(), // TEMPORARY - remove once fixed
+                'debug_class' => get_class($exception),     // TEMPORARY - remove once fixed
             ], 503);
         }
 
