@@ -173,7 +173,7 @@ class PaymentService {
     expiryYear: string;
     cvv: string;
     amount: number;
-    items: Array<{ id: string; quantity: number }>;
+    items: Array<{ id: string; quantity: number; selectedAddons?: Array<{ id: string; price: number }> }>;
     deliveryType: 'standard' | 'priority';
   }): Promise<PaymentResult> {
     try {
@@ -187,7 +187,11 @@ class PaymentService {
           expiry_year: data.expiryYear,
           cvv: data.cvv,
           amount: data.amount,
-          items: data.items.map(item => ({ product_id: item.id, quantity: item.quantity })),
+          items: data.items.map(item => ({
+            product_id: item.id,
+            quantity: item.quantity,
+            selected_addons: item.selectedAddons?.map(addon => ({ id: addon.id, price: addon.price })) || [],
+          })),
           delivery_type: data.deliveryType,
         }),
       });

@@ -27,7 +27,8 @@ class PricingService
             if (!$product || (int) ($item['quantity'] ?? 0) < 1) {
                 throw new \InvalidArgumentException('One or more order items are invalid.');
             }
-            $subtotal += (float) $product->price * (int) $item['quantity'];
+            $addons = collect($item['selected_addons'] ?? [])->sum(fn (array $addon) => (float) ($addon['price'] ?? 0));
+            $subtotal += ((float) $product->price + $addons) * (int) $item['quantity'];
         }
 
         $settings = $this->settings();

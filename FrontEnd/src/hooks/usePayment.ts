@@ -66,7 +66,7 @@ export const usePayment = () => {
     expiryYear: string;
     cvv: string;
     amount: number;
-    items: Array<{ id: string; quantity: number }>;
+    items: Array<{ id: string; quantity: number; selectedAddons?: Array<{ id: string; price: number }> }>;
     deliveryType: 'standard' | 'priority';
   }) => {
     setIsProcessing(true);

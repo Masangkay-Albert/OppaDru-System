@@ -79,7 +79,11 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
       paymentCreationRef.current = fetch(`${API_URL}/payment/gcash/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, delivery_type: deliveryType, items: items.map(item => ({ product_id: item.id, quantity: item.quantity })) }),
+        body: JSON.stringify({ amount, delivery_type: deliveryType, items: items.map(item => ({
+          product_id: item.id,
+          quantity: item.quantity,
+          selected_addons: item.selectedAddons?.map(addon => ({ id: addon.id, price: addon.price })) || [],
+        })) }),
       }).then(async response => {
         const data = await response.json();
         if (!response.ok || !data.success || !data.reference) {
