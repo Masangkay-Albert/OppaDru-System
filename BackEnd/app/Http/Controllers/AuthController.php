@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -37,7 +38,14 @@ class AuthController extends Controller
             'email_verified_at' => null,
         ]);
 
-        $user->sendEmailVerificationNotification();
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (\Throwable $exception) {
+            Log::error('Registration email could not be sent.', [
+                'user_id' => $user->id,
+                'exception' => $exception,
+            ]);
+        }
 
         return response()->json([
             'user' => $user->makeHidden(['password', 'api_token']),
