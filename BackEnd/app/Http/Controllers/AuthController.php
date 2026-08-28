@@ -43,7 +43,8 @@ class AuthController extends Controller
         } catch (\Throwable $exception) {
             Log::error('Registration email could not be sent.', [
                 'user_id' => $user->id,
-                'exception' => $exception,
+                'exception_class' => get_class($exception),
+                'exception_message' => $exception->getMessage(),
             ]);
 
             return response()->json([

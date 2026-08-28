@@ -42,7 +42,8 @@ class EmailVerificationController extends Controller
             } catch (\Throwable $exception) {
                 Log::error('Verification email could not be resent.', [
                     'user_id' => $user->id,
-                    'exception' => $exception,
+                    'exception_class' => get_class($exception),
+                    'exception_message' => $exception->getMessage(),
                 ]);
 
                 return response()->json([

@@ -23,7 +23,8 @@ Artisan::command('mail:test {recipient}', function (string $recipient) {
     } catch (\Throwable $exception) {
         Log::error('Production mail test failed.', [
             'recipient' => $recipient,
-            'exception' => $exception,
+            'exception_class' => get_class($exception),
+            'exception_message' => $exception->getMessage(),
         ]);
         $this->error('Mail delivery failed. Check the Render logs for the exception details.');
         return 1;
