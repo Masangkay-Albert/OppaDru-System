@@ -40,4 +40,9 @@ class Product extends Model
             }
         });
     }
+
+    public function addonGroups()
+    {
+        return $this->belongsToMany(AddonGroup::class, 'product_addon_groups', 'product_id', 'addon_group_id');
+    }
 }

@@ -258,7 +258,7 @@ class ProductController extends Controller
     public function show($id)
     {
         try {
-            $product = Product::findOrFail($id);
+            $product = Product::with(['addonGroups.addons'])->findOrFail($id);
             return response()->json($product);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Product not found'], 404);

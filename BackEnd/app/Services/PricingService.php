@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\Addon;
+use App\Models\AddonGroup;
 use App\Models\SystemSetting;
 
 class PricingService
@@ -34,7 +36,23 @@ class PricingService
             if (!$product || (int) ($item['quantity'] ?? 0) < 1) {
                 throw new \InvalidArgumentException('One or more order items are invalid.');
             }
-            $addons = collect($item['selected_addons'] ?? [])->sum(fn (array $addon) => (float) ($addon['price'] ?? 0));
+            $allowedGroupIds = AddonGroup::where('is_active', true)
+                ->where(function ($query) use ($product) {
+                    $query->whereJsonContains('applicable_categories', $product->category)
+                        ->orWhereHas('products', fn ($products) => $products->where('products.id', $product->id));
+                })->pluck('id');
+            $addonIds = collect($item['selected_addons'] ?? [])->pluck('id')->filter();
+            $selectedAddons = Addon::whereIn('id', $addonIds)
+                ->whereIn('addon_group_id', $allowedGroupIds)
+                ->where('is_active', true)
+                ->get()->keyBy('id');
+            if ($selectedAddons->count() !== $addonIds->unique()->count()) {
+                throw new \InvalidArgumentException('One or more selected add-ons are unavailable for this item.');
+            }
+            $addons = collect($item['selected_addons'] ?? [])->sum(function (array $addon) use ($selectedAddons) {
+                $quantity = max(1, (int) ($addon['quantity'] ?? 1));
+                return (float) $selectedAddons->get($addon['id'])->price * $quantity;
+            });
             $subtotal += ((float) $product->price + $addons) * (int) $item['quantity'];
         }
 

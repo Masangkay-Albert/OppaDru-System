@@ -1,31 +1,33 @@
 //src/modules/customer-side/components/common/AddonsSection.tsx
 import React, { useState } from 'react';
 import { FiChevronDown, FiChevronUp } from 'react-icons/fi';
-import type { Addon } from '../../../../types/product.types';
+import type { Addon, AddonGroup } from '../../../../types/product.types';
 
 interface AddonsSectionProps {
-  addons: Addon[];
+  group: AddonGroup;
   selectedAddons: Addon[];
   onToggleAddon: (addon: Addon) => void;
+  onChangeQuantity?: (addon: Addon, delta: number) => void;
   initialVisibleCount?: number;
 }
 
 const AddonsSection: React.FC<AddonsSectionProps> = ({
-  addons,
+  group,
   selectedAddons,
   onToggleAddon,
+  onChangeQuantity,
   initialVisibleCount = 3,
 }) => {
   const [showAll, setShowAll] = useState(false);
 
-  if (addons.length === 0) return null;
+  if (group.addons.length === 0) return null;
 
-  const visibleAddons = showAll ? addons : addons.slice(0, initialVisibleCount);
-  const remainingCount = addons.length - initialVisibleCount;
+  const visibleAddons = showAll ? group.addons : group.addons.slice(0, initialVisibleCount);
+  const remainingCount = group.addons.length - initialVisibleCount;
 
   return (
     <div className="mb-5">
-      <label className="block font-semibold text-sm text-gray-800 mb-2">Add-ons</label>
+      <label className="block font-semibold text-sm text-gray-800 mb-2">{group.name}</label>
       <div className="flex flex-col gap-2">
         {visibleAddons.map((addon) => (
           <label
@@ -33,8 +35,8 @@ const AddonsSection: React.FC<AddonsSectionProps> = ({
             className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 cursor-pointer hover:bg-[#d8f3dc] transition-colors"
           >
             <input
-              type="checkbox"
               checked={selectedAddons.some((a) => a.id === addon.id)}
+              type={group.selection_type === 'single' ? 'radio' : 'checkbox'}
               onChange={() => onToggleAddon(addon)}
               className="w-4 h-4 cursor-pointer accent-[#2d6a4f] shrink-0"
             />
@@ -52,6 +54,13 @@ const AddonsSection: React.FC<AddonsSectionProps> = ({
               )}
             </div>
             <span className="flex-1 text-sm font-medium text-gray-800">{addon.name}</span>
+            {group.supports_quantity && selectedAddons.some((a) => a.id === addon.id) && (
+              <span className="flex items-center gap-1">
+                <button type="button" onClick={() => onChangeQuantity?.(addon, -1)} className="h-6 w-6 rounded bg-white">-</button>
+                <span className="min-w-4 text-center text-xs">{selectedAddons.find((a) => a.id === addon.id)?.quantity || 1}</span>
+                <button type="button" onClick={() => onChangeQuantity?.(addon, 1)} className="h-6 w-6 rounded bg-white">+</button>
+              </span>
+            )}
             <span className="text-xs font-semibold text-[#e76f51] shrink-0">+ ₱{addon.price}</span>
           </label>
         ))}

@@ -13,7 +13,7 @@ interface OrderDetailsCardsProps {
 const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, formatDate }) => {
   const { pricing } = useSettings();
   const subtotal = currentOrder.items?.reduce((sum: number, item: CartItem) => {
-    const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + a.price, 0) || 0;
+    const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + a.price * (a.quantity || 1), 0) || 0;
     return sum + (item.price + addonsTotal) * item.quantity;
   }, 0) || 0;
 
@@ -27,7 +27,7 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
         <h3 className="font-semibold text-gray-800 mb-3">Order Items</h3>
         <div className="space-y-3 max-h-56 overflow-y-auto mb-3">
           {currentOrder.items?.map((item: CartItem, idx: number) => {
-            const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + a.price, 0) || 0;
+            const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + a.price * (a.quantity || 1), 0) || 0;
             const itemTotal = (item.price + addonsTotal) * item.quantity;
             return (
               <div key={idx} className="text-sm py-1 border-b border-gray-100 last:border-0">

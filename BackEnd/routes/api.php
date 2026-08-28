@@ -12,6 +12,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\DriverController;
 use App\Http\Controllers\TargetProfitSaleController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\AddonController;
 use Illuminate\Http\Request;
 
 Route::get('/test', function () {
@@ -44,6 +45,7 @@ Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/available', [ProductController::class, 'getAvailable']);
 Route::get('/products/category/{category}', [ProductController::class, 'getByCategory']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
+Route::get('/addon-groups', [AddonController::class, 'index']);
 
 Route::get('/orders', [OrderController::class, 'index']);
 Route::get('/orders/customers', [OrderController::class, 'getAllCustomers']);
@@ -80,6 +82,11 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
 });
 
 Route::prefix('admin')->group(function () {
+    Route::post('/addon-groups', [AddonController::class, 'storeGroup']);
+    Route::put('/addon-groups/{addonGroup}', [AddonController::class, 'updateGroup']);
+    Route::post('/addon-groups/{addonGroup}/addons', [AddonController::class, 'store']);
+    Route::put('/addons/{addon}', [AddonController::class, 'update']);
+    Route::put('/products/{product}/addon-groups', [AddonController::class, 'assignProduct']);
     Route::get('/products', [ProductController::class, 'getAllForAdmin']);
     Route::get('/products/count', [ProductController::class, 'count']);
     Route::post('/products/upload-image', [ProductController::class, 'uploadImage']);

@@ -5,7 +5,7 @@ export interface OrderItem {
     product_name: string;
     product_price: number;
     quantity: number;
-    selected_addons?: Array<{ id: string; name: string; price: number }>;
+    selected_addons?: Array<{ id: string; name: string; price: number; quantity?: number }>;
     special_instructions?: string;
 }
 

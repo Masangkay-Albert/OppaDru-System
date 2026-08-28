@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import type { Product, CartItem, Addon } from '../../../../types/product.types';
+import type { Product, CartItem, Addon, AddonGroup } from '../../../../types/product.types';
 import { useCart } from '../../../../contexts/CartContext';
 import { useFavorites } from '../../../../contexts/FavoritesContext';
-import { addons as allAddons } from '../../../../data/mockData';
 import QuantitySelector from './QuantitySelector';
 import AddonsSection from '../common/AddonsSection';
 import { FiX } from 'react-icons/fi';
 import '../../../../styles/modal.css';
+import { productService } from '../../../../services/productService';
 
 interface ProductModalProps {
   product: Product | null;
@@ -17,8 +17,6 @@ interface ProductModalProps {
   initialAddons?: Addon[];
   initialInstructions?: string;
 }
-
-const addonsByProduct: Record<string, Addon[]> = {};
 
 const ProductModal: React.FC<ProductModalProps> = ({
   product,
@@ -35,6 +33,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [isClosing, setIsClosing] = useState(false);
+  const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -63,19 +62,36 @@ const ProductModal: React.FC<ProductModalProps> = ({
     }
   }, [product?.id, editCartItemId]);
 
+  useEffect(() => {
+    if (!product) return;
+    setAddonGroups(product.addonGroups || []);
+    if (!product.addonGroups) {
+      productService.getAddonGroups(product.category, product.id).then(setAddonGroups).catch(() => setAddonGroups([]));
+    }
+  }, [product?.id, product?.category]);
+
   if (!product) return null;
 
-  const addons = addonsByProduct[product.id] || allAddons;
-
-  const getAddonsTotal = () => selectedAddons.reduce((sum, addon) => sum + addon.price, 0);
+  const getAddonsTotal = () => selectedAddons.reduce((sum, addon) => sum + addon.price * (addon.quantity || 1), 0);
   const getTotalPrice = () => (product.price + getAddonsTotal()) * quantity;
 
-  const toggleAddon = (addon: Addon) => {
-    setSelectedAddons(prev =>
-      prev.find(a => a.id === addon.id)
-        ? prev.filter(a => a.id !== addon.id)
-        : [...prev, addon]
-    );
+  const toggleAddon = (addon: Addon, group: AddonGroup) => {
+    setSelectedAddons(prev => {
+      const existing = prev.find((item) => item.id === addon.id);
+      if (existing) return prev.filter((item) => item.id !== addon.id);
+      const withoutGroup = group.selection_type === 'single'
+        ? prev.filter((item) => !group.addons.some((groupAddon) => groupAddon.id === item.id))
+        : prev;
+      return [...withoutGroup, { ...addon, addon_group_id: group.id, quantity: 1 }];
+    });
+  };
+
+  const changeAddonQuantity = (addon: Addon, group: AddonGroup, delta: number) => {
+    setSelectedAddons((prev) => prev.flatMap((item) => {
+      if (item.id !== addon.id) return [item];
+      const quantity = Math.max(0, Math.min(group.max_selections || 99, (item.quantity || 1) + delta));
+      return quantity ? [{ ...item, quantity }] : [];
+    }));
   };
 
   const handleClose = () => {
@@ -154,7 +170,15 @@ const ProductModal: React.FC<ProductModalProps> = ({
                   />
                 </div>
 
-                <AddonsSection addons={addons} selectedAddons={selectedAddons} onToggleAddon={toggleAddon} />
+                {addonGroups.map((group) => (
+                  <AddonsSection
+                    key={group.id}
+                    group={group}
+                    selectedAddons={selectedAddons}
+                    onToggleAddon={(addon) => toggleAddon(addon, group)}
+                    onChangeQuantity={(addon, delta) => changeAddonQuantity(addon, group, delta)}
+                  />
+                ))}
 
                 <div className="mb-5">
                   <label className="block font-semibold text-sm text-gray-800 mb-2">Special Instructions</label>

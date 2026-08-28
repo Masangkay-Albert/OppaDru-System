@@ -9,6 +9,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Services\PricingService;
 use App\Models\Product;
+use App\Models\OrderItem;
+use App\Models\OrderItemAddon;
+use App\Models\Addon;
 
 class OrderController extends Controller
 {
@@ -18,7 +21,7 @@ class OrderController extends Controller
             'id', 'order_number', 'email', 'user_id', 'total', 'status',
             'payment_method', 'delivery_address', 'phone', 'items', 'created_at',
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'service_fee', 'service_fee_rule',
-        ])->with('user:id,full_name')->orderBy('created_at', 'desc')->get();
+        ])->with(['user:id,full_name', 'orderItems'])->orderBy('created_at', 'desc')->get();
         
         $formattedOrders = $orders->map(function ($order) {
             return [
@@ -33,6 +36,7 @@ class OrderController extends Controller
                 'delivery_address' => $order->delivery_address,
                 'phone' => $order->phone,
                 'items' => $order->items,
+                'order_items' => $order->orderItems,
                 'delivery_fee' => $order->delivery_fee,
                 'delivery_distance_km' => $order->delivery_distance_km,
                 'delivery_calculation_method' => $order->delivery_calculation_method,
@@ -55,7 +59,7 @@ class OrderController extends Controller
 
     public function show($id)
     {
-        $order = Order::with('user')->findOrFail($id);
+        $order = Order::with(['user', 'orderItems'])->findOrFail($id);
         
         $formattedOrder = [
             'id' => $order->id,
@@ -69,6 +73,7 @@ class OrderController extends Controller
             'delivery_address' => $order->delivery_address,
             'phone' => $order->phone,
             'items' => $order->items,
+            'order_items' => $order->orderItems,
             'delivery_fee' => $order->delivery_fee,
             'delivery_distance_km' => $order->delivery_distance_km,
             'delivery_calculation_method' => $order->delivery_calculation_method,
@@ -140,12 +145,24 @@ class OrderController extends Controller
 
         foreach ($request->items as $item) {
             $product = Product::find($item['product_id']);
+            $addonIds = collect($item['selected_addons'] ?? [])->pluck('id')->filter();
+            $addons = Addon::whereIn('id', $addonIds)->get()->keyBy('id');
+            $selectedAddons = collect($item['selected_addons'] ?? [])->map(function ($addon) use ($addons) {
+                $storedAddon = $addons->get($addon['id'] ?? null);
+                if (!$storedAddon) return null;
+                return [
+                    'id' => $storedAddon->id,
+                    'name' => $storedAddon->name,
+                    'price' => (float) $storedAddon->price,
+                    'quantity' => max(1, (int) ($addon['quantity'] ?? 1)),
+                ];
+            })->filter()->values()->all();
             $orderItems[] = [
                 'product_id' => $item['product_id'],
                 'product_name' => $product->name,
                 'product_price' => $product->price,
                 'quantity' => $item['quantity'],
-                'selected_addons' => $item['selected_addons'] ?? [],
+                'selected_addons' => $selectedAddons,
                 'special_instructions' => $item['special_instructions'] ?? null,
             ];
         }
@@ -170,6 +187,27 @@ class OrderController extends Controller
             'payment_reference' => $payment?->reference,
             'payment_status' => $payment ? 'paid' : 'pending',
         ]);
+
+        foreach ($orderItems as $item) {
+            $orderItem = OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $item['product_id'],
+                'product_name' => $item['product_name'],
+                'product_price' => $item['product_price'],
+                'quantity' => $item['quantity'],
+                'special_instructions' => $item['special_instructions'],
+            ]);
+
+            foreach ($item['selected_addons'] as $addon) {
+                OrderItemAddon::create([
+                    'order_item_id' => $orderItem->id,
+                    'addon_id' => $addon['id'] ?? null,
+                    'addon_name' => $addon['name'] ?? 'Add-on',
+                    'unit_price' => $addon['price'] ?? 0,
+                    'quantity' => $addon['quantity'] ?? 1,
+                ]);
+            }
+        }
 
         $payment?->update(['order_id' => $order->id]);
 
@@ -203,7 +241,7 @@ class OrderController extends Controller
     public function getUserOrders(Request $request)
     {
         $email = $request->user()->email;
-        $orders = Order::where('email', $email)
+        $orders = Order::with('orderItems')->where('email', $email)
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($order) {
@@ -217,6 +255,7 @@ class OrderController extends Controller
                     'delivery_address' => $order->delivery_address,
                     'phone' => $order->phone,
                     'items' => $order->items,
+                    'order_items' => $order->orderItems,
                     'delivery_fee' => $order->delivery_fee,
                     'delivery_distance_km' => $order->delivery_distance_km,
                     'delivery_calculation_method' => $order->delivery_calculation_method,

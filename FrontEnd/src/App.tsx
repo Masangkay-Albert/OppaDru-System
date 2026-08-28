@@ -26,6 +26,7 @@ import ProtectedAdminRoute from "./modules/admin-side/components/ProtectedAdminR
 const AdminLoginPage = lazy(() => import("./modules/admin-side/pages/AdminLoginPage"));
 const AdminDashboardPage = lazy(() => import("./modules/admin-side/pages/AdminDashboardPage"));
 const AdminProductsPage = lazy(() => import("./modules/admin-side/pages/AdminProductsPage"));
+const AdminAddonsPage = lazy(() => import("./modules/admin-side/pages/AdminAddonsPage"));
 const AdminAddProductPage = lazy(() => import("./modules/admin-side/pages/AdminAddProductPage"));
 const AdminOrdersPage = lazy(() => import("./modules/admin-side/pages/AdminOrdersPage"));
 const AdminCustomersPage = lazy(() => import("./modules/admin-side/pages/AdminCustomersPage"));
@@ -77,6 +78,7 @@ function App() {
                       <Route path="/admin" element={<ProtectedAdminRoute><AdminDashboardPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/dashboard" element={<ProtectedAdminRoute><AdminDashboardPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/products" element={<ProtectedAdminRoute><AdminProductsPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/addons" element={<ProtectedAdminRoute><AdminAddonsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/products/add" element={<ProtectedAdminRoute><AdminAddProductPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/orders" element={<ProtectedAdminRoute><AdminOrdersPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/delivery" element={<ProtectedAdminRoute><AdminDelivery /></ProtectedAdminRoute>} />

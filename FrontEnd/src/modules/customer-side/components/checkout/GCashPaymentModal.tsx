@@ -88,7 +88,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
         body: JSON.stringify({ amount, delivery_type: deliveryType, voucher_discount: voucherDiscount, discount_rate: discountRate, delivery_coordinates: deliveryCoordinates, items: items.map(item => ({
           product_id: item.id,
           quantity: item.quantity,
-          selected_addons: item.selectedAddons?.map(addon => ({ id: addon.id, price: addon.price })) || [],
+          selected_addons: item.selectedAddons?.map(addon => ({ id: addon.id, price: addon.price, quantity: addon.quantity || 1 })) || [],
         })) }),
       }).then(async response => {
         const data = await response.json();

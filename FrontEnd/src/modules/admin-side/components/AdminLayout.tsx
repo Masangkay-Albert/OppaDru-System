@@ -14,6 +14,7 @@ import {
   X,
   Car,
   ForkKnifeCrossed
+  ,SlidersHorizontal
 } from 'lucide-react';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
@@ -57,6 +58,7 @@ class AdminErrorBoundary extends React.Component<React.PropsWithChildren, AdminE
 const navItems = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/products', label: 'Products', icon: Package },
+  { to: '/admin/addons', label: 'Add-ons', icon: SlidersHorizontal },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
   { to: '/admin/customers', label: 'Customers', icon: Users },
   { to: '/admin/admins', label: 'Admins', icon: Users },
