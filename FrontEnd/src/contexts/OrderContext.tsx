@@ -182,6 +182,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           id: addon.id,
           name: addon.name,
           price: Number(addon.price),
+          quantity: addon.quantity || 1,
         })),
         special_instructions: item.specialInstructions,
       }));

@@ -21,8 +21,10 @@ class AddonController extends Controller
         $category = $request->query('category');
         $productId = $request->query('product_id');
 
+        $isAdmin = $this->checkAdminAuth($request);
+
         $groups = AddonGroup::query()
-            ->where('is_active', true)
+            ->when(!$isAdmin, fn ($query) => $query->where('is_active', true))
             ->when($productId, function ($query) use ($productId) {
                 $query->where(function ($nested) use ($productId) {
                     $nested->whereHas('products', fn ($products) => $products->where('products.id', $productId))
@@ -30,7 +32,7 @@ class AddonController extends Controller
                 });
             })
             ->when(!$productId && $category, fn ($query) => $query->whereJsonContains('applicable_categories', $category))
-            ->with(['addons' => fn ($addons) => $addons->where('is_active', true)])
+            ->with(['addons' => fn ($addons) => $isAdmin ? $addons : $addons->where('is_active', true)])
             ->orderBy('sort_order')
             ->get();
 
@@ -84,6 +86,15 @@ class AddonController extends Controller
             'is_active' => 'sometimes|boolean', 'sort_order' => 'sometimes|integer|min:0',
         ]));
         return response()->json($addon);
+    }
+
+    public function destroy(Request $request, Addon $addon)
+    {
+        if (!$this->checkAdminAuth($request)) return response()->json(['message' => 'Unauthorized'], 401);
+
+        $addon->delete();
+
+        return response()->json(['message' => 'Add-on deleted successfully.']);
     }
 
     public function assignProduct(Request $request, Product $product)

@@ -8,7 +8,7 @@ export const generateCartItemId = (
 ): string => {
   const addonsKey = selectedAddons && selectedAddons.length > 0
     ? [...selectedAddons]
-        .map((a) => a.id)
+        .map((a) => `${a.id}:${a.quantity || 1}`)
         .sort()
         .join(',')
     : 'no-addons';

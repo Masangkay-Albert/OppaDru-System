@@ -105,12 +105,16 @@ class ProductService {
         return this.adminAddonRequest(`/admin/addon-groups/${id}`, { method: 'PUT', body: JSON.stringify(data) });
     }
 
-    async createAddon(groupId: number, data: { name: string; price: number }): Promise<AddonGroup> {
+    async createAddon(groupId: number, data: { name: string; price: number; is_active?: boolean }): Promise<AddonGroup> {
         return this.adminAddonRequest(`/admin/addon-groups/${groupId}/addons`, { method: 'POST', body: JSON.stringify(data) });
     }
 
     async updateAddon(id: number, data: { name?: string; price?: number; is_active?: boolean }): Promise<any> {
         return this.adminAddonRequest(`/admin/addons/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    }
+
+    async deleteAddon(id: number): Promise<void> {
+        await this.adminAddonRequest(`/admin/addons/${id}`, { method: 'DELETE' });
     }
 
     private getCachedProducts(): Product[] {

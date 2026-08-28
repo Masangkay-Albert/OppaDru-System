@@ -20,10 +20,11 @@ const AddonsSection: React.FC<AddonsSectionProps> = ({
 }) => {
   const [showAll, setShowAll] = useState(false);
 
-  if (group.addons.length === 0) return null;
+  const availableAddons = group.addons.filter((addon) => addon.is_available !== false && addon.is_active !== false);
+  if (availableAddons.length === 0) return null;
 
-  const visibleAddons = showAll ? group.addons : group.addons.slice(0, initialVisibleCount);
-  const remainingCount = group.addons.length - initialVisibleCount;
+  const visibleAddons = showAll ? availableAddons : availableAddons.slice(0, initialVisibleCount);
+  const remainingCount = availableAddons.length - initialVisibleCount;
 
   return (
     <div className="mb-5">
@@ -56,12 +57,12 @@ const AddonsSection: React.FC<AddonsSectionProps> = ({
             <span className="flex-1 text-sm font-medium text-gray-800">{addon.name}</span>
             {group.supports_quantity && selectedAddons.some((a) => a.id === addon.id) && (
               <span className="flex items-center gap-1">
-                <button type="button" onClick={() => onChangeQuantity?.(addon, -1)} className="h-6 w-6 rounded bg-white">-</button>
+                <button type="button" aria-label={`Decrease ${addon.name} quantity`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onChangeQuantity?.(addon, -1); }} className="h-6 w-6 rounded bg-white">-</button>
                 <span className="min-w-4 text-center text-xs">{selectedAddons.find((a) => a.id === addon.id)?.quantity || 1}</span>
-                <button type="button" onClick={() => onChangeQuantity?.(addon, 1)} className="h-6 w-6 rounded bg-white">+</button>
+                <button type="button" aria-label={`Increase ${addon.name} quantity`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onChangeQuantity?.(addon, 1); }} className="h-6 w-6 rounded bg-white">+</button>
               </span>
             )}
-            <span className="text-xs font-semibold text-[#e76f51] shrink-0">+ ₱{addon.price}</span>
+            <span className="text-xs font-semibold text-[#e76f51] shrink-0">+ ₱{Number(addon.price).toFixed(2)}</span>
           </label>
         ))}
       </div>

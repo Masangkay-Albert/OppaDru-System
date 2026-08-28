@@ -314,7 +314,7 @@ const AdminOrdersPage: React.FC = () => {
                             Qty: {quantity}
                             {item.selected_addons && item.selected_addons.length > 0 && (
                               <span className="ml-2">
-                                Addons: {item.selected_addons.map((a: any) => a.name).join(', ')}
+                                Addons: {item.selected_addons.map((a: any) => `${a.name}${a.quantity > 1 ? ` x${a.quantity}` : ''}`).join(', ')}
                               </span>
                             )}
                           </p>

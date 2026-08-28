@@ -14,6 +14,8 @@ export interface Addon {
   id: string;
   name: string;
   price: number;
+  is_available?: boolean;
+  is_active?: boolean;
   image?: string; 
   addon_group_id?: number;
   quantity?: number;

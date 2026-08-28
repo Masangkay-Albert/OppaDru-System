@@ -86,6 +86,7 @@ Route::prefix('admin')->group(function () {
     Route::put('/addon-groups/{addonGroup}', [AddonController::class, 'updateGroup']);
     Route::post('/addon-groups/{addonGroup}/addons', [AddonController::class, 'store']);
     Route::put('/addons/{addon}', [AddonController::class, 'update']);
+    Route::delete('/addons/{addon}', [AddonController::class, 'destroy']);
     Route::put('/products/{product}/addon-groups', [AddonController::class, 'assignProduct']);
     Route::get('/products', [ProductController::class, 'getAllForAdmin']);
     Route::get('/products/count', [ProductController::class, 'count']);
