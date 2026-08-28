@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/Authcontext"; 
 import { AdminAuthProvider } from "./contexts/AdminAuthContext";
@@ -20,18 +21,19 @@ import SettingsPage from "./modules/customer-side/pages/SettingsPage";
 
 
 // ============ ADMIN PAGES ============
-import AdminLoginPage from "./modules/admin-side/pages/AdminLoginPage";
-import AdminDashboardPage from "./modules/admin-side/pages/AdminDashboardPage";
-import AdminProductsPage from "./modules/admin-side/pages/AdminProductsPage";
-import AdminAddProductPage from "./modules/admin-side/pages/AdminAddProductPage";
-import AdminOrdersPage from "./modules/admin-side/pages/AdminOrdersPage";
-import AdminCustomersPage from "./modules/admin-side/pages/AdminCustomersPage";
-import AdminEmployeesPage from "./modules/admin-side/pages/AdminEmployeesPage";
-import AdminAdminsPage from "./modules/admin-side/pages/AdminAdminsPage";
-import AdminReportsPage from "./modules/admin-side/pages/AdminReportsPage";
-import AdminDelivery from "./modules/admin-side/pages/AdminDelivery";
 import ProtectedAdminRoute from "./modules/admin-side/components/ProtectedAdminRoute";
-import AdminKitchenPage from "./modules/admin-side/pages/AdminKitchenPage";
+
+const AdminLoginPage = lazy(() => import("./modules/admin-side/pages/AdminLoginPage"));
+const AdminDashboardPage = lazy(() => import("./modules/admin-side/pages/AdminDashboardPage"));
+const AdminProductsPage = lazy(() => import("./modules/admin-side/pages/AdminProductsPage"));
+const AdminAddProductPage = lazy(() => import("./modules/admin-side/pages/AdminAddProductPage"));
+const AdminOrdersPage = lazy(() => import("./modules/admin-side/pages/AdminOrdersPage"));
+const AdminCustomersPage = lazy(() => import("./modules/admin-side/pages/AdminCustomersPage"));
+const AdminEmployeesPage = lazy(() => import("./modules/admin-side/pages/AdminEmployeesPage"));
+const AdminAdminsPage = lazy(() => import("./modules/admin-side/pages/AdminAdminsPage"));
+const AdminReportsPage = lazy(() => import("./modules/admin-side/pages/AdminReportsPage"));
+const AdminDelivery = lazy(() => import("./modules/admin-side/pages/AdminDelivery"));
+const AdminKitchenPage = lazy(() => import("./modules/admin-side/pages/AdminKitchenPage"));
 
 // ============ DRIVER PAGES ============
 import DriverLoginPage from "./modules/driver-side/pages/DriverLoginPage";
@@ -53,6 +55,7 @@ function App() {
               <AdminAuthProvider>
                 <BrowserRouter>
                   <ToastProvider>
+                    <Suspense fallback={<div className="min-h-screen bg-[var(--oppa-cream)] p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading page...</div>}>
                     <Routes>
                       {/* ===== PUBLIC ROUTES ===== */}
                       <Route path="/" element={<LandingPage />} />
@@ -91,6 +94,7 @@ function App() {
                       <Route path="/kitchen/dashboard" element={<KitchenDashboardPage/>}/>
 
                     </Routes>
+                    </Suspense>
                   </ToastProvider>
                 </BrowserRouter>
               </AdminAuthProvider>

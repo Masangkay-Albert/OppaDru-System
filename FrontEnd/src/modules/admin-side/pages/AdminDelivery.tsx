@@ -27,7 +27,7 @@ export default function AdminDelivery() {
       });
       if (res.ok) {
         const data = await res.json();
-        setPartners(data);
+        setPartners(Array.isArray(data) ? data : []);
       }
     } catch (error) {
       console.error("Failed to fetch drivers:", error);

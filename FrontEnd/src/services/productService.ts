@@ -132,7 +132,11 @@ class ProductService {
                     }
                 }
             }
-            throw new Error(errorBody.message || 'Failed to fetch admin products');
+            try {
+                return await this.getProducts();
+            } catch {
+                throw new Error(errorBody.message || 'Failed to fetch admin products');
+            }
         }
 
         const payload = await response.json();

@@ -18,6 +18,42 @@ import {
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 
+interface AdminErrorBoundaryState {
+  hasError: boolean;
+}
+
+class AdminErrorBoundary extends React.Component<React.PropsWithChildren, AdminErrorBoundaryState> {
+  state: AdminErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): AdminErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('Admin page failed to render:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center shadow-sm">
+          <h2 className="font-serif text-xl font-semibold text-[var(--oppa-text)]">This section is temporarily unavailable.</h2>
+          <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">The rest of the admin panel is still available.</p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false })}
+            className="mt-4 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white"
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 const navItems = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/products', label: 'Products', icon: Package },
@@ -154,7 +190,9 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <span className="font-serif text-sm font-bold text-[var(--oppa-text)]">Oppa Dru</span>
           </div>
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 sm:px-6">{children}</div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 sm:px-6">
+          <AdminErrorBoundary>{children}</AdminErrorBoundary>
+        </div>
       </main>
     </div>
   );

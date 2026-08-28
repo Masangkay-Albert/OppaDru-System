@@ -49,8 +49,7 @@ class ProductController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $products = Product::select('id', 'name', 'description', 'price', 'category', 'image', 'is_available', 'created_at', 'updated_at')
-            ->orderBy('category', 'asc')
+        $products = Product::orderBy('category', 'asc')
             ->orderBy('name', 'asc')
             ->get();
 

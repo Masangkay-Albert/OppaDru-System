@@ -12,7 +12,10 @@ class OrderController extends Controller
 {
     public function index()
     {
-        $orders = Order::with('user')->orderBy('created_at', 'desc')->get();
+        $orders = Order::select([
+            'id', 'order_number', 'email', 'user_id', 'total', 'status',
+            'payment_method', 'delivery_address', 'phone', 'items', 'created_at',
+        ])->with('user:id,full_name')->orderBy('created_at', 'desc')->get();
         
         $formattedOrders = $orders->map(function ($order) {
             return [

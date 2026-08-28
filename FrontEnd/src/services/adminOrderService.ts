@@ -3,9 +3,13 @@ import type { CartItem } from '../types/product.types';
 import { getAccountDisplayName } from './adminAuthService';
 import { orderService } from './orderService';
 import { API_URL } from './apiConfig';
+import { fetchWithAdminAuth } from './adminAuthService';
 
 const ORDERS_KEY = 'orders';
 const ONSITE_ORDERS_KEY = 'onsiteOrders';
+const CACHE_TTL = 15_000;
+let ordersCache: { expiresAt: number; promise: Promise<AdminOrder[]> } | null = null;
+let customersCache: { expiresAt: number; promise: Promise<any[]> } | null = null;
 const getOnlineOrderStorageKeys = (): string[] => {
   const keys: string[] = [];
 
@@ -63,7 +67,8 @@ const getStoredOnlineOrders = (): Order[] => {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) continue;
-      const parsed: Order[] = JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) continue;
       parsed.forEach((order) => {
         if (!seen.has(order.id)) {
           seen.add(order.id);
@@ -97,20 +102,20 @@ export const getOnsiteOrders = (): AdminOrder[] => {
 };
 
 export const getAllOrders = async (): Promise<AdminOrder[]> => {
-  try {
-    const response = await fetch(`${API_URL}/orders`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+  if (ordersCache && ordersCache.expiresAt > Date.now()) return ordersCache.promise;
+
+  const request = (async () => {
+   try {
+    const response = await fetchWithAdminAuth(`${API_URL}/orders`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch orders from API');
     }
 
     const apiOrders = await response.json();
+    const safeApiOrders = Array.isArray(apiOrders) ? apiOrders : [];
     
-    const onlineOrders: AdminOrder[] = apiOrders.map((order: any) => ({
+    const onlineOrders: AdminOrder[] = safeApiOrders.map((order: any) => ({
       ...order,
       channel: order.channel === 'onsite' ? 'onsite' : 'online',
       served: order.status === 'delivered',
@@ -122,11 +127,15 @@ export const getAllOrders = async (): Promise<AdminOrder[]> => {
     return [...onlineOrders, ...getOnsiteOrders()].sort(
       (a, b) => new Date(b.created_at || b.timestamp).getTime() - new Date(a.created_at || a.timestamp).getTime()
     );
-  } catch {
+    } catch {
     return [...getOnlineOrders(), ...getOnsiteOrders()].sort(
       (a, b) => new Date(b.created_at || b.timestamp).getTime() - new Date(a.created_at || a.timestamp).getTime()
     );
-  }
+   }
+  })();
+
+  ordersCache = { expiresAt: Date.now() + CACHE_TTL, promise: request };
+  return request;
 };
 
 export const updateOrderStatus = async (orderId: string, status: string): Promise<boolean> => {
@@ -139,22 +148,25 @@ export const updateOrderStatus = async (orderId: string, status: string): Promis
 };
 
 export const getAllCustomers = async (): Promise<any[]> => {
-  try {
-    const response = await fetch(`${API_URL}/orders/customers`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+  if (customersCache && customersCache.expiresAt > Date.now()) return customersCache.promise;
+
+  const request = (async () => {
+   try {
+    const response = await fetchWithAdminAuth(`${API_URL}/orders/customers`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch customers');
     }
 
     const result = await response.json();
-    return result.data || [];
-  } catch {
+    return Array.isArray(result?.data) ? result.data : [];
+   } catch {
     return [];
-  }
+   }
+  })();
+
+  customersCache = { expiresAt: Date.now() + CACHE_TTL, promise: request };
+  return request;
 };
 
 export const addOnsiteOrder = (data: {

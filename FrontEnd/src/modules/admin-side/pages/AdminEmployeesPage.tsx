@@ -33,7 +33,7 @@ const AdminEmployeesPage: React.FC = () => {
         headers: { 'Accept': 'application/json' }
       });
       const data = await response.json();
-      setEmployees(data);
+      setEmployees(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch employees:', error);
     }
