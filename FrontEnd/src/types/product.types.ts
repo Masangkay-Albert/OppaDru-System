@@ -27,6 +27,7 @@ export interface AddonGroup {
   max_selections?: number;
   addons: Addon[];
   is_active?: boolean;
+  applicable_categories?: string[];
 }
 
 export interface Product {
