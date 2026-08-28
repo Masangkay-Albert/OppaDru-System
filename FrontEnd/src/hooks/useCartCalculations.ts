@@ -26,7 +26,7 @@ export const useCartCalculations = ({
     const discountAmount = subtotalWithFees * discount;
     const afterDiscount = subtotalWithFees - discountAmount - voucherDiscount;
     const vat = afterDiscount * FEES.VAT_RATE;
-    const total = afterDiscount + vat;
+    const total = Math.round(afterDiscount + vat);
     
     return {
       subtotal,

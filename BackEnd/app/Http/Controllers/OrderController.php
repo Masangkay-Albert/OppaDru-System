@@ -86,11 +86,11 @@ class OrderController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $total = (int) round((float) $request->total);
+        $total = round((float) $request->total, 2);
         $payment = null;
         if ($request->payment_method === 'gcash') {
             $payment = Payment::where('reference', $request->payment_reference)->first();
-            if (!$payment || $payment->status !== 'paid' || (float) $payment->amount !== $total) {
+            if (!$payment || $payment->status !== 'paid' || (float) $payment->amount !== (float) $total) {
                 return response()->json(['message' => 'GCash payment is not confirmed for this order.'], 422);
             }
 

@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fa';
 import { IoClose } from 'react-icons/io5';
 import { QRCodeCanvas } from 'qrcode.react';
+import { formatCurrency } from '../../../../utils/formatters';
 
 // Use production API URL - no localhost fallback
 const API_URL = 'https://oppadru-system.onrender.com/api';
@@ -34,10 +35,6 @@ interface GCashPaymentModalProps {
 }
 
 type Step = 'display' | 'confirming' | 'result';
-
-const formatCurrency = (amount: number): string => {
-  return `₱${Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-};
 
 const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   isOpen,
@@ -180,7 +177,6 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
           };
           setResult(successResult);
           setStep('result');
-          onPaymentConfirmed?.();
           onPaymentComplete(successResult);
           autoCloseRef.current = setTimeout(handleClose, 1500);
         } else if (['failed', 'expired', 'cancelled'].includes(data.status)) {

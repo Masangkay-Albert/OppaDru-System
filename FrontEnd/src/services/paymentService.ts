@@ -1,4 +1,5 @@
 const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system.onrender.com/api';
+import { formatCurrency } from '../utils/formatters';
 
 export interface PaymentResult {
   success: boolean;
@@ -304,7 +305,7 @@ class PaymentService {
   }
 
   formatCurrency(amount: number): string {
-    return `₱${Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+    return formatCurrency(amount);
   }
 }
 

@@ -75,12 +75,13 @@ class PaymentController extends Controller
             return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
         }
 
+        $amount = round((float) $request->amount, 2);
         $secretKey = config('services.paymongo.secret_key');
         if (!$secretKey) {
             $payment = \App\Models\Payment::create([
                 'reference' => $this->generateReferenceNumber(),
                 'provider' => 'sandbox',
-                'amount' => $request->amount,
+                'amount' => $amount,
                 'status' => 'pending',
                 'expires_at' => now()->addMinutes(5),
                 'metadata' => [
@@ -99,13 +100,13 @@ class PaymentController extends Controller
         }
 
         $reference = $this->generateReferenceNumber();
-        $amount = (int) round((float) $request->amount * 100);
+        $amountInCentavos = (int) round($amount * 100);
         $response = Http::withBasicAuth($secretKey, '')
             ->acceptJson()
             ->post(config('services.paymongo.base_url') . '/sources', [
                 'data' => [
                     'attributes' => [
-                        'amount' => $amount,
+                        'amount' => $amountInCentavos,
                         'currency' => 'PHP',
                         'type' => 'gcash',
                         'redirect' => [
@@ -126,7 +127,7 @@ class PaymentController extends Controller
         $payment = \App\Models\Payment::create([
             'reference' => $reference,
             'provider_id' => $source['id'],
-            'amount' => $request->amount,
+            'amount' => $amount,
             'status' => 'pending',
             'expires_at' => now()->addMinutes(5),
             'metadata' => [

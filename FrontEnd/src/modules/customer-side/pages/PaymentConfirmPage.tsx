@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { FaSpinner, FaCheckCircle, FaTimesCircle, FaWallet } from 'react-icons/fa';
+import { formatCurrency } from '../../../utils/formatters';
 
 // Use production API URL - no localhost fallback
 const API_URL = 'https://oppadru-system.onrender.com/api';
@@ -11,6 +12,7 @@ const PaymentConfirmPage: React.FC = () => {
   const [amount, setAmount] = useState(parseFloat(searchParams.get('amount') || '0'));
   const [status, setStatus] = useState<'confirming' | 'loading' | 'success' | 'error'>('confirming');
   const [message, setMessage] = useState<string>('');
+  const isConfirmingRef = React.useRef(false);
 
   // Fetch order data when page loads
   useEffect(() => {
@@ -41,6 +43,7 @@ const PaymentConfirmPage: React.FC = () => {
     if (!reference) return;
     let active = true;
     const checkStatus = async () => {
+      if (isConfirmingRef.current) return;
       try {
         const response = await fetch(`${API_URL}/payment/status/${reference}`);
         const data = await response.json();
@@ -74,6 +77,7 @@ const PaymentConfirmPage: React.FC = () => {
   const handleConfirm = async () => {
     if (!reference || status === 'loading') return;
 
+    isConfirmingRef.current = true;
     setStatus('loading');
     setMessage('Confirming your payment...');
 
@@ -97,13 +101,10 @@ const PaymentConfirmPage: React.FC = () => {
       }, window.location.origin);
       localStorage.setItem(`gcash_payment_confirmed_${reference}`, Date.now().toString());
     } catch (error) {
+      isConfirmingRef.current = false;
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'Payment confirmation failed.');
     }
-  };
-
-  const formatCurrency = (amt: number) => {
-    return `₱${amt.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
   };
 
   if (status === 'loading') {

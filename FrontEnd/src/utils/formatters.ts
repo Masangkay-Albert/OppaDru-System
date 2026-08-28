@@ -1,8 +1,7 @@
 // src/utils/formatters.ts
 
 export const formatCurrency = (amount: number): string => {
-  const formatted = Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `₱${formatted}`;
+  return `₱${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 };
 
 export const formatDate = (date: Date): string => {

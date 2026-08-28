@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiShoppingCart } from 'react-icons/fi';
 import { useCart } from '../../../contexts/CartContext';
@@ -70,6 +70,7 @@ const CheckoutPage: React.FC = () => {
   const [scheduleDisplay, setScheduleDisplay] = useState('Select date & time');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const orderRequestRef = useRef<Promise<void> | null>(null);
 
   const {
     address,
@@ -105,7 +106,10 @@ const CheckoutPage: React.FC = () => {
     return parts.join(', ');
   };
 
-  const placeOrderDirect = async () => {
+  const placeOrderDirect = async (paymentReference?: string) => {
+    if (orderRequestRef.current) return;
+
+    const request = (async () => {
     setIsPlacingOrder(true);
 
     try {
@@ -124,17 +128,16 @@ const CheckoutPage: React.FC = () => {
         coords = { ...OPPA_DRU_STORE_COORDS };
       }
 
-      const orderTotal = Math.round(total);
       const fullDeliveryAddress = buildFullDeliveryAddress();
 
       const success = await placeOrder(
         cartItems,
-        orderTotal,
+        total,
         fullDeliveryAddress,
         paymentMethod,
         tempPerson.phone,
         coords,
-        gcashReference
+        paymentReference || gcashReference
       );
 
       if (success) {
@@ -151,22 +154,25 @@ const CheckoutPage: React.FC = () => {
     } finally {
       setIsPlacingOrder(false);
     }
+    })();
+
+    orderRequestRef.current = request;
+    try {
+      await request;
+    } finally {
+      orderRequestRef.current = null;
+    }
   };
 
   const handlePaymentComplete = (result: PaymentResult) => {
     if (result.success) {
       showToast('Payment successful!', 'success');
-      void placeOrderDirect();
+      void placeOrderDirect(result.referenceNumber);
     } else {
       showToast(result.message || 'Payment failed. Please try again.', 'error');
       setShowGCashModal(false);
       setShowCardModal(false);
     }
-  };
-
-  const handlePaymentConfirmed = () => {
-    setGCashReference(undefined);
-    setShowGCashModal(false);
   };
 
   const handleScheduleConfirm = () => {
@@ -306,7 +312,6 @@ const CheckoutPage: React.FC = () => {
         onClose={() => setShowGCashModal(false)}
         amount={total}
         onPaymentComplete={handlePaymentComplete}
-        onPaymentConfirmed={handlePaymentConfirmed}
         onPaymentCreated={setGCashReference}
       />
 
