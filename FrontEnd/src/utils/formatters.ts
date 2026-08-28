@@ -1,7 +1,9 @@
 // src/utils/formatters.ts
 
-export const formatCurrency = (amount: number): string => {
-  const formatted = amount.toFixed(2)
+export const formatCurrency = (amount: number | string | null | undefined): string => {
+  const numericAmount = Number(amount);
+  const safeAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
+  const formatted = safeAmount.toFixed(2)
     .replace(/\.00$/, '')
     .replace(/(\.\d)0$/, '$1')
     .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
