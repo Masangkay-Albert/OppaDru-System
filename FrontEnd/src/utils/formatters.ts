@@ -1,7 +1,12 @@
 // src/utils/formatters.ts
 
 export const formatCurrency = (amount: number): string => {
-  return `₱${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+  const normalized = Number(amount.toFixed(2));
+  const formatted = normalized.toLocaleString('en-PH', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+  return `₱${formatted}`;
 };
 
 export const formatDate = (date: Date): string => {
