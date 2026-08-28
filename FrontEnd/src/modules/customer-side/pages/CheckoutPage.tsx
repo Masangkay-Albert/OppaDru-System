@@ -287,6 +287,8 @@ const CheckoutPage: React.FC = () => {
         amount={total}
         items={cartItems}
         deliveryType={deliveryType}
+        voucherDiscount={voucherDiscount}
+        discountRate={activeDiscount.discountRate}
         onPaymentComplete={handlePaymentComplete}
         onPaymentCreated={setGCashReference}
       />
@@ -297,6 +299,8 @@ const CheckoutPage: React.FC = () => {
         amount={total}
         items={cartItems}
         deliveryType={deliveryType}
+        voucherDiscount={voucherDiscount}
+        discountRate={activeDiscount.discountRate}
         onPaymentComplete={handlePaymentComplete}
       />
     </div>

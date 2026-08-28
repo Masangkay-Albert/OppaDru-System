@@ -175,6 +175,8 @@ class PaymentService {
     amount: number;
     items: Array<{ id: string; quantity: number; selectedAddons?: Array<{ id: string; price: number }> }>;
     deliveryType: 'standard' | 'priority';
+    voucherDiscount: number;
+    discountRate: number;
   }): Promise<PaymentResult> {
     try {
       const response = await fetch(`${API_URL}/payment/card/process`, {
@@ -193,6 +195,8 @@ class PaymentService {
             selected_addons: item.selectedAddons?.map(addon => ({ id: addon.id, price: addon.price })) || [],
           })),
           delivery_type: data.deliveryType,
+          voucher_discount: data.voucherDiscount,
+          discount_rate: data.discountRate,
         }),
       });
 

@@ -68,6 +68,8 @@ export const usePayment = () => {
     amount: number;
     items: Array<{ id: string; quantity: number; selectedAddons?: Array<{ id: string; price: number }> }>;
     deliveryType: 'standard' | 'priority';
+    voucherDiscount: number;
+    discountRate: number;
   }) => {
     setIsProcessing(true);
     setError(null);

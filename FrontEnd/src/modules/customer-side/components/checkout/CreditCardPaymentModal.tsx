@@ -34,6 +34,8 @@ interface CreditCardPaymentModalProps {
   amount: number;
   items: CartItem[];
   deliveryType: 'standard' | 'priority';
+  voucherDiscount: number;
+  discountRate: number;
   onPaymentComplete: (result: PaymentResult) => void;
 }
 
@@ -44,6 +46,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
   onPaymentComplete,
   items,
   deliveryType
+  , voucherDiscount, discountRate
 }) => {
   const [form, setForm] = useState({
     cardNumber: '',
@@ -99,6 +102,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
       amount,
       items,
       deliveryType
+      , voucherDiscount, discountRate
     });
     setIsLoading(false);
     if (response?.success) {

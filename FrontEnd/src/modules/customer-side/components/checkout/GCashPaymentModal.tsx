@@ -32,6 +32,8 @@ interface GCashPaymentModalProps {
   amount: number;
   items: CartItem[];
   deliveryType: 'standard' | 'priority';
+  voucherDiscount: number;
+  discountRate: number;
   onPaymentComplete: (result: PaymentResult) => void;
   onPaymentConfirmed?: () => void;
   onPaymentCreated?: (reference: string) => void;
@@ -45,6 +47,8 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   amount,
   items,
   deliveryType,
+  voucherDiscount,
+  discountRate,
   onPaymentComplete,
   onPaymentConfirmed,
   onPaymentCreated,
@@ -79,7 +83,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
       paymentCreationRef.current = fetch(`${API_URL}/payment/gcash/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, delivery_type: deliveryType, items: items.map(item => ({
+        body: JSON.stringify({ amount, delivery_type: deliveryType, voucher_discount: voucherDiscount, discount_rate: discountRate, items: items.map(item => ({
           product_id: item.id,
           quantity: item.quantity,
           selected_addons: item.selectedAddons?.map(addon => ({ id: addon.id, price: addon.price })) || [],
@@ -104,7 +108,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
       if (pollRef.current) clearInterval(pollRef.current);
       if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
     };
-  }, [isOpen, amount, deliveryType, items, onPaymentCreated]);
+  }, [isOpen, amount, deliveryType, voucherDiscount, discountRate, items, onPaymentCreated]);
 
   useEffect(() => {
     if (!isOpen || !referenceNumber) return;
