@@ -120,7 +120,12 @@ export const getAllOrders = async (): Promise<AdminOrder[]> => {
       channel: order.channel === 'onsite' ? 'onsite' : 'online',
       served: order.status === 'delivered',
       customerName: order.customer_name || order.email || 'Customer',
-      items: order.items || [],
+      total: Number.isFinite(Number(order.total)) ? Number(order.total) : 0,
+      items: Array.isArray(order.items) ? order.items.map((item: any) => ({
+        ...item,
+        product_price: Number.isFinite(Number(item.product_price)) ? Number(item.product_price) : 0,
+        quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 0,
+      })) : [],
       deliveryAddress: order.delivery_address || 'Onsite / Walk-in',
     }));
 
