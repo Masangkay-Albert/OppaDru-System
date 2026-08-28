@@ -39,6 +39,7 @@ MAIL_USERNAME=the-provider-account@example.com
 MAIL_PASSWORD=the-provider-app-password
 MAIL_FROM_ADDRESS=the-provider-account@example.com
 MAIL_FROM_NAME=OPPA DRU
+MAIL_TIMEOUT=10
 QUEUE_CONNECTION=sync
 ```
 
