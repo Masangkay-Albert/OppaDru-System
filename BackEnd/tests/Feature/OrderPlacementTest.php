@@ -66,6 +66,11 @@ class OrderPlacementTest extends TestCase
             ->assertJsonPath('order.delivery_fee', '49.00')
             ->assertJsonPath('order.service_fee', '15.00')
             ->assertJsonPath('order.items.0.product_id', $product->id);
+
+        $this->getJson('/api/orders')
+            ->assertOk()
+            ->assertJsonPath('0.id', $orderResponse->json('order.id'))
+            ->assertJsonPath('0.delivery_type', 'standard');
     }
 
     public function test_customer_can_place_a_scheduled_order(): void
