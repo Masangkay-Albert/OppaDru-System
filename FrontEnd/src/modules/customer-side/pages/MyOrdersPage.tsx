@@ -2,20 +2,22 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FiArrowLeft, FiSearch, FiX, FiChevronDown, FiCalendar, FiClock, 
-  FiHash, FiDollarSign, FiChevronRight, FiPackage, FiShoppingBag, FiCheckCircle 
+  FiHash, FiChevronRight, FiPackage, FiShoppingBag, FiCheckCircle 
 } from 'react-icons/fi';
 import { FaClipboardList, FaCheck, FaStore } from 'react-icons/fa';
 import { useOrder } from '../../../contexts/OrderContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import { ORDER_STATUS } from '../../../utils/constants';
+import { formatCurrency } from '../../../utils/formatters';
 import { STATUS_DISPLAY, STATUS_OPTIONS, getStatusColor, formatOrderDate, formatOrderTime } from '../../../utils/orderUtils';
 
 const MyOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { orders } = useOrder();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>(ORDER_STATUS.PENDING);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({});
 
   const sortedOrders = useMemo(() => {
     return [...orders].sort((a, b) => {
@@ -29,7 +31,7 @@ const MyOrdersPage: React.FC = () => {
     return sortedOrders.filter(order => {
       const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesFilter = filterStatus === 'all' || order.status === filterStatus;
+      const matchesFilter = order.status === filterStatus;
       return matchesSearch && matchesFilter;
     });
   }, [sortedOrders, searchTerm, filterStatus]);
@@ -40,11 +42,15 @@ const MyOrdersPage: React.FC = () => {
     return { total, delivered, active: total - delivered };
   }, [orders]);
 
-  const currentStatus = STATUS_OPTIONS.find(opt => opt.value === filterStatus);
+  const currentStatus = STATUS_OPTIONS.find(opt => opt.value === filterStatus) ?? STATUS_OPTIONS[0];
 
   const handleTrackOrder = (orderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     navigate('/tracking', { state: { orderId } });
+  };
+
+  const toggleOrderDetails = (orderId: string) => {
+    setExpandedOrderIds(prev => ({ ...prev, [orderId]: !prev[orderId] }));
   };
 
   return (
@@ -113,7 +119,7 @@ const MyOrdersPage: React.FC = () => {
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:border-gray-300 transition-colors min-w-[140px] justify-between"
             >
-              <span>{currentStatus?.label || 'All Orders'}</span>
+              <span>{currentStatus?.label || 'Pending'}</span>
               <FiChevronDown className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -200,7 +206,7 @@ const MyOrdersPage: React.FC = () => {
                       <div className="flex items-center gap-3 flex-shrink-0 ml-auto sm:ml-0">
                         <div className="text-right">
                           <p className="text-xs text-gray-500">Total</p>
-                          <p className="text-base font-bold text-[#2d6a4f]">₱{Number(order.total).toFixed(2)}</p>
+                          <p className="text-base font-bold text-[#2d6a4f]">{formatCurrency(order.total)}</p>
                         </div>
                         {isActive ? (
                           <div className="w-8 h-8 rounded-full bg-[#2d6a4f]/10 flex items-center justify-center text-[#2d6a4f] flex-shrink-0">
@@ -236,23 +242,120 @@ const MyOrdersPage: React.FC = () => {
                           <FiHash size={12} /> {order.id.slice(0, 12)}...
                         </span>
                         <span className="hidden xs:inline">•</span>
-                        <span className="flex items-center gap-1">
-                          <FiDollarSign size={12} /> {order.paymentMethod?.replace('_', ' ').toUpperCase() || 'Cash'}
+                        <span className="capitalize">
+                          {order.paymentMethod?.replace('_', ' ') || 'Cash'}
                         </span>
                       </div>
-                      {isActive ? (
-                        <button 
-                          onClick={(e) => handleTrackOrder(order.id, e)} 
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => toggleOrderDetails(order.id)}
                           className="text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1"
                         >
-                          Track Order <FiChevronRight size={14} />
+                          {expandedOrderIds[order.id] ? 'Hide Details' : 'View Details'}
                         </button>
-                      ) : (
-                        <span className="text-xs text-emerald-500 font-medium flex items-center gap-1">
-                          <FaCheck size={12} /> Completed
-                        </span>
-                      )}
+                        {isActive ? (
+                          <button 
+                            onClick={(e) => handleTrackOrder(order.id, e)} 
+                            className="text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1"
+                          >
+                            Track Order <FiChevronRight size={14} />
+                          </button>
+                        ) : (
+                          <span className="text-xs text-emerald-500 font-medium flex items-center gap-1">
+                            <FaCheck size={12} /> Completed
+                          </span>
+                        )}
+                      </div>
                     </div>
+
+                    {expandedOrderIds[order.id] && (
+                      <div className="mt-4 border-t border-gray-100 pt-4">
+                        <div className="space-y-3">
+                          {order.items.map((item, itemIndex) => {
+                            const addonsTotal = (item.selectedAddons || []).reduce((sum, addon) => sum + Number(addon.price || 0) * (addon.quantity || 1), 0);
+                            const itemSubtotal = (Number(item.price || 0) + addonsTotal) * Number(item.quantity || 1);
+
+                            return (
+                              <div key={`${order.id}-${itemIndex}`} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                                <div className="flex justify-between gap-4 text-sm">
+                                  <div>
+                                    <p className="font-medium text-gray-800">{item.quantity}x {item.name}</p>
+                                    {item.selectedAddons && item.selectedAddons.length > 0 && (
+                                      <div className="mt-2 text-xs text-gray-500 space-y-1">
+                                        {item.selectedAddons.map((addon, addonIndex) => (
+                                          <div key={`${item.id}-${addonIndex}`} className="flex justify-between gap-3">
+                                            <span>+ {addon.name} {addon.quantity && addon.quantity > 1 ? `x${addon.quantity}` : ''}</span>
+                                            <span>{formatCurrency((Number(addon.price || 0)) * (addon.quantity || 1))}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="font-medium text-gray-700">{formatCurrency(itemSubtotal)}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-sm">
+                          {(() => {
+                            const productSubtotal = order.items.reduce((sum, item) => {
+                              const addonTotal = (item.selectedAddons || []).reduce((addonSum, addon) => addonSum + Number(addon.price || 0) * (addon.quantity || 1), 0);
+                              return sum + ((Number(item.price || 0) + addonTotal) * Number(item.quantity || 1));
+                            }, 0);
+                            
+                            const deliveryFee = order.deliveryFee ?? 0;
+                            const serviceFee = order.serviceFee ?? 0;
+                            let priorityFee = order.priorityFee ?? 0;
+                            let vat = Number(order.vat ?? 0);
+                            
+                            // If priority fee is missing but delivery type is priority, set it to 99
+                            if (priorityFee === 0 && order.deliveryType === 'priority') {
+                              priorityFee = 99;
+                            }
+                            
+                            // If VAT is 0 or missing, recalculate from total
+                            if (vat === 0 && order.total > 0) {
+                              const beforeVat = productSubtotal + deliveryFee + serviceFee + priorityFee;
+                              vat = Math.round((order.total - beforeVat) * 100) / 100;
+                              if (vat < 0) vat = 0;
+                            }
+                            
+                            return (
+                              <>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">Product subtotal</span>
+                                  <span>{formatCurrency(productSubtotal)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">Delivery fee</span>
+                                  <span>{deliveryFee === 0 ? 'FREE' : formatCurrency(deliveryFee)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">Service fee</span>
+                                  <span>{formatCurrency(serviceFee)}</span>
+                                </div>
+                                {(order.deliveryType === 'priority' || priorityFee > 0) && (
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-500">Priority fee</span>
+                                    <span>{formatCurrency(priorityFee)}</span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">VAT</span>
+                                  <span>{formatCurrency(vat)}</span>
+                                </div>
+                                <div className="flex justify-between font-semibold text-base text-[#2d6a4f] pt-2 border-t border-gray-100">
+                                  <span>Order total</span>
+                                  <span>{formatCurrency(order.total)}</span>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

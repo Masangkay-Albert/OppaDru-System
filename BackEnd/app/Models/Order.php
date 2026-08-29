@@ -22,7 +22,10 @@ class Order extends Model
         'delivery_fee',
         'delivery_distance_km',
         'delivery_calculation_method',
+        'delivery_type',
         'service_fee',
+        'priority_fee',
+        'vat',
         'service_fee_rule',
         'status',
         'payment_method',
@@ -37,7 +40,10 @@ class Order extends Model
         'total' => 'decimal:2',
         'delivery_fee' => 'decimal:2',
         'delivery_distance_km' => 'decimal:3',
+        'delivery_type' => 'string',
         'service_fee' => 'decimal:2',
+        'priority_fee' => 'decimal:2',
+        'vat' => 'decimal:2',
         'items' => 'array',
     ];
 

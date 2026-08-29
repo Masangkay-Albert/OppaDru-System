@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { CartItem } from '../types/product.types';
 import { calculateSubtotal } from '../services/cartService';
 import { useSettings } from '../contexts/SettingsContext';
+import { FEES } from '../utils/constants';
 
 interface UseCartCalculationsProps {
   cartItems: CartItem[];
@@ -34,8 +35,9 @@ export const useCartCalculations = ({
       ? 0
       : Math.min(pricing.delivery_max_fee, pricing.delivery_base_fee + Math.max(0, distanceKm - pricing.delivery_base_distance_km) * pricing.delivery_per_km_rate);
     const serviceFee = Math.min(pricing.service_fee_max, Math.max(pricing.service_fee_min, subtotal * pricing.service_fee_rate));
+    const priorityFee = deliveryType === 'priority' ? FEES.DELIVERY.PRIORITY : 0;
     
-    const subtotalWithFees = subtotal + deliveryFee + serviceFee;
+    const subtotalWithFees = subtotal + deliveryFee + serviceFee + priorityFee;
     const discountAmount = subtotalWithFees * discount;
     const afterDiscount = subtotalWithFees - discountAmount - voucherDiscount;
     const vat = afterDiscount * pricing.vat_rate;
@@ -45,6 +47,7 @@ export const useCartCalculations = ({
       subtotal,
       deliveryFee,
       serviceFee,
+      priorityFee,
       discountAmount,
       vat,
       total,

@@ -25,10 +25,8 @@ export const STATUS_DISPLAY: Record<string, { label: string; icon: React.ReactNo
 };
 
 export const STATUS_OPTIONS = [
-  { value: 'all', label: 'All Orders' },
   { value: ORDER_STATUS.PENDING, label: 'Pending' },
-  { value: ORDER_STATUS.PREPARING, label: 'Preparing' },
-  { value: ORDER_STATUS.ON_WAY, label: 'On the way' },
+  { value: ORDER_STATUS.ON_WAY, label: 'On the Way' },
   { value: ORDER_STATUS.DELIVERED, label: 'Delivered' },
 ];
 

@@ -30,7 +30,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   const { getActiveDiscount } = useSettings();
   const activeDiscount = getActiveDiscount();
 
-  const { subtotal, deliveryFee, serviceFee, discountAmount, vat, total, hasItems } = useCartCalculations({
+  const { subtotal, deliveryFee, serviceFee, priorityFee, discountAmount, vat, total, hasItems } = useCartCalculations({
     cartItems,
     deliveryType,
     voucherDiscount,
@@ -109,6 +109,12 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
           <span className="text-gray-500">Service fee</span>
           <span className="text-gray-800">{formatCurrency(serviceFee)}</span>
         </div>
+        {deliveryType === 'priority' && (
+          <div className="flex justify-between">
+            <span className="text-gray-500">Priority fee</span>
+            <span className="text-gray-800">{formatCurrency(priorityFee)}</span>
+          </div>
+        )}
         {activeDiscount.discountRate > 0 && (
           <div className="flex justify-between text-[#2d6a4f] font-medium">
             <span>{activeDiscount.type} Discount ({(activeDiscount.discountRate * 100)}%)</span>

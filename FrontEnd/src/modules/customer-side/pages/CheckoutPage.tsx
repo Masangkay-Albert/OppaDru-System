@@ -127,7 +127,10 @@ const CheckoutPage: React.FC = () => {
         paymentMethod,
         tempPerson.phone,
         coords,
-        paymentReference || gcashReference
+        paymentReference || gcashReference,
+        deliveryType,
+        voucherDiscount,
+        activeDiscount.discountRate
       );
 
       if (success) {

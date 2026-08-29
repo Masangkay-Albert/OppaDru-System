@@ -17,9 +17,24 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
     return sum + (item.price + addonsTotal) * item.quantity;
   }, 0) || 0;
 
-  const deliveryFee = pricing.delivery_fee_standard;
-  const serviceFee = pricing.service_fee;
-  const vat = Math.max(0, currentOrder.total - subtotal - deliveryFee - serviceFee);
+  const deliveryFee = Number(currentOrder.deliveryFee ?? pricing.delivery_fee_standard ?? 0);
+  const serviceFee = Number(currentOrder.serviceFee ?? pricing.service_fee ?? 0);
+  let priorityFee = Number(currentOrder.priorityFee ?? 0);
+  let vat = Number(currentOrder.vat ?? 0);
+  
+  // If priority fee is missing but delivery type is priority, set it to 99
+  if (priorityFee === 0 && currentOrder.deliveryType === 'priority') {
+    priorityFee = 99;
+  }
+  
+  // If VAT is 0 or missing, recalculate from total
+  if (vat === 0 && currentOrder.total > 0) {
+    const beforeVat = subtotal + deliveryFee + serviceFee + priorityFee;
+    vat = Math.round((currentOrder.total - beforeVat) * 100) / 100;
+    if (vat < 0) vat = 0; // Safety check
+  }
+  
+  const hasPriorityFee = currentOrder.deliveryType === 'priority' || priorityFee > 0;
 
   return (
     <div className="space-y-4">
@@ -62,12 +77,18 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Delivery fee</span>
-            <span className="text-gray-800">{formatCurrency(deliveryFee)}</span>
+            <span className="text-gray-800">{deliveryFee === 0 ? 'FREE' : formatCurrency(deliveryFee)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Service fee</span>
             <span className="text-gray-800">{formatCurrency(serviceFee)}</span>
           </div>
+          {hasPriorityFee && (
+            <div className="flex justify-between">
+              <span className="text-gray-500">Priority fee</span>
+              <span className="text-gray-800">{formatCurrency(priorityFee)}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-gray-500">VAT (12%)</span>
             <span className="text-gray-800">{formatCurrency(vat)}</span>

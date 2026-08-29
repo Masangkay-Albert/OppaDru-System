@@ -20,7 +20,7 @@ class OrderController extends Controller
         $orders = Order::select([
             'id', 'order_number', 'email', 'user_id', 'total', 'status',
             'payment_method', 'delivery_address', 'phone', 'items', 'created_at',
-            'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'service_fee', 'service_fee_rule',
+            'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'service_fee', 'priority_fee', 'service_fee_rule',
         ])->with(['user:id,full_name', 'orderItems'])->orderBy('created_at', 'desc')->get();
         
         $formattedOrders = $orders->map(function ($order) {
@@ -37,10 +37,13 @@ class OrderController extends Controller
                 'phone' => $order->phone,
                 'items' => $order->items,
                 'order_items' => $order->orderItems,
+                'delivery_type' => $order->delivery_type ?? ($order->priority_fee > 0 ? 'priority' : 'standard'),
                 'delivery_fee' => $order->delivery_fee,
                 'delivery_distance_km' => $order->delivery_distance_km,
                 'delivery_calculation_method' => $order->delivery_calculation_method,
                 'service_fee' => $order->service_fee,
+                'priority_fee' => $order->priority_fee,
+                'vat' => $order->vat,
                 'service_fee_rule' => $order->service_fee_rule,
                 'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
             ];
@@ -74,10 +77,13 @@ class OrderController extends Controller
             'phone' => $order->phone,
             'items' => $order->items,
             'order_items' => $order->orderItems,
+            'delivery_type' => $order->delivery_type ?? ($order->priority_fee > 0 ? 'priority' : 'standard'),
             'delivery_fee' => $order->delivery_fee,
             'delivery_distance_km' => $order->delivery_distance_km,
             'delivery_calculation_method' => $order->delivery_calculation_method,
             'service_fee' => $order->service_fee,
+            'priority_fee' => $order->priority_fee,
+            'vat' => $order->vat,
             'service_fee_rule' => $order->service_fee_rule,
             'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
         ];
@@ -174,10 +180,13 @@ class OrderController extends Controller
             'email' => $request->email,
             'user_id' => $userId,
             'total' => $total,
+            'delivery_type' => $request->input('delivery_type', 'standard'),
             'delivery_fee' => $pricing['deliveryFee'],
             'delivery_distance_km' => $pricing['deliveryDistanceKm'],
             'delivery_calculation_method' => $pricing['deliveryCalculationMethod'],
             'service_fee' => $pricing['serviceFee'],
+            'priority_fee' => $pricing['priorityFee'],
+            'vat' => $pricing['vat'],
             'service_fee_rule' => $pricing['serviceFeeRule'],
             'status' => 'pending',
             'payment_method' => $request->payment_method,
@@ -252,6 +261,7 @@ class OrderController extends Controller
                     'total' => $order->total,
                     'status' => $order->status,
                     'payment_method' => $order->payment_method,
+                    'delivery_type' => $order->delivery_type ?? ($order->priority_fee > 0 ? 'priority' : 'standard'),
                     'delivery_address' => $order->delivery_address,
                     'phone' => $order->phone,
                     'items' => $order->items,
@@ -260,6 +270,8 @@ class OrderController extends Controller
                     'delivery_distance_km' => $order->delivery_distance_km,
                     'delivery_calculation_method' => $order->delivery_calculation_method,
                     'service_fee' => $order->service_fee,
+                    'priority_fee' => $order->priority_fee,
+                    'vat' => $order->vat,
                     'service_fee_rule' => $order->service_fee_rule,
                     'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
                 ];

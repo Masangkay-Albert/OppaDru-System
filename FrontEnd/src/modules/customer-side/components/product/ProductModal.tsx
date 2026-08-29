@@ -196,17 +196,38 @@ const ProductModal: React.FC<ProductModalProps> = ({
                   />
                 </div>
 
-                {isLoadingAddons && <p className="mb-4 text-sm text-gray-500">Loading available add-ons...</p>}
-                {addonLoadError && <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">Add-ons are temporarily unavailable. You can still add this item.</p>}
-                {addonGroups.map((group) => (
-                  <AddonsSection
-                    key={group.id}
-                    group={group}
-                    selectedAddons={selectedAddons}
-                    onToggleAddon={(addon) => toggleAddon(addon, group)}
-                    onChangeQuantity={(addon, delta) => changeAddonQuantity(addon, group, delta)}
-                  />
-                ))}
+                <div className="mb-5 min-h-[180px]">
+                  {isLoadingAddons ? (
+                    <div className="space-y-3 animate-pulse" aria-live="polite">
+                      <div className="h-4 w-28 rounded bg-gray-200" />
+                      <div className="space-y-2">
+                        {[0, 1, 2].map((item) => (
+                          <div key={item} className="h-12 rounded-xl bg-gray-100" />
+                        ))}
+                      </div>
+                    </div>
+                  ) : addonLoadError ? (
+                    <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                      Add-ons are temporarily unavailable. You can still add this item.
+                    </p>
+                  ) : addonGroups.length > 0 ? (
+                    <div className="space-y-5">
+                      {addonGroups.map((group) => (
+                        <AddonsSection
+                          key={group.id}
+                          group={group}
+                          selectedAddons={selectedAddons}
+                          onToggleAddon={(addon) => toggleAddon(addon, group)}
+                          onChangeQuantity={(addon, delta) => changeAddonQuantity(addon, group, delta)}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-xs text-gray-400">
+                      No add-ons available for this item.
+                    </div>
+                  )}
+                </div>
 
                 <div className="mb-5">
                   <label className="block font-semibold text-sm text-gray-800 mb-2">Special Instructions</label>

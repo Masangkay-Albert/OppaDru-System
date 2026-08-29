@@ -65,12 +65,13 @@ class PricingService
                 $settings['delivery_base_fee'] + max(0, $deliveryDistanceKm - $settings['delivery_base_distance_km']) * $settings['delivery_per_km_rate']
             );
         $serviceFee = min($settings['service_fee_max'], max($settings['service_fee_min'], $subtotal * $settings['service_fee_rate']));
-        $discountAmount = round(($subtotal + $deliveryFee + $serviceFee) * max(0, $discountRate), 2);
-        $afterDiscount = max(0, $subtotal + $deliveryFee + $serviceFee - $discountAmount - max(0, $voucherDiscount));
+        $priorityFee = strtolower($deliveryType) === 'priority' ? 99.0 : 0.0;
+        $discountAmount = round(($subtotal + $deliveryFee + $serviceFee + $priorityFee) * max(0, $discountRate), 2);
+        $afterDiscount = max(0, $subtotal + $deliveryFee + $serviceFee + $priorityFee - $discountAmount - max(0, $voucherDiscount));
         $vat = round($afterDiscount * $settings['vat_rate'], 2);
         $total = round($afterDiscount + $vat, 2);
 
-        return compact('subtotal', 'deliveryFee', 'serviceFee', 'deliveryDistanceKm', 'discountAmount', 'vat', 'total') + [
+        return compact('subtotal', 'deliveryFee', 'serviceFee', 'priorityFee', 'deliveryDistanceKm', 'discountAmount', 'vat', 'total') + [
             'deliveryCalculationMethod' => $subtotal >= $settings['delivery_free_subtotal']
                 ? 'free_delivery_subtotal_threshold'
                 : 'base_fee_plus_distance_rate_capped',

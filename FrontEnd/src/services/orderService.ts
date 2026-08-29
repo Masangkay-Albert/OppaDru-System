@@ -15,9 +15,12 @@ export interface CreateOrderData {
     total: number;
     delivery_address: string;
     payment_method: 'cash_on_delivery' | 'gcash' | 'credit_card';
+    delivery_type?: 'standard' | 'priority';
     phone: string;
     delivery_coordinates?: { lat: number; lng: number };
     payment_reference?: string;
+    voucher_discount?: number;
+    discount_rate?: number;
 }
 
 export interface Order {
@@ -28,6 +31,11 @@ export interface Order {
     status: string;
     payment_method: string;
     delivery_address: string;
+    delivery_type?: 'standard' | 'priority';
+    delivery_fee?: number;
+    service_fee?: number;
+    priority_fee?: number;
+    vat?: number;
     phone: string;
     items: OrderItem[];
     created_at?: string;
