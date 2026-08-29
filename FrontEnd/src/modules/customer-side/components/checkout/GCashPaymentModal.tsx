@@ -31,7 +31,7 @@ interface GCashPaymentModalProps {
   onClose: () => void;
   amount: number;
   items: CartItem[];
-  deliveryType: 'standard' | 'priority';
+  deliveryType: 'standard' | 'priority' | 'scheduled';
   voucherDiscount: number;
   discountRate: number;
   deliveryCoordinates?: { lat: number; lng: number };

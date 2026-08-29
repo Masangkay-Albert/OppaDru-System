@@ -32,6 +32,11 @@ class Order extends Model
         'delivery_address',
         'phone',
         'items',
+        'scheduled_at',
+        'scheduled_date',
+        'scheduled_time',
+        'schedule_display',
+        'schedule_window',
         'payment_reference',
         'payment_status',
     ];
@@ -45,6 +50,7 @@ class Order extends Model
         'priority_fee' => 'decimal:2',
         'vat' => 'decimal:2',
         'items' => 'array',
+        'scheduled_at' => 'datetime',
     ];
 
     protected static function boot()

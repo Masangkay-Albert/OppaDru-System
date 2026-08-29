@@ -27,7 +27,7 @@ export const useCheckoutForm = () => {
     email: resolvedUser?.email || '',
     phone: resolvedUser?.phone || ''
   });
-  const [deliveryType, setDeliveryType] = useState<'standard' | 'priority'>('standard');
+  const [deliveryType, setDeliveryType] = useState<'standard' | 'priority' | 'scheduled'>('standard');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash_on_delivery');
   const [voucherDiscount, setVoucherDiscount] = useState(0);
 

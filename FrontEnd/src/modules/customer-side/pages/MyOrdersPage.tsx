@@ -9,7 +9,7 @@ import { useOrder } from '../../../contexts/OrderContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import { ORDER_STATUS } from '../../../utils/constants';
 import { formatCurrency } from '../../../utils/formatters';
-import { STATUS_DISPLAY, STATUS_OPTIONS, getStatusColor, formatOrderDate, formatOrderTime } from '../../../utils/orderUtils';
+import { STATUS_DISPLAY, STATUS_OPTIONS, getStatusColor, formatOrderDate, formatOrderTime, getScheduledOrderDetails } from '../../../utils/orderUtils';
 
 const MyOrdersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -29,9 +29,11 @@ const MyOrdersPage: React.FC = () => {
 
   const filteredOrders = useMemo(() => {
     return sortedOrders.filter(order => {
+      const scheduleDetails = getScheduledOrderDetails(order);
+      const effectiveStatus = scheduleDetails.isScheduled ? ORDER_STATUS.SCHEDULED : order.status;
       const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesFilter = order.status === filterStatus;
+      const matchesFilter = effectiveStatus === filterStatus;
       return matchesSearch && matchesFilter;
     });
   }, [sortedOrders, searchTerm, filterStatus]);
@@ -39,7 +41,8 @@ const MyOrdersPage: React.FC = () => {
   const stats = useMemo(() => {
     const total = orders.length;
     const delivered = orders.filter(o => o.status === ORDER_STATUS.DELIVERED).length;
-    return { total, delivered, active: total - delivered };
+    const scheduled = orders.filter(o => getScheduledOrderDetails(o).isScheduled && o.status !== ORDER_STATUS.DELIVERED).length;
+    return { total, delivered, active: total - delivered, scheduled };
   }, [orders]);
 
   const currentStatus = STATUS_OPTIONS.find(opt => opt.value === filterStatus) ?? STATUS_OPTIONS[0];
@@ -166,9 +169,12 @@ const MyOrdersPage: React.FC = () => {
             </div>
           ) : (
             filteredOrders.map((order) => {
+              const scheduleDetails = getScheduledOrderDetails(order);
+              const effectiveStatus = scheduleDetails.isScheduled ? ORDER_STATUS.SCHEDULED : order.status;
+              const isScheduledOrder = scheduleDetails.isScheduled && order.status !== ORDER_STATUS.DELIVERED;
+              const displayStatus = isScheduledOrder ? STATUS_DISPLAY[ORDER_STATUS.SCHEDULED] : (STATUS_DISPLAY[order.status] ?? STATUS_DISPLAY[ORDER_STATUS.PENDING]);
               const isActive = order.status !== ORDER_STATUS.DELIVERED;
-              const display = STATUS_DISPLAY[order.status] ?? STATUS_DISPLAY[ORDER_STATUS.PENDING];
-              const statusColor = getStatusColor(order.status);
+              const statusColor = getStatusColor(isScheduledOrder ? ORDER_STATUS.SCHEDULED : effectiveStatus);
 
               return (
                 <div
@@ -179,16 +185,16 @@ const MyOrdersPage: React.FC = () => {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`p-2 rounded-lg flex-shrink-0 ${statusColor} border`}>
-                          {display.icon}
+                          {displayStatus.icon}
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-gray-800 text-sm">
                               Order #{order.id.slice(-8).toUpperCase()}
                             </span>
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${display.badgeClass} border flex items-center gap-1`}>
-                              {display.icon}
-                              {display.label}
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${displayStatus.badgeClass} border flex items-center gap-1`}>
+                              {displayStatus.icon}
+                              {displayStatus.label}
                             </span>
                           </div>
                           <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
@@ -219,6 +225,29 @@ const MyOrdersPage: React.FC = () => {
                         )}
                       </div>
                     </div>
+
+                    {isScheduledOrder && (
+                      <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50/50 p-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-orange-700">
+                          <span aria-hidden="true">🗓</span>
+                          <span>Scheduled Order</span>
+                        </div>
+                        <div className="mt-3 grid gap-2 text-sm text-gray-700 sm:grid-cols-2">
+                          <div>
+                            <p className="text-[11px] uppercase tracking-[0.08em] text-gray-500 mb-1">Scheduled for</p>
+                            <p className="font-semibold text-gray-800">{scheduleDetails.scheduledDate || 'Date not available'}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-[0.08em] text-gray-500 mb-1">Delivery time</p>
+                            <p className="font-semibold text-gray-800">{scheduleDetails.scheduledTime || 'Time not available'}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between flex-wrap gap-2 border-t border-orange-100 pt-2 text-xs text-orange-700">
+                          <span className="font-medium">Status: Scheduled</span>
+                          <span className="text-gray-500">Waiting for scheduled time</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Items */}
                     <div className="flex flex-wrap gap-1.5 pt-3 border-t border-gray-100 mt-3">

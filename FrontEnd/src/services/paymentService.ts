@@ -174,7 +174,7 @@ class PaymentService {
     cvv: string;
     amount: number;
     items: Array<{ id: string; quantity: number; selectedAddons?: Array<{ id: string; price: number; quantity?: number }> }>;
-    deliveryType: 'standard' | 'priority';
+    deliveryType: 'standard' | 'priority' | 'scheduled';
     voucherDiscount: number;
     discountRate: number;
     deliveryCoordinates?: { lat: number; lng: number };

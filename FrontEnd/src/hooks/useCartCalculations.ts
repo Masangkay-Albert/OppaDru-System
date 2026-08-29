@@ -6,7 +6,7 @@ import { FEES } from '../utils/constants';
 
 interface UseCartCalculationsProps {
   cartItems: CartItem[];
-  deliveryType: 'standard' | 'priority';
+  deliveryType: 'standard' | 'priority' | 'scheduled';
   voucherDiscount: number;
   discount?: number;
   deliveryCoordinates?: { lat: number; lng: number };

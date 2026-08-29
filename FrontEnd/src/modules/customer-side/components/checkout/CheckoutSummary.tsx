@@ -9,7 +9,7 @@ import { useSettings } from '../../../../contexts/SettingsContext';
 
 interface CheckoutSummaryProps {
   cartItems: CartItem[];
-  deliveryType: 'standard' | 'priority';
+  deliveryType: 'standard' | 'priority' | 'scheduled';
   onPlaceOrder: () => void;
   onVoucherApply: (discount: number) => void;
   voucherDiscount: number;

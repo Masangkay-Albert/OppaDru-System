@@ -20,7 +20,8 @@ class OrderController extends Controller
         $orders = Order::select([
             'id', 'order_number', 'email', 'user_id', 'total', 'status',
             'payment_method', 'delivery_address', 'phone', 'items', 'created_at',
-            'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'service_fee', 'priority_fee', 'service_fee_rule',
+            'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',
+            'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
         ])->with(['user:id,full_name', 'orderItems'])->orderBy('created_at', 'desc')->get();
         
         $formattedOrders = $orders->map(function ($order) {
@@ -45,6 +46,11 @@ class OrderController extends Controller
                 'priority_fee' => $order->priority_fee,
                 'vat' => $order->vat,
                 'service_fee_rule' => $order->service_fee_rule,
+                'scheduled_at' => $order->scheduled_at ? $this->convertToPhilippineTime($order->scheduled_at) : null,
+                'scheduled_date' => $order->scheduled_date,
+                'scheduled_time' => $order->scheduled_time,
+                'schedule_display' => $order->schedule_display,
+                'schedule_window' => $order->schedule_window,
                 'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
             ];
         });
@@ -85,6 +91,11 @@ class OrderController extends Controller
             'priority_fee' => $order->priority_fee,
             'vat' => $order->vat,
             'service_fee_rule' => $order->service_fee_rule,
+                'scheduled_at' => $order->scheduled_at ? $this->convertToPhilippineTime($order->scheduled_at) : null,
+                'scheduled_date' => $order->scheduled_date,
+                'scheduled_time' => $order->scheduled_time,
+                'schedule_display' => $order->schedule_display,
+                'schedule_window' => $order->schedule_window,
             'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
         ];
 
@@ -105,7 +116,12 @@ class OrderController extends Controller
             'total' => 'nullable|numeric|min:0',
             'delivery_address' => 'required|string',
             'payment_method' => 'required|string|in:cash_on_delivery,gcash,credit_card',
-            'delivery_type' => 'nullable|string|in:standard,priority',
+            'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
+            'scheduled_at' => 'nullable|date',
+            'scheduled_date' => 'nullable|date',
+            'scheduled_time' => 'nullable|string',
+            'schedule_display' => 'nullable|string',
+            'schedule_window' => 'nullable|string',
             'voucher_discount' => 'nullable|numeric|min:0',
             'discount_rate' => 'nullable|numeric|min:0|max:1',
             'delivery_coordinates' => 'nullable|array',
@@ -193,6 +209,11 @@ class OrderController extends Controller
             'delivery_address' => $request->delivery_address,
             'phone' => $request->phone,
             'items' => $orderItems,
+            'scheduled_at' => $request->input('scheduled_at'),
+            'scheduled_date' => $request->input('scheduled_date'),
+            'scheduled_time' => $request->input('scheduled_time'),
+            'schedule_display' => $request->input('schedule_display'),
+            'schedule_window' => $request->input('schedule_window'),
             'payment_reference' => $payment?->reference,
             'payment_status' => $payment ? 'paid' : 'pending',
         ]);
@@ -265,6 +286,11 @@ class OrderController extends Controller
                     'delivery_address' => $order->delivery_address,
                     'phone' => $order->phone,
                     'items' => $order->items,
+                    'scheduled_at' => $order->scheduled_at ? $this->convertToPhilippineTime($order->scheduled_at) : null,
+                    'scheduled_date' => $order->scheduled_date,
+                    'scheduled_time' => $order->scheduled_time,
+                    'schedule_display' => $order->schedule_display,
+                    'schedule_window' => $order->schedule_window,
                     'order_items' => $order->orderItems,
                     'delivery_fee' => $order->delivery_fee,
                     'delivery_distance_km' => $order->delivery_distance_km,

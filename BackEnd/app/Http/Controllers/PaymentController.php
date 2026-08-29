@@ -71,7 +71,7 @@ class PaymentController extends Controller
         $validator = Validator::make($request->all(), [
             'amount' => 'required|numeric|min:0.01',
             'items' => 'required|array|min:1',
-            'delivery_type' => 'nullable|string|in:standard,priority',
+            'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
             'delivery_coordinates' => 'nullable|array',
             'delivery_coordinates.lat' => 'required_with:delivery_coordinates|numeric|between:-90,90',
             'delivery_coordinates.lng' => 'required_with:delivery_coordinates|numeric|between:-180,180',
@@ -252,7 +252,7 @@ class PaymentController extends Controller
             'cvv' => 'required|string|min:3|max:4',
             'amount' => 'required|numeric|min:0.01',
             'items' => 'required|array|min:1',
-            'delivery_type' => 'nullable|string|in:standard,priority',
+            'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
             'delivery_coordinates' => 'nullable|array',
             'delivery_coordinates.lat' => 'required_with:delivery_coordinates|numeric|between:-90,90',
             'delivery_coordinates.lng' => 'required_with:delivery_coordinates|numeric|between:-180,180',

@@ -120,6 +120,14 @@ const CheckoutPage: React.FC = () => {
 
       const fullDeliveryAddress = buildFullDeliveryAddress();
 
+      const scheduledAt = deliveryType === 'scheduled' && selectedDate && selectedTime
+        ? new Date(`${selectedDate.toISOString().split('T')[0]}T${selectedTime.replace(/\s/g, '').includes('AM') ? selectedTime.replace(/\s/g, '').replace('AM', '').padStart(2, '0') : selectedTime.replace(/\s/g, '').replace('PM', '').padStart(2, '0')}:00`).toISOString()
+        : null;
+      const scheduledDate = deliveryType === 'scheduled' && selectedDate ? selectedDate.toISOString().split('T')[0] : null;
+      const scheduledTime = deliveryType === 'scheduled' ? selectedTime : null;
+      const scheduleDisplayValue = deliveryType === 'scheduled' ? scheduleDisplay : null;
+      const scheduleWindowValue = deliveryType === 'scheduled' ? selectedTime : null;
+
       const success = await placeOrder(
         cartItems,
         total,
@@ -130,7 +138,12 @@ const CheckoutPage: React.FC = () => {
         paymentReference || gcashReference,
         deliveryType,
         voucherDiscount,
-        activeDiscount.discountRate
+        activeDiscount.discountRate,
+        scheduledAt,
+        scheduledDate,
+        scheduledTime,
+        scheduleDisplayValue,
+        scheduleWindowValue
       );
 
       if (success) {
@@ -175,6 +188,7 @@ const CheckoutPage: React.FC = () => {
         day: 'numeric',
         year: 'numeric'
       });
+      setDeliveryType('scheduled');
       setScheduleDisplay(`${dateStr} at ${selectedTime}`);
       showToast('Schedule set successfully!', 'success');
     }
