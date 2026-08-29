@@ -12,9 +12,9 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { formatCurrency } from '../../../../utils/formatters';
 import type { CartItem } from '../../../../types/product.types';
 
-// Use production API URL - no localhost fallback
+// Use the active frontend origin so QR links open the app route instead of the backend API host.
 const API_URL = 'https://oppadru-system-1.onrender.com/api';
-const APP_URL = import.meta.env.VITE_APP_URL || 'https://oppadru-system-1.onrender.com';
+const APP_URL = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://oppadru-system-1.onrender.com');
 
 interface PaymentResult {
   success: boolean;
