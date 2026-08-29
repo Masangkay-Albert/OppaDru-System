@@ -121,4 +121,51 @@ class OrderPlacementTest extends TestCase
             ->assertJsonPath('order.scheduled_date', '2026-09-02')
             ->assertJsonPath('order.scheduled_time', '2:00 PM - 2:30 PM');
     }
+
+    public function test_customer_can_place_a_priority_order(): void
+    {
+        $user = User::create([
+            'full_name' => 'Priority Customer',
+            'email' => 'priority@example.com',
+            'phone' => '09177654321',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+
+        $product = Product::create([
+            'name' => 'Priority Chicken',
+            'description' => 'Classic Korean fried chicken',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => 'priority-chicken.jpg',
+            'is_available' => true,
+        ]);
+
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$loginResponse->json('token'))
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'total' => 0,
+                'delivery_address' => 'Block 3, Lot 6, Dasmarinas, Cavite',
+                'payment_method' => 'cash_on_delivery',
+                'delivery_type' => 'priority',
+                'phone' => '09177654321',
+            ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('order.delivery_type', 'priority');
+    }
 }
