@@ -4,7 +4,7 @@ import { FaSpinner, FaCheckCircle, FaTimesCircle, FaWallet } from 'react-icons/f
 import { formatCurrency } from '../../../utils/formatters';
 
 // Use production API URL - no localhost fallback
-const API_URL = 'https://oppadru-system.onrender.com/api';
+const API_URL = 'https://oppadru-system-1.onrender.com/api';
 
 const PaymentConfirmPage: React.FC = () => {
   const { reference } = useParams<{ reference: string }>();

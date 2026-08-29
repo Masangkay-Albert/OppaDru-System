@@ -29,7 +29,7 @@ Verification uses Laravel's synchronous notification mail channel. It must use a
 Set these Render environment variables:
 
 ```text
-APP_URL=https://oppadru-system.onrender.com
+APP_URL=https://oppadru-system-1.onrender.com
 FRONTEND_URL=https://oppa-dru-system.vercel.app
 MAIL_MAILER=smtp
 MAIL_HOST=smtp.gmail.com

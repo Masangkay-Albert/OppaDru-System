@@ -125,7 +125,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system.onrender.com/api'}/settings/pricing`)
+    fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/settings/pricing`)
       .then(response => response.json())
       .then(data => { if (data.settings) setPricing(prev => ({ ...prev, ...data.settings })); })
       .catch(() => setPricing(defaultPricing));

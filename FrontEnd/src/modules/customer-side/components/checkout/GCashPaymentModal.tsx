@@ -13,8 +13,8 @@ import { formatCurrency } from '../../../../utils/formatters';
 import type { CartItem } from '../../../../types/product.types';
 
 // Use production API URL - no localhost fallback
-const API_URL = 'https://oppadru-system.onrender.com/api';
-const APP_URL = import.meta.env.VITE_APP_URL || 'https://oppa-dru-system.vercel.app';
+const API_URL = 'https://oppadru-system-1.onrender.com/api';
+const APP_URL = import.meta.env.VITE_APP_URL || 'https://oppadru-system-1.onrender.com';
 
 interface PaymentResult {
   success: boolean;

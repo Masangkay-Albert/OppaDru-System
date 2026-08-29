@@ -231,7 +231,7 @@ export const addEmployeeAccount = (data: {
 };
 
 // API-backed admin operations
-const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system.onrender.com/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
 
 export const apiRegisterAdmin = async (data: { full_name: string; email: string; password: string; password_confirmation: string }) => {
   // Use FormData to avoid backend JSON parsing issues in some environments
