@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Truck, MapPin, CheckCircle, Phone, Clock, CreditCard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Truck, MapPin, CheckCircle, Phone, Clock, CreditCard, User } from 'lucide-react';
 import DriverLayout from '../components/DriverLayout';
 import { 
   getAvailableDriverOrders, 
   getActiveDeliveries,
-  getDeliveredOrders, // Added this import
+  getDeliveredOrders,
   acceptOrder, 
   completeDelivery,
   type DriverOrder
@@ -16,9 +17,9 @@ import { STATUS_COLORS } from '../../../utils/constants';
 const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap';
 const chipPrimary = `${chipBase} bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]/70`;
 const chipSuccess = `${chipBase} bg-green-50 text-green-600 hover:bg-green-100`;
-const chipDisabled = `${chipBase} bg-gray-100 text-gray-500 cursor-default`; // Added for history
+const chipDisabled = `${chipBase} bg-gray-100 text-gray-500 cursor-default`;
 
-type TabView = 'available' | 'active' | 'history'; // Added 'history'
+type TabView = 'available' | 'active' | 'history';
 
 const formatPaymentMethod = (method?: string) => {
   if (!method) return 'Unknown';
@@ -29,8 +30,34 @@ const formatPaymentMethod = (method?: string) => {
 };
 
 const DriverDashboardPage: React.FC = () => {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<DriverOrder[]>([]);
   const [activeTab, setActiveTab] = useState<TabView>('available');
+  const [driverName, setDriverName] = useState<string>("Driver");
+
+  // Fetch driver details AND act as a security bouncer
+  useEffect(() => {
+    const authData = localStorage.getItem("driver_auth");
+    const token = localStorage.getItem("driver_token");
+
+    // If there is no token or data, kick them to login instantly
+    if (!token || !authData) {
+      navigate('/delivery/login', { replace: true });
+      return; 
+    }
+
+    // If they ARE logged in, get their name for the welcome message
+    try {
+      const driver = JSON.parse(authData);
+      if (driver && driver.name) {
+        setDriverName(driver.name);
+      }
+    } catch (error) {
+      console.error("Failed to parse driver data", error);
+      // If the data is corrupted, kick them out too
+      navigate('/delivery/login', { replace: true }); 
+    }
+  }, [navigate]);
 
   const refresh = () => {
     if (activeTab === 'available') {
@@ -38,7 +65,7 @@ const DriverDashboardPage: React.FC = () => {
     } else if (activeTab === 'active') {
       setOrders(getActiveDeliveries());
     } else {
-      setOrders(getDeliveredOrders()); // Fetch history
+      setOrders(getDeliveredOrders());
     }
   };
 
@@ -53,13 +80,17 @@ const DriverDashboardPage: React.FC = () => {
 
   const handleCompleteDelivery = (order: DriverOrder) => {
     completeDelivery(order.id);
-    setActiveTab('history'); // Move to history tab after completing
+    setActiveTab('history');
   };
 
   return (
     <DriverLayout>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
+          <div className="flex items-center gap-2 text-sm font-medium text-[var(--oppa-green)] mb-1">
+            <User size={16} />
+            <span>Logged in as {driverName}</span>
+          </div>
           <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">
             Delivery Dashboard
           </h1>

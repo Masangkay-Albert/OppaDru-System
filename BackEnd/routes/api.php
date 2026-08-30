@@ -13,6 +13,7 @@ use App\Http\Controllers\DriverController;
 use App\Http\Controllers\TargetProfitSaleController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\AddonController;
+use App\Http\Controllers\DriverAuthController;
 use Illuminate\Http\Request;
 
 Route::get('/test', function () {
@@ -36,6 +37,8 @@ Route::post('/drivers', [DriverController::class, 'store']);
 Route::put('/drivers/{id}', [DriverController::class, 'update']);
 Route::delete('/drivers/{id}', [DriverController::class, 'destroy']);
 Route::put('/drivers/{id}/reset-password', [DriverController::class, 'resetPassword']);
+Route::post('/driver/login', [DriverAuthController::class, 'login']);
+Route::post('/driver/logout', [DriverAuthController::class, 'logout']);
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
