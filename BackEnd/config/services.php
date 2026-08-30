@@ -2,6 +2,12 @@
 
 return [
 
+    'paymongo' => [
+        'secret_key' => env('PAYMONGO_SECRET_KEY'),
+        'webhook_secret' => env('PAYMONGO_WEBHOOK_SECRET'),
+        'base_url' => env('PAYMONGO_BASE_URL', 'https://api.paymongo.com/v1'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
@@ -33,6 +39,12 @@ return [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
+    ],
+
+    'gmail' => [
+        'client_id' => env('GMAIL_CLIENT_ID'),
+        'client_secret' => env('GMAIL_CLIENT_SECRET'),
+        'refresh_token' => env('GMAIL_REFRESH_TOKEN'),
     ],
 
 ];

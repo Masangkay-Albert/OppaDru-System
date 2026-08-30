@@ -66,6 +66,11 @@ export const usePayment = () => {
     expiryYear: string;
     cvv: string;
     amount: number;
+    items: Array<{ id: string; quantity: number; selectedAddons?: Array<{ id: string; price: number }> }>;
+    deliveryType: 'standard' | 'priority' | 'scheduled';
+    voucherDiscount: number;
+    discountRate: number;
+    deliveryCoordinates?: { lat: number; lng: number };
   }) => {
     setIsProcessing(true);
     setError(null);
@@ -81,6 +86,29 @@ export const usePayment = () => {
       return response;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Payment failed';
+      setError(message);
+      showToast(message, 'error');
+      return null;
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [showToast]);
+
+  const confirmQRPayment = useCallback(async (referenceNumber: string, amount: number): Promise<PaymentResult | null> => {
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const response = await paymentService.confirmQRPayment(referenceNumber, amount);
+      setResult(response);
+      if (response.success) {
+        showToast(response.message, 'success');
+      } else {
+        showToast(response.message, 'error');
+      }
+      return response;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Payment verification failed';
       setError(message);
       showToast(message, 'error');
       return null;
@@ -108,6 +136,7 @@ export const usePayment = () => {
     requestGCashOTP,
     processGCash,
     processCard,
+    confirmQRPayment,
     reset,
     formatCurrency
   };

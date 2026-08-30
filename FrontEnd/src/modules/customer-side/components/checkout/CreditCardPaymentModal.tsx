@@ -16,6 +16,7 @@ import {
 import { IoClose } from 'react-icons/io5';
 import { HiOutlineCreditCard } from 'react-icons/hi';
 import { usePayment } from '../../../../hooks/usePayment';
+import type { CartItem } from '../../../../types/product.types';
 
 interface PaymentResult {
   success: boolean;
@@ -31,6 +32,11 @@ interface CreditCardPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   amount: number;
+  items: CartItem[];
+  deliveryType: 'standard' | 'priority' | 'scheduled';
+  voucherDiscount: number;
+  discountRate: number;
+  deliveryCoordinates?: { lat: number; lng: number };
   onPaymentComplete: (result: PaymentResult) => void;
 }
 
@@ -38,7 +44,10 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
   isOpen,
   onClose,
   amount,
-  onPaymentComplete
+  onPaymentComplete,
+  items,
+  deliveryType
+  , voucherDiscount, discountRate, deliveryCoordinates
 }) => {
   const [form, setForm] = useState({
     cardNumber: '',
@@ -91,7 +100,11 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
       expiryMonth: form.expiryMonth,
       expiryYear: form.expiryYear,
       cvv: form.cvv,
-      amount
+      amount,
+      items,
+      deliveryType
+      , voucherDiscount, discountRate
+      , deliveryCoordinates
     });
     setIsLoading(false);
     if (response?.success) {

@@ -1,7 +1,7 @@
 // src/modules/customer-side/components/cart/CartSummary.tsx
 import React from 'react';
-import { FEES } from '../../../../utils/constants'; 
 import { formatCurrency } from '../../../../utils/formatters'; 
+import { useSettings } from '../../../../contexts/SettingsContext';
 
 interface CartSummaryProps {
   subtotal: number;
@@ -11,29 +11,16 @@ interface CartSummaryProps {
 }
 
 const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutlery, onCutleryChange }) => {
-  const deliveryFee = FEES.DELIVERY.STANDARD;
-  const serviceFee = FEES.SERVICE;
-  const vat = (subtotal + deliveryFee + serviceFee) * FEES.VAT_RATE;
-  const total = subtotal + deliveryFee + serviceFee + vat;
+  const { pricing } = useSettings();
+  const vat = subtotal * pricing.vat_rate;
+  const total = Math.round((subtotal + vat) * 100) / 100;
 
   return (
-    <div className="border-t border-gray-200 bg-white">
+    <div className="border-t border-gray-200 bg-white rounded-b-xl">
       <div className="px-5 py-3 space-y-2 text-sm">
-        <div className="flex justify-between">
+        <div className="flex justify-between items-center">
           <span className="text-gray-500">Subtotal</span>
-          <span className="text-gray-800">{hasItems ? formatCurrency(subtotal) : '—'}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">Standard delivery</span>
-          <span className="text-gray-800">{hasItems ? formatCurrency(deliveryFee) : '—'}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">Service fee</span>
-          <span className="text-gray-800">{hasItems ? formatCurrency(serviceFee) : '—'}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">VAT (12%)</span>
-          <span className="text-gray-800">{hasItems ? formatCurrency(vat) : '—'}</span>
+          <span className="text-gray-800 font-medium">{hasItems ? formatCurrency(subtotal) : '—'}</span>
         </div>
       </div>
       

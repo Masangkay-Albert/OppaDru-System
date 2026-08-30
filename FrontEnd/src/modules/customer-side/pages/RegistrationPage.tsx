@@ -27,7 +27,7 @@ const RegistrationPage: React.FC = () => {
   };
 
   const validateEmail = (email: string) => {
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
@@ -89,7 +89,7 @@ const RegistrationPage: React.FC = () => {
     }
 
     if (!validateEmail(email)) {
-      setError("Please use a valid Gmail address (e.g., username@gmail.com)");
+      setError("Please enter a valid email address");
       setIsLoading(false);
       return;
     }
@@ -143,13 +143,13 @@ const RegistrationPage: React.FC = () => {
       });
 
       if (success) {
-        navigate("/customer");
+        navigate("/login?registered=1");
       } else {
         setError("Email already exists or registration failed");
         setIsLoading(false);
       }
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Registration failed");
       setIsLoading(false);
     }
   };
@@ -236,7 +236,7 @@ const RegistrationPage: React.FC = () => {
                   className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)] focus:border-transparent ${
                     showEmailError ? 'border-red-400 bg-red-50' : 'border-[var(--oppa-border)]'
                   }`}
-                  placeholder="username@gmail.com"
+                  placeholder="you@example.com"
                 />
               </div>
               {showEmailError && (
@@ -324,6 +324,8 @@ const RegistrationPage: React.FC = () => {
                   required
                   value={passwordConfirmation}
                   onChange={handleConfirmPasswordChange}
+                  onPaste={(e) => e.preventDefault()}
+                  onDrop={(e) => e.preventDefault()}
                   className={`w-full pl-10 pr-12 py-2.5 rounded-xl border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)] focus:border-transparent ${
                     showConfirmPasswordError ? 'border-red-400 bg-red-50' : 'border-[var(--oppa-border)]'
                   }`}

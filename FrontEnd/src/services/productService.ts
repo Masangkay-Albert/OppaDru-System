@@ -1,5 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
 import { getProductImage } from '../data/productImages';
+import type { AddonGroup } from '../types/product.types';
 import { ensureAdminSession, getStoredAdminToken } from './adminAuthService';
 
 export interface Product {
@@ -12,6 +13,7 @@ export interface Product {
     is_available: boolean;
     isAvailable?: boolean;
     addons?: any[];
+    addonGroups?: AddonGroup[];
     created_at?: string;
     updated_at?: string;
 }
@@ -65,9 +67,54 @@ class ProductService {
             is_available: product.is_available ?? product.isAvailable ?? true,
             isAvailable: product.is_available ?? product.isAvailable ?? true,
             image: getProductImage(product.image || ''),
+            addonGroups: product.addonGroups || product.addon_groups || [],
             created_at: product.created_at || '',
             updated_at: product.updated_at || '',
         };
+    }
+
+    async getAddonGroups(category?: string, productId?: string): Promise<AddonGroup[]> {
+        const params = new URLSearchParams();
+        if (category) params.set('category', category);
+        if (productId) params.set('product_id', productId);
+        const response = await fetch(`${API_URL}/addon-groups?${params.toString()}`, { headers: this.getHeaders() });
+        if (!response.ok) throw new Error('Failed to fetch add-on groups');
+        return response.json();
+    }
+
+    private async adminAddonRequest(path: string, options: RequestInit = {}): Promise<any> {
+        const token = await this.ensureValidAdminToken();
+        if (!token) throw new Error('Unauthorized');
+        const response = await fetch(`${API_URL}${path}`, {
+            ...options,
+            headers: { ...this.getHeaders(true), ...(options.headers || {}) },
+        });
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || 'Add-on request failed');
+        return response.json();
+    }
+
+    async getAdminAddonGroups(): Promise<AddonGroup[]> {
+        return this.adminAddonRequest('/addon-groups');
+    }
+
+    async createAddonGroup(data: Partial<AddonGroup> & { applicable_categories: string[] }): Promise<AddonGroup> {
+        return this.adminAddonRequest('/admin/addon-groups', { method: 'POST', body: JSON.stringify(data) });
+    }
+
+    async updateAddonGroup(id: number, data: Partial<AddonGroup>): Promise<AddonGroup> {
+        return this.adminAddonRequest(`/admin/addon-groups/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    }
+
+    async createAddon(groupId: number, data: { name: string; price: number; is_active?: boolean }): Promise<AddonGroup> {
+        return this.adminAddonRequest(`/admin/addon-groups/${groupId}/addons`, { method: 'POST', body: JSON.stringify(data) });
+    }
+
+    async updateAddon(id: number, data: { name?: string; price?: number; is_active?: boolean }): Promise<any> {
+        return this.adminAddonRequest(`/admin/addons/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    }
+
+    async deleteAddon(id: number): Promise<void> {
+        await this.adminAddonRequest(`/admin/addons/${id}`, { method: 'DELETE' });
     }
 
     private getCachedProducts(): Product[] {
@@ -132,7 +179,11 @@ class ProductService {
                     }
                 }
             }
-            throw new Error(errorBody.message || 'Failed to fetch admin products');
+            try {
+                return await this.getProducts();
+            } catch {
+                throw new Error(errorBody.message || 'Failed to fetch admin products');
+            }
         }
 
         const payload = await response.json();

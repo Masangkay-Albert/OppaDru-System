@@ -1,4 +1,12 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
+
+const getApiErrorMessage = async (response: Response, fallback: string): Promise<string> => {
+  const error = await response.json().catch(() => ({}));
+  const validationMessages = error.errors
+    ? Object.values(error.errors).flat().join(' ')
+    : '';
+  return validationMessages || error.message || fallback;
+};
 
 export interface User {
   id: string;
@@ -8,6 +16,7 @@ export interface User {
   role: 'customer' | 'admin' | 'driver' | 'kitchen';
   created_at: string;
   updated_at: string;
+  email_verified_at?: string | null;
 }
 
 export interface RegisterData {
@@ -25,7 +34,7 @@ export interface LoginData {
 
 export interface AuthResponse {
   user: User;
-  token: string;
+  token?: string;
   message: string;
 }
 
@@ -51,13 +60,12 @@ class AuthService {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Registration failed');
+      throw new Error(await getApiErrorMessage(response, 'Registration failed'));
     }
 
     const result = await response.json();
+    this.clearAuth();
     this.setUser(result.user);
-    this.setToken(result.token);
     return result;
   }
 
@@ -71,14 +79,31 @@ class AuthService {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Invalid email or password');
+      throw new Error(await getApiErrorMessage(response, 'Invalid email or password'));
     }
 
     const result = await response.json();
     this.setUser(result.user);
     this.setToken(result.token);
     return result;
+  }
+
+  async resendVerification(email: string): Promise<string> {
+    const response = await fetch(`${API_URL}/verification/resend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      const validationMessages = result.errors
+        ? Object.values(result.errors).flat().join(' ')
+        : '';
+      throw new Error(validationMessages || result.message || 'Unable to resend verification email');
+    }
+
+    return result.message;
   }
 
   async logout(): Promise<void> {

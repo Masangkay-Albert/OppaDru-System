@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/Authcontext"; 
 import { AdminAuthProvider } from "./contexts/AdminAuthContext";
@@ -18,19 +19,23 @@ import OrderTrackingPage from "./modules/customer-side/pages/OrderTrackingPage";
 import MyOrdersPage from "./modules/customer-side/pages/MyOrdersPage";
 import SettingsPage from "./modules/customer-side/pages/SettingsPage";
 
+
 // ============ ADMIN PAGES ============
-import AdminLoginPage from "./modules/admin-side/pages/AdminLoginPage";
-import AdminDashboardPage from "./modules/admin-side/pages/AdminDashboardPage";
-import AdminProductsPage from "./modules/admin-side/pages/AdminProductsPage";
-import AdminAddProductPage from "./modules/admin-side/pages/AdminAddProductPage";
-import AdminOrdersPage from "./modules/admin-side/pages/AdminOrdersPage";
-import AdminCustomersPage from "./modules/admin-side/pages/AdminCustomersPage";
-import AdminEmployeesPage from "./modules/admin-side/pages/AdminEmployeesPage";
-import AdminAdminsPage from "./modules/admin-side/pages/AdminAdminsPage";
-import AdminReportsPage from "./modules/admin-side/pages/AdminReportsPage";
-import AdminDelivery from "./modules/admin-side/pages/AdminDelivery";
 import ProtectedAdminRoute from "./modules/admin-side/components/ProtectedAdminRoute";
-import AdminKitchenPage from "./modules/admin-side/pages/AdminKitchenPage";
+
+const AdminLoginPage = lazy(() => import("./modules/admin-side/pages/AdminLoginPage"));
+const AdminDashboardPage = lazy(() => import("./modules/admin-side/pages/AdminDashboardPage"));
+const AdminProductsPage = lazy(() => import("./modules/admin-side/pages/AdminProductsPage"));
+const AdminAddonsPage = lazy(() => import("./modules/admin-side/pages/AdminAddonsPage"));
+const AdminAddProductPage = lazy(() => import("./modules/admin-side/pages/AdminAddProductPage"));
+const AdminOrdersPage = lazy(() => import("./modules/admin-side/pages/AdminOrdersPage"));
+const AdminCustomersPage = lazy(() => import("./modules/admin-side/pages/AdminCustomersPage"));
+const AdminEmployeesPage = lazy(() => import("./modules/admin-side/pages/AdminEmployeesPage"));
+const AdminAdminsPage = lazy(() => import("./modules/admin-side/pages/AdminAdminsPage"));
+const AdminReportsPage = lazy(() => import("./modules/admin-side/pages/AdminReportsPage"));
+const AdminDelivery = lazy(() => import("./modules/admin-side/pages/AdminDelivery"));
+const AdminKitchenPage = lazy(() => import("./modules/admin-side/pages/AdminKitchenPage"));
+const AdminPricingSettingsPage = lazy(() => import("./modules/admin-side/pages/AdminPricingSettingsPage"));
 
 // ============ DRIVER PAGES ============
 import DriverLoginPage from "./modules/driver-side/pages/DriverLoginPage";
@@ -39,6 +44,8 @@ import DriverDashboardPage from "./modules/driver-side/pages/DriverDashboardPage
 /// ============= Kitchen Page
 import KitchenLoginPage from "./modules/kitchen-side/kitchenLogin";
 import KitchenDashboardPage from "./modules/kitchen-side/kitchenDashboard";
+import PaymentConfirmPage from "./modules/customer-side/pages/PaymentConfirmPage";
+import ProtectedRoute from "./modules/customer-side/components/ProtectedRoute";
 
 function App() {
   return (
@@ -50,6 +57,7 @@ function App() {
               <AdminAuthProvider>
                 <BrowserRouter>
                   <ToastProvider>
+                    <Suspense fallback={<div className="min-h-screen bg-[var(--oppa-cream)] p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading page...</div>}>
                     <Routes>
                       {/* ===== PUBLIC ROUTES ===== */}
                       <Route path="/" element={<LandingPage />} />
@@ -57,18 +65,20 @@ function App() {
                       <Route path="/register" element={<RegistrationPage />} />
 
                       {/* ===== CUSTOMER ROUTES ===== */}
-                      <Route path="/customer" element={<MenuPage />} />
-                      <Route path="/customer/favorites" element={<FavoritesPage />} />
-                      <Route path="/customer/orders" element={<MyOrdersPage />} />
-                      <Route path="/customer/settings" element={<SettingsPage />} />
-                      <Route path="/checkout" element={<CheckoutPage />} />
-                      <Route path="/tracking" element={<OrderTrackingPage />} />
+                      <Route path="/customer" element={<ProtectedRoute><MenuPage /></ProtectedRoute>} />
+                      <Route path="/customer/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
+                      <Route path="/customer/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
+                      <Route path="/customer/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                      <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+                      <Route path="/tracking" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
+                      <Route path="/payment/confirm/:reference" element={<PaymentConfirmPage />} />
 
                       {/* ===== ADMIN ROUTES ===== */}
                       <Route path="/admin/login" element={<AdminLoginPage />} />
                       <Route path="/admin" element={<ProtectedAdminRoute><AdminDashboardPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/dashboard" element={<ProtectedAdminRoute><AdminDashboardPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/products" element={<ProtectedAdminRoute><AdminProductsPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/addons" element={<ProtectedAdminRoute><AdminAddonsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/products/add" element={<ProtectedAdminRoute><AdminAddProductPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/orders" element={<ProtectedAdminRoute><AdminOrdersPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/delivery" element={<ProtectedAdminRoute><AdminDelivery /></ProtectedAdminRoute>} />
@@ -77,6 +87,7 @@ function App() {
                       <Route path="/admin/reports" element={<ProtectedAdminRoute><AdminReportsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/admins" element={<ProtectedAdminRoute><AdminAdminsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/kitchen" element={<ProtectedAdminRoute><AdminKitchenPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/settings/pricing" element={<ProtectedAdminRoute><AdminPricingSettingsPage /></ProtectedAdminRoute>} />
 
                       {/* ===== DRIVER ROUTES ===== */}
                       <Route path="/delivery/login" element={<DriverLoginPage />} />
@@ -87,6 +98,7 @@ function App() {
                       <Route path="/kitchen/dashboard" element={<KitchenDashboardPage/>}/>
 
                     </Routes>
+                    </Suspense>
                   </ToastProvider>
                 </BrowserRouter>
               </AdminAuthProvider>

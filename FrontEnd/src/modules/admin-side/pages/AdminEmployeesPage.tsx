@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Trash2, UserPlus, KeyRound } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import AccountModal from '../components/AccountModal';
+import { API_URL } from '../../../services/apiConfig';
 
 // 1. Interface matching your Laravel Database
 export interface EmployeeAccount {
@@ -15,9 +16,7 @@ const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text
 const chipInfo = `${chipBase} bg-blue-50 text-blue-600 hover:bg-blue-100`;
 const iconDangerBtn = 'inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-500 transition hover:bg-red-100 hover:text-red-700';
 
-// 2. Base API URL (uses Vite env variable or defaults to localhost:8000)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-
+// 2. Shared API base URL
 const AdminEmployeesPage: React.FC = () => {
   const [employees, setEmployees] = useState<EmployeeAccount[]>([]);
   const [selected, setSelected] = useState<EmployeeAccount | null>(null);
@@ -30,11 +29,11 @@ const AdminEmployeesPage: React.FC = () => {
   // FETCH Employees
   const refresh = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/employees`, {
+      const response = await fetch(`${API_URL}/employees`, {
         headers: { 'Accept': 'application/json' }
       });
       const data = await response.json();
-      setEmployees(data);
+      setEmployees(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch employees:', error);
     }
@@ -49,7 +48,7 @@ const AdminEmployeesPage: React.FC = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/employees`, {
+      const response = await fetch(`${API_URL}/employees`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,7 +77,7 @@ const AdminEmployeesPage: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (window.confirm('Delete this employee account?')) {
       try {
-        await fetch(`${API_BASE_URL}/employees/${id}`, {
+        await fetch(`${API_URL}/employees/${id}`, {
           method: 'DELETE',
           headers: { 'Accept': 'application/json' }
         });
@@ -92,7 +91,7 @@ const AdminEmployeesPage: React.FC = () => {
   // RESET Password
   const handleReset = async (id: string, newPassword: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/employees/${id}/reset-password`, {
+      const response = await fetch(`${API_URL}/employees/${id}/reset-password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

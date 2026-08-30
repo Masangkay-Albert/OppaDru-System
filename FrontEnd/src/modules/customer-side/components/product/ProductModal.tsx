@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import type { Product, CartItem, Addon } from '../../../../types/product.types';
+import type { Product, CartItem, Addon, AddonGroup } from '../../../../types/product.types';
 import { useCart } from '../../../../contexts/CartContext';
 import { useFavorites } from '../../../../contexts/FavoritesContext';
-import { addons as allAddons } from '../../../../data/mockData';
 import QuantitySelector from './QuantitySelector';
 import AddonsSection from '../common/AddonsSection';
 import { FiX } from 'react-icons/fi';
 import '../../../../styles/modal.css';
+import { productService } from '../../../../services/productService';
 
 interface ProductModalProps {
   product: Product | null;
@@ -17,8 +17,6 @@ interface ProductModalProps {
   initialAddons?: Addon[];
   initialInstructions?: string;
 }
-
-const addonsByProduct: Record<string, Addon[]> = {};
 
 const ProductModal: React.FC<ProductModalProps> = ({
   product,
@@ -35,6 +33,9 @@ const ProductModal: React.FC<ProductModalProps> = ({
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [isClosing, setIsClosing] = useState(false);
+  const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
+  const [isLoadingAddons, setIsLoadingAddons] = useState(false);
+  const [addonLoadError, setAddonLoadError] = useState(false);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -63,19 +64,57 @@ const ProductModal: React.FC<ProductModalProps> = ({
     }
   }, [product?.id, editCartItemId]);
 
+  useEffect(() => {
+    if (!product) return;
+    const embeddedGroups = product.addonGroups || [];
+    setAddonGroups(embeddedGroups);
+    setAddonLoadError(false);
+    if (embeddedGroups.length > 0) {
+      setIsLoadingAddons(false);
+      return;
+    }
+
+    let isCurrentRequest = true;
+    setIsLoadingAddons(true);
+    productService.getAddonGroups(product.category, product.id)
+      .then((groups) => {
+        if (isCurrentRequest) setAddonGroups(groups);
+      })
+      .catch(() => {
+        if (isCurrentRequest) {
+          setAddonGroups([]);
+          setAddonLoadError(true);
+        }
+      })
+      .finally(() => {
+        if (isCurrentRequest) setIsLoadingAddons(false);
+      });
+
+    return () => { isCurrentRequest = false; };
+  }, [product?.id, product?.category]);
+
   if (!product) return null;
 
-  const addons = addonsByProduct[product.id] || allAddons;
-
-  const getAddonsTotal = () => selectedAddons.reduce((sum, addon) => sum + addon.price, 0);
+  const getAddonsTotal = () => selectedAddons.reduce((sum, addon) => sum + addon.price * (addon.quantity || 1), 0);
   const getTotalPrice = () => (product.price + getAddonsTotal()) * quantity;
 
-  const toggleAddon = (addon: Addon) => {
-    setSelectedAddons(prev =>
-      prev.find(a => a.id === addon.id)
-        ? prev.filter(a => a.id !== addon.id)
-        : [...prev, addon]
-    );
+  const toggleAddon = (addon: Addon, group: AddonGroup) => {
+    setSelectedAddons(prev => {
+      const existing = prev.find((item) => item.id === addon.id);
+      if (existing) return prev.filter((item) => item.id !== addon.id);
+      const withoutGroup = group.selection_type === 'single'
+        ? prev.filter((item) => !group.addons.some((groupAddon) => groupAddon.id === item.id))
+        : prev;
+      return [...withoutGroup, { ...addon, addon_group_id: group.id, quantity: 1 }];
+    });
+  };
+
+  const changeAddonQuantity = (addon: Addon, group: AddonGroup, delta: number) => {
+    setSelectedAddons((prev) => prev.flatMap((item) => {
+      if (item.id !== addon.id) return [item];
+      const quantity = Math.max(0, Math.min(group.max_selections || 99, (item.quantity || 1) + delta));
+      return quantity ? [{ ...item, quantity }] : [];
+    }));
   };
 
   const handleClose = () => {
@@ -122,19 +161,22 @@ const ProductModal: React.FC<ProductModalProps> = ({
 
       <div className="fixed inset-0 z-[101] flex items-center justify-center p-4">
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="product-modal-title"
           className={`w-[90%] max-w-[520px] max-h-[85vh] bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col transition-all duration-200 ${
             isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
           }`}
         >
           <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] text-white shrink-0">
-            <h2 className="font-bold text-lg">{product.name}</h2>
-            <button onClick={handleClose} className="text-2xl opacity-80 hover:opacity-100 hover:rotate-90 transition-all duration-300 cursor-pointer">
+            <h2 id="product-modal-title" className="font-bold text-lg">{product.name}</h2>
+            <button aria-label="Close product details" onClick={handleClose} className="text-2xl opacity-80 hover:opacity-100 hover:rotate-90 transition-all duration-300 cursor-pointer">
               <FiX />
             </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6">
-            <p className="text-3xl font-extrabold text-[#2d6a4f] mb-2">₱{product.price}</p>
+            <p className="text-3xl font-extrabold text-[#2d6a4f] mb-2">₱{Number(product.price).toFixed(2)}</p>
             <p className="text-sm text-gray-500 mb-4">{product.description}</p>
 
             {!product.isAvailable && (
@@ -154,7 +196,38 @@ const ProductModal: React.FC<ProductModalProps> = ({
                   />
                 </div>
 
-                <AddonsSection addons={addons} selectedAddons={selectedAddons} onToggleAddon={toggleAddon} />
+                <div className="mb-5 min-h-[180px]">
+                  {isLoadingAddons ? (
+                    <div className="space-y-3 animate-pulse" aria-live="polite">
+                      <div className="h-4 w-28 rounded bg-gray-200" />
+                      <div className="space-y-2">
+                        {[0, 1, 2].map((item) => (
+                          <div key={item} className="h-12 rounded-xl bg-gray-100" />
+                        ))}
+                      </div>
+                    </div>
+                  ) : addonLoadError ? (
+                    <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                      Add-ons are temporarily unavailable. You can still add this item.
+                    </p>
+                  ) : addonGroups.length > 0 ? (
+                    <div className="space-y-5">
+                      {addonGroups.map((group) => (
+                        <AddonsSection
+                          key={group.id}
+                          group={group}
+                          selectedAddons={selectedAddons}
+                          onToggleAddon={(addon) => toggleAddon(addon, group)}
+                          onChangeQuantity={(addon, delta) => changeAddonQuantity(addon, group, delta)}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-xs text-gray-400">
+                      No add-ons available for this item.
+                    </div>
+                  )}
+                </div>
 
                 <div className="mb-5">
                   <label className="block font-semibold text-sm text-gray-800 mb-2">Special Instructions</label>
@@ -174,7 +247,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
           <div className="p-6 border-t border-gray-200 bg-white shrink-0">
             <div className="flex justify-between items-center font-bold text-lg mb-3">
               <span>Total:</span>
-              <span className="text-[#2d6a4f] text-2xl">₱{getTotalPrice()}</span>
+              <span className="text-[#2d6a4f] text-2xl">₱{getTotalPrice().toFixed(2)}</span>
             </div>
             <button
               onClick={handleSubmit}

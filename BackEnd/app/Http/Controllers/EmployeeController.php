@@ -10,7 +10,7 @@ class EmployeeController extends Controller
     // Fetch all employees
     public function index()
     {
-        return Employee::all();
+        return Employee::select('id', 'fullName', 'email', 'position')->get();
     }
 
     // Create a new employee

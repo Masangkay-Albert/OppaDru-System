@@ -10,15 +10,26 @@ class CorsMiddleware
     public function handle(Request $request, Closure $next)
     {
         $origin = $request->headers->get('Origin');
-        $allowedOrigins = [
-            'http://localhost:5173',
-            'http://127.0.0.1:5173',
-            'http://localhost:5174',
-            'http://127.0.0.1:5174',
-        ];
+
+        $allowedOrigins = config('cors.allowed_origins', []);
+        $allowedPatterns = config('cors.allowed_origins_patterns', []);
+
+        $isAllowed = false;
+        if ($origin) {
+            if (in_array($origin, $allowedOrigins, true)) {
+                $isAllowed = true;
+            } else {
+                foreach ($allowedPatterns as $pattern) {
+                    if (preg_match($pattern, $origin)) {
+                        $isAllowed = true;
+                        break;
+                    }
+                }
+            }
+        }
 
         $headers = [
-            'Access-Control-Allow-Origin' => in_array($origin, $allowedOrigins, true) ? $origin : 'http://localhost:5173',
+            'Access-Control-Allow-Origin' => $isAllowed ? $origin : '',
             'Access-Control-Allow-Methods' => 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
             'Access-Control-Allow-Headers' => $request->headers->get('Access-Control-Request-Headers', 'Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN'),
             'Access-Control-Allow-Credentials' => 'true',
@@ -31,7 +42,9 @@ class CorsMiddleware
         $response = $next($request);
 
         foreach ($headers as $key => $value) {
-            $response->headers->set($key, $value);
+            if ($value !== '') {
+                $response->headers->set($key, $value);
+            }
         }
 
         return $response;

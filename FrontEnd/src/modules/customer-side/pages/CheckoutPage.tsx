@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiShoppingCart } from 'react-icons/fi';
 import { useCart } from '../../../contexts/CartContext';
@@ -11,9 +11,11 @@ import GCashPaymentModal from '../components/checkout/GCashPaymentModal';
 import CreditCardPaymentModal from '../components/checkout/CreditCardPaymentModal';
 import ScheduleModal from '../components/checkout/ScheduleModal';
 import { useCheckoutForm } from '../../../hooks/useCheckoutForm';
-import { geocodeAddress, OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
-import { FEES } from '../../../utils/constants';
+import { geocodeAddress, OPPA_DRU_STORE_COORDS, type Coordinates } from '../../../services/geocodingService';
 import { cleanAddress } from '../../../utils/locationUtils';
+import { useCartCalculations } from '../../../hooks/useCartCalculations';
+import { useSettings } from '../../../contexts/SettingsContext';
+import { getAvailableDates, generateTimeSlots } from '../../../services/checkoutService';
 
 interface PaymentResult {
   success: boolean;
@@ -25,47 +27,25 @@ interface PaymentResult {
   amount: number;
 }
 
-const getAvailableDates = () => {
-  const dates = [];
-  const today = new Date();
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + i);
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    dates.push({
-      date: date,
-      label: i === 0 ? 'Today' : dayNames[date.getDay()]
-    });
-  }
-  return dates;
-};
-
-const getTimeSlots = () => {
-  const slots = [];
-  for (let hour = 8; hour <= 22; hour++) {
-    for (let min = 0; min < 60; min += 30) {
-      const h = hour.toString().padStart(2, '0');
-      const m = min.toString().padStart(2, '0');
-      slots.push(`${h}:${m}`);
-    }
-  }
-  return slots;
-};
-
 const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cartItems, clearCart } = useCart();
   const { placeOrder } = useOrder();
   const { showToast } = useToast();
+  const { getActiveDiscount } = useSettings();
+  const activeDiscount = getActiveDiscount();
 
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [orderCompleted, setOrderCompleted] = useState(false);
   const [showGCashModal, setShowGCashModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [gcashReference, setGCashReference] = useState<string | undefined>();
   const [scheduleDisplay, setScheduleDisplay] = useState('Select date & time');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates>(OPPA_DRU_STORE_COORDS);
+  const orderRequestRef = useRef<Promise<void> | null>(null);
 
   const {
     address,
@@ -79,25 +59,27 @@ const CheckoutPage: React.FC = () => {
     voucherDiscount,
   } = useCheckoutForm();
 
-  const calculateTotal = () => {
-    const subtotal = cartItems.reduce((sum, item) => {
-      const addonsTotal = item.selectedAddons?.reduce((s, a) => s + a.price, 0) || 0;
-      return sum + (item.price + addonsTotal) * item.quantity;
-    }, 0);
+  useEffect(() => {
+    if (!address.street.trim()) {
+      setDeliveryCoordinates(OPPA_DRU_STORE_COORDS);
+      return;
+    }
 
-    const deliveryFee = deliveryType === 'priority' ? FEES.DELIVERY.PRIORITY : FEES.DELIVERY.STANDARD;
-    const serviceFee = FEES.SERVICE;
-    const vatRate = FEES.VAT_RATE;
-    const total = subtotal + deliveryFee + serviceFee + ((subtotal + deliveryFee + serviceFee - voucherDiscount) * vatRate);
+    const timer = window.setTimeout(async () => {
+      const coords = await geocodeAddress(cleanAddress(address.street));
+      setDeliveryCoordinates(coords || OPPA_DRU_STORE_COORDS);
+    }, 500);
 
-    return {
-      subtotal,
-      deliveryFee,
-      serviceFee,
-      vat: (subtotal + deliveryFee + serviceFee - voucherDiscount) * vatRate,
-      total
-    };
-  };
+    return () => window.clearTimeout(timer);
+  }, [address.street]);
+
+  const { total } = useCartCalculations({
+    cartItems,
+    deliveryType,
+    voucherDiscount,
+    discount: activeDiscount.discountRate,
+    deliveryCoordinates,
+  });
 
   const buildFullDeliveryAddress = () => {
     const parts: string[] = [];
@@ -114,7 +96,10 @@ const CheckoutPage: React.FC = () => {
     return parts.join(', ');
   };
 
-  const placeOrderDirect = async () => {
+  const placeOrderDirect = async (paymentReference?: string) => {
+    if (orderRequestRef.current) return;
+
+    const request = (async () => {
     setIsPlacingOrder(true);
 
     try {
@@ -133,8 +118,15 @@ const CheckoutPage: React.FC = () => {
         coords = { ...OPPA_DRU_STORE_COORDS };
       }
 
-      const { total } = calculateTotal();
       const fullDeliveryAddress = buildFullDeliveryAddress();
+
+      const scheduledAt = deliveryType === 'scheduled' && selectedDate && selectedTime
+        ? new Date(`${selectedDate.toISOString().split('T')[0]}T${selectedTime.replace(/\s/g, '').includes('AM') ? selectedTime.replace(/\s/g, '').replace('AM', '').padStart(2, '0') : selectedTime.replace(/\s/g, '').replace('PM', '').padStart(2, '0')}:00`).toISOString()
+        : null;
+      const scheduledDate = deliveryType === 'scheduled' && selectedDate ? selectedDate.toISOString().split('T')[0] : null;
+      const scheduledTime = deliveryType === 'scheduled' ? selectedTime : null;
+      const scheduleDisplayValue = deliveryType === 'scheduled' ? scheduleDisplay : null;
+      const scheduleWindowValue = deliveryType === 'scheduled' ? selectedTime : null;
 
       const success = await placeOrder(
         cartItems,
@@ -142,7 +134,16 @@ const CheckoutPage: React.FC = () => {
         fullDeliveryAddress,
         paymentMethod,
         tempPerson.phone,
-        coords
+        coords,
+        paymentReference || gcashReference,
+        deliveryType,
+        voucherDiscount,
+        activeDiscount.discountRate,
+        scheduledAt,
+        scheduledDate,
+        scheduledTime,
+        scheduleDisplayValue,
+        scheduleWindowValue
       );
 
       if (success) {
@@ -159,12 +160,20 @@ const CheckoutPage: React.FC = () => {
     } finally {
       setIsPlacingOrder(false);
     }
+    })();
+
+    orderRequestRef.current = request;
+    try {
+      await request;
+    } finally {
+      orderRequestRef.current = null;
+    }
   };
 
   const handlePaymentComplete = (result: PaymentResult) => {
     if (result.success) {
       showToast('Payment successful!', 'success');
-      setTimeout(placeOrderDirect, 1500);
+      void placeOrderDirect(result.referenceNumber);
     } else {
       showToast(result.message || 'Payment failed. Please try again.', 'error');
       setShowGCashModal(false);
@@ -179,12 +188,15 @@ const CheckoutPage: React.FC = () => {
         day: 'numeric',
         year: 'numeric'
       });
+      setDeliveryType('scheduled');
       setScheduleDisplay(`${dateStr} at ${selectedTime}`);
       showToast('Schedule set successfully!', 'success');
     }
   };
 
   const handlePlaceOrder = () => {
+    if (isPlacingOrder) return;
+
     if (!address.street) {
       showToast('Please select a delivery address', 'error');
       return;
@@ -215,8 +227,6 @@ const CheckoutPage: React.FC = () => {
       return;
     }
   };
-
-  const { total } = calculateTotal();
 
   if (cartItems.length === 0 && !orderCompleted) {
     return (
@@ -279,6 +289,7 @@ const CheckoutPage: React.FC = () => {
               onPlaceOrder={handlePlaceOrder}
               onVoucherApply={() => {}}
               voucherDiscount={voucherDiscount}
+              deliveryCoordinates={deliveryCoordinates}
               isPlacingOrder={isPlacingOrder}
             />
           </div>
@@ -293,7 +304,7 @@ const CheckoutPage: React.FC = () => {
           setSelectedTime(null);
         }}
         availableDates={getAvailableDates()}
-        timeSlots={getTimeSlots()}
+        timeSlots={generateTimeSlots()}
         selectedDate={selectedDate}
         selectedTime={selectedTime}
         onSelectDate={setSelectedDate}
@@ -308,13 +319,24 @@ const CheckoutPage: React.FC = () => {
         isOpen={showGCashModal}
         onClose={() => setShowGCashModal(false)}
         amount={total}
+        items={cartItems}
+        deliveryType={deliveryType}
+        voucherDiscount={voucherDiscount}
+        discountRate={activeDiscount.discountRate}
+        deliveryCoordinates={deliveryCoordinates}
         onPaymentComplete={handlePaymentComplete}
+        onPaymentCreated={setGCashReference}
       />
 
       <CreditCardPaymentModal
         isOpen={showCardModal}
         onClose={() => setShowCardModal(false)}
         amount={total}
+        items={cartItems}
+        deliveryType={deliveryType}
+        voucherDiscount={voucherDiscount}
+        discountRate={activeDiscount.discountRate}
+        deliveryCoordinates={deliveryCoordinates}
         onPaymentComplete={handlePaymentComplete}
       />
     </div>

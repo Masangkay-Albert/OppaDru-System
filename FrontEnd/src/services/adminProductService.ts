@@ -4,6 +4,8 @@ import { productService } from './productService';
 const OVERRIDES_KEY = 'adminProductOverrides';
 const CUSTOM_KEY = 'adminCustomProducts';
 const DELETED_KEY = 'adminDeletedProducts';
+const CACHE_TTL = 15_000;
+let productsCache: { expiresAt: number; promise: Promise<Product[]> } | null = null;
 
 interface Overrides {
   [productId: string]: Partial<Product>;
@@ -26,7 +28,11 @@ const withAvailability = <T extends ProductInput | Product>(product: T): T & { i
 };
 
 const getOverrides = (): Overrides => {
-  return JSON.parse(localStorage.getItem(OVERRIDES_KEY) || '{}');
+  try {
+    return JSON.parse(localStorage.getItem(OVERRIDES_KEY) || '{}');
+  } catch {
+    return {};
+  }
 };
 
 const saveOverrides = (overrides: Overrides): void => {
@@ -34,7 +40,12 @@ const saveOverrides = (overrides: Overrides): void => {
 };
 
 const getCustomProducts = (): Product[] => {
-  return JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]');
+  try {
+    const products = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]');
+    return Array.isArray(products) ? products : [];
+  } catch {
+    return [];
+  }
 };
 
 const saveCustomProducts = (products: Product[]): void => {
@@ -42,7 +53,12 @@ const saveCustomProducts = (products: Product[]): void => {
 };
 
 const getDeletedProducts = (): string[] => {
-  return JSON.parse(localStorage.getItem(DELETED_KEY) || '[]');
+  try {
+    const productIds = JSON.parse(localStorage.getItem(DELETED_KEY) || '[]');
+    return Array.isArray(productIds) ? productIds : [];
+  } catch {
+    return [];
+  }
 };
 
 const saveDeletedProducts = (productIds: string[]): void => {
@@ -50,15 +66,19 @@ const saveDeletedProducts = (productIds: string[]): void => {
 };
 
 const notifyProductsUpdated = (): void => {
+  productsCache = null;
   window.dispatchEvent(new Event('products-updated'));
 };
 
 export const getAllProducts = async (): Promise<Product[]> => {
-  try {
+  if (productsCache && productsCache.expiresAt > Date.now()) return productsCache.promise;
+
+  const request = (async () => {
+   try {
     const deletedProductIds = new Set(getDeletedProducts());
     const overrides = getOverrides();
 
-    const supabaseProducts = await productService.getProducts();
+    const supabaseProducts = await productService.getAdminProducts();
 
     const filtered = supabaseProducts
       .filter((p) => !deletedProductIds.has(p.id))
@@ -75,14 +95,18 @@ export const getAllProducts = async (): Promise<Product[]> => {
       if (a.category > b.category) return 1;
       return a.name.localeCompare(b.name);
     });
-  } catch {
+    } catch {
     const custom = getCustomProducts();
     return custom.sort((a, b) => {
       if (a.category < b.category) return -1;
       if (a.category > b.category) return 1;
       return a.name.localeCompare(b.name);
     });
-  }
+   }
+  })();
+
+  productsCache = { expiresAt: Date.now() + CACHE_TTL, promise: request };
+  return request;
 };
 
 export const toggleAvailability = async (productId: string): Promise<void> => {

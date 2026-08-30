@@ -15,6 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->redirectGuestsTo(fn () => null);
         $middleware->append(\App\Http\Middleware\CorsMiddleware::class);
+        $middleware->alias([
+            'verified-user' => \App\Http\Middleware\EnsureUserIsVerified::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->shouldRenderJsonWhen(

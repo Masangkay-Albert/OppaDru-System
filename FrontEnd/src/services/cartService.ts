@@ -8,7 +8,7 @@ export const generateCartItemId = (
 ): string => {
   const addonsKey = selectedAddons && selectedAddons.length > 0
     ? [...selectedAddons]
-        .map((a) => a.id)
+        .map((a) => `${a.id}:${a.quantity || 1}`)
         .sort()
         .join(',')
     : 'no-addons';
@@ -22,7 +22,7 @@ export const generateCartItemId = (
 
 
 export const calculateItemTotal = (item: CartItem): number => {
-  const addonsTotal = item.selectedAddons?.reduce((sum, addon) => sum + addon.price, 0) ?? 0;
+  const addonsTotal = item.selectedAddons?.reduce((sum, addon) => sum + addon.price * (addon.quantity || 1), 0) ?? 0;
   const unitPrice = item.price + addonsTotal;
   return unitPrice * item.quantity;
 };

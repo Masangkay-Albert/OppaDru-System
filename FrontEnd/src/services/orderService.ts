@@ -1,11 +1,11 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
 
 export interface OrderItem {
     product_id: string;
     product_name: string;
     product_price: number;
     quantity: number;
-    selected_addons?: Array<{ id: string; name: string; price: number }>;
+    selected_addons?: Array<{ id: string; name: string; price: number; quantity?: number }>;
     special_instructions?: string;
 }
 
@@ -15,7 +15,17 @@ export interface CreateOrderData {
     total: number;
     delivery_address: string;
     payment_method: 'cash_on_delivery' | 'gcash' | 'credit_card';
+    delivery_type?: 'standard' | 'priority' | 'scheduled';
     phone: string;
+    delivery_coordinates?: { lat: number; lng: number };
+    payment_reference?: string;
+    voucher_discount?: number;
+    discount_rate?: number;
+    scheduled_at?: string | null;
+    scheduled_date?: string | null;
+    scheduled_time?: string | null;
+    schedule_display?: string | null;
+    schedule_window?: string | null;
 }
 
 export interface Order {
@@ -26,10 +36,20 @@ export interface Order {
     status: string;
     payment_method: string;
     delivery_address: string;
+    delivery_type?: 'standard' | 'priority' | 'scheduled';
+    delivery_fee?: number;
+    service_fee?: number;
+    priority_fee?: number;
+    vat?: number;
     phone: string;
     items: OrderItem[];
     created_at?: string;
     updated_at?: string;
+    scheduled_at?: string | null;
+    scheduled_date?: string | null;
+    scheduled_time?: string | null;
+    schedule_display?: string | null;
+    schedule_window?: string | null;
 }
 
 class OrderService {

@@ -13,24 +13,44 @@ class Order extends Model
     public $incrementing = false;
     protected $keyType = 'string';
 
-    public $timestamps = false;
-
     protected $fillable = [
         'id',
         'email',
         'user_id',
         'order_number',
         'total',
+        'delivery_fee',
+        'delivery_distance_km',
+        'delivery_calculation_method',
+        'delivery_type',
+        'service_fee',
+        'priority_fee',
+        'vat',
+        'service_fee_rule',
         'status',
         'payment_method',
         'delivery_address',
         'phone',
         'items',
+        'scheduled_at',
+        'scheduled_date',
+        'scheduled_time',
+        'schedule_display',
+        'schedule_window',
+        'payment_reference',
+        'payment_status',
     ];
 
     protected $casts = [
         'total' => 'decimal:2',
+        'delivery_fee' => 'decimal:2',
+        'delivery_distance_km' => 'decimal:3',
+        'delivery_type' => 'string',
+        'service_fee' => 'decimal:2',
+        'priority_fee' => 'decimal:2',
+        'vat' => 'decimal:2',
         'items' => 'array',
+        'scheduled_at' => 'datetime',
     ];
 
     protected static function boot()
@@ -49,5 +69,15 @@ class Order extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id', 'id');
+    }
+
+    public function payment()
+    {
+        return $this->hasOne(Payment::class, 'order_id', 'id');
+    }
+
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class, 'order_id', 'id')->with('addons');
     }
 }

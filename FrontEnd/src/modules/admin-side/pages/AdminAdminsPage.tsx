@@ -10,8 +10,12 @@ const AdminAdminsPage: React.FC = () => {
   const [form, setForm] = useState({ fullName: '', email: '', password: '', password_confirmation: '' });
 
   const refresh = async () => {
-    const list = await apiGetAdmins();
-    setAdmins(list || []);
+    try {
+      const list = await apiGetAdmins();
+      setAdmins(Array.isArray(list) ? list : []);
+    } catch {
+      setAdmins([]);
+    }
   };
 
   useEffect(() => {

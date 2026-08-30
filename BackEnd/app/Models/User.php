@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Notifications\Notifiable;
+use App\Notifications\VerifyUserEmail;
 use Illuminate\Support\Str;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory, Notifiable;
 
@@ -23,6 +25,7 @@ class User extends Authenticatable
         'phone',
         'password',
         'api_token',
+        'email_verified_at',
     ];
 
     protected $hidden = [
@@ -32,6 +35,7 @@ class User extends Authenticatable
 
     protected $casts = [
         'password' => 'hashed',
+        'email_verified_at' => 'datetime',
     ];
 
     protected static function boot()
@@ -45,10 +49,14 @@ class User extends Authenticatable
                 $model->id = 'OPPA-USER-' . ($slug ?: 'CUST') . '-' . strtoupper(Str::random(4));
             }
             
-            // Add this to manually set created_at
             if (empty($model->created_at)) {
                 $model->created_at = now();
             }
         });
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new VerifyUserEmail());
     }
 }

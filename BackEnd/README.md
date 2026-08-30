@@ -14,12 +14,46 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 - [Simple, fast routing engine](https://laravel.com/docs/routing).
 - [Powerful dependency injection container](https://laravel.com/docs/container).
 - Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
+- Expressive, intuitive [queue](https://laravel.com/docs/queues) and notification APIs.
 - Database agnostic [schema migrations](https://laravel.com/docs/migrations).
 - [Robust background job processing](https://laravel.com/docs/queues).
 - [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
+
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
+
+## Production email verification
+
+Verification uses Laravel's synchronous notification mail channel. It must use a real SMTP provider in Render; the application does not log or simulate verification links.
+
+Set these Render environment variables:
+
+```text
+APP_URL=https://oppadru-system-1.onrender.com
+FRONTEND_URL=https://oppa-dru-system.vercel.app
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_SCHEME=smtp
+MAIL_USERNAME=the-provider-account@example.com
+MAIL_PASSWORD=the-provider-app-password
+MAIL_FROM_ADDRESS=the-provider-account@example.com
+MAIL_FROM_NAME=OPPA DRU
+MAIL_TIMEOUT=10
+QUEUE_CONNECTION=sync
+```
+
+The SMTP account must have permission to send mail and should use an app password or provider SMTP credential, not a normal mailbox password. `QUEUE_CONNECTION=sync` means a separate Render worker is not required. If the queue is changed to `database`, run a Render worker with `php artisan queue:work`; otherwise notifications will remain queued and no email will be sent.
+
+Registration returns an error instead of claiming success when SMTP rejects the message. The signed verification URL expires after 60 minutes, is validated by Laravel, marks `email_verified_at`, and redirects to the frontend login page.
+
+To test real delivery from the Render Shell without exposing a public diagnostic endpoint, run:
+
+```bash
+php artisan mail:test your-real-test-address@example.com
+```
+
+This command uses the same mail configuration as registration. If it fails, copy the exception from the Render logs; it will identify the provider, credential, TLS, DNS, or connection problem.
 
 ## Learning Laravel
 

@@ -20,51 +20,26 @@ const AdminDashboardPage: React.FC = () => {
 
     const loadDashboard = async () => {
       try {
-        let allOrders: AdminOrder[] = [];
-        try {
-          const fetchedOrders = await getAllOrders();
-          allOrders = Array.isArray(fetchedOrders) ? fetchedOrders : [];
-        } catch {
-          allOrders = [];
-        }
-        
-        if (!isMounted) return;
-        setOrders(allOrders);
-
-        let users: any[] = [];
-        try {
-          const fetchedUsers = await getAllCustomers();
-          users = Array.isArray(fetchedUsers) ? fetchedUsers : [];
-        } catch {
-          try {
+        const [ordersResult, customersResult, productsResult, adminCountResult] = await Promise.all([
+          getAllOrders().catch(() => [] as AdminOrder[]),
+          getAllCustomers().catch(() => {
             const accounts = getAllAccounts();
-            users = Array.isArray(accounts) ? accounts : [];
-          } catch {
-            users = [];
-          }
-        }
-        
-        if (!isMounted) return;
-        setTotalUsers(users.length);
+            return Array.isArray(accounts) ? accounts : [];
+          }),
+          getAllProducts().catch(() => []),
+          apiGetAdminCount().catch(() => 0),
+        ]);
 
-        let products: any[] = [];
-        try {
-          const fetchedProducts = await getAllProducts();
-          products = Array.isArray(fetchedProducts) ? fetchedProducts : [];
-        } catch {
-          products = [];
-        }
-        
         if (!isMounted) return;
+
+        const allOrders = Array.isArray(ordersResult) ? ordersResult : [];
+        const users = Array.isArray(customersResult) ? customersResult : [];
+        const products = Array.isArray(productsResult) ? productsResult : [];
+        setOrders(allOrders);
+        setTotalUsers(users.length);
         setTotalProducts(products.length);
         setOutOfStock(products.filter((p) => !p.isAvailable).length);
-
-        try {
-          const adminCount = await apiGetAdminCount();
-          setTotalAdmins(typeof adminCount === 'number' ? adminCount : 0);
-        } catch {
-          setTotalAdmins(0);
-        }
+        setTotalAdmins(typeof adminCountResult === 'number' ? adminCountResult : 0);
       } catch {
         // Silently fail
       }

@@ -1,17 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  FaMobileAlt, 
-  FaCheckCircle, 
-  FaTimesCircle, 
-  FaShieldAlt, 
-  FaRedo, 
-  FaWallet,
-  FaPhoneAlt,
-  FaLock,
-  FaSpinner
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  FaMobileAlt,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaSpinner,
+  FaCopy,
+  FaClock,
 } from 'react-icons/fa';
-import { IoClose, IoArrowBack } from 'react-icons/io5';
-import { usePayment } from '../../../../hooks/usePayment';
+import { IoClose } from 'react-icons/io5';
+import { QRCodeCanvas } from 'qrcode.react';
+import { formatCurrency } from '../../../../utils/formatters';
+import type { CartItem } from '../../../../types/product.types';
+
+// Use the active frontend origin so QR links open the app route instead of the backend API host.
+const API_URL = 'https://oppadru-system-1.onrender.com/api';
+const APP_URL = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://oppadru-system-1.onrender.com');
 
 interface PaymentResult {
   success: boolean;
@@ -27,114 +30,215 @@ interface GCashPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   amount: number;
+  items: CartItem[];
+  deliveryType: 'standard' | 'priority' | 'scheduled';
+  voucherDiscount: number;
+  discountRate: number;
+  deliveryCoordinates?: { lat: number; lng: number };
   onPaymentComplete: (result: PaymentResult) => void;
+  onPaymentConfirmed?: () => void;
+  onPaymentCreated?: (reference: string) => void;
 }
 
-type Step = 'number' | 'otp';
-
-const RESEND_SECONDS = 30;
+type Step = 'display' | 'confirming' | 'result';
 
 const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   isOpen,
   onClose,
   amount,
-  onPaymentComplete
+  items,
+  deliveryType,
+  voucherDiscount,
+  discountRate,
+  deliveryCoordinates,
+  onPaymentComplete,
+  onPaymentConfirmed,
+  onPaymentCreated,
 }) => {
-  const [step, setStep] = useState<Step>('number');
-  const [mobileNumber, setMobileNumber] = useState('');
-  const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''));
-  const [issuedOtp, setIssuedOtp] = useState('');
-  const [otpError, setOtpError] = useState('');
-  const [resendTimer, setResendTimer] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  const {
-    isSendingOtp,
-    isProcessing,
-    result,
-    requestGCashOTP,
-    processGCash,
-    formatCurrency,
-    reset
-  } = usePayment();
-
-  useEffect(() => {
-    if (resendTimer <= 0) return;
-    const timer = setTimeout(() => setResendTimer(t => t - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [resendTimer]);
-
-  if (!isOpen) return null;
-
-  const handleSendOtp = async () => {
-    setOtpError('');
-    setIsLoading(true);
-    const response = await requestGCashOTP(mobileNumber);
-    setIsLoading(false);
-    if (response.success && response.otp) {
-      setIssuedOtp(response.otp);
-      setOtpDigits(Array(6).fill(''));
-      setStep('otp');
-      setResendTimer(RESEND_SECONDS);
-      setTimeout(() => otpRefs.current[0]?.focus(), 100);
-    } else {
-      setOtpError(response.message);
-    }
-  };
-
-  const handleOtpChange = (index: number, value: string) => {
-    const digit = value.replace(/\D/g, '').slice(-1);
-    const next = [...otpDigits];
-    next[index] = digit;
-    setOtpDigits(next);
-    if (digit && index < 5) {
-      otpRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleVerify = async () => {
-    const enteredOtp = otpDigits.join('');
-    setIsLoading(true);
-    const response = await processGCash(mobileNumber, enteredOtp, issuedOtp, amount);
-    setIsLoading(false);
-    if (response?.success) {
-      onPaymentComplete(response);
-    }
-  };
-
-  const handleResend = async () => {
-    if (resendTimer > 0) return;
-    setIsLoading(true);
-    const response = await requestGCashOTP(mobileNumber);
-    setIsLoading(false);
-    if (response.success && response.otp) {
-      setIssuedOtp(response.otp);
-      setOtpDigits(Array(6).fill(''));
-      setResendTimer(RESEND_SECONDS);
-      otpRefs.current[0]?.focus();
-    }
-  };
+  const [step, setStep] = useState<Step>('display');
+  const [referenceNumber, setReferenceNumber] = useState<string>('');
+  const [timeRemaining, setTimeRemaining] = useState<number>(300);
+  const [isCopied, setIsCopied] = useState(false);
+  const [result, setResult] = useState<PaymentResult | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completionHandledRef = useRef(false);
+  const paymentCreationRef = useRef<Promise<void> | null>(null);
 
   const handleClose = () => {
-    setStep('number');
-    setMobileNumber('');
-    setOtpDigits(Array(6).fill(''));
-    setIssuedOtp('');
-    setOtpError('');
-    setResendTimer(0);
-    reset();
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
+    setStep('display');
+    setResult(null);
     onClose();
   };
 
-  if (isProcessing || isSendingOtp) {
+  useEffect(() => {
+    if (isOpen) {
+      completionHandledRef.current = false;
+      setReferenceNumber('');
+      setStep('display');
+      setTimeRemaining(300);
+      setIsCopied(false);
+      setResult(null);
+      if (paymentCreationRef.current) return;
+      paymentCreationRef.current = fetch(`${API_URL}/payment/gcash/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, delivery_type: deliveryType, voucher_discount: voucherDiscount, discount_rate: discountRate, delivery_coordinates: deliveryCoordinates, items: items.map(item => ({
+          product_id: item.id,
+          quantity: item.quantity,
+          selected_addons: item.selectedAddons?.map(addon => ({ id: addon.id, price: addon.price, quantity: addon.quantity || 1 })) || [],
+        })) }),
+      }).then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success || !data.reference) {
+          setResult({ success: false, message: data.message || 'Unable to start GCash payment.', timestamp: new Date().toISOString(), paymentMethod: 'gcash', amount });
+          setStep('result');
+          return;
+        }
+        setReferenceNumber(data.reference);
+        onPaymentCreated?.(data.reference);
+      }).catch(() => {
+        setResult({ success: false, message: 'Unable to connect to the payment server.', timestamp: new Date().toISOString(), paymentMethod: 'gcash', amount });
+        setStep('result');
+      }).finally(() => {
+        paymentCreationRef.current = null;
+      });
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
+    };
+  }, [isOpen, amount, deliveryType, voucherDiscount, discountRate, deliveryCoordinates, items, onPaymentCreated]);
+
+  useEffect(() => {
+    if (!isOpen || !referenceNumber) return;
+
+    const handlePaymentConfirmed = () => {
+      if (completionHandledRef.current) return;
+      completionHandledRef.current = true;
+      if (pollRef.current) clearInterval(pollRef.current);
+      const successResult: PaymentResult = {
+        success: true,
+        referenceNumber,
+        message: 'Payment confirmed!',
+        timestamp: new Date().toISOString(),
+        paymentMethod: 'gcash',
+        amount,
+      };
+      setResult(successResult);
+      setStep('result');
+      onPaymentComplete(successResult);
+      autoCloseRef.current = setTimeout(handleClose, 1500);
+    };
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'GCASH_PAYMENT_CONFIRMED' && event.data.reference === referenceNumber) {
+        handlePaymentConfirmed();
+      }
+    };
+    const closeAfterStorageUpdate = (event: StorageEvent) => {
+      if (event.key === `gcash_payment_confirmed_${referenceNumber}`) {
+        handlePaymentConfirmed();
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    window.addEventListener('storage', closeAfterStorageUpdate);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', closeAfterStorageUpdate);
+    };
+  }, [isOpen, referenceNumber, amount, onPaymentComplete]);
+
+  useEffect(() => {
+    if (!isOpen || step !== 'display') return;
+
+    const timer = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isOpen, step]);
+
+  useEffect(() => {
+    if (!isOpen || step !== 'display' || !referenceNumber) return;
+
+    const checkPaymentStatus = async () => {
+      try {
+        console.log('Checking payment status for:', referenceNumber);
+        const response = await fetch(`${API_URL}/payment/status/${referenceNumber}`);
+        const data = await response.json();
+        console.log('Payment status response:', data);
+
+        if (data.status === 'paid') {
+          setStep('confirming');
+          if (completionHandledRef.current) return;
+          completionHandledRef.current = true;
+          if (pollRef.current) clearInterval(pollRef.current);
+          const successResult: PaymentResult = {
+            success: true,
+            referenceNumber,
+            message: 'Payment confirmed!',
+            timestamp: new Date().toISOString(),
+            paymentMethod: 'gcash',
+            amount,
+          };
+          setResult(successResult);
+          setStep('result');
+          onPaymentComplete(successResult);
+          autoCloseRef.current = setTimeout(handleClose, 1500);
+        } else if (['failed', 'expired', 'cancelled'].includes(data.status)) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setResult({ success: false, referenceNumber, message: `Payment ${data.status}.`, timestamp: new Date().toISOString(), paymentMethod: 'gcash', amount });
+          setStep('result');
+        }
+      } catch (error) {
+        console.log('Polling error:', error);
+      }
+    };
+
+    pollRef.current = setInterval(checkPaymentStatus, 2000);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [isOpen, step, referenceNumber, amount, onPaymentComplete, onPaymentConfirmed]);
+
+  if (!isOpen) return null;
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const generateQRData = () => {
+    return `${APP_URL}/payment/confirm/${referenceNumber}`;
+  };
+
+  const handleCopyReference = () => {
+    navigator.clipboard.writeText(referenceNumber);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const handleRetry = () => {
+    setStep('display');
+    setResult(null);
+    setTimeRemaining(300);
+    setReferenceNumber('');
+  };
+
+  // ... rest of the component (same as before)
+
+  if (step === 'confirming') {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
         <div className="bg-white rounded-2xl max-w-md w-full p-8 text-center shadow-2xl">
@@ -142,9 +246,9 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
             <FaSpinner className="text-5xl text-[#2d6a4f] animate-spin" />
           </div>
           <h3 className="text-xl font-semibold text-gray-800 mt-4">
-            {isSendingOtp ? 'Sending Code' : 'Processing Payment'}
+            Verifying Payment
           </h3>
-          <p className="text-sm text-gray-500 mt-2">Please wait...</p>
+          <p className="text-sm text-gray-500 mt-2">Please wait while we confirm your payment...</p>
           <div className="mt-4 h-1 w-full bg-gray-200 rounded-full overflow-hidden">
             <div className="h-full bg-[#2d6a4f] rounded-full animate-pulse w-1/2"></div>
           </div>
@@ -153,7 +257,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
     );
   }
 
-  if (result) {
+  if (step === 'result' && result) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
         <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl animate-scaleIn">
@@ -179,9 +283,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
               if (result.success) {
                 handleClose();
               } else {
-                reset();
-                setStep('number');
-                setOtpDigits(Array(6).fill(''));
+                handleRetry();
               }
             }}
             className={`mt-6 w-full py-3 rounded-xl font-semibold transition ${
@@ -200,177 +302,71 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
       <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl relative overflow-hidden">
-        {/* Header with gradient */}
-        <div className="bg-gradient-to-r from-[#1a472a] to-[#2d6a4f] px-6 py-5">
+        <div className="bg-gradient-to-r from-[#1a472a] to-[#2d6a4f] px-6 py-4">
           <div className="flex items-center justify-between">
-            {step === 'otp' && (
-              <button
-                onClick={() => setStep('number')}
-                className="text-white/80 hover:text-white transition"
-              >
-                <IoArrowBack size={24} />
-              </button>
-            )}
-            <div className="flex items-center gap-3 mx-auto">
+            <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                 <FaMobileAlt className="text-white text-xl" />
               </div>
-              <span className="text-white font-bold text-lg">GCash</span>
+              <span className="text-white font-bold text-lg">GCash Payment</span>
             </div>
             <button onClick={handleClose} className="text-white/80 hover:text-white transition">
               <IoClose size={24} />
             </button>
           </div>
-          <div className="text-center mt-2">
-            <p className="text-white/80 text-sm">Pay securely using your GCash account</p>
-          </div>
         </div>
 
         <div className="p-6">
-          {step === 'number' ? (
-            <>
-              {/* Amount Display */}
-              <div className="bg-gray-50 rounded-xl p-4 text-center mb-6 border border-gray-100">
-                <p className="text-sm text-gray-500">Amount to Pay</p>
-                <p className="text-3xl font-bold text-[#2d6a4f]">{formatCurrency(amount)}</p>
-              </div>
+          <div className="bg-gray-50 rounded-xl p-4 text-center mb-4 border border-gray-100">
+            <p className="text-sm text-gray-500">Amount to Pay</p>
+            <p className="text-3xl font-bold text-[#2d6a4f]">{formatCurrency(amount)}</p>
+          </div>
 
-              {/* Mobile Number Input */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Mobile Number <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                    <FaPhoneAlt size={16} />
-                  </div>
-                  <input
-                    type="tel"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value.replace(/\s/g, ''))}
-                    placeholder="09123456789"
-                    className="w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-lg"
-                    maxLength={11}
-                    autoFocus
-                  />
+          <div className="flex flex-col items-center">
+            <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-md">
+              <QRCodeCanvas
+                value={generateQRData()}
+                size={220}
+                level="H"
+                includeMargin={true}
+                fgColor="#1a472a"
+              />
+            </div>
+
+            <div className="mt-4 w-full">
+              <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2 border border-gray-200">
+                <span className="text-sm text-gray-500">Reference:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-sm text-[#2d6a4f]">{referenceNumber}</span>
+                  <button
+                    onClick={handleCopyReference}
+                    className="text-gray-400 hover:text-[#2d6a4f] transition"
+                  >
+                    <FaCopy size={14} />
+                  </button>
                 </div>
-                <p className="text-xs text-gray-400">Enter your GCash registered mobile number</p>
-                {otpError && (
-                  <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
-                    <FaTimesCircle size={12} /> {otpError}
-                  </p>
-                )}
               </div>
-
-              {/* Demo Info */}
-              <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                <p className="text-xs text-blue-600 flex items-center gap-2">
-                  <FaShieldAlt size={14} />
-                  <span>Demo: OTP will be shown after clicking "Send Code"</span>
-                </p>
-              </div>
-
-              {/* Send Button */}
-              <button
-                onClick={handleSendOtp}
-                disabled={!mobileNumber || isLoading}
-                className={`mt-5 w-full py-3.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 ${
-                  mobileNumber && !isLoading
-                    ? 'bg-[#2d6a4f] text-white hover:bg-[#1b4332] shadow-lg shadow-[#2d6a4f]/30'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                {isLoading ? (
-                  <FaSpinner className="animate-spin" />
-                ) : (
-                  <FaShieldAlt size={18} />
-                )}
-                {isLoading ? 'Sending...' : 'Send Code'}
-              </button>
-            </>
-          ) : (
-            <>
-              {/* OTP Verification */}
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-[#2d6a4f]/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <FaShieldAlt className="text-3xl text-[#2d6a4f]" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-800">Verify It's You</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  Enter the 6-digit code sent to{' '}
-                  <span className="font-semibold text-[#2d6a4f]">{mobileNumber}</span>
-                </p>
-              </div>
-
-              {/* OTP Inputs */}
-              <div className="flex justify-center gap-2">
-                {otpDigits.map((digit, i) => (
-                  <input
-                    key={i}
-                    ref={(el) => { otpRefs.current[i] = el; }}
-                    type="text"
-                    inputMode="numeric"
-                    value={digit}
-                    onChange={(e) => handleOtpChange(i, e.target.value)}
-                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    maxLength={1}
-                    className="w-12 h-14 text-center text-xl font-bold border-2 rounded-xl focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20 transition"
-                  />
-                ))}
-              </div>
-
-              {/* OTP Error */}
-              {otpError && (
-                <p className="text-center text-xs text-red-500 mt-2">{otpError}</p>
+              {isCopied && (
+                <p className="text-xs text-green-600 mt-1 text-center">Copied to clipboard!</p>
               )}
+            </div>
 
-              {/* Resend & Demo Code */}
-              <div className="flex justify-between items-center mt-4">
-                <div className="text-xs">
-                  {resendTimer > 0 ? (
-                    <span className="text-gray-400">Resend in {resendTimer}s</span>
-                  ) : (
-                    <button
-                      onClick={handleResend}
-                      className="text-[#2d6a4f] font-medium flex items-center gap-1 hover:underline"
-                    >
-                      <FaRedo size={12} /> Resend Code
-                    </button>
-                  )}
-                </div>
-                <div className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-lg">
-                  Demo code: <span className="font-mono font-bold text-[#2d6a4f]">{issuedOtp}</span>
-                </div>
-              </div>
+            <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+              <FaClock size={14} />
+              <span>Time remaining: <span className={`font-semibold ${timeRemaining < 60 ? 'text-red-500' : 'text-[#2d6a4f]'}`}>{formatTime(timeRemaining)}</span></span>
+            </div>
 
-              {/* Verify Button */}
+            {timeRemaining === 0 && (
               <button
-                onClick={handleVerify}
-                disabled={otpDigits.some(d => !d) || isLoading}
-                className={`mt-5 w-full py-3.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 ${
-                  otpDigits.every(d => d) && !isLoading
-                    ? 'bg-[#2d6a4f] text-white hover:bg-[#1b4332] shadow-lg shadow-[#2d6a4f]/30'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
+                onClick={handleRetry}
+                className="mt-4 text-sm text-[#e76f51] font-medium hover:underline"
               >
-                {isLoading ? (
-                  <FaSpinner className="animate-spin" />
-                ) : (
-                  <FaWallet size={18} />
-                )}
-                {isLoading ? 'Processing...' : `Pay ${formatCurrency(amount)}`}
+                Generate new QR code
               </button>
-            </>
-          )}
-        </div>
-
-        {/* Secure Footer */}
-        <div className="border-t border-gray-100 px-6 py-3 bg-gray-50/50">
-          <div className="flex items-center justify-center gap-1 text-xs text-gray-400">
-            <FaLock size={12} className="text-[#2d6a4f]" />
-            <span>Your payment is secure and encrypted</span>
+            )}
           </div>
         </div>
+
       </div>
     </div>
   );

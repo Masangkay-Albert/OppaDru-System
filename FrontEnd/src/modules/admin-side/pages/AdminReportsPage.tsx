@@ -157,6 +157,8 @@ const AdminReportsPage: React.FC = () => {
     try {
       const allOrders = await getAllOrders();
       setOrders(Array.isArray(allOrders) ? allOrders : []);
+    } catch {
+      setOrders([]);
     } finally {
       setLoading(false);
     }

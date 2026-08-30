@@ -1,0 +1,69 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        DB::unprepared(<<<'SQL'
+create table if not exists product_addon_groups (
+    product_id varchar(100) not null,
+    addon_group_id bigint not null,
+    created_at timestamp null,
+    updated_at timestamp null,
+    primary key (product_id, addon_group_id),
+    constraint product_addon_groups_product_id_foreign
+        foreign key (product_id) references products(id),
+    constraint product_addon_groups_addon_group_id_foreign
+        foreign key (addon_group_id) references addon_groups(id)
+);
+
+create table if not exists order_items (
+    id integer primary key autoincrement,
+    order_id varchar(100) not null,
+    product_id varchar(100) null,
+    product_name text not null,
+    product_price numeric(10,2) not null,
+    quantity integer not null,
+    special_instructions text null,
+    created_at timestamp null,
+    updated_at timestamp null,
+    constraint order_items_order_id_foreign
+        foreign key (order_id) references orders(id),
+    constraint order_items_product_id_foreign
+        foreign key (product_id) references products(id)
+);
+
+create index if not exists order_items_order_id_index
+    on order_items(order_id);
+
+create table if not exists order_item_addons (
+    id integer primary key autoincrement,
+    order_item_id bigint not null,
+    addon_id bigint null,
+    addon_name text not null,
+    unit_price numeric(10,2) not null,
+    quantity integer not null default 1,
+    created_at timestamp null,
+    updated_at timestamp null,
+    constraint order_item_addons_order_item_id_foreign
+        foreign key (order_item_id) references order_items(id),
+    constraint order_item_addons_addon_id_foreign
+        foreign key (addon_id) references addons(id) on delete set null
+);
+
+create index if not exists order_item_addons_order_item_id_index
+    on order_item_addons(order_item_id);
+SQL
+        );
+    }
+
+    public function down(): void
+    {
+        DB::statement('drop table if exists order_item_addons');
+        DB::statement('drop table if exists order_items');
+        DB::statement('drop table if exists product_addon_groups');
+    }
+};

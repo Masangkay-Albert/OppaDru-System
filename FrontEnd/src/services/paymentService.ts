@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
+import { formatCurrency } from '../utils/formatters';
 
 export interface PaymentResult {
   success: boolean;
@@ -57,32 +58,6 @@ class PaymentService {
 
   private validateMobileNumber(mobile: string): boolean {
     return /^(09|\+639)\d{9}$/.test(mobile.replace(/\s/g, ''));
-  }
-
-  private validateCardNumber(card: string): boolean {
-    const clean = card.replace(/\s/g, '');
-    if (!/^\d{16}$/.test(clean)) return false;
-
-    let sum = 0;
-    let isEven = false;
-    for (let i = clean.length - 1; i >= 0; i--) {
-      let digit = parseInt(clean[i]);
-      if (isEven) {
-        digit *= 2;
-        if (digit > 9) digit -= 9;
-      }
-      sum += digit;
-      isEven = !isEven;
-    }
-    return sum % 10 === 0;
-  }
-
-  private isCardExpired(month: string, year: string): boolean {
-    const now = new Date();
-    const expYear = parseInt(year);
-    const expMonth = parseInt(month);
-    return expYear < now.getFullYear() ||
-           (expYear === now.getFullYear() && expMonth < now.getMonth() + 1);
   }
 
   async requestGCashOTP(mobileNumber: string): Promise<OTPRequestResult> {
@@ -155,7 +130,6 @@ class PaymentService {
         amount: data.amount || amount,
       };
     } catch (error) {
-
       await this.simulateDelay(800, 1500);
 
       if (enteredOtp !== expectedOtp) {
@@ -199,6 +173,11 @@ class PaymentService {
     expiryYear: string;
     cvv: string;
     amount: number;
+    items: Array<{ id: string; quantity: number; selectedAddons?: Array<{ id: string; price: number; quantity?: number }> }>;
+    deliveryType: 'standard' | 'priority' | 'scheduled';
+    voucherDiscount: number;
+    discountRate: number;
+    deliveryCoordinates?: { lat: number; lng: number };
   }): Promise<PaymentResult> {
     try {
       const response = await fetch(`${API_URL}/payment/card/process`, {
@@ -211,6 +190,15 @@ class PaymentService {
           expiry_year: data.expiryYear,
           cvv: data.cvv,
           amount: data.amount,
+          items: data.items.map(item => ({
+            product_id: item.id,
+            quantity: item.quantity,
+            selected_addons: item.selectedAddons?.map(addon => ({ id: addon.id, price: addon.price, quantity: addon.quantity || 1 })) || [],
+          })),
+          delivery_type: data.deliveryType,
+          voucher_discount: data.voucherDiscount,
+          discount_rate: data.discountRate,
+          delivery_coordinates: data.deliveryCoordinates,
         }),
       });
 
@@ -230,47 +218,9 @@ class PaymentService {
         amount: result.amount || data.amount,
       };
     } catch (error) {
-
-      await this.simulateDelay(800, 2000);
-
-      if (!this.validateCardNumber(data.cardNumber)) {
-        return {
-          success: false,
-          message: 'Invalid card number.',
-          timestamp: new Date().toISOString(),
-          paymentMethod: 'credit_card',
-          amount: data.amount,
-        };
-      }
-
-      if (this.isCardExpired(data.expiryMonth, data.expiryYear)) {
-        return {
-          success: false,
-          message: 'Card has expired.',
-          timestamp: new Date().toISOString(),
-          paymentMethod: 'credit_card',
-          amount: data.amount,
-        };
-      }
-
-      const success = Math.random() < 0.88;
-
-      if (success) {
-        const masked = '****' + data.cardNumber.replace(/\s/g, '').slice(-4);
-        return {
-          success: true,
-          transactionId: `CARD-${Date.now()}`,
-          referenceNumber: this.generateReferenceNumber(),
-          message: `Payment successful! Card ending in ${masked}`,
-          timestamp: new Date().toISOString(),
-          paymentMethod: 'credit_card',
-          amount: data.amount,
-        };
-      }
-
       return {
         success: false,
-        message: 'Card declined. Try again.',
+        message: error instanceof Error ? error.message : 'Card payment failed.',
         timestamp: new Date().toISOString(),
         paymentMethod: 'credit_card',
         amount: data.amount,
@@ -278,8 +228,35 @@ class PaymentService {
     }
   }
 
+  async confirmQRPayment(referenceNumber: string, amount: number): Promise<PaymentResult> {
+    await this.simulateDelay(800, 1500);
+
+    const success = Math.random() < 0.92;
+
+    if (success) {
+      return {
+        success: true,
+        transactionId: `QR-${Date.now()}`,
+        referenceNumber, // use the reference that was actually being polled/confirmed
+        message: 'Payment confirmed!',
+        timestamp: new Date().toISOString(),
+        paymentMethod: 'gcash',
+        amount,
+      };
+    }
+
+    return {
+      success: false,
+      referenceNumber,
+      message: 'Payment verification failed. Please try again.',
+      timestamp: new Date().toISOString(),
+      paymentMethod: 'gcash',
+      amount,
+    };
+  }
+
   formatCurrency(amount: number): string {
-    return `₱${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+    return formatCurrency(amount);
   }
 }
 

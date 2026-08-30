@@ -20,8 +20,8 @@ interface CheckoutFormProps {
   updateAddress: (field: keyof AddressFormState, value: string) => void;
   tempPerson: { fullName: string; email: string; phone: string };
   updatePerson: (field: keyof { fullName: string; email: string; phone: string }, value: string) => void;
-  deliveryType: 'standard' | 'priority';
-  setDeliveryType: (type: 'standard' | 'priority') => void;
+  deliveryType: 'standard' | 'priority' | 'scheduled';
+  setDeliveryType: (type: 'standard' | 'priority' | 'scheduled') => void;
   paymentMethod: string;
   setPaymentMethod: (method: string) => void;
   scheduleDisplay: string;
@@ -93,10 +93,12 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
 
   const handleDeliveryOptionChange = (option: 'standard' | 'priority' | 'scheduled') => {
     if (option === 'scheduled') {
+      setDeliveryType('scheduled');
       onScheduleClick();
-    } else {
-      setDeliveryType(option);
+      return;
     }
+
+    setDeliveryType(option);
   };
 
   return (

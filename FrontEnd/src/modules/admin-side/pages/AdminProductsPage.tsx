@@ -49,7 +49,12 @@ const AdminProductsPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const refresh = async () => {
-    setProducts(await getAllProducts());
+    try {
+      const result = await getAllProducts();
+      setProducts(Array.isArray(result) ? result : []);
+    } catch {
+      setProducts([]);
+    }
   };
 
   useEffect(() => {
@@ -67,8 +72,8 @@ const AdminProductsPage: React.FC = () => {
       const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
       const matchesSearch =
         normalizedSearch.length === 0 ||
-        product.name.toLowerCase().includes(normalizedSearch) ||
-        product.description.toLowerCase().includes(normalizedSearch) ||
+        String(product.name || '').toLowerCase().includes(normalizedSearch) ||
+        String(product.description || '').toLowerCase().includes(normalizedSearch) ||
         getCategoryLabel(product.category).toLowerCase().includes(normalizedSearch);
 
       return matchesCategory && matchesSearch;

@@ -10,7 +10,7 @@ class DriverController extends Controller
     // Fetch all drivers
     public function index()
     {
-        return response()->json(Driver::all());
+        return response()->json(Driver::select('id', 'name', 'email', 'phone', 'vehicleType', 'isActive')->get());
     }
 
     // Fetch a single driver by ID

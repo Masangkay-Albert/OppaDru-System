@@ -1,5 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 import { fetchWithAdminAuth } from './adminAuthService';
+import { API_URL } from './apiConfig';
 
 export const getTargetProfitSale = async (): Promise<number> => {
   const response = await fetchWithAdminAuth(`${API_URL}/admin/target-profit-sales`);

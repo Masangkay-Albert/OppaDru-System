@@ -14,7 +14,22 @@ export interface Addon {
   id: string;
   name: string;
   price: number;
+  is_available?: boolean;
+  is_active?: boolean;
   image?: string; 
+  addon_group_id?: number;
+  quantity?: number;
+}
+
+export interface AddonGroup {
+  id: number;
+  name: string;
+  selection_type: 'single' | 'multiple';
+  supports_quantity: boolean;
+  max_selections?: number;
+  addons: Addon[];
+  is_active?: boolean;
+  applicable_categories?: string[];
 }
 
 export interface Product {
@@ -27,6 +42,7 @@ export interface Product {
   is_available: boolean;
   isAvailable?: boolean;
   addons?: Addon[];
+  addonGroups?: AddonGroup[];
   created_at?: string;
   updated_at?: string;
 }
@@ -40,6 +56,6 @@ export interface Category {
 export interface CartItem extends Product {
   cartItemId: string;
   quantity: number;
-  selectedAddons?: Addon[];      
+  selectedAddons?: Addon[];
   specialInstructions?: string;  
 }

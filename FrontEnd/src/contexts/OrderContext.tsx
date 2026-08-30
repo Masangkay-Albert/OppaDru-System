@@ -22,6 +22,16 @@ export interface Order {
   coords?: { lat: number; lng: number };
   deliveryAddressCoords?: { lat: number; lng: number };
   eta?: number;
+  deliveryType?: 'standard' | 'priority' | 'scheduled';
+  deliveryFee?: number;
+  serviceFee?: number;
+  priorityFee?: number;
+  vat?: number;
+  scheduledAt?: string | null;
+  scheduledDate?: string | null;
+  scheduledTime?: string | null;
+  scheduleDisplay?: string | null;
+  scheduleWindow?: string | null;
 }
 
 interface OrderContextType {
@@ -34,7 +44,16 @@ interface OrderContextType {
     address: string,
     paymentMethod: string,
     phone?: string,
-    deliveryAddressCoords?: { lat: number; lng: number }
+    deliveryAddressCoords?: { lat: number; lng: number },
+    paymentReference?: string,
+    deliveryType?: 'standard' | 'priority' | 'scheduled',
+    voucherDiscount?: number,
+    discountRate?: number,
+    scheduledAt?: string | null,
+    scheduledDate?: string | null,
+    scheduledTime?: string | null,
+    scheduleDisplay?: string | null,
+    scheduleWindow?: string | null
   ) => Promise<boolean>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   clearOrder: () => void;
@@ -103,6 +122,16 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         timestamp: apiOrder.created_at || new Date().toISOString(),
         deliveryAddress: apiOrder.delivery_address,
         eta: 35,
+        deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
+        deliveryFee: Number(apiOrder.delivery_fee || 0),
+        serviceFee: Number(apiOrder.service_fee || 0),
+        priorityFee: Number(apiOrder.priority_fee || 0),
+        vat: Number(apiOrder.vat || 0),
+        scheduledAt: apiOrder.scheduled_at || null,
+        scheduledDate: apiOrder.scheduled_date || null,
+        scheduledTime: apiOrder.scheduled_time || apiOrder.schedule_window || null,
+        scheduleDisplay: apiOrder.schedule_display || null,
+        scheduleWindow: apiOrder.schedule_window || null,
       }));
       setOrders(mappedOrders);
       localStorage.setItem(getOrdersKey(), JSON.stringify(mappedOrders));
@@ -154,7 +183,16 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     address: string,
     paymentMethod: string,
     phone?: string,
-    deliveryAddressCoords?: { lat: number; lng: number }
+    deliveryAddressCoords?: { lat: number; lng: number },
+    paymentReference?: string,
+    deliveryType: 'standard' | 'priority' | 'scheduled' = 'standard',
+    voucherDiscount: number = 0,
+    discountRate: number = 0,
+    scheduledAt: string | null = null,
+    scheduledDate: string | null = null,
+    scheduledTime: string | null = null,
+    scheduleDisplay: string | null = null,
+    scheduleWindow: string | null = null
   ): Promise<boolean> => {
     const activeUser = user ?? authService.getUserFromStorage();
     if (!activeUser) {
@@ -180,6 +218,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           id: addon.id,
           name: addon.name,
           price: Number(addon.price),
+          quantity: addon.quantity || 1,
         })),
         special_instructions: item.specialInstructions,
       }));
@@ -190,7 +229,17 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         total,
         delivery_address: address,
         payment_method: paymentMethod as 'cash_on_delivery' | 'gcash' | 'credit_card',
+        delivery_type: deliveryType,
         phone: phone || '',
+        delivery_coordinates: deliveryAddressCoords,
+        payment_reference: paymentReference,
+        voucher_discount: voucherDiscount,
+        discount_rate: discountRate,
+        scheduled_at: deliveryType === 'scheduled' ? (scheduledAt || new Date().toISOString()) : null,
+        scheduled_date: deliveryType === 'scheduled' ? (scheduledDate || null) : null,
+        scheduled_time: deliveryType === 'scheduled' ? (scheduledTime || scheduleWindow || null) : null,
+        schedule_display: deliveryType === 'scheduled' ? (scheduleDisplay || null) : null,
+        schedule_window: deliveryType === 'scheduled' ? (scheduleWindow || scheduledTime || null) : null,
       };
 
       const apiOrder = await orderService.createOrder(data);
@@ -211,6 +260,16 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         coords: deliveryAddressCoords,
         deliveryAddressCoords,
         eta: 35,
+        deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || deliveryType,
+        deliveryFee: Number(apiOrder.delivery_fee || 0),
+        serviceFee: Number(apiOrder.service_fee || 0),
+        priorityFee: Number(apiOrder.priority_fee || 0),
+        vat: Number(apiOrder.vat || 0),
+        scheduledAt: apiOrder.scheduled_at || null,
+        scheduledDate: apiOrder.scheduled_date || null,
+        scheduledTime: apiOrder.scheduled_time || apiOrder.schedule_window || null,
+        scheduleDisplay: apiOrder.schedule_display || null,
+        scheduleWindow: apiOrder.schedule_window || null,
       };
 
       const updatedOrders = [...orders, newOrder];
