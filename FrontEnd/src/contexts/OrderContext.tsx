@@ -18,6 +18,7 @@ export interface Order {
   orderNumber?: string;
   userId?: string;
   timestamp: string;
+  graceStartedAt?: number;
   deliveryAddress?: string;
   coords?: { lat: number; lng: number };
   deliveryAddressCoords?: { lat: number; lng: number };
@@ -105,6 +106,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           ? Number(apiOrder.delivery_fee || 0)
           : Math.max(0, Number(apiOrder.total || 0) - productSubtotal - Number(apiOrder.service_fee || 0) - Number(apiOrder.vat || 0) - Number(apiOrder.priority_fee || 0));
 
+        const orderCreatedAt = apiOrder.created_at || new Date().toISOString();
+        const graceStartedAtNumber = apiOrder.created_at ? new Date(apiOrder.created_at).getTime() : Date.now();
+
         return {
           id: apiOrder.id,
           email: apiOrder.email,
@@ -129,7 +133,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           phone: apiOrder.phone,
           orderNumber: apiOrder.order_number,
           userId: resolvedUser.id,
-          timestamp: apiOrder.created_at || new Date().toISOString(),
+          timestamp: orderCreatedAt,
+          graceStartedAt: graceStartedAtNumber,
           deliveryAddress: apiOrder.delivery_address,
           eta: 35,
           deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
@@ -263,6 +268,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ? Number(apiOrder.delivery_fee || 0)
         : Math.max(0, Number(apiOrder.total || 0) - productSubtotal - Number(apiOrder.service_fee || 0) - Number(apiOrder.vat || 0) - Number(apiOrder.priority_fee || 0));
 
+      const createdAt = apiOrder.created_at || new Date().toISOString();
+      const now = Date.now();
       const newOrder: Order = {
         id: apiOrder.id,
         email: apiOrder.email,
@@ -274,7 +281,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         phone: apiOrder.phone,
         orderNumber: apiOrder.order_number,
         userId: activeUser.id,
-        timestamp: apiOrder.created_at || new Date().toISOString(),
+        timestamp: createdAt,
+        graceStartedAt: Number.isFinite(new Date(createdAt).getTime()) ? now : now,
         deliveryAddress: apiOrder.delivery_address,
         coords: deliveryAddressCoords,
         deliveryAddressCoords,

@@ -154,10 +154,10 @@ class OrderService {
     }
 
     async updateOrderStatus(id: string, status: string): Promise<Order> {
-        const adminToken = this.getAdminToken();
         const userToken = this.getToken();
-        const token = adminToken || userToken;
-        
+        const adminToken = this.getAdminToken();
+        const token = userToken || adminToken;
+
         const response = await fetch(`${API_URL}/orders/${id}/status`, {
             method: 'PATCH',
             headers: {

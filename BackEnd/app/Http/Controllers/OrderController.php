@@ -57,7 +57,7 @@ class OrderController extends Controller
                 'scheduled_time' => $order->scheduled_time,
                 'schedule_display' => $order->schedule_display,
                 'schedule_window' => $order->schedule_window,
-                'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
+                'created_at' => $order->created_at ? $order->created_at->toISOString() : null,
             ];
         });
 
@@ -102,7 +102,7 @@ class OrderController extends Controller
                 'scheduled_time' => $order->scheduled_time,
                 'schedule_display' => $order->schedule_display,
                 'schedule_window' => $order->schedule_window,
-            'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
+            'created_at' => $order->created_at ? $order->created_at->toISOString() : null,
         ];
 
         return response()->json($formattedOrder);
@@ -246,6 +246,7 @@ class OrderController extends Controller
         }
 
         $payment?->update(['order_id' => $order->id]);
+        $order->refresh();
 
         return response()->json([
             'order' => $order,
@@ -403,7 +404,7 @@ class OrderController extends Controller
                     'priority_fee' => $order->priority_fee,
                     'vat' => $order->vat,
                     'service_fee_rule' => $order->service_fee_rule,
-                    'created_at' => $order->created_at ? $this->convertToPhilippineTime($order->created_at) : null,
+                    'created_at' => $order->created_at ? $order->created_at->toISOString() : null,
                 ];
             });
 

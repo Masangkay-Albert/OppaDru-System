@@ -55,6 +55,21 @@ export interface AdminOrder extends Order {
   created_at?: string;
 }
 
+const isPendingGracePeriodOrder = (order: any): boolean => {
+  const status = String(order?.status ?? '').trim().toLowerCase();
+  if (status !== 'pending') return false;
+
+  const rawValue = order?.timestamp || order?.created_at || order?.createdAt;
+  const createdAt = rawValue ? new Date(rawValue) : null;
+
+  if (!createdAt || Number.isNaN(createdAt.getTime())) {
+    return true;
+  }
+
+  const elapsed = (Date.now() - createdAt.getTime()) / 1000;
+  return elapsed <= 20;
+};
+
 const getStoredOnlineOrders = (): Order[] => {
   const seen = new Set<string>();
   const orders: Order[] = [];
@@ -70,6 +85,7 @@ const getStoredOnlineOrders = (): Order[] => {
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) continue;
       parsed.forEach((order) => {
+        if (isPendingGracePeriodOrder(order)) return;
         if (!seen.has(order.id)) {
           seen.add(order.id);
           orders.push(order);

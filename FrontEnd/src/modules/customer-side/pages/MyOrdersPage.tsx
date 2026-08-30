@@ -14,22 +14,31 @@ import { STATUS_DISPLAY, STATUS_OPTIONS, getStatusColor, formatOrderDate, format
 
 const ORDER_EDIT_WINDOW_SECONDS = 20;
 
-const getOrderCreatedAt = (order: any) => {
-  const value = order?.timestamp || order?.created_at || order?.createdAt;
-  const parsed = value ? new Date(value) : new Date();
-  return parsed && !isNaN(parsed.getTime()) ? parsed : new Date();
+const normalizeOrderStatus = (status?: string) => (status ?? '').toString().trim().toLowerCase();
+
+const getOrderCreatedAtMs = (order: any) => {
+  if (Number.isFinite(order?.graceStartedAt) && order.graceStartedAt > 0) return order.graceStartedAt;
+  const rawTimestamp = order?.timestamp ?? order?.created_at ?? order?.createdAt ?? order?.updated_at ?? order?.updatedAt ?? 0;
+  const parsedTimestamp = new Date(rawTimestamp).getTime();
+  return Number.isFinite(parsedTimestamp) ? parsedTimestamp : 0;
 };
 
-const getRemainingEditSeconds = (order: any) => {
-  if (!order || order.status !== ORDER_STATUS.PENDING) return 0;
-  const createdAt = getOrderCreatedAt(order);
-  const elapsed = (Date.now() - createdAt.getTime()) / 1000;
+const getGraceStartedAt = (order: any) => {
+  const createdAt = getOrderCreatedAtMs(order);
+  return createdAt > 0 ? createdAt : Date.now();
+};
+
+const getRemainingEditSeconds = (order: any, graceStartedAtByOrder?: Record<string, number>) => {
+  if (!order || normalizeOrderStatus(order.status) !== ORDER_STATUS.PENDING) return 0;
+
+  const startedAt = graceStartedAtByOrder?.[order.id] ?? getGraceStartedAt(order);
+  const elapsed = (Date.now() - startedAt) / 1000;
   return Math.max(0, ORDER_EDIT_WINDOW_SECONDS - elapsed);
 };
 
-const canManageOrder = (order: any) => {
-  if (!order || order.status !== ORDER_STATUS.PENDING) return false;
-  return getRemainingEditSeconds(order) > 0;
+const canManageOrder = (order: any, graceStartedAtByOrder?: Record<string, number>) => {
+  if (!order || normalizeOrderStatus(order.status) !== ORDER_STATUS.PENDING) return false;
+  return getRemainingEditSeconds(order, graceStartedAtByOrder) > 0;
 };
 
 const MyOrdersPage: React.FC = () => {
@@ -43,22 +52,49 @@ const MyOrdersPage: React.FC = () => {
   const [editDraft, setEditDraft] = useState<any[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [, setTick] = useState(Date.now());
+  const [graceStartedAtByOrder, setGraceStartedAtByOrder] = useState<Record<string, number>>({});
+
+  const sortedOrders = useMemo(() => {
+    return [...orders].sort((a, b) => {
+      const dateA = getOrderCreatedAtMs(a);
+      const dateB = getOrderCreatedAtMs(b);
+      return dateB - dateA;
+    });
+  }, [orders]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setTick(Date.now()), 1000);
     return () => window.clearInterval(interval);
   }, []);
 
-  const sortedOrders = useMemo(() => {
-    return [...orders].sort((a, b) => {
-      const dateA = a.timestamp || '';
-      const dateB = b.timestamp || '';
-      return new Date(dateB).getTime() - new Date(dateA).getTime();
+  useEffect(() => {
+    const pendingOrders = sortedOrders.filter(order => normalizeOrderStatus(order.status) === ORDER_STATUS.PENDING);
+
+    setGraceStartedAtByOrder(prev => {
+      const next = { ...prev };
+
+      pendingOrders.forEach(order => {
+        const orderId = String(order.id);
+        if (!(orderId in next)) {
+          next[orderId] = getGraceStartedAt(order);
+        }
+      });
+
+      Object.keys(next).forEach(key => {
+        const hasPendingOrder = pendingOrders.some(order => String(order.id) === String(key));
+        if (!hasPendingOrder) {
+          delete next[key];
+        }
+      });
+
+      return next;
     });
-  }, [orders]);
+  }, [sortedOrders]);
 
   const filteredOrders = useMemo(() => {
     return sortedOrders.filter(order => {
+      if (normalizeOrderStatus(order.status) === ORDER_STATUS.CANCELLED) return false;
+
       const scheduleDetails = getScheduledOrderDetails(order);
       const effectiveStatus = scheduleDetails.isScheduled ? ORDER_STATUS.SCHEDULED : order.status;
       const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -69,9 +105,10 @@ const MyOrdersPage: React.FC = () => {
   }, [sortedOrders, searchTerm, filterStatus]);
 
   const stats = useMemo(() => {
-    const total = orders.length;
-    const delivered = orders.filter(o => o.status === ORDER_STATUS.DELIVERED).length;
-    const scheduled = orders.filter(o => getScheduledOrderDetails(o).isScheduled && o.status !== ORDER_STATUS.DELIVERED).length;
+    const visibleOrders = orders.filter(o => normalizeOrderStatus(o.status) !== ORDER_STATUS.CANCELLED);
+    const total = visibleOrders.length;
+    const delivered = visibleOrders.filter(o => o.status === ORDER_STATUS.DELIVERED).length;
+    const scheduled = visibleOrders.filter(o => getScheduledOrderDetails(o).isScheduled && o.status !== ORDER_STATUS.DELIVERED).length;
     return { total, delivered, active: total - delivered, scheduled };
   }, [orders]);
 
@@ -87,21 +124,21 @@ const MyOrdersPage: React.FC = () => {
   };
 
   const handleCancelOrder = async (order: any) => {
-    if (!canManageOrder(order)) return;
-    const confirmed = window.confirm('Are you sure you want to cancel this order?');
-    if (!confirmed) return;
+    if (!canManageOrder(order, graceStartedAtByOrder)) return;
 
     try {
       await orderService.updateOrderStatus(order.id, ORDER_STATUS.CANCELLED);
+      setGraceStartedAtByOrder({});
       await refreshOrders();
+      navigate('/customer/orders', { replace: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to cancel this order.';
-      window.alert(message);
+      console.error(message);
     }
   };
 
   const openEditOrder = (order: any) => {
-    if (!canManageOrder(order)) return;
+    if (!canManageOrder(order, graceStartedAtByOrder)) return;
     setEditingOrder(order);
     setEditDraft(order.items.map((item: any) => ({
       ...item,
@@ -114,34 +151,44 @@ const MyOrdersPage: React.FC = () => {
     })));
   };
 
-  const toggleEditAddon = (itemIndex: number, addonId: string) => {
+  const toggleEditAddon = (itemIndex: number, addonId: string | undefined) => {
+    if (!addonId) return;
+
     setEditDraft(prev => prev.map((item, index) => {
       if (index !== itemIndex) return item;
       const current = item.selected_addons || [];
-      const selected = current.some((addon: any) => addon.id === addonId);
+      const selected = current.some((addon: any) => String(addon.id) === String(addonId));
       return {
         ...item,
         selected_addons: selected
-          ? current.filter((addon: any) => addon.id !== addonId)
+          ? current.filter((addon: any) => String(addon.id) !== String(addonId))
           : [...current, { id: addonId, name: addonId, price: 0, quantity: 1 }],
       };
     }));
   };
 
   const updateEditItemQuantity = (itemIndex: number, delta: number) => {
-    setEditDraft(prev => prev.map((item, index) => {
-      if (index !== itemIndex) return item;
-      const nextQuantity = Math.max(1, Number(item.quantity || 1) + delta);
-      return { ...item, quantity: nextQuantity };
+    setEditDraft(prev => prev.flatMap((item, index) => {
+      if (index !== itemIndex) return [item];
+      const nextQuantity = Number(item.quantity || 1) + delta;
+      if (nextQuantity <= 0) return [];
+      return [{ ...item, quantity: nextQuantity }];
     }));
+  };
+
+  const removeEditItem = (itemIndex: number) => {
+    setEditDraft(prev => prev.filter((_, index) => index !== itemIndex));
   };
 
   const saveEditedOrder = async () => {
     if (!editingOrder) return;
+    const validDraft = editDraft.filter((item: any) => Number(item.quantity || 0) > 0);
+    if (validDraft.length === 0) return;
+
     setIsSavingEdit(true);
 
     try {
-      const payload = editDraft.map((item: any) => ({
+      const payload = validDraft.map((item: any) => ({
         product_id: item.id,
         product_name: item.name,
         product_price: Number(item.price || 0),
@@ -163,8 +210,10 @@ const MyOrdersPage: React.FC = () => {
       });
 
       await refreshOrders();
+      const orderId = editingOrder.id;
       setEditingOrder(null);
       setEditDraft([]);
+      navigate('/tracking', { state: { orderId } });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to update this order.';
       window.alert(message);
@@ -444,37 +493,41 @@ const MyOrdersPage: React.FC = () => {
                           })}
                         </div>
 
-                        {order.status === ORDER_STATUS.PENDING && (
-                          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-gray-100 pt-4">
-                            <div className="text-xs text-gray-500">
-                              {canManageOrder(order) ? (
-                                <span>
-                                  You can cancel or edit this order for {Math.ceil(getRemainingEditSeconds(order))}s
-                                </span>
-                              ) : (
-                                <span>Cancellation and editing are no longer available. Your order has been finalized.</span>
-                              )}
-                            </div>
-                            {canManageOrder(order) ? (
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleCancelOrder(order)}
-                                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100"
-                                >
-                                  <FiTrash2 size={12} /> Cancel Order
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => openEditOrder(order)}
-                                  className="rounded-lg border border-[#2d6a4f]/30 bg-[#2d6a4f]/5 px-3 py-2 text-xs font-semibold text-[#2d6a4f] hover:bg-[#2d6a4f]/10"
-                                >
-                                  Edit Order
-                                </button>
+                        {order.status === ORDER_STATUS.PENDING && (() => {
+                          const canManageThisOrder = canManageOrder(order, graceStartedAtByOrder);
+
+                          return (
+                            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-gray-100 pt-4">
+                              <div className="text-xs text-gray-500">
+                                {canManageThisOrder ? (
+                                  <span>
+                                    You can cancel or edit this order for {Math.ceil(getRemainingEditSeconds(order, graceStartedAtByOrder))}s
+                                  </span>
+                                ) : (
+                                  <span>Your order has been finalized. Cancellation and editing are no longer available.</span>
+                                )}
                               </div>
-                            ) : null}
-                          </div>
-                        )}
+                              {canManageThisOrder ? (
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelOrder(order)}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100"
+                                  >
+                                    <FiTrash2 size={12} /> Cancel Order
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditOrder(order)}
+                                    className="rounded-lg border border-[#2d6a4f]/30 bg-[#2d6a4f]/5 px-3 py-2 text-xs font-semibold text-[#2d6a4f] hover:bg-[#2d6a4f]/10"
+                                  >
+                                    Edit Order
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
 
                         <div className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-sm">
                           {(() => {
@@ -551,7 +604,7 @@ const MyOrdersPage: React.FC = () => {
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div>
                 <h3 className="text-lg font-bold text-[#2d6a4f]">Edit Order</h3>
-                <p className="text-xs text-gray-500">You can still edit this order for {Math.ceil(getRemainingEditSeconds(editingOrder))}s</p>
+                <p className="text-xs text-gray-500">You can still edit this order for {Math.ceil(getRemainingEditSeconds(editingOrder, graceStartedAtByOrder))}s</p>
               </div>
               <button type="button" onClick={() => setEditingOrder(null)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
             </div>
@@ -568,25 +621,29 @@ const MyOrdersPage: React.FC = () => {
                       <button type="button" onClick={() => updateEditItemQuantity(itemIndex, -1)} className="h-7 w-7 rounded-full border border-gray-200 text-lg">-</button>
                       <span className="min-w-5 text-center text-sm font-medium">{item.quantity || 1}</span>
                       <button type="button" onClick={() => updateEditItemQuantity(itemIndex, 1)} className="h-7 w-7 rounded-full border border-gray-200 text-lg">+</button>
+                      <button type="button" onClick={() => removeEditItem(itemIndex)} className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-semibold text-red-600">Remove</button>
                     </div>
                   </div>
 
                   {(item.selected_addons || item.selectedAddons || []).length > 0 && (
                     <div className="mt-3 space-y-2">
-                      {(item.selected_addons || item.selectedAddons || []).map((addon: any, addonIndex: number) => (
-                        <label key={`${addon.id || addonIndex}-${addonIndex}`} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2 text-sm">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={true}
-                              onChange={() => toggleEditAddon(itemIndex, addon.id)}
-                              className="h-4 w-4 accent-[#2d6a4f]"
-                            />
-                            <span>{addon.name}</span>
-                          </div>
-                          <span className="text-[#e76f51]">+ ₱{Number(addon.price || 0).toFixed(2)}</span>
-                        </label>
-                      ))}
+                      {(item.selected_addons || item.selectedAddons || []).map((addon: any, addonIndex: number) => {
+                        const isSelected = (item.selected_addons || []).some((selectedAddon: any) => String(selectedAddon.id) === String(addon.id));
+                        return (
+                          <label key={`${addon.id || addonIndex}-${addonIndex}`} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleEditAddon(itemIndex, addon.id)}
+                                className="h-4 w-4 accent-[#2d6a4f]"
+                              />
+                              <span>{addon.name}</span>
+                            </div>
+                            <span className="text-[#e76f51]">+ ₱{Number(addon.price || 0).toFixed(2)}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -595,7 +652,7 @@ const MyOrdersPage: React.FC = () => {
 
             <div className="mt-5 flex justify-end gap-2 border-t border-gray-100 pt-4">
               <button type="button" onClick={() => setEditingOrder(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600">Cancel</button>
-              <button type="button" onClick={saveEditedOrder} disabled={isSavingEdit} className="rounded-lg bg-[#2d6a4f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+              <button type="button" onClick={saveEditedOrder} disabled={isSavingEdit || editDraft.length === 0} className="rounded-lg bg-[#2d6a4f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
                 {isSavingEdit ? 'Saving...' : 'Save Changes'}
               </button>
             </div>

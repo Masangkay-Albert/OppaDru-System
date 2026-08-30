@@ -25,7 +25,7 @@ const OrderTrackingPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { currentOrder, getOrderById, updateOrderStatus, clearOrder } = useOrder();
+  const { orders, currentOrder, getOrderById, updateOrderStatus, clearOrder } = useOrder();
 
   const locationState = location.state as TrackingLocationState | null;
   const requestedOrderId = locationState?.orderId;
@@ -34,20 +34,26 @@ const OrderTrackingPage: React.FC = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [, setTick] = useState(Date.now());
+  const [graceStartedAt, setGraceStartedAt] = useState<number | null>(null);
   
   const [simulatedProgress, setSimulatedProgress] = useState(0); 
   const [isSimulating, setIsSimulating] = useState(false);
 
-  const getOrderPlacedAt = (targetOrder: Order | null) => {
-    const value = targetOrder?.timestamp;
-    const parsed = value ? new Date(value) : new Date();
-    return parsed && !isNaN(parsed.getTime()) ? parsed : new Date();
+  const getOrderCreatedAtMs = (targetOrder: Order | null) => {
+    if (!targetOrder) return Date.now();
+    const explicitStartedAt = (targetOrder as any).graceStartedAt;
+    if (Number.isFinite(explicitStartedAt) && explicitStartedAt > 0) return explicitStartedAt;
+    const rawTimestamp = (targetOrder as any).timestamp ?? (targetOrder as any).created_at ?? new Date().toISOString();
+    const parsed = new Date(rawTimestamp).getTime();
+    return Number.isFinite(parsed) ? parsed : Date.now();
   };
 
   const getGraceRemainingSeconds = (targetOrder: Order | null) => {
-    if (!targetOrder || targetOrder.status !== ORDER_STATUS.PENDING) return 0;
-    const createdAt = getOrderPlacedAt(targetOrder);
-    const elapsed = (Date.now() - createdAt.getTime()) / 1000;
+    if (!targetOrder || (targetOrder.status ?? '').toString().trim().toLowerCase() !== ORDER_STATUS.PENDING) return 0;
+
+    const fallbackStartedAt = getOrderCreatedAtMs(targetOrder) || Date.now();
+    const startedAt = graceStartedAt ?? fallbackStartedAt;
+    const elapsed = (Date.now() - startedAt) / 1000;
     return Math.max(0, 20 - elapsed);
   };
 
@@ -55,6 +61,16 @@ const OrderTrackingPage: React.FC = () => {
     const interval = window.setInterval(() => setTick(Date.now()), 1000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!order || (order.status ?? '').toString().trim().toLowerCase() !== ORDER_STATUS.PENDING) {
+      setGraceStartedAt(null);
+      return;
+    }
+
+    const fallbackStartedAt = getOrderCreatedAtMs(order) || Date.now();
+    setGraceStartedAt(prev => prev ?? fallbackStartedAt);
+  }, [order?.id, order?.status, orders]);
 
   const handleRouteLoaded = useCallback((points: [number, number][]) => {
     setRoutePoints(points);
@@ -215,20 +231,21 @@ const OrderTrackingPage: React.FC = () => {
 
   const currentMessageInfo = STATUS_MESSAGES[order.status as keyof typeof STATUS_MESSAGES] || { icon: '🔄', message: 'Updating status...' };
   const graceRemaining = getGraceRemainingSeconds(order);
-  const canManageGracePeriod = order.status === ORDER_STATUS.PENDING && graceRemaining > 0;
+  const isPendingStatus = String(order.status ?? '').trim().toLowerCase() === ORDER_STATUS.PENDING;
+  const canManageGracePeriod = isPendingStatus && graceRemaining > 0;
 
   const handleCancelOrderFromTracking = async () => {
     if (!canManageGracePeriod) return;
-    const confirmed = window.confirm('Are you sure you want to cancel this order?');
-    if (!confirmed) return;
 
     try {
       await orderService.updateOrderStatus(order.id, ORDER_STATUS.CANCELLED);
-      setOrder(prev => (prev ? { ...prev, status: ORDER_STATUS.CANCELLED } : prev));
-      window.alert('Order cancelled successfully.');
+      setGraceStartedAt(null);
+      clearOrder();
+      setOrder(null);
+      navigate('/customer/orders', { replace: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to cancel this order.';
-      window.alert(message);
+      console.error(message);
     }
   };
 
@@ -271,21 +288,23 @@ const OrderTrackingPage: React.FC = () => {
             </span>
           </div>
 
-          {order.status === ORDER_STATUS.PENDING && (
-            <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
-              {canManageGracePeriod ? (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <span>You have {Math.ceil(graceRemaining)} seconds to edit or cancel your order.</span>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={handleEditOrderFromTracking} className="rounded-lg border border-[#2d6a4f] bg-white px-3 py-1.5 text-xs font-semibold text-[#2d6a4f]">Edit Order</button>
-                    <button type="button" onClick={handleCancelOrderFromTracking} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600">Cancel Order</button>
+          {order.status === ORDER_STATUS.PENDING && (() => {
+            return (
+              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+                {canManageGracePeriod ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <span>You have {Math.ceil(graceRemaining)} seconds to edit or cancel your order.</span>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={handleEditOrderFromTracking} className="rounded-lg border border-[#2d6a4f] bg-white px-3 py-1.5 text-xs font-semibold text-[#2d6a4f]">Edit Order</button>
+                      <button type="button" onClick={handleCancelOrderFromTracking} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600">Cancel Order</button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <span> Your order has been finalized. Cancellation and editing are no longer available.</span>
-              )}
-            </div>
-          )}
+                ) : (
+                  <span>Your order has been finalized. Cancellation and editing are no longer available.</span>
+                )}
+              </div>
+            );
+          })()}
           
           <ProgressBar status={isDelivered ? ORDER_STATUS.DELIVERED : order.status} progress={barProgress} />
         </div>
