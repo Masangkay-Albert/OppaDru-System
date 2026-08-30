@@ -38,6 +38,7 @@ interface OrderContextType {
   orders: Order[];
   currentOrder: Order | null;
   isLoading: boolean;
+  refreshOrders: () => Promise<void>;
   placeOrder: (
     items: CartItem[],
     total: number,
@@ -145,6 +146,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
       setOrders(mappedOrders);
       localStorage.setItem(getOrdersKey(), JSON.stringify(mappedOrders));
+      return;
     } catch (error) {
       console.error('Failed to fetch orders:', error);
     } finally {
@@ -341,6 +343,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       orders,
       currentOrder,
       isLoading,
+      refreshOrders: fetchUserOrders,
       placeOrder,
       updateOrderStatus,
       clearOrder,

@@ -77,6 +77,7 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::put('/settings/pricing', [SettingController::class, 'update']);
 
     Route::post('/orders', [OrderController::class, 'store']);
+    Route::put('/orders/{id}', [OrderController::class, 'update']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);
 
     Route::post('/payment/gcash/request-otp', [PaymentController::class, 'requestGCashOTP']);

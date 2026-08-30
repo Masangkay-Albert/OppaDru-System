@@ -52,6 +52,13 @@ export interface Order {
     schedule_window?: string | null;
 }
 
+export interface UpdateOrderData {
+    items: OrderItem[];
+    delivery_type?: 'standard' | 'priority' | 'scheduled';
+    delivery_address?: string;
+    phone?: string;
+}
+
 class OrderService {
     private tokenKey = 'auth_token';
     private adminTokenKey = 'adminToken';
@@ -124,6 +131,26 @@ class OrderService {
         }
 
         return response.json();
+    }
+
+    async updateOrder(id: string, data: UpdateOrderData): Promise<Order> {
+        const token = this.getToken();
+        const response = await fetch(`${API_URL}/orders/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.message || error.error || 'Failed to update order');
+        }
+
+        const result = await response.json();
+        return result.order;
     }
 
     async updateOrderStatus(id: string, status: string): Promise<Order> {

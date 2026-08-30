@@ -22,7 +22,13 @@ class OrderController extends Controller
             'payment_method', 'delivery_address', 'phone', 'items', 'created_at',
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',
             'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
-        ])->with(['user:id,full_name', 'orderItems'])->orderBy('created_at', 'desc')->get();
+        ])->with(['user:id,full_name', 'orderItems'])
+        ->where(function ($query) {
+            $query->where('status', '!=', 'pending')
+                ->orWhereRaw('TIMESTAMPDIFF(SECOND, created_at, NOW()) > 20');
+        })
+        ->orderBy('created_at', 'desc')
+        ->get();
         
         $formattedOrders = $orders->map(function ($order) {
             return [
@@ -247,6 +253,92 @@ class OrderController extends Controller
         ], 201);
     }
 
+    public function update(Request $request, $id)
+    {
+        $order = Order::findOrFail($id);
+
+        if ($order->status !== 'pending') {
+            return response()->json(['message' => 'Only pending orders can be edited or cancelled.'], 422);
+        }
+
+        $createdAt = $order->created_at;
+        $now = now();
+        if (!$createdAt || $createdAt->isFuture() || $now->diffInSeconds($createdAt) > 20) {
+            return response()->json([
+                'message' => 'Order can no longer be cancelled or edited.',
+            ], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|string',
+            'items.*.product_name' => 'required|string',
+            'items.*.product_price' => 'required|numeric|min:0',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.selected_addons' => 'nullable|array',
+            'delivery_address' => 'nullable|string',
+            'phone' => 'nullable|string',
+            'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $pricing = app(PricingService::class)->calculate(
+            $request->items,
+            $request->input('delivery_type', $order->delivery_type ?? 'standard'),
+            0,
+            0,
+            $request->input('delivery_coordinates') ?? null
+        );
+
+        $order->fill([
+            'items' => $request->items,
+            'delivery_address' => $request->input('delivery_address', $order->delivery_address),
+            'phone' => $request->input('phone', $order->phone),
+            'delivery_type' => $request->input('delivery_type', $order->delivery_type ?? 'standard'),
+            'total' => $pricing['total'],
+            'delivery_fee' => $pricing['deliveryFee'],
+            'delivery_distance_km' => $pricing['deliveryDistanceKm'],
+            'delivery_calculation_method' => $pricing['deliveryCalculationMethod'],
+            'service_fee' => $pricing['serviceFee'],
+            'priority_fee' => $pricing['priorityFee'],
+            'vat' => $pricing['vat'],
+            'service_fee_rule' => $pricing['serviceFeeRule'],
+        ]);
+        $order->save();
+
+        $order->orderItems()->delete();
+
+        foreach ($request->items as $item) {
+            $orderItem = OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $item['product_id'],
+                'product_name' => $item['product_name'],
+                'product_price' => $item['product_price'],
+                'quantity' => $item['quantity'],
+                'special_instructions' => $item['special_instructions'] ?? null,
+            ]);
+
+            foreach ($item['selected_addons'] ?? [] as $addon) {
+                OrderItemAddon::create([
+                    'order_item_id' => $orderItem->id,
+                    'addon_id' => $addon['id'] ?? null,
+                    'addon_name' => $addon['name'] ?? 'Add-on',
+                    'unit_price' => $addon['price'] ?? 0,
+                    'quantity' => $addon['quantity'] ?? 1,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'order' => $order,
+            'message' => 'Order updated successfully.'
+        ]);
+    }
+
     public function updateStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
@@ -263,9 +355,9 @@ class OrderController extends Controller
             $createdAt = $order->created_at;
             $now = now();
 
-            if (!$createdAt || $createdAt->isFuture() || abs($now->diffInSeconds($createdAt)) > 20) {
+            if (!$createdAt || $createdAt->isFuture() || $now->diffInSeconds($createdAt) > 20 || $order->status !== 'pending') {
                 return response()->json([
-                    'message' => 'Order cancellation is only allowed within 20 seconds of creation.',
+                    'message' => 'Order can no longer be cancelled or edited.',
                 ], 422);
             }
         }

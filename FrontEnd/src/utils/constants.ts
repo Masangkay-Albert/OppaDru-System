@@ -40,7 +40,8 @@ export const ORDER_STATUS = {
   SCHEDULED: 'scheduled',
   ON_THE_WAY: 'on_the_way',
   ON_WAY: 'on_the_way',
-  DELIVERED: 'delivered'
+  DELIVERED: 'delivered',
+  CANCELLED: 'cancelled'
 } as const;
 
 export type OrderStatus = typeof ORDER_STATUS[keyof typeof ORDER_STATUS];
@@ -51,7 +52,8 @@ export const STATUS_MESSAGES: Record<OrderStatus, { message: string; icon: strin
   ready: { message: 'Order is prepared and waiting for a driver', icon: '' },
   scheduled: { message: 'Order is scheduled and waiting for its delivery time', icon: '' },
   on_the_way: { message: 'Driver is on the way!', icon: '' },
-  delivered: { message: 'Order delivered! Enjoy your meal!', icon: '' }
+  delivered: { message: 'Order delivered! Enjoy your meal!', icon: '' },
+  cancelled: { message: 'Order cancelled.', icon: '' }
 };
 
 
@@ -61,7 +63,8 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   ready: 'bg-orange-100 text-orange-700',
   scheduled: 'bg-orange-100 text-orange-700',
   on_the_way: 'bg-purple-100 text-purple-700',
-  delivered: 'bg-green-100 text-green-700'
+  delivered: 'bg-green-100 text-green-700',
+  cancelled: 'bg-red-100 text-red-700'
 };
 
-export const STATUS_ORDER: OrderStatus[] = ['pending', 'preparing', 'scheduled', 'on_the_way', 'delivered'];
+export const STATUS_ORDER: OrderStatus[] = ['pending', 'preparing', 'scheduled', 'on_the_way', 'delivered', 'cancelled'];

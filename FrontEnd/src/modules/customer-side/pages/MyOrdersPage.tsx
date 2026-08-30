@@ -1,23 +1,53 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FiArrowLeft, FiSearch, FiX, FiChevronDown, FiCalendar, FiClock, 
-  FiHash, FiChevronRight, FiPackage, FiShoppingBag, FiCheckCircle 
+  FiHash, FiChevronRight, FiPackage, FiShoppingBag, FiCheckCircle, FiTrash2 
 } from 'react-icons/fi';
 import { FaClipboardList, FaCheck, FaStore } from 'react-icons/fa';
 import { useOrder } from '../../../contexts/OrderContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import { ORDER_STATUS } from '../../../utils/constants';
 import { formatCurrency } from '../../../utils/formatters';
+import { orderService } from '../../../services/orderService';
 import { STATUS_DISPLAY, STATUS_OPTIONS, getStatusColor, formatOrderDate, formatOrderTime, getScheduledOrderDetails } from '../../../utils/orderUtils';
+
+const ORDER_EDIT_WINDOW_SECONDS = 20;
+
+const getOrderCreatedAt = (order: any) => {
+  const value = order?.timestamp || order?.created_at || order?.createdAt;
+  const parsed = value ? new Date(value) : new Date();
+  return parsed && !isNaN(parsed.getTime()) ? parsed : new Date();
+};
+
+const getRemainingEditSeconds = (order: any) => {
+  if (!order || order.status !== ORDER_STATUS.PENDING) return 0;
+  const createdAt = getOrderCreatedAt(order);
+  const elapsed = (Date.now() - createdAt.getTime()) / 1000;
+  return Math.max(0, ORDER_EDIT_WINDOW_SECONDS - elapsed);
+};
+
+const canManageOrder = (order: any) => {
+  if (!order || order.status !== ORDER_STATUS.PENDING) return false;
+  return getRemainingEditSeconds(order) > 0;
+};
 
 const MyOrdersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { orders } = useOrder();
+  const { orders, refreshOrders } = useOrder();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>(ORDER_STATUS.PENDING);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({});
+  const [editingOrder, setEditingOrder] = useState<any | null>(null);
+  const [editDraft, setEditDraft] = useState<any[]>([]);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [, setTick] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setTick(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const sortedOrders = useMemo(() => {
     return [...orders].sort((a, b) => {
@@ -54,6 +84,93 @@ const MyOrdersPage: React.FC = () => {
 
   const toggleOrderDetails = (orderId: string) => {
     setExpandedOrderIds(prev => ({ ...prev, [orderId]: !prev[orderId] }));
+  };
+
+  const handleCancelOrder = async (order: any) => {
+    if (!canManageOrder(order)) return;
+    const confirmed = window.confirm('Are you sure you want to cancel this order?');
+    if (!confirmed) return;
+
+    try {
+      await orderService.updateOrderStatus(order.id, ORDER_STATUS.CANCELLED);
+      await refreshOrders();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to cancel this order.';
+      window.alert(message);
+    }
+  };
+
+  const openEditOrder = (order: any) => {
+    if (!canManageOrder(order)) return;
+    setEditingOrder(order);
+    setEditDraft(order.items.map((item: any) => ({
+      ...item,
+      selected_addons: (item.selectedAddons || item.selected_addons || []).map((addon: any) => ({
+        id: addon.id,
+        name: addon.name,
+        price: Number(addon.price || 0),
+        quantity: Number(addon.quantity || 1),
+      })),
+    })));
+  };
+
+  const toggleEditAddon = (itemIndex: number, addonId: string) => {
+    setEditDraft(prev => prev.map((item, index) => {
+      if (index !== itemIndex) return item;
+      const current = item.selected_addons || [];
+      const selected = current.some((addon: any) => addon.id === addonId);
+      return {
+        ...item,
+        selected_addons: selected
+          ? current.filter((addon: any) => addon.id !== addonId)
+          : [...current, { id: addonId, name: addonId, price: 0, quantity: 1 }],
+      };
+    }));
+  };
+
+  const updateEditItemQuantity = (itemIndex: number, delta: number) => {
+    setEditDraft(prev => prev.map((item, index) => {
+      if (index !== itemIndex) return item;
+      const nextQuantity = Math.max(1, Number(item.quantity || 1) + delta);
+      return { ...item, quantity: nextQuantity };
+    }));
+  };
+
+  const saveEditedOrder = async () => {
+    if (!editingOrder) return;
+    setIsSavingEdit(true);
+
+    try {
+      const payload = editDraft.map((item: any) => ({
+        product_id: item.id,
+        product_name: item.name,
+        product_price: Number(item.price || 0),
+        quantity: Number(item.quantity || 1),
+        selected_addons: (item.selected_addons || []).map((addon: any) => ({
+          id: addon.id,
+          name: addon.name,
+          price: Number(addon.price || 0),
+          quantity: Number(addon.quantity || 1),
+        })),
+        special_instructions: item.specialInstructions || item.special_instructions || null,
+      }));
+
+      await orderService.updateOrder(editingOrder.id, {
+        items: payload,
+        delivery_address: editingOrder.address || editingOrder.deliveryAddress,
+        phone: editingOrder.phone || '',
+        delivery_type: editingOrder.deliveryType || 'standard',
+      });
+
+      await refreshOrders();
+      setEditingOrder(null);
+      setEditDraft([]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to update this order.';
+      window.alert(message);
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   return (
@@ -327,6 +444,38 @@ const MyOrdersPage: React.FC = () => {
                           })}
                         </div>
 
+                        {order.status === ORDER_STATUS.PENDING && (
+                          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-gray-100 pt-4">
+                            <div className="text-xs text-gray-500">
+                              {canManageOrder(order) ? (
+                                <span>
+                                  You can cancel or edit this order for {Math.ceil(getRemainingEditSeconds(order))}s
+                                </span>
+                              ) : (
+                                <span>Cancellation and editing are no longer available. Your order has been finalized.</span>
+                              )}
+                            </div>
+                            {canManageOrder(order) ? (
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelOrder(order)}
+                                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100"
+                                >
+                                  <FiTrash2 size={12} /> Cancel Order
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditOrder(order)}
+                                  className="rounded-lg border border-[#2d6a4f]/30 bg-[#2d6a4f]/5 px-3 py-2 text-xs font-semibold text-[#2d6a4f] hover:bg-[#2d6a4f]/10"
+                                >
+                                  Edit Order
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+
                         <div className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-sm">
                           {(() => {
                             const productSubtotal = order.items.reduce((sum, item) => {
@@ -339,18 +488,15 @@ const MyOrdersPage: React.FC = () => {
                             let priorityFee = order.priorityFee ?? 0;
                             let vat = Number(order.vat ?? 0);
 
-                            // If priority fee is missing but delivery type is priority, set it to 99
                             if (priorityFee === 0 && order.deliveryType === 'priority') {
                               priorityFee = 99;
                             }
 
-                            // If the saved delivery fee is stale/zero, derive it from the known order totals.
                             if (deliveryFee === 0 && order.total > 0) {
                               const derived = order.total - productSubtotal - serviceFee - priorityFee - vat;
                               deliveryFee = Math.max(0, Number(derived.toFixed(2)));
                             }
 
-                            // If VAT is 0 or missing, recalculate from total
                             if (vat === 0 && order.total > 0) {
                               const beforeVat = productSubtotal + deliveryFee + serviceFee + priorityFee;
                               vat = Math.round((order.total - beforeVat) * 100) / 100;
@@ -398,6 +544,64 @@ const MyOrdersPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {editingOrder && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-[#2d6a4f]">Edit Order</h3>
+                <p className="text-xs text-gray-500">You can still edit this order for {Math.ceil(getRemainingEditSeconds(editingOrder))}s</p>
+              </div>
+              <button type="button" onClick={() => setEditingOrder(null)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+            </div>
+
+            <div className="mt-4 max-h-[60vh] space-y-4 overflow-y-auto">
+              {editDraft.map((item: any, itemIndex: number) => (
+                <div key={`${item.id}-${itemIndex}`} className="rounded-xl border border-gray-200 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-gray-800">{item.name}</p>
+                      <p className="text-xs text-gray-500">₱{Number(item.price || 0).toFixed(2)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => updateEditItemQuantity(itemIndex, -1)} className="h-7 w-7 rounded-full border border-gray-200 text-lg">-</button>
+                      <span className="min-w-5 text-center text-sm font-medium">{item.quantity || 1}</span>
+                      <button type="button" onClick={() => updateEditItemQuantity(itemIndex, 1)} className="h-7 w-7 rounded-full border border-gray-200 text-lg">+</button>
+                    </div>
+                  </div>
+
+                  {(item.selected_addons || item.selectedAddons || []).length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {(item.selected_addons || item.selectedAddons || []).map((addon: any, addonIndex: number) => (
+                        <label key={`${addon.id || addonIndex}-${addonIndex}`} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={true}
+                              onChange={() => toggleEditAddon(itemIndex, addon.id)}
+                              className="h-4 w-4 accent-[#2d6a4f]"
+                            />
+                            <span>{addon.name}</span>
+                          </div>
+                          <span className="text-[#e76f51]">+ ₱{Number(addon.price || 0).toFixed(2)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2 border-t border-gray-100 pt-4">
+              <button type="button" onClick={() => setEditingOrder(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600">Cancel</button>
+              <button type="button" onClick={saveEditedOrder} disabled={isSavingEdit} className="rounded-lg bg-[#2d6a4f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+                {isSavingEdit ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

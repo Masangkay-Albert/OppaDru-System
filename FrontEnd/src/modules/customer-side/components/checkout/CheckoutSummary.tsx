@@ -108,9 +108,6 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
           </div>
           <span className="text-gray-800">{formatCurrency(deliveryFee)}</span>
         </div>
-        <div className="flex items-center gap-1 text-xs text-gray-400 bg-amber-50 px-2 py-1.5 rounded">
-          <span>Final delivery fee calculated at checkout based on distance</span>
-        </div>
         <div className="flex justify-between">
           <span className="text-gray-500">Service fee</span>
           <span className="text-gray-800">{formatCurrency(serviceFee)}</span>
