@@ -1,8 +1,7 @@
-// src/modules/admin-side/components/AccountModal.tsx
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 
-// 1. Define a flexible interface here instead of importing StoredAccount
+
 export interface ModalAccount {
   id: string;
   fullName?: string; // For employees
@@ -13,7 +12,7 @@ export interface ModalAccount {
   contactNumber?: string;
   phone?: string;
   address?: string;
-  created_at?: string; // Laravel uses created_at instead of dateRegistered
+  created_at?: string; 
 }
 
 interface AccountModalProps {
@@ -36,9 +35,9 @@ const AccountModal: React.FC<AccountModalProps> = ({ account, onClose, onResetPa
     setNewPassword('');
   };
 
-  // Helper to safely get the name whether it's an Employee (fullName) or User (full_name)
+  
   const displayName = account.fullName || account.full_name || 'N/A';
-  // Helper to safely get contact info
+ 
   const displayContact = account.contactNumber || account.phone;
 
   return (

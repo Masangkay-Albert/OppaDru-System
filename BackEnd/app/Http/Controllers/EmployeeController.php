@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 
 class EmployeeController extends Controller
 {
@@ -19,14 +18,12 @@ class EmployeeController extends Controller
     {
         $validated = $request->validate([
             'fullName' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:employees',
+            'email'    => 'required|string|email|max:255|unique:employees,email',
             'password' => 'required|string|min:6',
             'position' => 'required|in:cashier,kitchen staff',
         ]);
 
-        // Hash the password before saving to the database
-        $validated['password'] = Hash::make($validated['password']);
-
+        
         return Employee::create($validated);
     }
 
@@ -47,8 +44,10 @@ class EmployeeController extends Controller
         ]);
 
         $employee = Employee::findOrFail($id);
+        
+        // Again, automatically hashed by the Model
         $employee->update([
-            'password' => Hash::make($request->password)
+            'password' => $request->password
         ]);
         
         return response()->json(['message' => 'Password reset successfully']);

@@ -16,8 +16,7 @@ class Employee extends Authenticatable
     public $incrementing = false;
     protected $keyType = 'string';
 
-    // Disable Laravel timestamps
-    public $timestamps = false;
+ 
 
     // Fields that can be mass assigned
     protected $fillable = [
@@ -44,10 +43,8 @@ class Employee extends Authenticatable
         parent::boot();
 
         static::creating(function ($employee) {
-
             // Generate employee ID if none was provided
             if (empty($employee->id)) {
-
                 $slug = Str::upper(
                     Str::slug($employee->fullName ?: 'employee', '')
                 );
