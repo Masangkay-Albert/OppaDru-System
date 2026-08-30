@@ -193,7 +193,7 @@ class PaymentService {
           items: data.items.map(item => ({
             product_id: item.id,
             quantity: item.quantity,
-            selected_addons: item.selectedAddons?.map(addon => ({ id: addon.id, price: addon.price, quantity: addon.quantity || 1 })) || [],
+            selected_addons: item.selectedAddons?.map(addon => ({ id: addon.id, price: addon.price, quantity: 1 })) || [],
           })),
           delivery_type: data.deliveryType,
           voucher_discount: data.voucherDiscount,

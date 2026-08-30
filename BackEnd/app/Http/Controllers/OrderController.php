@@ -258,6 +258,18 @@ class OrderController extends Controller
         }
 
         $order = Order::findOrFail($id);
+
+        if ($request->status === 'cancelled') {
+            $createdAt = $order->created_at;
+            $now = now();
+
+            if (!$createdAt || $createdAt->isFuture() || abs($now->diffInSeconds($createdAt)) > 20) {
+                return response()->json([
+                    'message' => 'Order cancellation is only allowed within 20 seconds of creation.',
+                ], 422);
+            }
+        }
+
         $order->status = $request->status;
         $order->save();
 

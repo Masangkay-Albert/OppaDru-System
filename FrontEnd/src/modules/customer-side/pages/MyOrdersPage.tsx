@@ -301,8 +301,8 @@ const MyOrdersPage: React.FC = () => {
                       <div className="mt-4 border-t border-gray-100 pt-4">
                         <div className="space-y-3">
                           {order.items.map((item, itemIndex) => {
-                            const addonsTotal = (item.selectedAddons || []).reduce((sum, addon) => sum + Number(addon.price || 0) * (addon.quantity || 1), 0);
-                            const itemSubtotal = (Number(item.price || 0) + addonsTotal) * Number(item.quantity || 1);
+                            const addonsTotal = (item.selectedAddons || []).reduce((sum, addon) => sum + Number(addon.price || 0), 0);
+                            const itemSubtotal = (Number(item.price || 0) * Number(item.quantity || 1)) + addonsTotal;
 
                             return (
                               <div key={`${order.id}-${itemIndex}`} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
@@ -313,8 +313,8 @@ const MyOrdersPage: React.FC = () => {
                                       <div className="mt-2 text-xs text-gray-500 space-y-1">
                                         {item.selectedAddons.map((addon, addonIndex) => (
                                           <div key={`${item.id}-${addonIndex}`} className="flex justify-between gap-3">
-                                            <span>+ {addon.name} {addon.quantity && addon.quantity > 1 ? `x${addon.quantity}` : ''}</span>
-                                            <span>{formatCurrency((Number(addon.price || 0)) * (addon.quantity || 1))}</span>
+                                            <span>+ {addon.name}</span>
+                                            <span>{formatCurrency(Number(addon.price || 0))}</span>
                                           </div>
                                         ))}
                                       </div>
@@ -330,20 +330,26 @@ const MyOrdersPage: React.FC = () => {
                         <div className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-sm">
                           {(() => {
                             const productSubtotal = order.items.reduce((sum, item) => {
-                              const addonTotal = (item.selectedAddons || []).reduce((addonSum, addon) => addonSum + Number(addon.price || 0) * (addon.quantity || 1), 0);
-                              return sum + ((Number(item.price || 0) + addonTotal) * Number(item.quantity || 1));
+                              const addonTotal = (item.selectedAddons || []).reduce((addonSum, addon) => addonSum + Number(addon.price || 0), 0);
+                              return sum + ((Number(item.price || 0) * Number(item.quantity || 1)) + addonTotal);
                             }, 0);
                             
-                            const deliveryFee = order.deliveryFee ?? 0;
+                            let deliveryFee = order.deliveryFee ?? 0;
                             const serviceFee = order.serviceFee ?? 0;
                             let priorityFee = order.priorityFee ?? 0;
                             let vat = Number(order.vat ?? 0);
-                            
+
                             // If priority fee is missing but delivery type is priority, set it to 99
                             if (priorityFee === 0 && order.deliveryType === 'priority') {
                               priorityFee = 99;
                             }
-                            
+
+                            // If the saved delivery fee is stale/zero, derive it from the known order totals.
+                            if (deliveryFee === 0 && order.total > 0) {
+                              const derived = order.total - productSubtotal - serviceFee - priorityFee - vat;
+                              deliveryFee = Math.max(0, Number(derived.toFixed(2)));
+                            }
+
                             // If VAT is 0 or missing, recalculate from total
                             if (vat === 0 && order.total > 0) {
                               const beforeVat = productSubtotal + deliveryFee + serviceFee + priorityFee;
@@ -359,7 +365,7 @@ const MyOrdersPage: React.FC = () => {
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-500">Delivery fee</span>
-                                  <span>{deliveryFee === 0 ? 'FREE' : formatCurrency(deliveryFee)}</span>
+                                  <span>{formatCurrency(deliveryFee)}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-500">Service fee</span>

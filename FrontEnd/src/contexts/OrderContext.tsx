@@ -95,44 +95,54 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsLoading(true);
     try {
       const apiOrders = await orderService.getUserOrders();
-      const mappedOrders: Order[] = apiOrders.map(apiOrder => ({
-        id: apiOrder.id,
-        email: apiOrder.email,
-        items: apiOrder.items?.map((item: any) => ({
-          id: item.product_id,
-          name: item.product_name || item.product_id,
-          price: Number(item.product_price),
-          quantity: item.quantity,
-          cartItemId: `${apiOrder.id}_${item.product_id}`,
-          description: '',
-          category: '',
-          image: '',
-          is_available: true,
-          isAvailable: true,
-          selectedAddons: item.selected_addons,
-          specialInstructions: item.special_instructions,
-        })) || [],
-        total: Number(apiOrder.total),
-        address: apiOrder.delivery_address,
-        status: apiOrder.status as OrderStatus,
-        paymentMethod: apiOrder.payment_method,
-        phone: apiOrder.phone,
-        orderNumber: apiOrder.order_number,
-        userId: resolvedUser.id,
-        timestamp: apiOrder.created_at || new Date().toISOString(),
-        deliveryAddress: apiOrder.delivery_address,
-        eta: 35,
-        deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
-        deliveryFee: Number(apiOrder.delivery_fee || 0),
-        serviceFee: Number(apiOrder.service_fee || 0),
-        priorityFee: Number(apiOrder.priority_fee || 0),
-        vat: Number(apiOrder.vat || 0),
-        scheduledAt: apiOrder.scheduled_at || null,
-        scheduledDate: apiOrder.scheduled_date || null,
-        scheduledTime: apiOrder.scheduled_time || apiOrder.schedule_window || null,
-        scheduleDisplay: apiOrder.schedule_display || null,
-        scheduleWindow: apiOrder.schedule_window || null,
-      }));
+      const mappedOrders: Order[] = apiOrders.map(apiOrder => {
+        const productSubtotal = (apiOrder.items || []).reduce((sum: number, item: any) => {
+          const addonTotal = (item.selected_addons || []).reduce((addonSum: number, addon: any) => addonSum + Number(addon.price || 0), 0);
+          return sum + ((Number(item.product_price || 0) * Number(item.quantity || 1)) + addonTotal);
+        }, 0);
+        const derivedDeliveryFee = Number(apiOrder.delivery_fee || 0) > 0
+          ? Number(apiOrder.delivery_fee || 0)
+          : Math.max(0, Number(apiOrder.total || 0) - productSubtotal - Number(apiOrder.service_fee || 0) - Number(apiOrder.vat || 0) - Number(apiOrder.priority_fee || 0));
+
+        return {
+          id: apiOrder.id,
+          email: apiOrder.email,
+          items: apiOrder.items?.map((item: any) => ({
+            id: item.product_id,
+            name: item.product_name || item.product_id,
+            price: Number(item.product_price),
+            quantity: item.quantity,
+            cartItemId: `${apiOrder.id}_${item.product_id}`,
+            description: '',
+            category: '',
+            image: '',
+            is_available: true,
+            isAvailable: true,
+            selectedAddons: item.selected_addons,
+            specialInstructions: item.special_instructions,
+          })) || [],
+          total: Number(apiOrder.total),
+          address: apiOrder.delivery_address,
+          status: apiOrder.status as OrderStatus,
+          paymentMethod: apiOrder.payment_method,
+          phone: apiOrder.phone,
+          orderNumber: apiOrder.order_number,
+          userId: resolvedUser.id,
+          timestamp: apiOrder.created_at || new Date().toISOString(),
+          deliveryAddress: apiOrder.delivery_address,
+          eta: 35,
+          deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
+          deliveryFee: derivedDeliveryFee,
+          serviceFee: Number(apiOrder.service_fee || 0),
+          priorityFee: Number(apiOrder.priority_fee || 0),
+          vat: Number(apiOrder.vat || 0),
+          scheduledAt: apiOrder.scheduled_at || null,
+          scheduledDate: apiOrder.scheduled_date || null,
+          scheduledTime: apiOrder.scheduled_time || apiOrder.schedule_window || null,
+          scheduleDisplay: apiOrder.schedule_display || null,
+          scheduleWindow: apiOrder.schedule_window || null,
+        };
+      });
       setOrders(mappedOrders);
       localStorage.setItem(getOrdersKey(), JSON.stringify(mappedOrders));
     } catch (error) {
@@ -158,8 +168,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } catch {
         setOrders([]);
       }
-    } else {
-      fetchUserOrders();
     }
 
     if (savedCurrentOrder) {
@@ -171,6 +179,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } else {
       setCurrentOrder(null);
     }
+
+    fetchUserOrders();
   }, [resolvedUser, getOrdersKey, getCurrentOrderKey, fetchUserOrders]);
 
   useEffect(() => {
@@ -218,7 +228,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           id: addon.id,
           name: addon.name,
           price: Number(addon.price),
-          quantity: addon.quantity || 1,
+          quantity: 1,
         })),
         special_instructions: item.specialInstructions,
       }));
@@ -243,6 +253,13 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
 
       const apiOrder = await orderService.createOrder(data);
+      const productSubtotal = validItems.reduce((sum, item) => {
+        const addonTotal = (item.selectedAddons || []).reduce((addonSum, addon) => addonSum + Number(addon.price || 0), 0);
+        return sum + ((Number(item.price || 0) * Number(item.quantity || 1)) + addonTotal);
+      }, 0);
+      const derivedDeliveryFee = Number(apiOrder.delivery_fee || 0) > 0
+        ? Number(apiOrder.delivery_fee || 0)
+        : Math.max(0, Number(apiOrder.total || 0) - productSubtotal - Number(apiOrder.service_fee || 0) - Number(apiOrder.vat || 0) - Number(apiOrder.priority_fee || 0));
 
       const newOrder: Order = {
         id: apiOrder.id,
@@ -261,7 +278,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deliveryAddressCoords,
         eta: 35,
         deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || deliveryType,
-        deliveryFee: Number(apiOrder.delivery_fee || 0),
+        deliveryFee: derivedDeliveryFee,
         serviceFee: Number(apiOrder.service_fee || 0),
         priorityFee: Number(apiOrder.priority_fee || 0),
         vat: Number(apiOrder.vat || 0),

@@ -39,7 +39,7 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
               {item.selectedAddons.map((addon) => (
                 <div key={addon.id} className="flex justify-between items-center text-xs text-[#7f4f24]/70">
                   <span>+ {addon.name}</span>
-                  <span>₱{addon.price * item.quantity}</span>
+                  <span>₱{addon.price}</span>
                 </div>
               ))}
             </div>

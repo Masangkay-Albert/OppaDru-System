@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -172,5 +173,58 @@ class OrderPlacementTest extends TestCase
         $response
             ->assertCreated()
             ->assertJsonPath('order.delivery_type', 'priority');
+    }
+
+    public function test_order_cancellation_is_rejected_after_the_backend_window_closes(): void
+    {
+        $user = User::create([
+            'full_name' => 'Late Cancellation Customer',
+            'email' => 'cancel@example.com',
+            'phone' => '09171239999',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+
+        $product = Product::create([
+            'name' => 'Late Cancellation Chicken',
+            'description' => 'Classic Korean fried chicken',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => 'late-cancel.jpg',
+            'is_available' => true,
+        ]);
+
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ]);
+
+        $orderResponse = $this
+            ->withHeader('Authorization', 'Bearer '.$loginResponse->json('token'))
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'delivery_address' => 'Sampaloc, Dasmarinas',
+                'payment_method' => 'cash_on_delivery',
+                'phone' => '09171239999',
+            ]);
+
+        $order = Order::findOrFail($orderResponse->json('order.id'));
+        Order::whereKey($order->id)->update(['created_at' => now()->subMinute()->subSeconds(1)]);
+        $order->refresh();
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$loginResponse->json('token'))
+            ->patchJson('/api/orders/'.$order->id.'/status', ['status' => 'cancelled']);
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Order cancellation is only allowed within 20 seconds of creation.');
     }
 }

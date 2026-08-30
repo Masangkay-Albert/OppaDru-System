@@ -11,12 +11,13 @@ class PricingServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_delivery_is_free_at_exact_threshold(): void
+    public function test_delivery_charge_applies_based_on_distance_not_subtotal(): void
     {
         $pricing = $this->calculateFor(999);
 
-        $this->assertSame(0.0, $pricing['deliveryFee']);
-        $this->assertSame('free_delivery_subtotal_threshold', $pricing['deliveryCalculationMethod']);
+        // Delivery always charges based on distance, not subtotal threshold
+        $this->assertSame(49.0, $pricing['deliveryFee']);
+        $this->assertSame('base_fee_plus_distance_rate_capped', $pricing['deliveryCalculationMethod']);
     }
 
     public function test_service_fee_uses_minimum_at_lower_boundary(): void

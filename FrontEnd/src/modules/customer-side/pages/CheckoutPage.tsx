@@ -73,6 +73,7 @@ const CheckoutPage: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [address.street]);
 
+  // Delivery fee calculated server-side; frontend shows estimate only
   const { total } = useCartCalculations({
     cartItems,
     deliveryType,
@@ -130,7 +131,7 @@ const CheckoutPage: React.FC = () => {
 
       const success = await placeOrder(
         cartItems,
-        total,
+        0, // Backend calculates actual total with delivery fee
         fullDeliveryAddress,
         paymentMethod,
         tempPerson.phone,

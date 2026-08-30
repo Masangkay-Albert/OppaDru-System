@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Addon extends Model
 {
-    protected $fillable = ['addon_group_id', 'name', 'price', 'is_active', 'sort_order'];
+    protected $fillable = ['addon_group_id', 'name', 'price', 'image', 'is_active', 'sort_order'];
 
     protected $casts = ['price' => 'decimal:2', 'is_active' => 'boolean'];
 

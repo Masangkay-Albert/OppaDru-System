@@ -31,9 +31,10 @@ export const useCartCalculations = ({
     const haversine = Math.sin(latitudeDelta / 2) ** 2
       + Math.cos(merchantLatitude) * Math.cos(customerLatitude) * Math.sin(longitudeDelta / 2) ** 2;
     const distanceKm = Math.round(6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine)) * 1000) / 1000;
-    const deliveryFee = subtotal >= pricing.delivery_free_subtotal
-      ? 0
-      : Math.min(pricing.delivery_max_fee, pricing.delivery_base_fee + Math.max(0, distanceKm - pricing.delivery_base_distance_km) * pricing.delivery_per_km_rate);
+    const deliveryFee = Math.min(
+      pricing.delivery_max_fee,
+      Math.max(0, pricing.delivery_base_fee + Math.max(0, distanceKm - pricing.delivery_base_distance_km) * pricing.delivery_per_km_rate)
+    );
     const serviceFee = Math.min(pricing.service_fee_max, Math.max(pricing.service_fee_min, subtotal * pricing.service_fee_rate));
     const priorityFee = deliveryType === 'priority' ? FEES.DELIVERY.PRIORITY : 0;
     

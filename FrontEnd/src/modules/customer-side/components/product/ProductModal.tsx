@@ -95,7 +95,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
 
   if (!product) return null;
 
-  const getAddonsTotal = () => selectedAddons.reduce((sum, addon) => sum + addon.price * (addon.quantity || 1), 0);
+  const getAddonsTotal = () => selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0);
   const getTotalPrice = () => (product.price + getAddonsTotal()) * quantity;
 
   const toggleAddon = (addon: Addon, group: AddonGroup) => {
@@ -105,16 +105,8 @@ const ProductModal: React.FC<ProductModalProps> = ({
       const withoutGroup = group.selection_type === 'single'
         ? prev.filter((item) => !group.addons.some((groupAddon) => groupAddon.id === item.id))
         : prev;
-      return [...withoutGroup, { ...addon, addon_group_id: group.id, quantity: 1 }];
+      return [...withoutGroup, { ...addon, addon_group_id: group.id }];
     });
-  };
-
-  const changeAddonQuantity = (addon: Addon, group: AddonGroup, delta: number) => {
-    setSelectedAddons((prev) => prev.flatMap((item) => {
-      if (item.id !== addon.id) return [item];
-      const quantity = Math.max(0, Math.min(group.max_selections || 99, (item.quantity || 1) + delta));
-      return quantity ? [{ ...item, quantity }] : [];
-    }));
   };
 
   const handleClose = () => {
@@ -218,7 +210,6 @@ const ProductModal: React.FC<ProductModalProps> = ({
                           group={group}
                           selectedAddons={selectedAddons}
                           onToggleAddon={(addon) => toggleAddon(addon, group)}
-                          onChangeQuantity={(addon, delta) => changeAddonQuantity(addon, group, delta)}
                         />
                       ))}
                     </div>

@@ -13,27 +13,33 @@ interface OrderDetailsCardsProps {
 const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, formatDate }) => {
   const { pricing } = useSettings();
   const subtotal = currentOrder.items?.reduce((sum: number, item: CartItem) => {
-    const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + a.price * (a.quantity || 1), 0) || 0;
-    return sum + (item.price + addonsTotal) * item.quantity;
+    const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + Number(a.price || 0), 0) || 0;
+    return sum + (item.price * item.quantity) + addonsTotal;
   }, 0) || 0;
 
-  const deliveryFee = Number(currentOrder.deliveryFee ?? pricing.delivery_fee_standard ?? 0);
   const serviceFee = Number(currentOrder.serviceFee ?? pricing.service_fee ?? 0);
   let priorityFee = Number(currentOrder.priorityFee ?? 0);
   let vat = Number(currentOrder.vat ?? 0);
-  
+  let deliveryFee = Number(currentOrder.deliveryFee ?? pricing.delivery_fee_standard ?? 0);
+
   // If priority fee is missing but delivery type is priority, set it to 99
   if (priorityFee === 0 && currentOrder.deliveryType === 'priority') {
     priorityFee = 99;
   }
-  
+
+  // If the saved delivery fee is stale/zero, derive it from the total and known fees.
+  if (deliveryFee === 0 && currentOrder.total > 0) {
+    const derived = currentOrder.total - subtotal - serviceFee - priorityFee - vat;
+    deliveryFee = Math.max(0, Number(derived.toFixed(2)));
+  }
+
   // If VAT is 0 or missing, recalculate from total
   if (vat === 0 && currentOrder.total > 0) {
     const beforeVat = subtotal + deliveryFee + serviceFee + priorityFee;
     vat = Math.round((currentOrder.total - beforeVat) * 100) / 100;
     if (vat < 0) vat = 0; // Safety check
   }
-  
+
   const hasPriorityFee = currentOrder.deliveryType === 'priority' || priorityFee > 0;
 
   return (
@@ -42,8 +48,8 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
         <h3 className="font-semibold text-gray-800 mb-3">Order Items</h3>
         <div className="space-y-3 max-h-56 overflow-y-auto mb-3">
           {currentOrder.items?.map((item: CartItem, idx: number) => {
-            const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + a.price * (a.quantity || 1), 0) || 0;
-            const itemTotal = (item.price + addonsTotal) * item.quantity;
+            const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + Number(a.price || 0), 0) || 0;
+            const itemTotal = (item.price * item.quantity) + addonsTotal;
             return (
               <div key={idx} className="text-sm py-1 border-b border-gray-100 last:border-0">
                 <div className="flex justify-between">
@@ -77,7 +83,7 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Delivery fee</span>
-            <span className="text-gray-800">{deliveryFee === 0 ? 'FREE' : formatCurrency(deliveryFee)}</span>
+            <span className="text-gray-800">{formatCurrency(deliveryFee)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Service fee</span>

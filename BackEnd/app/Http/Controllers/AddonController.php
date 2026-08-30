@@ -74,7 +74,7 @@ class AddonController extends Controller
         if (!$this->checkAdminAuth($request)) return response()->json(['message' => 'Unauthorized'], 401);
         return response()->json($addonGroup->addons()->create($request->validate([
             'name' => 'required|string|max:255', 'price' => 'required|numeric|min:0',
-            'is_active' => 'boolean', 'sort_order' => 'integer|min:0',
+            'image' => 'nullable|string', 'is_active' => 'boolean', 'sort_order' => 'integer|min:0',
         ])), 201);
     }
 
@@ -83,7 +83,7 @@ class AddonController extends Controller
         if (!$this->checkAdminAuth($request)) return response()->json(['message' => 'Unauthorized'], 401);
         $addon->update($request->validate([
             'name' => 'sometimes|string|max:255', 'price' => 'sometimes|numeric|min:0',
-            'is_active' => 'sometimes|boolean', 'sort_order' => 'sometimes|integer|min:0',
+            'image' => 'sometimes|nullable|string', 'is_active' => 'sometimes|boolean', 'sort_order' => 'sometimes|integer|min:0',
         ]));
         return response()->json($addon);
     }

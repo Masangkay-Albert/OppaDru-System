@@ -58,12 +58,11 @@ class PricingService
 
         $settings = $this->settings();
         $deliveryDistanceKm = $this->distanceInKilometers($deliveryCoordinates, $settings);
-        $deliveryFee = $subtotal >= $settings['delivery_free_subtotal']
-            ? 0.0
-            : min(
-                $settings['delivery_max_fee'],
-                $settings['delivery_base_fee'] + max(0, $deliveryDistanceKm - $settings['delivery_base_distance_km']) * $settings['delivery_per_km_rate']
-            );
+        // Always calculate distance-based delivery fee (no free delivery threshold)
+        $deliveryFee = min(
+            $settings['delivery_max_fee'],
+            max(0, $settings['delivery_base_fee'] + max(0, $deliveryDistanceKm - $settings['delivery_base_distance_km']) * $settings['delivery_per_km_rate'])
+        );
         $serviceFee = min($settings['service_fee_max'], max($settings['service_fee_min'], $subtotal * $settings['service_fee_rate']));
         $priorityFee = strtolower($deliveryType) === 'priority' ? 99.0 : 0.0;
         $discountAmount = round(($subtotal + $deliveryFee + $serviceFee + $priorityFee) * max(0, $discountRate), 2);
@@ -72,9 +71,7 @@ class PricingService
         $total = round($afterDiscount + $vat, 2);
 
         return compact('subtotal', 'deliveryFee', 'serviceFee', 'priorityFee', 'deliveryDistanceKm', 'discountAmount', 'vat', 'total') + [
-            'deliveryCalculationMethod' => $subtotal >= $settings['delivery_free_subtotal']
-                ? 'free_delivery_subtotal_threshold'
-                : 'base_fee_plus_distance_rate_capped',
+            'deliveryCalculationMethod' => 'base_fee_plus_distance_rate_capped',
             'serviceFeeRule' => 'clamped_percentage:' . ($settings['service_fee_rate'] * 100) . '%_min_' . $settings['service_fee_min'] . '_max_' . $settings['service_fee_max'],
         ];
     }

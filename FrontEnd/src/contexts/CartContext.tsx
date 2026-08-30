@@ -126,8 +126,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const getTotalPrice = () => {
     return cartItems.reduce((total, item) => {
-      const addonsTotal = item.selectedAddons?.reduce((sum, a) => sum + a.price * (a.quantity || 1), 0) || 0;
-      return total + (item.price + addonsTotal) * item.quantity;
+      const addonsTotal = item.selectedAddons?.reduce((sum, a) => sum + Number(a.price || 0), 0) || 0;
+      return total + (item.price * item.quantity) + addonsTotal;
     }, 0);
   };
 

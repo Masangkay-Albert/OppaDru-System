@@ -102,7 +102,7 @@ const defaultPricing: PricingSettings = {
   delivery_base_fee: 49,
   delivery_base_distance_km: 3,
   delivery_per_km_rate: 10,
-  delivery_free_subtotal: 999,
+  delivery_free_subtotal: 0,
   delivery_max_fee: 150,
   service_fee_rate: 0.03,
   service_fee_min: 15,
