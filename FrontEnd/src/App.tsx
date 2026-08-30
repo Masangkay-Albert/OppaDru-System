@@ -42,7 +42,7 @@ import DriverLoginPage from "./modules/driver-side/pages/DriverLoginPage";
 import DriverDashboardPage from "./modules/driver-side/pages/DriverDashboardPage";
 
 /// ============= Kitchen Page
-import KitchenLoginPage from "./modules/kitchen-side/kitchenLogin";
+import EmployeeLoginPage from "./modules/employee-side/employeeLogin";
 import KitchenDashboardPage from "./modules/kitchen-side/kitchenDashboard";
 import PaymentConfirmPage from "./modules/customer-side/pages/PaymentConfirmPage";
 import ProtectedRoute from "./modules/customer-side/components/ProtectedRoute";
@@ -93,8 +93,8 @@ function App() {
                       <Route path="/delivery/login" element={<DriverLoginPage />} />
                       <Route path="/delivery/dashboard" element={<DriverDashboardPage/>}/>
 
-                      {/* ===== Kitchen ROUTES ===== */}
-                      <Route path="/kitchen/login" element={<KitchenLoginPage/>}/>
+                      {/* ===== Employee ROUTES ===== */}
+                      <Route path="/employee/login" element={<EmployeeLoginPage/>}/>
                       <Route path="/kitchen/dashboard" element={<KitchenDashboardPage/>}/>
 
                     </Routes>

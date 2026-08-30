@@ -9,6 +9,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeAuthController;
 use App\Http\Controllers\DriverController;
 use App\Http\Controllers\TargetProfitSaleController;
 use App\Http\Controllers\SettingController;
@@ -30,6 +31,7 @@ Route::get('/employees', [EmployeeController::class, 'index']);
 Route::post('/employees', [EmployeeController::class, 'store']);
 Route::delete('/employees/{id}', [EmployeeController::class, 'destroy']);
 Route::put('/employees/{id}/reset-password', [EmployeeController::class, 'resetPassword']);
+Route::post('/employee/login', [EmployeeAuthController::class, 'login']);
 
 Route::get('/drivers', [DriverController::class, 'index']);
 Route::get('/drivers/{id}', [DriverController::class, 'show']);

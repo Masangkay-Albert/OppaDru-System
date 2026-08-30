@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ChefHat, CheckCircle, Clock, Utensils } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ChefHat, CheckCircle, Clock, Utensils, User } from 'lucide-react';
 
 import { 
   getPendingOrders, 
@@ -10,7 +11,7 @@ import {
   type KitchenOrder
 } from '../../services/kitchenOrderService';
 import { STATUS_COLORS } from '../../utils/constants';
-import AdminLayout from '../admin-side/components/AdminLayout'; 
+import KitchenLayout from './components/kitchenLayout'; 
 
 const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap';
 const chipPrimary = `${chipBase} bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]/70`;
@@ -20,8 +21,37 @@ const chipDisabled = `${chipBase} bg-gray-100 text-gray-500 cursor-default`;
 type TabView = 'pending' | 'preparing' | 'history';
 
 const KitchenDashboardPage: React.FC = () => {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [activeTab, setActiveTab] = useState<TabView>('pending');
+  const [staffName, setStaffName] = useState<string>("Kitchen Staff");
+
+  // Fetch employee details AND act as a security bouncer
+  useEffect(() => {
+    const authData = localStorage.getItem("employee_auth");
+    const token = localStorage.getItem("employee_token");
+
+    // THE BOUNCER: If there is no token or data, kick them to the staff login page
+    // Adjust '/staff/login' to whatever route you assigned to your StaffLoginPage
+    if (!token || !authData) {
+      navigate('/staff/login', { replace: true });
+      return; 
+    }
+
+    // If they ARE logged in, get their name for the welcome message
+    try {
+      const employee = JSON.parse(authData);
+      // Your Employee model uses 'fullName'
+      if (employee && employee.fullName) {
+        setStaffName(employee.fullName);
+      } else if (employee && employee.name) {
+        setStaffName(employee.name); // Fallback just in case
+      }
+    } catch (error) {
+      console.error("Failed to parse employee data", error);
+      navigate('/staff/login', { replace: true }); 
+    }
+  }, [navigate]);
 
   const refresh = () => {
     if (activeTab === 'pending') setOrders(getPendingOrders());
@@ -44,9 +74,13 @@ const KitchenDashboardPage: React.FC = () => {
   };
 
   return (
-    <AdminLayout>
+    <KitchenLayout>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
+          <div className="flex items-center gap-2 text-sm font-medium text-[var(--oppa-green)] mb-1">
+            <User size={16} />
+            <span>Logged in as {staffName}</span>
+          </div>
           <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">
             Kitchen Dashboard
           </h1>
@@ -119,7 +153,6 @@ const KitchenDashboardPage: React.FC = () => {
                   <Utensils size={14} /> Items to Prepare:
                 </p>
                 <ul className="space-y-1.5">
-                  {/* FIXED TS ERROR: Added explicit types to item and idx */}
                   {order.items.map((item: any, idx: number) => (
                     <li key={idx} className="text-sm font-medium text-[var(--oppa-text)] flex justify-between border-b border-[var(--oppa-border)]/50 pb-1 last:border-0 last:pb-0">
                       <span>{item.quantity}x {item.name}</span>
@@ -183,7 +216,6 @@ const KitchenDashboardPage: React.FC = () => {
                   </td>
                   <td className="px-5 py-3 align-top">
                     <ul className="list-disc list-inside text-[var(--oppa-text)] text-xs space-y-1">
-                      {/* FIXED TS ERROR: Added explicit types to item and idx */}
                       {order.items.map((item: any, idx: number) => (
                         <li key={idx} className="font-medium">
                           <span className="text-[var(--oppa-green)]">{item.quantity}x</span> {item.name}
@@ -226,7 +258,7 @@ const KitchenDashboardPage: React.FC = () => {
           </table>
         </div>
       )}
-    </AdminLayout>
+    </KitchenLayout>
   );
 };
 

@@ -1,10 +1,10 @@
-// src/modules/kitchen-side/pages/KitchenLoginPage.tsx
+// src/pages/StaffLoginPage.tsx (You can rename this file to reflect the unified login)
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChefHat } from "lucide-react";
-import { kitchenAuth } from "../../services/kitchenAuth";
+import { Users } from "lucide-react"; // Changed icon to represent all staff
+import { employeeAuth } from "../../services/employeeAuth"; // Unified service for both kitchen staff and cashiers
 
-const KitchenLoginPage: React.FC = () => {
+const EmployeeLoginPage: React.FC = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,10 +17,18 @@ const KitchenLoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const result = await kitchenAuth.login(email, password);
+      const result = await employeeAuth.login(email, password);
 
-      if (result.success) {
-        navigate("/kitchen/dashboard");
+      if (result.success && result.position) {
+        // Route them based on their exact database position
+        if (result.position === 'kitchen staff') {
+          navigate("/kitchen/dashboard");
+        } else if (result.position === 'cashier') {
+          // Placeholder navigation for the cashier/employee since the dashboard doesn't exist yet
+          navigate("/cashier"); 
+        } else {
+          setError(`Position "${result.position}" is not recognized.`);
+        }
       } else {
         setError(result.message || "Invalid email or password");
       }
@@ -36,16 +44,16 @@ const KitchenLoginPage: React.FC = () => {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <ChefHat className="size-7 text-[var(--oppa-green)]" />
+              <Users className="size-7 text-[var(--oppa-green)]" />
               <span className="text-2xl font-semibold text-[var(--oppa-green)]">
                 Oppa Dru
               </span>
             </div>
             <h1 className="text-2xl font-semibold text-[var(--oppa-green)] mb-2">
-              Kitchen Staff Login
+              Staff Portal
             </h1>
             <p className="text-sm text-[var(--oppa-text-muted)]">
-              Sign in to manage kitchen orders
+              Sign in to access your employee account
             </p>
           </div>
 
@@ -69,7 +77,7 @@ const KitchenLoginPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)] focus:border-transparent"
-                placeholder="chef@example.com"
+                placeholder="staff@example.com"
               />
             </div>
 
@@ -108,4 +116,4 @@ const KitchenLoginPage: React.FC = () => {
   );
 };
 
-export default KitchenLoginPage;
+export default EmployeeLoginPage;
