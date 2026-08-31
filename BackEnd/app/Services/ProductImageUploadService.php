@@ -18,7 +18,7 @@ class ProductImageUploadService
 
         $storedPath = Storage::disk('public')->putFileAs($folder, $file, $fileName);
         if ($storedPath === false) {
-            return ['success' => true, 'url' => '/oppadrulogo.jpg', 'path' => $relativePath, 'warning' => 'Image upload failed; default image used.'];
+            throw new \RuntimeException('Unable to store the uploaded image.');
         }
 
         $publicUrl = rtrim(config('app.url', 'https://oppadru-system-1.onrender.com'), '/') . '/storage/' . ltrim($storedPath, '/');

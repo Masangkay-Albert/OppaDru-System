@@ -47,6 +47,7 @@ const AdminProductsPage: React.FC = () => {
   const [form, setForm] = useState<ProductFormState>(createEmptyForm());
   const [imagePreview, setImagePreview] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [saveError, setSaveError] = useState('');
 
   const refresh = async () => {
     try {
@@ -100,6 +101,7 @@ const AdminProductsPage: React.FC = () => {
     setForm(createEmptyForm());
     setImagePreview('');
     setSelectedFile(null);
+    setSaveError('');
     setIsModalOpen(true);
   };
 
@@ -116,6 +118,7 @@ const AdminProductsPage: React.FC = () => {
     });
     setImagePreview(product.image || '');
     setSelectedFile(null);
+    setSaveError('');
     setIsModalOpen(true);
   };
 
@@ -125,6 +128,7 @@ const AdminProductsPage: React.FC = () => {
     setForm(createEmptyForm());
     setImagePreview('');
     setSelectedFile(null);
+    setSaveError('');
   };
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,16 +151,13 @@ const AdminProductsPage: React.FC = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setSaveError('');
 
     try {
       let imageUrl = form.image || '/oppadrulogo.jpg';
 
       if (selectedFile) {
-        try {
-          imageUrl = await productService.uploadImage(selectedFile, form.category);
-        } catch (uploadError) {
-          console.warn('Image upload failed, using existing/default:', uploadError);
-        }
+        imageUrl = await productService.uploadImage(selectedFile, form.category);
       }
 
       const payload = {
@@ -179,6 +180,7 @@ const AdminProductsPage: React.FC = () => {
       await refresh();
     } catch (error) {
       console.error('Failed to save product:', error);
+      setSaveError(error instanceof Error ? error.message : 'Unable to save the product.');
     }
   };
 
@@ -368,6 +370,8 @@ const AdminProductsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {saveError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">Image upload failed: {saveError}</p>}
+
               <div>
                 <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Product Name</label>
                 <input

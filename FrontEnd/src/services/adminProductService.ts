@@ -130,38 +130,15 @@ export const toggleAvailability = async (productId: string): Promise<void> => {
 };
 
 export const updateProduct = async (productId: string, changes: Partial<Product>): Promise<void> => {
-  try {
-    await productService.updateProduct(productId, withAvailability(changes as ProductInput));
-    notifyProductsUpdated();
-  } catch {
-    const overrides = getOverrides();
-    overrides[productId] = { ...overrides[productId], ...changes };
-    saveOverrides(overrides);
-    notifyProductsUpdated();
-  }
+  await productService.updateProduct(productId, withAvailability(changes as ProductInput));
+  notifyProductsUpdated();
 };
 
 export const addProduct = async (data: ProductInput): Promise<Product> => {
   const productData = withAvailability(data);
-
-  try {
-    const newProduct = await productService.createProduct(productData);
-    notifyProductsUpdated();
-    return newProduct;
-  } catch {
-    const now = new Date().toISOString();
-    const newProduct: Product = {
-      ...productData,
-      id: `custom-${Date.now()}`,
-      created_at: now,
-      updated_at: now,
-    };
-    const custom = getCustomProducts();
-    custom.push(newProduct);
-    saveCustomProducts(custom);
-    notifyProductsUpdated();
-    return newProduct;
-  }
+  const newProduct = await productService.createProduct(productData);
+  notifyProductsUpdated();
+  return newProduct;
 };
 
 export const deleteProduct = async (productId: string): Promise<void> => {

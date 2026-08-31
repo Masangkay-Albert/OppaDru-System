@@ -23,6 +23,7 @@ const AdminAddProductPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -45,17 +46,13 @@ const AdminAddProductPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setSaveError('');
 
     try {
       let imageUrl = '/oppadrulogo.jpg';
 
       if (selectedFile) {
-        try {
-          imageUrl = await productService.uploadImage(selectedFile, form.category);
-        } catch (uploadError) {
-          console.warn('Image upload failed, using default:', uploadError);
-          imageUrl = '/oppadrulogo.jpg';
-        }
+        imageUrl = await productService.uploadImage(selectedFile, form.category);
       }
 
       await addProduct({
@@ -72,6 +69,7 @@ const AdminAddProductPage: React.FC = () => {
       setTimeout(() => navigate('/admin/products'), 900);
     } catch (error) {
       console.error('Failed to add product:', error);
+      setSaveError(error instanceof Error ? error.message : 'Unable to add the product.');
     } finally {
       setIsSubmitting(false);
     }
@@ -87,6 +85,12 @@ const AdminAddProductPage: React.FC = () => {
       {success && (
         <div className="mb-4 rounded-lg bg-green-100 p-3 text-sm text-green-700">
           Product added successfully!
+        </div>
+      )}
+
+      {saveError && (
+        <div role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          Image upload failed: {saveError}
         </div>
       )}
 

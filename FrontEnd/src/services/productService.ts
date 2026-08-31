@@ -1,6 +1,5 @@
 const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
 import { getProductImage } from '../data/productImages';
-import oppaLogo from '../assets/oppadrulogo.jpg';
 import type { AddonGroup } from '../types/product.types';
 import { ensureAdminSession, getStoredAdminToken } from './adminAuthService';
 
@@ -230,40 +229,44 @@ class ProductService {
 
   async uploadImage(file: File, folder: string = 'products'): Promise<string> {
     let token = this.getAdminToken() || await ensureAdminSession();
-    if (!token) return DEFAULT_PRODUCT_IMAGE;
+    if (!token) {
+      throw new Error('Admin session expired. Please log in again before uploading an image.');
+    }
 
     const formData = new FormData();
     formData.append('image', file);
     formData.append('folder', folder);
 
-    try {
-      const response = await fetch(`${API_URL}/admin/products/upload-image`, {
+    let response = await fetch(`${API_URL}/admin/products/upload-image`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      token = await ensureAdminSession();
+      if (!token) {
+        throw new Error('Admin session expired. Please log in again before uploading an image.');
+      }
+
+      response = await fetch(`${API_URL}/admin/products/upload-image`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-
-      if (response.status === 401) {
-        token = await ensureAdminSession();
-        if (!token) return DEFAULT_PRODUCT_IMAGE;
-
-        const retryResponse = await fetch(`${API_URL}/admin/products/upload-image`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        });
-
-        if (!retryResponse.ok) return DEFAULT_PRODUCT_IMAGE;
-        const result = await retryResponse.json();
-        return result.url || DEFAULT_PRODUCT_IMAGE;
-      }
-
-      if (!response.ok) return DEFAULT_PRODUCT_IMAGE;
-      const result = await response.json();
-      return result.url || DEFAULT_PRODUCT_IMAGE;
-    } catch {
-      return DEFAULT_PRODUCT_IMAGE;
     }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `Image upload failed (status ${response.status}).`);
+    }
+
+    const result = await response.json();
+    if (!result.url) {
+      throw new Error('Image upload succeeded but the server did not return a file URL.');
+    }
+
+    return result.url;
   }
 
   async createProduct(data: Omit<Product, 'id' | 'created_at' | 'updated_at'>, imageFile?: File): Promise<Product> {

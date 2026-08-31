@@ -105,19 +105,23 @@ const AdminAddonsPage: React.FC = () => {
     const draft = editingAddon[addonId];
     if (!draft) return;
 
-    let imageUrl = draft.image || '';
-    if (draft.imageFile) {
-      imageUrl = await productService.uploadImage(draft.imageFile, 'addons');
+    try {
+      let imageUrl = draft.image || '';
+      if (draft.imageFile) {
+        imageUrl = await productService.uploadImage(draft.imageFile, 'addons');
+      }
+
+      await productService.updateAddon(addonId, {
+        name: draft.name,
+        price: Number(draft.price) || 0,
+        image: imageUrl || undefined,
+      });
+
+      setEditingAddon((current) => { const next = { ...current }; delete next[addonId]; return next; });
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? `Image upload failed: ${error.message}` : 'Unable to save this add-on.');
     }
-
-    await productService.updateAddon(addonId, {
-      name: draft.name,
-      price: Number(draft.price) || 0,
-      image: imageUrl || undefined,
-    });
-
-    setEditingAddon((current) => { const next = { ...current }; delete next[addonId]; return next; });
-    await refresh();
   };
 
   const toggleAddonAvailability = async (addonId: number, isActive: boolean) => {

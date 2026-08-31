@@ -73,23 +73,21 @@ class ProductController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json(['message' => 'The image upload is invalid.', 'errors' => $validator->errors()], 422);
         }
 
         try {
             $file = $request->file('image');
             if (!$file || !$file->isValid()) {
-                return response()->json(['error' => 'Invalid image upload'], 400);
+                return response()->json(['message' => 'Invalid image upload.'], 400);
             }
 
             $result = $this->imageUploadService->uploadFromRequest($file, (string) $request->input('folder', 'products'));
             return response()->json($result);
         } catch (\Exception $e) {
             return response()->json([
-                'success' => true,
-                'url' => '/oppadrulogo.jpg',
-                'warning' => 'Image upload failed; default image used.',
-            ]);
+                'message' => 'Image upload failed. Please try again.',
+            ], 500);
         }
     }
 
