@@ -36,6 +36,7 @@ class OrderDataService
             'status' => $order->status,
             'payment_method' => $order->payment_method,
             'delivery_address' => $order->delivery_address,
+            'delivery_coordinates' => $order->delivery_coordinates,
             'phone' => $order->phone,
             'items' => $order->items,
             'order_items' => $order->orderItems,
