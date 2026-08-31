@@ -142,7 +142,7 @@ const CheckoutPage: React.FC = () => {
         setOrderCompleted(true);
         clearCart();
         showToast('Order placed successfully!', 'success');
-        navigate('/tracking');
+        navigate('/customer/orders', { replace: true });
       } else {
         showToast('Failed to place order. Please try again.', 'error');
       }
@@ -201,6 +201,12 @@ const CheckoutPage: React.FC = () => {
 
     if (!tempPerson.phone) {
       showToast('Please enter your phone number', 'error');
+      return;
+    }
+
+    if (deliveryType === 'scheduled' && (!selectedDate || !selectedTime)) {
+      showToast('Please select a delivery date and time for your scheduled order.', 'error');
+      setShowScheduleModal(true);
       return;
     }
 
