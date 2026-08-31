@@ -52,12 +52,12 @@ class ProductImageUploadService
         $supabaseKey = $this->getSupabaseStorageKey();
 
         if (!$supabaseUrl || !$supabaseKey) {
-            return ['success' => true, 'url' => $this->base64Fallback($file), 'path' => $filePath];
+            return ['success' => true, 'url' => '/oppadrulogo.jpg', 'path' => $filePath, 'warning' => 'Supabase storage not configured; default image used.'];
         }
 
         $bucketReady = $this->ensureBucketExists($supabaseUrl, $supabaseKey, $folder);
         if (!$bucketReady) {
-            return ['success' => true, 'url' => $this->base64Fallback($file), 'path' => $filePath];
+            return ['success' => true, 'url' => '/oppadrulogo.jpg', 'path' => $filePath, 'warning' => 'Storage bucket not ready; default image used.'];
         }
 
         $content = file_get_contents($file->getRealPath());
@@ -73,7 +73,7 @@ class ProductImageUploadService
             ->put($supabaseUrl . '/storage/v1/object/' . rawurlencode($folder) . '/' . rawurlencode($fileName));
 
         if (!$response->successful()) {
-            return ['success' => true, 'url' => $this->base64Fallback($file), 'path' => $filePath];
+            return ['success' => true, 'url' => '/oppadrulogo.jpg', 'path' => $filePath, 'warning' => 'Image upload failed; default image used.'];
         }
 
         return [
@@ -81,11 +81,5 @@ class ProductImageUploadService
             'url' => rtrim($supabaseUrl, '/') . '/storage/v1/object/public/' . $folder . '/' . $fileName,
             'path' => $filePath,
         ];
-    }
-
-    public function base64Fallback(\Illuminate\Http\UploadedFile $file): string
-    {
-        $base64 = base64_encode(file_get_contents($file->getRealPath()));
-        return 'data:' . $file->getMimeType() . ';base64,' . $base64;
     }
 }
