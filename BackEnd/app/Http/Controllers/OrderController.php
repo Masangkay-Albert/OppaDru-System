@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Services\Order\OrderDataService;
 use App\Services\PricingService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -35,6 +36,66 @@ class OrderController extends Controller
         $order = Order::with(['user', 'orderItems'])->findOrFail($id);
 
         return response()->json($this->orderDataService->formatOrder($order));
+    }
+
+    private function resolveScheduledDelivery(Request $request): array
+    {
+        $deliveryType = strtolower((string) $request->input('delivery_type', 'standard'));
+
+        if ($deliveryType !== 'scheduled') {
+            return [
+                'scheduled_at' => null,
+                'scheduled_date' => null,
+                'scheduled_time' => null,
+                'schedule_display' => null,
+                'schedule_window' => null,
+            ];
+        }
+
+        $scheduledAtInput = $request->input('scheduled_at');
+        $scheduledDate = $request->input('scheduled_date');
+        $scheduledTime = $request->input('scheduled_time');
+        $scheduleWindow = $request->input('schedule_window');
+
+        $candidates = [];
+        if ($scheduledAtInput) {
+            $candidates[] = $scheduledAtInput;
+        }
+
+        if ($scheduledDate || $scheduledTime || $scheduleWindow) {
+            $datePart = $scheduledDate ?: Carbon::now('Asia/Manila')->format('Y-m-d');
+            $timePart = $scheduledTime ?: $scheduleWindow ?: '12:00 PM';
+            $candidates[] = $datePart . ' ' . $timePart;
+        }
+
+        $parsed = null;
+        foreach ($candidates as $candidate) {
+            try {
+                $parsed = Carbon::parse($candidate, 'Asia/Manila');
+                break;
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        if (!$parsed) {
+            throw new \InvalidArgumentException('Scheduled delivery requires a valid future date and time.');
+        }
+
+        if (!$parsed->isFuture()) {
+            throw new \InvalidArgumentException('Scheduled delivery must be set for a future date and time.');
+        }
+
+        $scheduleWindowValue = $scheduleWindow ?: $scheduledTime ?: $parsed->setTimezone('Asia/Manila')->format('g:i A');
+        $scheduleDisplayValue = $request->input('schedule_display') ?: $parsed->setTimezone('Asia/Manila')->format('M j, Y • g:i A');
+
+        return [
+            'scheduled_at' => $parsed->setTimezone('Asia/Manila')->toDateTimeString(),
+            'scheduled_date' => $parsed->setTimezone('Asia/Manila')->format('Y-m-d'),
+            'scheduled_time' => $scheduledTime ?: $scheduleWindowValue,
+            'schedule_display' => $scheduleDisplayValue,
+            'schedule_window' => $scheduleWindowValue,
+        ];
     }
 
     public function store(Request $request)
@@ -66,8 +127,41 @@ class OrderController extends Controller
             'payment_reference' => 'required_if:payment_method,gcash,credit_card|nullable|string|exists:payments,reference',
         ]);
 
+        $validator->after(function ($validator) use ($request) {
+            if (strtolower((string) $request->input('delivery_type', 'standard')) !== 'scheduled') {
+                return;
+            }
+
+            $scheduledAtInput = $request->input('scheduled_at');
+            $scheduledDate = $request->input('scheduled_date');
+            $scheduledTime = $request->input('scheduled_time');
+            $scheduleWindow = $request->input('schedule_window');
+
+            if (!$scheduledAtInput && (!$scheduledDate || (!$scheduledTime && !$scheduleWindow))) {
+                $validator->errors()->add('scheduled_at', 'Scheduled delivery requires a valid future date and time.');
+                return;
+            }
+
+            try {
+                $scheduledData = $this->resolveScheduledDelivery($request);
+            } catch (\InvalidArgumentException $exception) {
+                $validator->errors()->add('scheduled_at', $exception->getMessage());
+                return;
+            }
+
+            if ($scheduledData['scheduled_at'] === null) {
+                $validator->errors()->add('scheduled_at', 'Scheduled delivery requires a valid future date and time.');
+            }
+        });
+
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $scheduledData = $this->resolveScheduledDelivery($request);
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json(['errors' => ['scheduled_at' => [$exception->getMessage()]]], 422);
         }
 
         try {
@@ -123,11 +217,11 @@ class OrderController extends Controller
             'payment_method' => $request->payment_method,
             'phone' => $request->phone,
             'items' => $orderItems,
-            'scheduled_at' => $request->input('scheduled_at'),
-            'scheduled_date' => $request->input('scheduled_date'),
-            'scheduled_time' => $request->input('scheduled_time'),
-            'schedule_display' => $request->input('schedule_display'),
-            'schedule_window' => $request->input('schedule_window'),
+            'scheduled_at' => $scheduledData['scheduled_at'],
+            'scheduled_date' => $scheduledData['scheduled_date'],
+            'scheduled_time' => $scheduledData['scheduled_time'],
+            'schedule_display' => $scheduledData['schedule_display'],
+            'schedule_window' => $scheduledData['schedule_window'],
             'payment_reference' => $payment?->reference,
             'payment_status' => $payment ? 'paid' : 'pending',
         ]);
@@ -213,7 +307,7 @@ class OrderController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'status' => 'required|string|in:pending,preparing,ready,out_for_delivery,delivered,cancelled',
+            'status' => 'required|string|in:pending,preparing,ready,scheduled,on_the_way,out_for_delivery,delivered,cancelled',
         ]);
 
         if ($validator->fails()) {
@@ -230,6 +324,15 @@ class OrderController extends Controller
             if (!$createdAt || $createdAt->isFuture() || $elapsedSeconds > 20 || $order->status !== 'pending') {
                 return response()->json([
                     'message' => 'Order cancellation is only allowed within 20 seconds of creation.',
+                ], 422);
+            }
+        }
+
+        if (in_array($request->status, ['out_for_delivery', 'delivered'], true) && strtolower((string) ($order->delivery_type ?? 'standard')) === 'scheduled') {
+            $scheduledAt = $order->scheduled_at ? Carbon::parse($order->scheduled_at, 'Asia/Manila') : null;
+            if (!$scheduledAt || $scheduledAt->isFuture()) {
+                return response()->json([
+                    'message' => 'Scheduled orders cannot be marked as out for delivery or delivered before their scheduled time.',
                 ], 422);
             }
         }

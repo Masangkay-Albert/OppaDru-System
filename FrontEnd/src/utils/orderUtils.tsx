@@ -54,10 +54,36 @@ export const getScheduledOrderDetails = (order: any) => {
   const scheduledTime = order?.scheduledTime || order?.scheduled_time || order?.scheduleWindow || order?.schedule_window || null;
   const deliveryType = order?.deliveryType || order?.delivery_type || null;
 
+  const toDisplayDate = (value: string | Date | null): string | null => {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'Asia/Manila',
+    });
+  };
+
+  const toDisplayTime = (value: string | null): string | null => {
+    if (!value) return null;
+    if (/\d{1,2}:\d{2}\s?(AM|PM)/i.test(value) || /\d{1,2}\s?(AM|PM)/i.test(value)) {
+      return value;
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'Asia/Manila',
+    });
+  };
+
   const resolvedDate = scheduledDate || (scheduledAt ? new Date(scheduledAt) : null);
-  const parsedDateText = resolvedDate && !isNaN(new Date(resolvedDate as any).getTime())
-    ? new Date(resolvedDate as any).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-    : null;
+  const parsedDateText = toDisplayDate(resolvedDate as string | Date | null) ??
+    (rawScheduleDisplay ? rawScheduleDisplay.split(/[•|]/)[0]?.trim() || null : null);
 
   const resolvedTime = scheduledTime || (
     rawScheduleDisplay && rawScheduleDisplay.includes(' at ')
@@ -65,14 +91,24 @@ export const getScheduledOrderDetails = (order: any) => {
       : null
   );
 
-  const isScheduled = Boolean(deliveryType === 'scheduled' || rawScheduleDisplay || scheduledAt || scheduledDate || scheduledTime || order?.status === 'scheduled');
+  const isScheduled = Boolean(
+    deliveryType === 'scheduled' ||
+    rawScheduleDisplay ||
+    scheduledAt ||
+    scheduledDate ||
+    scheduledTime ||
+    order?.status === 'scheduled'
+  );
+
+  const finalDisplayDate = parsedDateText || (scheduledAt ? toDisplayDate(new Date(scheduledAt)) : null);
+  const finalDisplayTime = toDisplayTime(resolvedTime) || (scheduledAt ? new Date(scheduledAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' }) : null);
 
   return {
     isScheduled,
     displayLabel: isScheduled ? 'Scheduled Order' : null,
-    scheduledDate: parsedDateText || rawScheduleDisplay?.split(' at ')[0] || null,
-    scheduledTime: resolvedTime || null,
-    scheduleDisplay: rawScheduleDisplay || (parsedDateText && resolvedTime ? `${parsedDateText} • ${resolvedTime}` : null),
+    scheduledDate: finalDisplayDate,
+    scheduledTime: finalDisplayTime,
+    scheduleDisplay: rawScheduleDisplay || (finalDisplayDate && finalDisplayTime ? `${finalDisplayDate} • ${finalDisplayTime}` : null),
   };
 };
 

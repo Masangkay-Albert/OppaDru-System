@@ -106,6 +106,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 <p className="font-semibold text-gray-800">{scheduleDetails.scheduledTime || 'Time not available'}</p>
               </div>
             </div>
+            <div className="mt-3 rounded-lg border border-orange-100 bg-white/60 px-3 py-2 text-xs text-orange-700">
+              {scheduleDetails.scheduleDisplay || 'Scheduled Delivery'}
+            </div>
             <div className="mt-3 flex items-center justify-between flex-wrap gap-2 border-t border-orange-100 pt-2 text-xs text-orange-700">
               <span className="font-medium">Status: Scheduled</span>
               <span className="text-gray-500">Waiting for scheduled time</span>

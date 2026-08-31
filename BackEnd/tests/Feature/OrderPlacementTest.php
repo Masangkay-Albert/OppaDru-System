@@ -128,6 +128,56 @@ class OrderPlacementTest extends TestCase
             ->assertJsonPath('order.scheduled_time', '2:00 PM - 2:30 PM');
     }
 
+    public function test_scheduled_orders_require_a_valid_future_datetime(): void
+    {
+        $user = User::create([
+            'full_name' => 'Past Schedule Customer',
+            'email' => 'past-schedule@example.com',
+            'phone' => '09170000001',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+
+        $product = Product::create([
+            'name' => 'Scheduled Chicken',
+            'description' => 'Demo scheduled order',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => 'scheduled-chicken.jpg',
+            'is_available' => true,
+        ]);
+
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$loginResponse->json('token'))
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'total' => 0,
+                'delivery_address' => 'Block 2, Lot 5, Dasmarinas, Cavite',
+                'payment_method' => 'cash_on_delivery',
+                'delivery_type' => 'scheduled',
+                'phone' => '09170000001',
+                'scheduled_at' => now()->subDay()->toISOString(),
+                'scheduled_date' => now()->subDay()->format('Y-m-d'),
+                'scheduled_time' => '6:30 PM',
+            ]);
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonPath('errors.scheduled_at.0', fn ($message) => is_string($message) && str_contains($message, 'future'));
+    }
+
     public function test_customer_can_place_a_priority_order(): void
     {
         $user = User::create([

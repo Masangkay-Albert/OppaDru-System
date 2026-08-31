@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, Eye, RefreshCw, Clock, Truck, Package, Coffee } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, RefreshCw, Clock, Truck, Package, Coffee, CalendarDays } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
 import { orderService } from '../../../services/orderService';
@@ -9,6 +9,8 @@ const statusColors: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
   preparing: 'bg-blue-100 text-blue-700',
   ready: 'bg-purple-100 text-purple-700',
+  scheduled: 'bg-orange-100 text-orange-700',
+  on_the_way: 'bg-orange-100 text-orange-700',
   out_for_delivery: 'bg-orange-100 text-orange-700',
   delivered: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
@@ -18,6 +20,8 @@ const statusIcons: Record<string, any> = {
   pending: Clock,
   preparing: Coffee,
   ready: Package,
+  scheduled: CalendarDays,
+  on_the_way: Truck,
   out_for_delivery: Truck,
   delivered: CheckCircle,
   cancelled: XCircle,
@@ -27,6 +31,8 @@ const statusLabels: Record<string, string> = {
   pending: 'Pending',
   preparing: 'Preparing',
   ready: 'Ready',
+  scheduled: 'Scheduled',
+  on_the_way: 'On the way',
   out_for_delivery: 'Out for Delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
@@ -98,7 +104,22 @@ const AdminOrdersPage: React.FC = () => {
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: 'Asia/Manila',
     });
+  };
+
+  const isScheduledOrder = (order: AdminOrder) => String((order as any).delivery_type || (order as any).deliveryType || '').toLowerCase() === 'scheduled' || !!(order as any).scheduled_at || !!(order as any).scheduled_date || !!(order as any).scheduled_time;
+  const getScheduledDisplay = (order: AdminOrder) => {
+    const scheduledAt = (order as any).scheduled_at;
+    const scheduledDate = (order as any).scheduled_date;
+    const scheduledTime = (order as any).scheduled_time || (order as any).schedule_window || (order as any).schedule_display;
+    if (scheduledAt) {
+      return formatDate(scheduledAt);
+    }
+    if (scheduledDate && scheduledTime) {
+      return `${new Date(`${scheduledDate}T00:00:00+08:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })} • ${scheduledTime}`;
+    }
+    return 'Scheduled';
   };
 
   return (
@@ -192,12 +213,20 @@ const AdminOrdersPage: React.FC = () => {
                       {formatCurrency(order.total || 0)}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
-                        statusColors[order.status] || 'bg-gray-100 text-gray-700'
-                      }`}>
-                        <StatusIcon className="h-3 w-3" />
-                        {statusLabels[order.status] || order.status}
-                      </span>
+                      <div className="flex flex-col gap-1.5">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
+                          statusColors[order.status] || 'bg-gray-100 text-gray-700'
+                        }`}>
+                          <StatusIcon className="h-3 w-3" />
+                          {statusLabels[order.status] || order.status}
+                        </span>
+                        {isScheduledOrder(order) && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-1 text-[10px] font-semibold text-orange-700">
+                            <CalendarDays className="h-3 w-3" />
+                            Scheduled
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-[var(--oppa-text-muted)]">
                       {formatDate(getOrderDate(order))}
@@ -279,7 +308,18 @@ const AdminOrdersPage: React.FC = () => {
                     {statusLabels[selectedOrder.status] || selectedOrder.status}
                   </span>
                 </div>
+                <div>
+                  <p className="text-xs text-[var(--oppa-text-muted)]">Delivery</p>
+                  <p className="font-medium capitalize">{String((selectedOrder as any).delivery_type || (selectedOrder as any).deliveryType || 'standard').replace('_', ' ')}</p>
+                </div>
               </div>
+
+              {isScheduledOrder(selectedOrder) && (
+                <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-orange-700">Scheduled delivery</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--oppa-text)]">{getScheduledDisplay(selectedOrder)}</p>
+                </div>
+              )}
 
               <div>
                 <p className="text-xs text-[var(--oppa-text-muted)]">Order Date</p>
