@@ -17,6 +17,7 @@ export default function AdminDelivery() {
   const [partners, setPartners] = useState<DeliveryPartner[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [form, setForm] = useState({ name: "", email: "", password: "", phone: "", vehicleType: "" });
 
   // FETCH Drivers from Laravel (Supabase)
@@ -95,17 +96,23 @@ export default function AdminDelivery() {
   };
 
   // DELETE Driver
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this delivery partner?')) {
-      try {
-        const res = await fetch(`${API_URL}/drivers/${id}`, {
-          method: 'DELETE',
-          headers: { 'Accept': 'application/json' },
-        });
-        if (res.ok) refresh();
-      } catch (error) {
-        console.error("Delete error:", error);
-      }
+  const handleDelete = (id: string, name: string) => {
+    setDeleteTarget({ id, name });
+  };
+
+  const confirmDeletePartner = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      const res = await fetch(`${API_URL}/drivers/${deleteTarget.id}`, {
+        method: 'DELETE',
+        headers: { 'Accept': 'application/json' },
+      });
+      if (res.ok) await refresh();
+    } catch (error) {
+      console.error("Delete error:", error);
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -125,6 +132,32 @@ export default function AdminDelivery() {
             <PlusIcon className="size-4" /> Add Partner
           </button>
         </div>
+
+        {deleteTarget && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl">
+              <p className="text-base font-semibold text-[var(--oppa-text)]">Delete "{deleteTarget.name}"?</p>
+              <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">This action will permanently remove this delivery partner.</p>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  className="rounded-full border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeletePartner}
+                  className="rounded-full bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {partners.length === 0 && (
           <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">
@@ -159,7 +192,7 @@ export default function AdminDelivery() {
                   <button onClick={() => handleToggle(p)} className="flex-1 rounded-lg bg-[var(--oppa-green)]/10 py-2 text-xs font-medium text-[var(--oppa-green)] transition hover:bg-[var(--oppa-green)]/20">
                     {p.isActive ? "Deactivate" : "Activate"}
                   </button>
-                  <button onClick={() => handleDelete(p.id)} className="rounded-lg bg-red-50 px-3 py-2 text-red-500 transition hover:bg-red-100">
+                  <button onClick={() => handleDelete(p.id, p.name)} className="rounded-lg bg-red-50 px-3 py-2 text-red-500 transition hover:bg-red-100">
                     <Trash2 className="size-4" />
                   </button>
                 </div>
@@ -213,7 +246,7 @@ export default function AdminDelivery() {
                           <Power className="size-4" />
                         </button>
                         <button 
-                          onClick={() => handleDelete(p.id)} 
+                          onClick={() => handleDelete(p.id, p.name)} 
                           title="Delete"
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-500 transition hover:bg-red-100 hover:text-red-700"
                         >

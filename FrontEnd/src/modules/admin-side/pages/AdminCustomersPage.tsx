@@ -19,6 +19,7 @@ interface CustomerWithStats extends StoredAccount {
 const AdminCustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
   const [selected, setSelected] = useState<StoredAccount | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; fullName: string } | null>(null);
 
   const refresh = async () => {
     try {
@@ -62,10 +63,18 @@ const AdminCustomersPage: React.FC = () => {
     refresh();
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Delete this customer account?')) {
-      deleteAccount(id);
-      refresh();
+  const handleDelete = (id: string, fullName: string) => {
+    setDeleteTarget({ id, fullName });
+  };
+
+  const confirmDeleteCustomer = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      await deleteAccount(deleteTarget.id);
+      await refresh();
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -83,6 +92,32 @@ const AdminCustomersPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl">
+            <p className="text-base font-semibold text-[var(--oppa-text)]">Delete "{deleteTarget.fullName}"?</p>
+            <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">This will remove the customer account from the system.</p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-full border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteCustomer}
+                className="rounded-full bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {customers.length === 0 ? (
         <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-12 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">
@@ -124,7 +159,7 @@ const AdminCustomersPage: React.FC = () => {
                       <button onClick={() => setSelected(c)} className={chipInfo}>
                         <KeyRound size={13} /> View / Reset
                       </button>
-                      <button onClick={() => handleDelete(c.id)} className={iconDangerBtn} title="Delete customer">
+                      <button onClick={() => handleDelete(c.id, c.fullName)} className={iconDangerBtn} title="Delete customer">
                         <Trash2 size={16} />
                       </button>
                     </div>

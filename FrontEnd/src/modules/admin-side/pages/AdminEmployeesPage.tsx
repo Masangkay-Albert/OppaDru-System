@@ -22,6 +22,7 @@ const AdminEmployeesPage: React.FC = () => {
   const [selected, setSelected] = useState<EmployeeAccount | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; fullName: string } | null>(null);
   
   // State matches exactly what Laravel expects
   const [form, setForm] = useState({ fullName: '', email: '', password: '', position: 'cashier' });
@@ -74,17 +75,23 @@ const AdminEmployeesPage: React.FC = () => {
   };
 
   // DELETE Employee
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Delete this employee account?')) {
-      try {
-        await fetch(`${API_URL}/employees/${id}`, {
-          method: 'DELETE',
-          headers: { 'Accept': 'application/json' }
-        });
-        refresh();
-      } catch (error) {
-        console.error('Delete error:', error);
-      }
+  const handleDelete = (id: string, fullName: string) => {
+    setDeleteTarget({ id, fullName });
+  };
+
+  const confirmDeleteEmployee = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      await fetch(`${API_URL}/employees/${deleteTarget.id}`, {
+        method: 'DELETE',
+        headers: { 'Accept': 'application/json' }
+      });
+      await refresh();
+    } catch (error) {
+      console.error('Delete error:', error);
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -126,6 +133,32 @@ const AdminEmployeesPage: React.FC = () => {
           <UserPlus size={16} /> Add Employee
         </button>
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl">
+            <p className="text-base font-semibold text-[var(--oppa-text)]">Delete "{deleteTarget.fullName}"?</p>
+            <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">This action will remove the employee account from the system.</p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-full border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteEmployee}
+                className="rounded-full bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <form
@@ -196,7 +229,7 @@ const AdminEmployeesPage: React.FC = () => {
                 <button onClick={() => setSelected(emp)} className={chipInfo}>
                   <KeyRound size={13} /> View / Reset
                 </button>
-                <button onClick={() => handleDelete(emp.id)} className={iconDangerBtn} title="Delete employee">
+                <button onClick={() => handleDelete(emp.id, emp.fullName)} className={iconDangerBtn} title="Delete employee">
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -228,7 +261,7 @@ const AdminEmployeesPage: React.FC = () => {
                       <button onClick={() => setSelected(emp)} className={chipInfo}>
                         <KeyRound size={13} /> View / Reset
                       </button>
-                      <button onClick={() => handleDelete(emp.id)} className={iconDangerBtn} title="Delete employee">
+                      <button onClick={() => handleDelete(emp.id, emp.fullName)} className={iconDangerBtn} title="Delete employee">
                         <Trash2 size={16} />
                       </button>
                     </div>
