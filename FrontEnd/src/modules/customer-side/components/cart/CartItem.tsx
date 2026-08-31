@@ -30,7 +30,12 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
 
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-start gap-2">
-            <span className="text-sm font-semibold text-[#1b4d3e]">{item.name}</span>
+            <div className="min-w-0">
+              <span className="text-sm font-semibold text-[#1b4d3e] block truncate">{item.name}</span>
+              {item.selectedSize && (
+                <span className="text-xs font-medium text-[#7f4f24] mt-0.5 block">{item.selectedSize}</span>
+              )}
+            </div>
             <span className="text-sm font-bold text-[#1b4d3e] whitespace-nowrap">₱{baseTotal}</span>
           </div>
 

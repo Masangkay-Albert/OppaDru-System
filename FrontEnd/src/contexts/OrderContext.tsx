@@ -271,7 +271,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const orderItems = validItems.map(item => ({
         product_id: item.id,
-        product_name: item.name,
+        product_name: item.selectedSize ? `${item.name} (${item.selectedSize})` : item.name,
         product_price: Number(item.price),
         quantity: item.quantity,
         selected_addons: item.selectedAddons?.map(addon => ({
@@ -280,7 +280,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           price: Number(addon.price),
           quantity: 1,
         })),
-        special_instructions: item.specialInstructions,
+        special_instructions: [
+          item.specialInstructions,
+          item.selectedSize ? `Size: ${item.selectedSize}` : null,
+        ].filter(Boolean).join(' | ') || undefined,
       }));
 
       const data: CreateOrderData = {

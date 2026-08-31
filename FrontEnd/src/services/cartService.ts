@@ -4,7 +4,8 @@ import type { CartItem, Addon } from '../types/product.types';
 export const generateCartItemId = (
   productId: string,
   selectedAddons?: Addon[],
-  specialInstructions?: string
+  specialInstructions?: string,
+  selectedSize?: string
 ): string => {
   const addonsKey = selectedAddons && selectedAddons.length > 0
     ? [...selectedAddons]
@@ -17,7 +18,9 @@ export const generateCartItemId = (
     ? specialInstructions.trim().toLowerCase()
     : 'no-notes';
 
-  return `${productId}__${addonsKey}__${instructionsKey}`;
+  const sizeKey = selectedSize ? selectedSize.toLowerCase() : 'no-size';
+
+  return `${productId}__${addonsKey}__${instructionsKey}__${sizeKey}`;
 };
 
 

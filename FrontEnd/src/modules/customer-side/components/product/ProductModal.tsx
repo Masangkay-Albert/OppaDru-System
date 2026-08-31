@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { Product, CartItem, Addon, AddonGroup } from '../../../../types/product.types';
+import type { Product, CartItem, Addon, AddonGroup, ProductSize } from '../../../../types/product.types';
 import { useCart } from '../../../../contexts/CartContext';
 import { useFavorites } from '../../../../contexts/FavoritesContext';
 import QuantitySelector from './QuantitySelector';
@@ -16,7 +16,15 @@ interface ProductModalProps {
   initialQuantity?: number;
   initialAddons?: Addon[];
   initialInstructions?: string;
+  initialSize?: ProductSize;
 }
+
+const SIZE_REQUIRED_CATEGORIES = ['fruity-soda-milk', 'fresh-lemonade'];
+const SIZE_OPTIONS: Array<{ value: ProductSize; label: string }> = [
+  { value: 'Small', label: 'Small' },
+  { value: 'Medium', label: 'Medium' },
+  { value: 'Large', label: 'Large' },
+];
 
 const ProductModal: React.FC<ProductModalProps> = ({
   product,
@@ -26,16 +34,19 @@ const ProductModal: React.FC<ProductModalProps> = ({
   initialQuantity,
   initialAddons,
   initialInstructions,
+  initialSize,
 }) => {
   const { addToCart, editCartItem } = useCart();
   const { addOrder } = useFavorites();
   const [quantity, setQuantity] = useState(1);
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
+  const [selectedSize, setSelectedSize] = useState<ProductSize | null>(initialSize ?? null);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [isClosing, setIsClosing] = useState(false);
   const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
   const [isLoadingAddons, setIsLoadingAddons] = useState(false);
   const [addonLoadError, setAddonLoadError] = useState(false);
+  const [sizeError, setSizeError] = useState('');
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -61,8 +72,10 @@ const ProductModal: React.FC<ProductModalProps> = ({
       setQuantity(initialQuantity ?? 1);
       setSelectedAddons(initialAddons ?? []);
       setSpecialInstructions(initialInstructions ?? '');
+      setSelectedSize(initialSize ?? null);
+      setSizeError('');
     }
-  }, [product?.id, editCartItemId]);
+  }, [product?.id, editCartItemId, initialSize]);
 
   useEffect(() => {
     if (!product) return;
@@ -95,8 +108,22 @@ const ProductModal: React.FC<ProductModalProps> = ({
 
   if (!product) return null;
 
+  const requiresSizeSelection = (category: string) => SIZE_REQUIRED_CATEGORIES.includes(String(category).toLowerCase());
+  const getSizePrice = (size: ProductSize | null) => {
+    if (!requiresSizeSelection(product.category) || !size) return Number(product.price || 0);
+
+    const basePrice = Number(product.price || 0);
+    const priceAdjustments: Record<ProductSize, number> = {
+      Small: -10,
+      Medium: 0,
+      Large: 20,
+    };
+
+    return Number((basePrice + priceAdjustments[size]).toFixed(2));
+  };
+
   const getAddonsTotal = () => selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0);
-  const getTotalPrice = () => (product.price + getAddonsTotal()) * quantity;
+  const getTotalPrice = () => (getSizePrice(selectedSize) + getAddonsTotal()) * quantity;
 
   const toggleAddon = (addon: Addon, group: AddonGroup) => {
     setSelectedAddons(prev => {
@@ -123,11 +150,19 @@ const ProductModal: React.FC<ProductModalProps> = ({
   const handleSubmit = () => {
     if (!product.isAvailable) return;
 
+    if (requiresSizeSelection(product.category) && !selectedSize) {
+      setSizeError('Please select a size.');
+      return;
+    }
+
+    const resolvedPrice = getSizePrice(selectedSize);
     const cartItemData: Omit<CartItem, 'cartItemId'> = {
       ...product,
+      price: resolvedPrice,
       quantity,
       selectedAddons: selectedAddons.length > 0 ? selectedAddons : undefined,
       specialInstructions: specialInstructions || undefined,
+      selectedSize: requiresSizeSelection(product.category) ? selectedSize ?? undefined : undefined,
     };
 
     if (editMode && editCartItemId) {
@@ -168,8 +203,43 @@ const ProductModal: React.FC<ProductModalProps> = ({
           </div>
 
           <div className="flex-1 overflow-y-auto p-6">
-            <p className="text-3xl font-extrabold text-[#2d6a4f] mb-2">₱{Number(product.price).toFixed(2)}</p>
+            <p className="text-3xl font-extrabold text-[#2d6a4f] mb-2">₱{getSizePrice(selectedSize).toFixed(2)}</p>
             <p className="text-sm text-gray-500 mb-4">{product.description}</p>
+
+            {requiresSizeSelection(product.category) && (
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block font-semibold text-sm text-gray-800">Choose Size</label>
+                  {sizeError && <span className="text-xs font-medium text-red-600">{sizeError}</span>}
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {SIZE_OPTIONS.map((option) => {
+                    const isSelected = selectedSize === option.value;
+                    const optionPrice = getSizePrice(option.value);
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          setSelectedSize(option.value);
+                          setSizeError('');
+                        }}
+                        className={`rounded-xl border px-3 py-2 text-left transition-all ${
+                          isSelected
+                            ? 'border-[#2d6a4f] bg-[#eaf5ef] text-[#1b4d3e] shadow-sm ring-2 ring-[#2d6a4f]/10'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-[#2d6a4f]/40 hover:bg-[#f7faf8]'
+                        }`}
+                      >
+                        <div className="text-sm font-semibold">{option.label}</div>
+                        <div className="text-xs opacity-80">₱{optionPrice.toFixed(2)}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {!product.isAvailable && (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">

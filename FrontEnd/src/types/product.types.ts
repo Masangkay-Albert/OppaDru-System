@@ -53,9 +53,12 @@ export interface Category {
   icon: string;
 }
 
+export type ProductSize = 'Small' | 'Medium' | 'Large';
+
 export interface CartItem extends Product {
   cartItemId: string;
   quantity: number;
   selectedAddons?: Addon[];
-  specialInstructions?: string;  
+  specialInstructions?: string;
+  selectedSize?: ProductSize;
 }
