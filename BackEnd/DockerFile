@@ -14,15 +14,13 @@ WORKDIR /var/www
 
 COPY . .
 
-# Add GitHub token support for Composer if GITHUB_TOKEN is provided
 ARG GITHUB_TOKEN=""
 RUN if [ -n "$GITHUB_TOKEN" ]; then \
     composer config --global github-oauth.github.com "$GITHUB_TOKEN"; \
     fi
 
-# Install dependencies with retry fallback for rate-limited packages
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist || \
-    composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+    composer install --no-dev --optimize-autoloader --no-interaction --prefer-source
 
 RUN mkdir -p \
     storage/framework/cache \
