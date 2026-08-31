@@ -145,15 +145,15 @@ class ProductService {
   }
 
   async createAddon(groupId: number, data: { name: string; price: number; image?: string; is_active?: boolean }): Promise<AddonGroup> {
-    return this.adminRequest(`/admin/addon-groups/${groupId}/addons`, { method: 'POST', body: JSON.stringify(data) });
+    return this.adminRequestWithRetry(`/admin/addon-groups/${groupId}/addons`, { method: 'POST', body: JSON.stringify(data) });
   }
 
   async updateAddon(id: number, data: { name?: string; price?: number; image?: string; is_active?: boolean }): Promise<any> {
-    return this.adminRequest(`/admin/addons/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    return this.adminRequestWithRetry(`/admin/addons/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
 
   async deleteAddon(id: number): Promise<void> {
-    await this.adminRequest(`/admin/addons/${id}`, { method: 'DELETE' });
+    await this.adminRequestWithRetry(`/admin/addons/${id}`, { method: 'DELETE' });
   }
 
   private getCachedProducts(): Product[] {
@@ -225,7 +225,7 @@ class ProductService {
   }
 
   async uploadImage(file: File, folder: string = 'products'): Promise<string> {
-    const token = this.getAdminToken() || await ensureAdminSession();
+    let token = this.getAdminToken() || await ensureAdminSession();
     if (!token) return DEFAULT_PRODUCT_IMAGE;
 
     const formData = new FormData();
@@ -238,6 +238,22 @@ class ProductService {
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
+
+      if (response.status === 401) {
+        token = await ensureAdminSession();
+        if (!token) return DEFAULT_PRODUCT_IMAGE;
+
+        const retryResponse = await fetch(`${API_URL}/admin/products/upload-image`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+
+        if (!retryResponse.ok) return DEFAULT_PRODUCT_IMAGE;
+        const result = await retryResponse.json();
+        return result.url || DEFAULT_PRODUCT_IMAGE;
+      }
+
       if (!response.ok) return DEFAULT_PRODUCT_IMAGE;
       const result = await response.json();
       return result.url || DEFAULT_PRODUCT_IMAGE;
