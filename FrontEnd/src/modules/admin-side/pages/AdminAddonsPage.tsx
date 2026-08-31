@@ -50,6 +50,7 @@ const AdminAddonsPage: React.FC = () => {
   const [editingAddon, setEditingAddon] = useState<Record<number, AddonDraft>>({});
   const [editingGroups, setEditingGroups] = useState<Record<number, { name: string; categories: string[]; selection_type: 'single' | 'multiple'; supports_quantity: boolean }>>({});
   const [message, setMessage] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'addon' | 'group'; id: number; name: string } | null>(null);
 
   const refresh = async () => setGroups(await productService.getAdminAddonGroups());
   useEffect(() => { refresh().catch(() => setMessage('Unable to load add-on configuration.')); }, []);
@@ -130,9 +131,7 @@ const AdminAddonsPage: React.FC = () => {
   };
 
   const deleteAddon = async (addonId: number, addonName: string) => {
-    if (!window.confirm(`Delete "${addonName}"? Past orders will keep their saved add-on details.`)) return;
-    await productService.deleteAddon(addonId);
-    await refresh();
+    setDeleteTarget({ type: 'addon', id: addonId, name: addonName });
   };
 
   const beginGroupEdit = (group: AddonGroup) => setEditingGroups((current) => ({
@@ -154,9 +153,24 @@ const AdminAddonsPage: React.FC = () => {
   };
 
   const deleteGroup = async (groupId: number, groupName: string) => {
-    if (!window.confirm(`Delete the "${groupName}" add-on group? This will also remove all add-ons under it.`)) return;
-    await productService.deleteAddonGroup(groupId);
-    await refresh();
+    setDeleteTarget({ type: 'group', id: groupId, name: groupName });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      if (deleteTarget.type === 'addon') {
+        await productService.deleteAddon(deleteTarget.id);
+      } else {
+        await productService.deleteAddonGroup(deleteTarget.id);
+      }
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to delete this item.');
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   const toggleGroupCategory = (groupId: number, category: string) => {
@@ -174,6 +188,41 @@ const AdminAddonsPage: React.FC = () => {
         <div><h1 className="font-serif text-3xl font-bold text-[var(--oppa-text)]">Add-ons</h1><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Configure which options appear for each menu category.</p></div>
       </div>
       {message && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{message}</p>}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl">
+            <p className="text-base font-semibold text-[var(--oppa-text)]">
+              {deleteTarget.type === 'addon'
+                ? `Delete "${deleteTarget.name}"?`
+                : `Delete the "${deleteTarget.name}" add-on group?`}
+            </p>
+            <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">
+              {deleteTarget.type === 'addon'
+                ? 'Past orders will keep their saved add-on details.'
+                : 'This will also remove all add-ons under it.'}
+            </p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-full border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="rounded-full bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="mb-6 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
         <h2 className="font-semibold text-[var(--oppa-text)]">Create add-on group</h2>
         <div className="mt-3 flex flex-col gap-3 md:flex-row">

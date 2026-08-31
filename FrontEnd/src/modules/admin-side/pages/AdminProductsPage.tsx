@@ -48,6 +48,7 @@ const AdminProductsPage: React.FC = () => {
   const [imagePreview, setImagePreview] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [saveError, setSaveError] = useState('');
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const refresh = async () => {
     try {
@@ -91,8 +92,22 @@ const AdminProductsPage: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    await deleteProduct(id);
-    await refresh();
+    const product = products.find((item) => item.id === id);
+    if (!product) return;
+    setProductToDelete({ id, name: product.name });
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+
+    try {
+      await deleteProduct(productToDelete.id);
+      await refresh();
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+    } finally {
+      setProductToDelete(null);
+    }
   };
 
   const openAddModal = () => {
@@ -229,6 +244,32 @@ const AdminProductsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {productToDelete && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl">
+            <p className="text-base font-semibold text-[var(--oppa-text)]">Delete "{productToDelete.name}"?</p>
+            <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">This action cannot be undone.</p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setProductToDelete(null)}
+                className="rounded-full border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteProduct}
+                className="rounded-full bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {filteredProducts.length === 0 && (
         <div className="mt-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">
