@@ -21,7 +21,7 @@ class ProductImageUploadService
             return ['success' => true, 'url' => '/oppadrulogo.jpg', 'path' => $relativePath, 'warning' => 'Image upload failed; default image used.'];
         }
 
-        $publicUrl = rtrim(config('app.url', 'http://localhost'), '/') . '/storage/' . ltrim($storedPath, '/');
+        $publicUrl = rtrim(config('app.url', 'https://oppadru-system-1.onrender.com'), '/') . '/storage/' . ltrim($storedPath, '/');
 
         return [
             'success' => true,
