@@ -71,6 +71,84 @@ const OrderTrackingPage: React.FC = () => {
     }
   }, [isSimulating, order]);
 
+  // Fetch specific order from backend if passed as requestedOrderId but not found locally
+  useEffect(() => {
+    if (!requestedOrderId) return;
+    if (getOrderById(requestedOrderId)) return; // Already in local list
+
+    const fetchSpecificOrder = async () => {
+      try {
+        const apiOrders = await orderService.getUserOrders();
+        const foundOrder = apiOrders.find(o => o.id === requestedOrderId);
+        if (foundOrder) {
+          // Map the API order to Order type
+          const productSubtotal = (foundOrder.items || []).reduce((sum: number, item: any) => {
+            const addonTotal = (item.selected_addons || []).reduce((addonSum: number, addon: any) => addonSum + Number(addon.price || 0), 0);
+            return sum + ((Number(item.product_price || 0) * Number(item.quantity || 1)) + addonTotal);
+          }, 0);
+          const derivedDeliveryFee = Number(foundOrder.delivery_fee || 0) > 0
+            ? Number(foundOrder.delivery_fee || 0)
+            : Math.max(0, Number(foundOrder.total || 0) - productSubtotal - Number(foundOrder.service_fee || 0) - Number(foundOrder.vat || 0) - Number(foundOrder.priority_fee || 0));
+
+          const orderCreatedAt = foundOrder.created_at || new Date().toISOString();
+          const graceStartedAtNumber = foundOrder.created_at ? new Date(foundOrder.created_at).getTime() : Date.now();
+
+          const mappedOrder: Order = {
+            id: foundOrder.id,
+            email: foundOrder.email,
+            items: foundOrder.items?.map((item: any) => ({
+              id: item.product_id,
+              name: item.product_name || item.product_id,
+              price: Number(item.product_price),
+              quantity: item.quantity,
+              cartItemId: `${foundOrder.id}_${item.product_id}`,
+              description: '',
+              category: '',
+              image: '',
+              is_available: true,
+              isAvailable: true,
+              selectedAddons: item.selected_addons,
+              specialInstructions: item.special_instructions,
+            })) || [],
+            total: Number(foundOrder.total),
+            address: foundOrder.delivery_address,
+            status: foundOrder.status as any,
+            paymentMethod: foundOrder.payment_method,
+            phone: foundOrder.phone,
+            orderNumber: foundOrder.order_number,
+            userId: user?.id || '',
+            timestamp: orderCreatedAt,
+            graceStartedAt: graceStartedAtNumber,
+            deliveryAddress: foundOrder.delivery_address,
+            eta: 35,
+            deliveryType: (foundOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
+            deliveryFee: derivedDeliveryFee,
+            serviceFee: Number(foundOrder.service_fee || 0),
+            priorityFee: Number(foundOrder.priority_fee || 0),
+            vat: Number(foundOrder.vat || 0),
+            scheduledAt: foundOrder.scheduled_at || null,
+            scheduledDate: foundOrder.scheduled_date || null,
+            scheduledTime: foundOrder.scheduled_time || foundOrder.schedule_window || null,
+            scheduleDisplay: foundOrder.schedule_display || null,
+            scheduleWindow: foundOrder.schedule_window || null,
+          };
+
+          setOrder(mappedOrder);
+          if (mappedOrder.status === ORDER_STATUS.DELIVERED) {
+            setIsSimulating(false);
+            setSimulatedProgress(100);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch specific order:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSpecificOrder();
+  }, [requestedOrderId, getOrderById, user?.id]);
+
   useEffect(() => {
     let resolvedOrder: Order | null = null;
 
