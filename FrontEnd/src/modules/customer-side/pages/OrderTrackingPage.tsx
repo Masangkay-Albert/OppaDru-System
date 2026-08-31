@@ -79,7 +79,15 @@ const OrderTrackingPage: React.FC = () => {
     }
 
     if (!resolvedOrder) {
-      resolvedOrder = currentOrder;
+      resolvedOrder = currentOrder || null;
+    }
+
+    if (!resolvedOrder && orders.length > 0) {
+      const latestActiveOrder = [...orders]
+        .filter((candidate) => !['cancelled', 'delivered'].includes(String(candidate.status ?? '').trim().toLowerCase()))
+        .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())[0] || null;
+
+      resolvedOrder = latestActiveOrder;
     }
 
     if (!resolvedOrder) {
@@ -100,7 +108,7 @@ const OrderTrackingPage: React.FC = () => {
       setSimulatedProgress(100);
     }
 
-  }, [requestedOrderId, currentOrder, getOrderById, navigate]);
+  }, [requestedOrderId, currentOrder, orders, getOrderById, navigate, user]);
 
   useEffect(() => {
     if (order?.status === ORDER_STATUS.ON_THE_WAY && routePoints.length > 0 && !isSimulating && simulatedProgress < 95) {

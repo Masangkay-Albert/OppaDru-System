@@ -169,9 +169,11 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const savedOrders = localStorage.getItem(getOrdersKey());
     const savedCurrentOrder = localStorage.getItem(getCurrentOrderKey());
 
+    let parsedSavedOrders: Order[] = [];
     if (savedOrders) {
       try {
-        setOrders(JSON.parse(savedOrders));
+        parsedSavedOrders = JSON.parse(savedOrders);
+        setOrders(parsedSavedOrders);
       } catch {
         setOrders([]);
       }
@@ -184,7 +186,22 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setCurrentOrder(null);
       }
     } else {
-      setCurrentOrder(null);
+      const activeOrders = parsedSavedOrders.filter((order) =>
+        !['cancelled', 'delivered'].includes(String(order.status ?? '').trim().toLowerCase())
+      );
+
+      if (activeOrders.length > 0) {
+        const latestActiveOrder = [...activeOrders].sort((a, b) => {
+          const timeA = new Date(a.timestamp || 0).getTime();
+          const timeB = new Date(b.timestamp || 0).getTime();
+          return timeB - timeA;
+        })[0];
+
+        setCurrentOrder(latestActiveOrder);
+        localStorage.setItem(getCurrentOrderKey(), JSON.stringify(latestActiveOrder));
+      } else {
+        setCurrentOrder(null);
+      }
     }
 
     fetchUserOrders();
