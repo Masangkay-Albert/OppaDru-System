@@ -230,11 +230,14 @@ const AdminAddonsPage: React.FC = () => {
             </button>
           </div>
 
-          {newAddon[group.id]?.imageFile && (
-            <div className="mt-2 text-xs text-[var(--oppa-text-muted)]">
-              Selected image: {newAddon[group.id].imageFile.name}
-            </div>
-          )}
+          {(() => {
+            const selectedImageFile = newAddon[group.id]?.imageFile;
+            return selectedImageFile ? (
+              <div className="mt-2 text-xs text-[var(--oppa-text-muted)]">
+                Selected image: {selectedImageFile.name}
+              </div>
+            ) : null;
+          })()}
         </div>
       </section>)}</div>
     </AdminLayout>
