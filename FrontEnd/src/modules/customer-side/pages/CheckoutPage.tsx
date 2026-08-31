@@ -88,6 +88,32 @@ const CheckoutPage: React.FC = () => {
     return parts.join(', ');
   };
 
+  const buildScheduledAt = (date: Date | null, time: string | null): string | null => {
+    if (!date || !time) return null;
+
+    const timeMatch = time.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!timeMatch) return null;
+
+    const [, hourText, minuteText, period] = timeMatch;
+    let hour = Number(hourText);
+    const minute = Number(minuteText);
+
+    if (hour < 1 || hour > 12 || minute > 59) return null;
+    if (period.toUpperCase() === 'PM' && hour !== 12) hour += 12;
+    if (period.toUpperCase() === 'AM' && hour === 12) hour = 0;
+
+    const scheduledDate = new Date(date);
+    scheduledDate.setHours(hour, minute, 0, 0);
+    return scheduledDate.toISOString();
+  };
+
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const placeOrderDirect = async (paymentReference?: string) => {
     if (orderRequestRef.current) return;
 
@@ -112,10 +138,15 @@ const CheckoutPage: React.FC = () => {
 
       const fullDeliveryAddress = buildFullDeliveryAddress();
 
-      const scheduledAt = deliveryType === 'scheduled' && selectedDate && selectedTime
-        ? new Date(`${selectedDate.toISOString().split('T')[0]}T${selectedTime.replace(/\s/g, '').includes('AM') ? selectedTime.replace(/\s/g, '').replace('AM', '').padStart(2, '0') : selectedTime.replace(/\s/g, '').replace('PM', '').padStart(2, '0')}:00`).toISOString()
+      const scheduledAt = deliveryType === 'scheduled'
+        ? buildScheduledAt(selectedDate, selectedTime)
         : null;
-      const scheduledDate = deliveryType === 'scheduled' && selectedDate ? selectedDate.toISOString().split('T')[0] : null;
+      if (deliveryType === 'scheduled' && !scheduledAt) {
+        showToast('Please select a valid delivery date and time.', 'error');
+        setShowScheduleModal(true);
+        return;
+      }
+      const scheduledDate = deliveryType === 'scheduled' && selectedDate ? formatLocalDate(selectedDate) : null;
       const scheduledTime = deliveryType === 'scheduled' ? selectedTime : null;
       const scheduleDisplayValue = deliveryType === 'scheduled' ? scheduleDisplay : null;
       const scheduleWindowValue = deliveryType === 'scheduled' ? selectedTime : null;
