@@ -1,5 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
 import { getProductImage } from '../data/productImages';
+import oppaLogo from '../assets/oppadrulogo.jpg';
 import type { AddonGroup } from '../types/product.types';
 import { ensureAdminSession, getStoredAdminToken } from './adminAuthService';
 
@@ -18,7 +19,7 @@ export interface Product {
   updated_at?: string;
 }
 
-const DEFAULT_PRODUCT_IMAGE = '/oppadrulogo.jpg';
+const DEFAULT_PRODUCT_IMAGE = oppaLogo;
 
 class ProductService {
   private tokenKey = 'auth_token';

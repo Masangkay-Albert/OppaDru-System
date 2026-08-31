@@ -4,8 +4,9 @@ import AdminLayout from '../components/AdminLayout';
 import { productService } from '../../../services/productService';
 import type { AddonGroup } from '../../../types/product.types';
 import { categories } from '../../../data/mockData';
+import { getAddonImage } from '../../../data/productImages';
 
-const DEFAULT_ADDON_IMAGE = '/oppadrulogo.jpg';
+const DEFAULT_ADDON_IMAGE = getAddonImage();
 
 type AddonDraft = {
   name: string;
@@ -44,21 +45,27 @@ const AdminAddonsPage: React.FC = () => {
 
   const addAddon = async (groupId: number) => {
     const draft = newAddon[groupId];
-    if (!draft?.name) return;
-
-    let imageUrl = draft.image || '';
-    if (draft.imageFile) {
-      imageUrl = await productService.uploadImage(draft.imageFile, 'addons');
+    if (!draft?.name?.trim()) {
+      setMessage('Enter an add-on name first.');
+      return;
     }
 
-    await productService.createAddon(groupId, {
-      name: draft.name,
-      price: Number(draft.price) || 0,
-      image: imageUrl || undefined,
-    });
+    try {
+      let imageUrl = draft.image || '';
+      if (draft.imageFile) imageUrl = await productService.uploadImage(draft.imageFile, 'addons');
 
-    setNewAddon((current) => ({ ...current, [groupId]: { name: '', price: '', image: '', preview: '', imageFile: undefined } }));
-    await refresh();
+      await productService.createAddon(groupId, {
+        name: draft.name.trim(),
+        price: Number(draft.price) || 0,
+        image: imageUrl || undefined,
+      });
+
+      setNewAddon((current) => ({ ...current, [groupId]: { name: '', price: '', image: '', preview: '', imageFile: undefined } }));
+      setMessage('Add-on added successfully.');
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to add this add-on.');
+    }
   };
 
   const saveAddon = async (addonId: number) => {
@@ -135,8 +142,8 @@ const AdminAddonsPage: React.FC = () => {
       <div className="space-y-4">{groups.map((group) => <section key={group.id} className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold text-[var(--oppa-text)]">{group.name}</h2><p className="text-xs text-[var(--oppa-text-muted)]">{group.selection_type === 'single' ? 'Single selection' : 'Multiple selection'}{group.supports_quantity ? ' • Quantity enabled' : ''}</p></div><div className="flex items-center gap-3"><button onClick={() => beginGroupEdit(group)} className="text-xs text-[var(--oppa-green)]">Edit group</button><button onClick={() => productService.updateAddonGroup(group.id, { is_active: !(group.is_active ?? true) }).then(refresh).catch(() => setMessage('Unable to update group availability.'))} className="text-xs text-[var(--oppa-green)]">{group.is_active === false ? <><ToggleLeft size={16} className="inline" /> Inactive</> : <><ToggleRight size={16} className="inline" /> Active</>}</button></div></div>
         {editingGroups[group.id] && <div className="mt-3 rounded-lg border border-[var(--oppa-border)] p-3"><div className="flex flex-col gap-2 sm:flex-row"><input value={editingGroups[group.id].name} onChange={(event) => setEditingGroups({ ...editingGroups, [group.id]: { ...editingGroups[group.id], name: event.target.value } })} className="flex-1 rounded border px-2 py-1 text-sm" /><button onClick={() => saveGroup(group.id)} className="rounded bg-[var(--oppa-green)] px-3 py-1 text-sm text-white">Save</button></div><div className="mt-2 flex flex-wrap gap-2">{editableCategories.map((category) => <button key={category.id} onClick={() => toggleGroupCategory(group.id, category.id)} className={`rounded-full px-2 py-1 text-xs ${editingGroups[group.id].categories.includes(category.id) ? 'bg-[var(--oppa-green)] text-white' : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]'}`}>{category.name}</button>)}</div></div>}
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">{group.addons.map((addon) => { const draft = editingAddon[Number(addon.id)]; const isActive = addon.is_active !== false; return <div key={addon.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${isActive ? 'bg-[var(--oppa-cream)]' : 'bg-gray-100 text-gray-400'}`}>{draft ? <>
-          <img src={draft.preview || draft.image || addon.image || DEFAULT_ADDON_IMAGE} alt={draft.name || addon.name} onError={(event) => { event.currentTarget.src = DEFAULT_ADDON_IMAGE; }} className="h-10 w-10 rounded-lg object-cover" />
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">{group.addons.map((addon) => { const draft = editingAddon[Number(addon.id)]; const isActive = addon.is_active !== false; return <div key={addon.id} className={`flex min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-sm ${isActive ? 'bg-[var(--oppa-cream)]' : 'bg-gray-100 text-gray-400'}`}>{draft ? <>
+          <img src={getAddonImage(draft.preview || draft.image || addon.image)} alt={draft.name || addon.name} onError={(event) => { event.currentTarget.src = DEFAULT_ADDON_IMAGE; }} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
           <input value={draft.name} onChange={(event) => setEditingAddon({ ...editingAddon, [Number(addon.id)]: { ...draft, name: event.target.value } })} className="min-w-0 flex-1 rounded border px-2 py-1" />
           <input type="number" min="0" value={draft.price} onChange={(event) => setEditingAddon({ ...editingAddon, [Number(addon.id)]: { ...draft, price: event.target.value } })} className="w-20 rounded border px-2 py-1" />
           <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded border border-dashed border-[var(--oppa-border)] bg-white text-[var(--oppa-green)]" title="Upload add-on image">
@@ -155,8 +162,8 @@ const AdminAddonsPage: React.FC = () => {
             }} />
           </label>
           <button onClick={() => saveAddon(Number(addon.id))} className="text-xs font-medium text-[var(--oppa-green)]">Save</button>
-        </> : <><img src={addon.image || DEFAULT_ADDON_IMAGE} alt={addon.name} onError={(event) => { event.currentTarget.src = DEFAULT_ADDON_IMAGE; }} className="h-10 w-10 rounded-lg object-cover" /><span className="flex-1">{addon.name}</span><span className="font-medium">₱{Number(addon.price).toFixed(2)}</span><button onClick={() => setEditingAddon({ ...editingAddon, [Number(addon.id)]: { name: addon.name, price: String(addon.price), image: addon.image || '', preview: addon.image || '' } })} className="text-xs text-[var(--oppa-green)]">Edit</button><button onClick={() => toggleAddonAvailability(Number(addon.id), isActive)} className="text-xs text-[var(--oppa-green)]">{isActive ? 'Available' : 'Not available'}</button><button onClick={() => deleteAddon(Number(addon.id), addon.name)} aria-label={`Delete ${addon.name}`} title="Delete add-on" className="text-red-600"><Trash2 size={15} /></button></>}</div>; })}</div>
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row"><div className="flex flex-1 items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2"><img src={newAddon[group.id]?.preview || newAddon[group.id]?.image || DEFAULT_ADDON_IMAGE} alt="Add-on preview" onError={(event) => { event.currentTarget.src = DEFAULT_ADDON_IMAGE; }} className="h-10 w-10 rounded-lg object-cover" /><input value={newAddon[group.id]?.name || ''} onChange={(event) => setNewAddon({ ...newAddon, [group.id]: { ...(newAddon[group.id] || { price: '', image: '', preview: '', imageFile: undefined }), name: event.target.value } })} placeholder="New add-on" className="flex-1 border-0 bg-transparent text-sm focus:outline-none" /></div><input type="number" min="0" value={newAddon[group.id]?.price || ''} onChange={(event) => setNewAddon({ ...newAddon, [group.id]: { ...(newAddon[group.id] || { name: '', image: '', preview: '', imageFile: undefined }), price: event.target.value } })} placeholder="Price" className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm sm:w-28" /><label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] px-3 text-sm text-[var(--oppa-green)]"><ImagePlus size={16} /> Upload<input type="file" accept="image/*" className="hidden" onChange={(event) => {
+        </> : <><img src={getAddonImage(addon.image)} alt={addon.name} onError={(event) => { event.currentTarget.src = DEFAULT_ADDON_IMAGE; }} className="h-10 w-10 shrink-0 rounded-lg object-cover" /><span className="min-w-0 flex-1 truncate">{addon.name}</span><span className="shrink-0 font-medium">₱{Number(addon.price).toFixed(2)}</span><button onClick={() => setEditingAddon({ ...editingAddon, [Number(addon.id)]: { name: addon.name, price: String(addon.price), image: addon.image || '', preview: addon.image || '' } })} className="shrink-0 text-xs text-[var(--oppa-green)]">Edit</button><button onClick={() => toggleAddonAvailability(Number(addon.id), isActive)} className="shrink-0 text-xs text-[var(--oppa-green)]">{isActive ? 'Available' : 'Not available'}</button><button onClick={() => deleteAddon(Number(addon.id), addon.name)} aria-label={`Delete ${addon.name}`} title="Delete add-on" className="shrink-0 text-red-600"><Trash2 size={15} /></button></>}</div>; })}</div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_7rem_auto_auto]"><div className="flex min-w-0 items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2"><img src={getAddonImage(newAddon[group.id]?.preview || newAddon[group.id]?.image)} alt="Add-on preview" onError={(event) => { event.currentTarget.src = DEFAULT_ADDON_IMAGE; }} className="h-10 w-10 shrink-0 rounded-lg object-cover" /><input value={newAddon[group.id]?.name || ''} onChange={(event) => setNewAddon({ ...newAddon, [group.id]: { ...(newAddon[group.id] || { price: '', image: '', preview: '', imageFile: undefined }), name: event.target.value } })} placeholder="New add-on" className="min-w-0 flex-1 border-0 bg-transparent text-sm focus:outline-none" /></div><input type="number" min="0" value={newAddon[group.id]?.price || ''} onChange={(event) => setNewAddon({ ...newAddon, [group.id]: { ...(newAddon[group.id] || { name: '', image: '', preview: '', imageFile: undefined }), price: event.target.value } })} placeholder="Price" className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" /><label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] px-3 text-sm font-medium text-[var(--oppa-green)]"><ImagePlus size={16} /> Upload<input type="file" accept="image/*" className="hidden" onChange={(event) => {
               const file = event.target.files?.[0] ?? null;
               if (!file) return;
               const reader = new FileReader();

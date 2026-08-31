@@ -123,9 +123,11 @@ export const getProductImage = (imagePath: string): string => {
 };
 
 export const getAddonImage = (imagePath?: string | null): string => {
-    if (!imagePath || imagePath.trim() === '') {
+    const normalizedPath = imagePath?.trim() || '';
+
+    if (!normalizedPath || normalizedPath === '/oppadrulogo.jpg' || normalizedPath === 'oppadrulogo.jpg') {
         return oppaLogo;
     }
 
-    return getProductImage(imagePath);
+    return getProductImage(normalizedPath);
 };
