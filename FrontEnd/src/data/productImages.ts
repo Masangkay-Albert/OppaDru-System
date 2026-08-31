@@ -101,18 +101,17 @@ export const productImages: Record<string, string> = {
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api').replace(/\/api\/?$/, '');
 
 const resolveImageUrl = (imagePath: string): string => {
-    if (!imagePath || imagePath === '') {
+    // Handle empty or missing images
+    if (!imagePath || imagePath === '' || imagePath === '/oppadrulogo.jpg' || imagePath === 'oppadrulogo.jpg') {
         return oppaLogo;
     }
 
+    // Handle absolute URLs and data URIs
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('data:image') || imagePath.startsWith('blob:')) {
         return imagePath;
     }
 
-    if (imagePath === '/oppadrulogo.jpg' || imagePath === 'oppadrulogo.jpg') {
-        return oppaLogo;
-    }
-
+    // Handle backend storage paths
     if (imagePath.startsWith('/')) {
         if (imagePath.startsWith('/storage/')) {
             return `${API_BASE_URL}${imagePath}`;

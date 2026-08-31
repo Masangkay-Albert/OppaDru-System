@@ -19,7 +19,7 @@ export interface Product {
   updated_at?: string;
 }
 
-const DEFAULT_PRODUCT_IMAGE = oppaLogo;
+const DEFAULT_PRODUCT_IMAGE = '/oppadrulogo.jpg';
 
 class ProductService {
   private tokenKey = 'auth_token';
