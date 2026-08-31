@@ -175,6 +175,55 @@ class OrderPlacementTest extends TestCase
             ->assertJsonPath('order.delivery_type', 'priority');
     }
 
+    public function test_admin_order_list_includes_pending_orders_after_the_grace_window(): void
+    {
+        $user = User::create([
+            'full_name' => 'Grace Window Customer',
+            'email' => 'grace@example.com',
+            'phone' => '09178889999',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+
+        $product = Product::create([
+            'name' => 'Grace Window Chicken',
+            'description' => 'Classic Korean fried chicken',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => 'grace-window-chicken.jpg',
+            'is_available' => true,
+        ]);
+
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ]);
+
+        $orderResponse = $this
+            ->withHeader('Authorization', 'Bearer '.$loginResponse->json('token'))
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'total' => 0,
+                'delivery_address' => 'Block 4, Lot 7, Dasmarinas, Cavite',
+                'payment_method' => 'cash_on_delivery',
+                'phone' => '09178889999',
+            ]);
+
+        $order = Order::findOrFail($orderResponse->json('order.id'));
+        $order->update(['created_at' => now()->subMinutes(2)]);
+
+        $this->getJson('/api/orders')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $order->id]);
+    }
+
     public function test_order_cancellation_is_rejected_after_the_backend_window_closes(): void
     {
         $user = User::create([

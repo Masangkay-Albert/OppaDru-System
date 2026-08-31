@@ -25,20 +25,7 @@ class OrderController extends Controller
             'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
         ])->with(['user:id,full_name', 'orderItems'])
         ->orderBy('created_at', 'desc')
-        ->get()
-        ->filter(function (Order $order) {
-            if ($order->status !== 'pending') {
-                return true;
-            }
-
-            if (!$order->created_at) {
-                return true;
-            }
-
-            $elapsedSeconds = abs($order->created_at->diffInSeconds(now(), false));
-            return $elapsedSeconds <= 20;
-        })
-        ->values();
+        ->get();
 
         return response()->json($this->orderDataService->formatOrders($orders));
     }
