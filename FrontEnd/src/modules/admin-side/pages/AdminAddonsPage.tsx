@@ -24,6 +24,23 @@ const createEmptyAddonDraft = (): AddonDraft => ({
   imageFile: undefined,
 });
 
+const sanitizePositivePriceInput = (value: string): string => {
+  if (!value) return '';
+
+  const digitsOnly = value.replace(/[^\d.]/g, '');
+  const [whole, ...decimalParts] = digitsOnly.split('.');
+  const safeValue = decimalParts.length > 0
+    ? `${whole || '0'}.${decimalParts.join('')}`
+    : whole || '';
+
+  if (!safeValue || safeValue === '0' || safeValue === '0.') return '';
+
+  const parsedValue = Number.parseFloat(safeValue);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) return '';
+
+  return String(parsedValue);
+};
+
 const editableCategories = categories.filter((category) => category.id !== 'all');
 
 const AdminAddonsPage: React.FC = () => {
@@ -61,8 +78,8 @@ const AdminAddonsPage: React.FC = () => {
       return;
     }
 
-    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      setMessage('Enter a valid add-on price.');
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      setMessage('Enter a valid positive add-on price.');
       return;
     }
 
@@ -161,7 +178,10 @@ const AdminAddonsPage: React.FC = () => {
         <div className="mt-3 grid gap-2 sm:grid-cols-2">{group.addons.map((addon) => { const draft = editingAddon[Number(addon.id)]; const isActive = addon.is_active !== false; return <div key={addon.id} className={`flex min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-sm ${isActive ? 'bg-[var(--oppa-cream)]' : 'bg-gray-100 text-gray-400'}`}>{draft ? <>
           <img src={getAddonImage(draft.preview || draft.image || addon.image)} alt={draft.name || addon.name} onError={(event) => { event.currentTarget.src = DEFAULT_ADDON_IMAGE; }} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
           <input value={draft.name} onChange={(event) => setEditingAddon({ ...editingAddon, [Number(addon.id)]: { ...draft, name: event.target.value } })} className="min-w-0 flex-1 rounded border px-2 py-1" />
-          <input type="number" min="0" value={draft.price} onChange={(event) => setEditingAddon({ ...editingAddon, [Number(addon.id)]: { ...draft, price: event.target.value } })} className="w-20 rounded border px-2 py-1" />
+          <input type="number" min="0.01" step="0.01" inputMode="decimal" value={draft.price} onChange={(event) => {
+            const sanitized = sanitizePositivePriceInput(event.target.value);
+            setEditingAddon({ ...editingAddon, [Number(addon.id)]: { ...draft, price: sanitized || '' } });
+          }} className="w-20 rounded border px-2 py-1" />
           <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded border border-dashed border-[var(--oppa-border)] bg-white text-[var(--oppa-green)]" title="Upload add-on image">
             <ImagePlus size={15} />
             <input type="file" accept="image/*" className="hidden" onChange={(event) => {
@@ -196,13 +216,17 @@ const AdminAddonsPage: React.FC = () => {
 
             <input
               type="number"
-              min="0"
+              min="0.01"
               step="0.01"
+              inputMode="decimal"
               value={newAddon[group.id]?.price ?? ''}
-              onChange={(event) => setNewAddon((current) => ({
-                ...current,
-                [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), price: event.target.value },
-              }))}
+              onChange={(event) => {
+                const sanitized = sanitizePositivePriceInput(event.target.value);
+                setNewAddon((current) => ({
+                  ...current,
+                  [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), price: sanitized || '' },
+                }));
+              }}
               placeholder="Price"
               className="w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus:border-[var(--oppa-green)] focus:outline-none"
             />
