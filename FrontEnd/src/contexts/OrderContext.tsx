@@ -88,6 +88,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return resolvedUser?.id ? `currentOrder_user_${resolvedUser.id}` : 'currentOrder_guest';
   }, [resolvedUser]);
 
+  const getTrackingOrderKey = useCallback(() => {
+    return 'active_order_tracking';
+  }, []);
+
   const fetchUserOrders = useCallback(async () => {
     if (!resolvedUser) {
       setOrders([]);
@@ -160,9 +164,22 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [resolvedUser, getOrdersKey]);
 
   const loadOrders = useCallback(() => {
+    const fallbackTrackingOrder = (() => {
+      try {
+        const raw = localStorage.getItem(getTrackingOrderKey());
+        return raw ? JSON.parse(raw) as Order : null;
+      } catch {
+        return null;
+      }
+    })();
+
     if (!resolvedUser) {
       setOrders([]);
-      setCurrentOrder(null);
+      if (fallbackTrackingOrder && !['cancelled', 'delivered'].includes(String(fallbackTrackingOrder.status ?? '').trim().toLowerCase())) {
+        setCurrentOrder(fallbackTrackingOrder);
+      } else {
+        setCurrentOrder(null);
+      }
       return;
     }
 
@@ -181,7 +198,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (savedCurrentOrder) {
       try {
-        setCurrentOrder(JSON.parse(savedCurrentOrder));
+        const parsedCurrentOrder = JSON.parse(savedCurrentOrder) as Order;
+        setCurrentOrder(parsedCurrentOrder);
+        localStorage.setItem(getTrackingOrderKey(), JSON.stringify(parsedCurrentOrder));
       } catch {
         setCurrentOrder(null);
       }
@@ -199,13 +218,18 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         setCurrentOrder(latestActiveOrder);
         localStorage.setItem(getCurrentOrderKey(), JSON.stringify(latestActiveOrder));
+        localStorage.setItem(getTrackingOrderKey(), JSON.stringify(latestActiveOrder));
+      } else if (fallbackTrackingOrder && !['cancelled', 'delivered'].includes(String(fallbackTrackingOrder.status ?? '').trim().toLowerCase())) {
+        setCurrentOrder(fallbackTrackingOrder);
+        localStorage.setItem(getCurrentOrderKey(), JSON.stringify(fallbackTrackingOrder));
+        localStorage.setItem(getTrackingOrderKey(), JSON.stringify(fallbackTrackingOrder));
       } else {
         setCurrentOrder(null);
       }
     }
 
     fetchUserOrders();
-  }, [resolvedUser, getOrdersKey, getCurrentOrderKey, fetchUserOrders]);
+  }, [resolvedUser, getOrdersKey, getCurrentOrderKey, getTrackingOrderKey, fetchUserOrders]);
 
   useEffect(() => {
     loadOrders();
@@ -321,6 +345,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setCurrentOrder(newOrder);
 
       localStorage.setItem(getCurrentOrderKey(), JSON.stringify(newOrder));
+      localStorage.setItem(getTrackingOrderKey(), JSON.stringify(newOrder));
       localStorage.setItem(getOrdersKey(), JSON.stringify(updatedOrders));
 
       setIsLoading(false);
@@ -348,6 +373,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const updatedOrder = { ...currentOrder, status };
         setCurrentOrder(updatedOrder);
         localStorage.setItem(getCurrentOrderKey(), JSON.stringify(updatedOrder));
+        localStorage.setItem(getTrackingOrderKey(), JSON.stringify(updatedOrder));
       }
     } catch (error) {
       console.error('Failed to update order status:', error);
@@ -357,6 +383,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const clearOrder = () => {
     setCurrentOrder(null);
     localStorage.removeItem(getCurrentOrderKey());
+    localStorage.removeItem(getTrackingOrderKey());
   };
 
   const getOrderById = (orderId: string): Order | undefined => {
