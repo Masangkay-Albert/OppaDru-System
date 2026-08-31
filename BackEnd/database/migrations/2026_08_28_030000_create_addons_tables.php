@@ -25,7 +25,7 @@ return new class extends Migration
             $table->foreignId('addon_group_id')->constrained('addon_groups');
             $table->string('name');
             $table->decimal('price', 10, 2)->default(0);
-            $table->string('image')->nullable();
+            $table->text('image')->nullable();
             $table->boolean('is_active')->default(true);
             $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();

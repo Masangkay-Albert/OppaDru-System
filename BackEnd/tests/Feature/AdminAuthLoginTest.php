@@ -45,4 +45,37 @@ class AdminAuthLoginTest extends TestCase
         $response->assertOk();
         $this->assertDatabaseMissing('addon_groups', ['id' => $group->id]);
     }
+
+    public function test_admin_can_create_addon_with_long_image_url(): void
+    {
+        $login = $this->postJson('/api/admin/login', [
+            'email' => 'admin@oppadru.com',
+            'password' => 'Admin@123',
+        ]);
+
+        $token = $login->json('token');
+
+        $group = \App\Models\AddonGroup::create([
+            'name' => 'Long Image Group',
+            'selection_type' => 'multiple',
+            'supports_quantity' => false,
+            'applicable_categories' => ['rice'],
+            'is_active' => true,
+        ]);
+
+        $longImageUrl = 'https://example.com/storage/v1/object/public/addons/' . str_repeat('a', 500) . '.png';
+
+        $response = $this->postJson('/api/admin/addon-groups/' . $group->id . '/addons', [
+            'name' => 'Long URL Add-on',
+            'price' => 45,
+            'image' => $longImageUrl,
+            'is_active' => true,
+        ], [
+            'Authorization' => 'Bearer ' . $token,
+        ]);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('addons', ['name' => 'Long URL Add-on', 'addon_group_id' => $group->id]);
+        $this->assertNotSame('', \App\Models\Addon::where('name', 'Long URL Add-on')->value('image'));
+    }
 }

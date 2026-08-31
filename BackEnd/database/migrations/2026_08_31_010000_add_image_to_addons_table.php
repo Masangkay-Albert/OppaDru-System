@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -10,9 +11,13 @@ return new class extends Migration
     {
         Schema::table('addons', function (Blueprint $table) {
             if (!Schema::hasColumn('addons', 'image')) {
-                $table->string('image')->nullable()->after('price');
+                $table->text('image')->nullable()->after('price');
             }
         });
+
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE addons ALTER COLUMN image TYPE text');
+        }
     }
 
     public function down(): void

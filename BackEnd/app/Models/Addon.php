@@ -10,6 +10,10 @@ class Addon extends Model
 
     protected $casts = ['price' => 'decimal:2', 'is_active' => 'boolean'];
 
+    protected $attributes = [
+        'image' => null,
+    ];
+
     public function group()
     {
         return $this->belongsTo(AddonGroup::class, 'addon_group_id');
