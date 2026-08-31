@@ -1,6 +1,7 @@
 //src/modules/customer-side/components/common/AddonsSection.tsx
 import React, { useState } from 'react';
 import { FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { getAddonImage } from '../../../../data/productImages';
 import type { Addon, AddonGroup } from '../../../../types/product.types';
 
 interface AddonsSectionProps {
@@ -40,17 +41,14 @@ const AddonsSection: React.FC<AddonsSectionProps> = ({
               className="w-4 h-4 cursor-pointer accent-[#2d6a4f] shrink-0"
             />
             <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-200 shrink-0">
-              {addon.image ? (
-                <img
-                  src={addon.image}
-                  alt={addon.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-400">
-                  No img
-                </div>
-              )}
+              <img
+                src={getAddonImage(addon.image)}
+                alt={addon.name}
+                onError={(event) => {
+                  event.currentTarget.src = getAddonImage('');
+                }}
+                className="w-full h-full object-cover"
+              />
             </div>
             <span className="flex-1 text-sm font-medium text-gray-800">{addon.name}</span>
             <span className="text-xs font-semibold text-[#e76f51] shrink-0">+ ₱{Number(addon.price).toFixed(2)}</span>

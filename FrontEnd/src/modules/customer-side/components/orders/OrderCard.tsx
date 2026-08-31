@@ -34,7 +34,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   onToggleDetails,
   onTrack,
   onCancel,
-  onEdit,
   graceStartedAtByOrder,
 }) => {
   const scheduleDetails = getScheduledOrderDetails(order);
@@ -200,9 +199,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                     <div className="flex gap-2">
                       <button type="button" onClick={() => onCancel(order)} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100">
                         <FiTrash2 size={12} /> Cancel Order
-                      </button>
-                      <button type="button" onClick={() => onEdit(order)} className="rounded-lg border border-[#2d6a4f]/30 bg-[#2d6a4f]/5 px-3 py-2 text-xs font-semibold text-[#2d6a4f] hover:bg-[#2d6a4f]/10">
-                        Edit Order
                       </button>
                     </div>
                   ) : null}

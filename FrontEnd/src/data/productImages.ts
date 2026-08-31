@@ -121,3 +121,11 @@ export const getProductImage = (imagePath: string): string => {
 
     return imagePath;
 };
+
+export const getAddonImage = (imagePath?: string | null): string => {
+    if (!imagePath || imagePath.trim() === '') {
+        return oppaLogo;
+    }
+
+    return getProductImage(imagePath);
+};
