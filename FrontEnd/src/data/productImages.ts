@@ -98,19 +98,26 @@ export const productImages: Record<string, string> = {
     'passionfruit-lemon.jpg': passionfruitLemon,
 };
 
-export const getProductImage = (imagePath: string): string => {
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api').replace(/\/api\/?$/, '');
+
+const resolveImageUrl = (imagePath: string): string => {
     if (!imagePath || imagePath === '') {
         return oppaLogo;
     }
 
-    if (
-        imagePath.startsWith('http://') ||
-        imagePath.startsWith('https://') ||
-        imagePath.startsWith('data:image') ||
-        imagePath.startsWith('blob:') ||
-        imagePath.startsWith('/')
-    ) {
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('data:image') || imagePath.startsWith('blob:')) {
         return imagePath;
+    }
+
+    if (imagePath === '/oppadrulogo.jpg' || imagePath === 'oppadrulogo.jpg') {
+        return oppaLogo;
+    }
+
+    if (imagePath.startsWith('/')) {
+        if (imagePath.startsWith('/storage/')) {
+            return `${API_BASE_URL}${imagePath}`;
+        }
+        return oppaLogo;
     }
 
     const filename = imagePath.split('/').pop() || '';
@@ -119,15 +126,16 @@ export const getProductImage = (imagePath: string): string => {
         return productImages[filename];
     }
 
+    if (imagePath.startsWith('storage/')) {
+        return `${API_BASE_URL}/${imagePath}`;
+    }
+
     return imagePath;
 };
 
+export const getProductImage = (imagePath: string): string => resolveImageUrl(imagePath);
+
 export const getAddonImage = (imagePath?: string | null): string => {
     const normalizedPath = imagePath?.trim() || '';
-
-    if (!normalizedPath || normalizedPath === '/oppadrulogo.jpg' || normalizedPath === 'oppadrulogo.jpg') {
-        return oppaLogo;
-    }
-
-    return getProductImage(normalizedPath);
+    return resolveImageUrl(normalizedPath);
 };

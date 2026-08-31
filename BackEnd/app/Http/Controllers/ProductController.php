@@ -21,7 +21,12 @@ class ProductController extends Controller
     private function normalizeProductImage(?string $imageValue): string
     {
         $image = trim((string) ($imageValue ?? ''));
-        return $image !== '' ? $image : '/oppadrulogo.jpg';
+
+        if ($image === '' || $image === '/oppadrulogo.jpg' || $image === 'oppadrulogo.jpg') {
+            return '';
+        }
+
+        return $image;
     }
 
     private function productQuery()

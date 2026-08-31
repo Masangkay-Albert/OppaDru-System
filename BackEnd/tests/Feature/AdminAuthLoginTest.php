@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AdminAuthLoginTest extends TestCase
@@ -77,5 +79,29 @@ class AdminAuthLoginTest extends TestCase
         $response->assertCreated();
         $this->assertDatabaseHas('addons', ['name' => 'Long URL Add-on', 'addon_group_id' => $group->id]);
         $this->assertNotSame('', \App\Models\Addon::where('name', 'Long URL Add-on')->value('image'));
+    }
+
+    public function test_admin_can_upload_product_image_and_store_it_in_public_storage(): void
+    {
+        $login = $this->postJson('/api/admin/login', [
+            'email' => 'admin@oppadru.com',
+            'password' => 'Admin@123',
+        ]);
+
+        $token = $login->json('token');
+        Storage::fake('public');
+
+        $file = UploadedFile::fake()->create('product-image.png', 100, 'image/png');
+
+        $response = $this->post('/api/admin/products/upload-image', [
+            'image' => $file,
+            'folder' => 'products',
+        ], [
+            'Authorization' => 'Bearer ' . $token,
+        ]);
+
+        $response->assertOk();
+        $this->assertStringContainsString('/storage/', $response->json('url'));
+        $this->assertNotSame('/oppadrulogo.jpg', $response->json('url'));
     }
 }
