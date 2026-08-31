@@ -36,6 +36,7 @@ const OrderTrackingPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [, setTick] = useState(Date.now());
   const [graceStartedAt, setGraceStartedAt] = useState<number | null>(null);
+  const [hasAttemptedBackendFetch, setHasAttemptedBackendFetch] = useState(false);
   
   const [simulatedProgress, setSimulatedProgress] = useState(0); 
   const [isSimulating, setIsSimulating] = useState(false);
@@ -73,8 +74,14 @@ const OrderTrackingPage: React.FC = () => {
 
   // Fetch specific order from backend if passed as requestedOrderId but not found locally
   useEffect(() => {
-    if (!requestedOrderId) return;
-    if (getOrderById(requestedOrderId)) return; // Already in local list
+    if (!requestedOrderId) {
+      setHasAttemptedBackendFetch(true);
+      return;
+    }
+    if (getOrderById(requestedOrderId)) {
+      setHasAttemptedBackendFetch(true);
+      return; // Already in local list
+    }
 
     const fetchSpecificOrder = async () => {
       try {
@@ -142,6 +149,7 @@ const OrderTrackingPage: React.FC = () => {
       } catch (error) {
         console.error('Failed to fetch specific order:', error);
       } finally {
+        setHasAttemptedBackendFetch(true);
         setIsLoading(false);
       }
     };
@@ -168,6 +176,12 @@ const OrderTrackingPage: React.FC = () => {
       resolvedOrder = latestActiveOrder;
     }
 
+    // If we have a requestedOrderId but haven't found it yet, wait for backend fetch before redirecting
+    if (!resolvedOrder && requestedOrderId && !hasAttemptedBackendFetch) {
+      // Still waiting for backend fetch, don't redirect yet
+      return;
+    }
+
     if (!resolvedOrder) {
       if (user) {
         navigate('/customer');
@@ -186,7 +200,7 @@ const OrderTrackingPage: React.FC = () => {
       setSimulatedProgress(100);
     }
 
-  }, [requestedOrderId, currentOrder, orders, getOrderById, navigate, user]);
+  }, [requestedOrderId, currentOrder, orders, getOrderById, navigate, user, hasAttemptedBackendFetch]);
 
   useEffect(() => {
     if (order?.status === ORDER_STATUS.ON_THE_WAY && routePoints.length > 0 && !isSimulating && simulatedProgress < 95) {
