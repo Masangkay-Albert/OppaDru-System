@@ -41,6 +41,32 @@ const sanitizePositivePriceInput = (value: string): string => {
   return String(parsedValue);
 };
 
+const handlePriceInput = (
+  value: string,
+  onValidValue: (normalized: string) => void,
+  onError: (message: string) => void,
+) => {
+  if (value === '') {
+    onError('');
+    onValidValue('');
+    return;
+  }
+
+  if (!/^\d*\.?\d*$/.test(value)) {
+    onError('Price must be a valid number. Letters and symbols are not allowed.');
+    return;
+  }
+
+  const normalized = sanitizePositivePriceInput(value);
+  if (!normalized) {
+    onError('Price must be a valid positive number.');
+    return;
+  }
+
+  onError('');
+  onValidValue(normalized);
+};
+
 const editableCategories = categories.filter((category) => category.id !== 'all');
 
 const AdminAddonsPage: React.FC = () => {
@@ -50,6 +76,7 @@ const AdminAddonsPage: React.FC = () => {
   const [editingAddon, setEditingAddon] = useState<Record<number, AddonDraft>>({});
   const [editingGroups, setEditingGroups] = useState<Record<number, { name: string; categories: string[]; selection_type: 'single' | 'multiple'; supports_quantity: boolean }>>({});
   const [message, setMessage] = useState('');
+  const [priceError, setPriceError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'addon' | 'group'; id: number; name: string } | null>(null);
 
   const refresh = async () => setGroups(await productService.getAdminAddonGroups());
@@ -188,6 +215,7 @@ const AdminAddonsPage: React.FC = () => {
         <div><h1 className="font-serif text-3xl font-bold text-[var(--oppa-text)]">Add-ons</h1><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Configure which options appear for each menu category.</p></div>
       </div>
       {message && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{message}</p>}
+      {priceError && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{priceError}</p>}
 
       {deleteTarget && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
@@ -237,9 +265,10 @@ const AdminAddonsPage: React.FC = () => {
         <div className="mt-3 grid gap-2 sm:grid-cols-2">{group.addons.map((addon) => { const draft = editingAddon[Number(addon.id)]; const isActive = addon.is_active !== false; return <div key={addon.id} className={`flex min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-sm ${isActive ? 'bg-[var(--oppa-cream)]' : 'bg-gray-100 text-gray-400'}`}>{draft ? <>
           <img src={getAddonImage(draft.preview || draft.image || addon.image)} alt={draft.name || addon.name} onError={(event) => { event.currentTarget.src = DEFAULT_ADDON_IMAGE; }} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
           <input value={draft.name} onChange={(event) => setEditingAddon({ ...editingAddon, [Number(addon.id)]: { ...draft, name: event.target.value } })} className="min-w-0 flex-1 rounded border px-2 py-1" />
-          <input type="number" min="0.01" step="0.01" inputMode="decimal" value={draft.price} onChange={(event) => {
-            const sanitized = sanitizePositivePriceInput(event.target.value);
-            setEditingAddon({ ...editingAddon, [Number(addon.id)]: { ...draft, price: sanitized || '' } });
+          <input type="text" inputMode="decimal" value={draft.price} onChange={(event) => {
+            handlePriceInput(event.target.value, (normalizedValue) => {
+              setEditingAddon({ ...editingAddon, [Number(addon.id)]: { ...draft, price: normalizedValue } });
+            }, setPriceError);
           }} className="w-20 rounded border px-2 py-1" />
           <label className="flex h-9 w-9 cursor-pointer items-center justify-center rounded border border-dashed border-[var(--oppa-border)] bg-white text-[var(--oppa-green)]" title="Upload add-on image">
             <ImagePlus size={15} />
@@ -274,17 +303,16 @@ const AdminAddonsPage: React.FC = () => {
             </div>
 
             <input
-              type="number"
-              min="0.01"
-              step="0.01"
+              type="text"
               inputMode="decimal"
               value={newAddon[group.id]?.price ?? ''}
               onChange={(event) => {
-                const sanitized = sanitizePositivePriceInput(event.target.value);
-                setNewAddon((current) => ({
-                  ...current,
-                  [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), price: sanitized || '' },
-                }));
+                handlePriceInput(event.target.value, (normalizedValue) => {
+                  setNewAddon((current) => ({
+                    ...current,
+                    [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), price: normalizedValue },
+                  }));
+                }, setPriceError);
               }}
               placeholder="Price"
               className="w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus:border-[var(--oppa-green)] focus:outline-none"
