@@ -24,6 +24,8 @@ class OrderDataService
 
     public function formatOrder(Order $order): array
     {
+        $createdAt = $order->created_at ? $order->created_at->toISOString() : null;
+
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -50,7 +52,8 @@ class OrderDataService
             'scheduled_time' => $order->scheduled_time,
             'schedule_display' => $order->schedule_display,
             'schedule_window' => $order->schedule_window,
-            'created_at' => $order->created_at ? $order->created_at->toISOString() : null,
+            'created_at' => $createdAt ? $this->convertToPhilippineTime($createdAt) : null,
+            'timestamp' => $createdAt ? $this->convertToPhilippineTime($createdAt) : null,
         ];
     }
 
@@ -128,8 +131,9 @@ class OrderDataService
 
         $createdAt = $order->created_at;
         $now = now();
+        $elapsedSeconds = $createdAt ? abs($createdAt->diffInSeconds($now, false)) : null;
 
-        if (!$createdAt || $createdAt->isFuture() || $now->diffInSeconds($createdAt) > 20) {
+        if (!$createdAt || $createdAt->isFuture() || $elapsedSeconds > 20) {
             throw new \InvalidArgumentException('Order can no longer be cancelled or edited.');
         }
     }

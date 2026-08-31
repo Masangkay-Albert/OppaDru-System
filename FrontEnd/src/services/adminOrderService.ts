@@ -47,13 +47,15 @@ const updateOnlineOrdersInStorage = (updater: (orders: Order[]) => Order[]): voi
 
 export type OrderChannel = 'online' | 'onsite';
 
-export interface AdminOrder extends Order {
+export type AdminOrder = Omit<Order, 'timestamp'> & {
   channel: OrderChannel;
   customerName?: string;
+  customer_name?: string;
   served?: boolean;
   order_number?: string;
   created_at?: string;
-}
+  timestamp?: string;
+};
 
 const isPendingGracePeriodOrder = (order: any): boolean => {
   const status = String(order?.status ?? '').trim().toLowerCase();
@@ -135,7 +137,8 @@ export const getAllOrders = async (): Promise<AdminOrder[]> => {
       ...order,
       channel: order.channel === 'onsite' ? 'onsite' : 'online',
       served: order.status === 'delivered',
-      customerName: order.customer_name || order.email || 'Customer',
+      customer_name: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
+      customerName: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
       total: Number.isFinite(Number(order.total)) ? Number(order.total) : 0,
       items: Array.isArray(order.items) ? order.items.map((item: any) => ({
         ...item,
@@ -143,6 +146,8 @@ export const getAllOrders = async (): Promise<AdminOrder[]> => {
         quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 0,
       })) : [],
       deliveryAddress: order.delivery_address || 'Onsite / Walk-in',
+      created_at: order.created_at || order.timestamp || null,
+      timestamp: order.timestamp || order.created_at || null,
     }));
 
     return [...onlineOrders, ...getOnsiteOrders()].sort(

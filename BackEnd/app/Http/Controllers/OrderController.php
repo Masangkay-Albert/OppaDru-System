@@ -24,12 +24,21 @@ class OrderController extends Controller
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',
             'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
         ])->with(['user:id,full_name', 'orderItems'])
-        ->where(function ($query) {
-            $query->where('status', '!=', 'pending')
-                ->orWhereRaw('TIMESTAMPDIFF(SECOND, created_at, NOW()) > 20');
-        })
         ->orderBy('created_at', 'desc')
-        ->get();
+        ->get()
+        ->filter(function (Order $order) {
+            if ($order->status !== 'pending') {
+                return true;
+            }
+
+            if (!$order->created_at) {
+                return true;
+            }
+
+            $elapsedSeconds = abs($order->created_at->diffInSeconds(now(), false));
+            return $elapsedSeconds <= 20;
+        })
+        ->values();
 
         return response()->json($this->orderDataService->formatOrders($orders));
     }
@@ -154,7 +163,9 @@ class OrderController extends Controller
 
         $createdAt = $order->created_at;
         $now = now();
-        if (!$createdAt || $createdAt->isFuture() || $now->diffInSeconds($createdAt) > 20) {
+        $elapsedSeconds = $createdAt ? abs($createdAt->diffInSeconds($now, false)) : null;
+
+        if (!$createdAt || $createdAt->isFuture() || $elapsedSeconds > 20) {
             return response()->json([
                 'message' => 'Order can no longer be cancelled or edited.',
             ], 422);
@@ -224,10 +235,11 @@ class OrderController extends Controller
         if ($request->status === 'cancelled') {
             $createdAt = $order->created_at;
             $now = now();
+            $elapsedSeconds = $createdAt ? abs($createdAt->diffInSeconds($now, false)) : null;
 
-            if (!$createdAt || $createdAt->isFuture() || $now->diffInSeconds($createdAt) > 20 || $order->status !== 'pending') {
+            if (!$createdAt || $createdAt->isFuture() || $elapsedSeconds > 20 || $order->status !== 'pending') {
                 return response()->json([
-                    'message' => 'Order can no longer be cancelled or edited.',
+                    'message' => 'Order cancellation is only allowed within 20 seconds of creation.',
                 ], 422);
             }
         }

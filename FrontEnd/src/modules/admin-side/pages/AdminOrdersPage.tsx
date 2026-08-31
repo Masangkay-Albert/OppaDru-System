@@ -83,8 +83,8 @@ const AdminOrdersPage: React.FC = () => {
     return isNaN(num) ? 0 : num;
   };
 
-  const getOrderDate = (order: Pick<AdminOrder, 'created_at' | 'order_number'>) => {
-    if (order.created_at) return order.created_at;
+  const getOrderDate = (order: Pick<AdminOrder, 'created_at' | 'timestamp' | 'order_number'>) => {
+    if (order.created_at || order.timestamp) return order.created_at || order.timestamp;
     const match = order.order_number?.match(/(\d{4})(\d{2})(\d{2})/);
     return match ? `${match[1]}-${match[2]}-${match[3]}T00:00:00` : '';
   };

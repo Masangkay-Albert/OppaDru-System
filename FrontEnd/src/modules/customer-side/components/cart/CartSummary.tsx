@@ -1,7 +1,6 @@
 // src/modules/customer-side/components/cart/CartSummary.tsx
 import React from 'react';
-import { formatCurrency } from '../../../../utils/formatters'; 
-import { useSettings } from '../../../../contexts/SettingsContext';
+import { formatCurrency } from '../../../../utils/formatters';
 
 interface CartSummaryProps {
   subtotal: number;
@@ -11,10 +10,6 @@ interface CartSummaryProps {
 }
 
 const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutlery, onCutleryChange }) => {
-  const { pricing } = useSettings();
-  const vat = subtotal * pricing.vat_rate;
-  const total = Math.round((subtotal + vat) * 100) / 100;
-
   return (
     <div className="border-t border-gray-200 bg-white rounded-b-xl">
       <div className="px-5 py-3 space-y-2 text-sm">
@@ -23,7 +18,7 @@ const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutler
           <span className="text-gray-800 font-medium">{hasItems ? formatCurrency(subtotal) : '—'}</span>
         </div>
       </div>
-      
+
       <div className="px-5 py-3 border-t border-gray-100">
         <label className="flex items-center justify-between cursor-pointer">
           <div className="flex items-center gap-2">
@@ -45,16 +40,6 @@ const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutler
         {!useCutlery && (
           <p className="text-xs text-gray-400 mt-2">No cutlery provided. Thanks for reducing waste!</p>
         )}
-      </div>
-
-      <div className="px-5 py-3 border-t border-gray-200 bg-white">
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-500">Total</span>
-          <span className={`text-xl font-bold ${hasItems ? 'text-[#2d6a4f]' : 'text-gray-400'}`}>
-            {hasItems ? formatCurrency(total) : '—'}
-          </span>
-        </div>
-        <p className="text-xs text-gray-400 text-right mt-0.5">(incl. fees and tax)</p>
       </div>
     </div>
   );

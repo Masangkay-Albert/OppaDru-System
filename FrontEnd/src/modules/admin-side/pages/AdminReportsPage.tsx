@@ -181,6 +181,12 @@ const AdminReportsPage: React.FC = () => {
     [orders, filters]
   );
 
+  const isCancelledOrder = (order: AdminOrder) => String(order.status || '').trim().toLowerCase() === 'cancelled';
+  const salesOrders = useMemo(
+    () => filteredOrders.filter((order) => !isCancelledOrder(order)),
+    [filteredOrders]
+  );
+
   const timelineRange: ReportRange = filters.date !== '' || filters.day !== ALL_FILTER
     ? 'daily'
     : filters.week !== ALL_FILTER
@@ -192,22 +198,22 @@ const AdminReportsPage: React.FC = () => {
   const years = useMemo(() => [...new Set(orders.map((order) => getOrderDate(order)?.getFullYear()).filter(Boolean))].sort((a, b) => Number(b) - Number(a)), [orders]);
 
   const metrics = useMemo(() => {
-    const onlineOrders = filteredOrders.filter((order) => order.channel === 'online');
-    const onsiteOrders = filteredOrders.filter((order) => order.channel === 'onsite');
+    const onlineOrders = salesOrders.filter((order) => order.channel === 'online');
+    const onsiteOrders = salesOrders.filter((order) => order.channel === 'onsite');
     return {
-      totalSales: filteredOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
-      totalOrders: filteredOrders.length,
+      totalSales: salesOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+      totalOrders: salesOrders.length,
       onlineOrders,
       onsiteOrders,
       onlineSales: onlineOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
       onsiteSales: onsiteOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
     };
-  }, [filteredOrders]);
+  }, [salesOrders]);
 
   const topProductsByChannel = useMemo(() => {
     const getTop = (channel: 'online' | 'onsite') => {
       const products = new Map<string, number>();
-      filteredOrders.filter((order) => order.channel === channel).forEach((order) => {
+      salesOrders.filter((order) => order.channel === channel).forEach((order) => {
         order.items?.forEach((item: any) => {
           const name = item.product_name || item.name || 'Unnamed item';
           products.set(name, (products.get(name) || 0) + Number(item.quantity || 0));
@@ -216,9 +222,9 @@ const AdminReportsPage: React.FC = () => {
       return [...products.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
     };
     return { online: getTop('online'), onsite: getTop('onsite') };
-  }, [filteredOrders]);
+  }, [salesOrders]);
 
-  const trendBuckets = useMemo(() => getTrendBuckets(filteredOrders, timelineRange, filters), [filteredOrders, timelineRange, filters]);
+  const trendBuckets = useMemo(() => getTrendBuckets(salesOrders, timelineRange, filters), [salesOrders, timelineRange, filters]);
   const weekDateRange = getWeekDateRange(filters);
   const weekOptions = Array.from({ length: getWeekCount(filters) }, (_, index) => {
     const week = index + 1;
@@ -314,7 +320,7 @@ const AdminReportsPage: React.FC = () => {
   const handleExportCSV = () => {
     const rows = [
       ['Order ID', 'Customer', 'Channel', 'Total', 'Status', 'Date'],
-      ...filteredOrders.map((order) => [
+      ...salesOrders.map((order) => [
         order.order_number || order.id,
         order.customerName || order.email || 'Customer',
         order.channel,

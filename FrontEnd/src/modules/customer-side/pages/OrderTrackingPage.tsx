@@ -241,11 +241,6 @@ const OrderTrackingPage: React.FC = () => {
     }
   };
 
-  const handleEditOrderFromTracking = () => {
-    if (!canManageGracePeriod) return;
-    navigate('/customer/orders', { state: { orderId: order.id } });
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
       <NavbarCustomer />
@@ -285,14 +280,11 @@ const OrderTrackingPage: React.FC = () => {
               <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
                 {canManageGracePeriod ? (
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <span>You have {Math.ceil(graceRemaining)} seconds to edit or cancel your order.</span>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={handleEditOrderFromTracking} className="rounded-lg border border-[#2d6a4f] bg-white px-3 py-1.5 text-xs font-semibold text-[#2d6a4f]">Edit Order</button>
-                      <button type="button" onClick={handleCancelOrderFromTracking} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600">Cancel Order</button>
-                    </div>
+                    <span>You have {Math.ceil(graceRemaining)} seconds to cancel your order.</span>
+                    <button type="button" onClick={handleCancelOrderFromTracking} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600">Cancel Order</button>
                   </div>
                 ) : (
-                  <span>Your order has been finalized. Cancellation and editing are no longer available.</span>
+                  <span>Order can no longer be cancelled.</span>
                 )}
               </div>
             );
