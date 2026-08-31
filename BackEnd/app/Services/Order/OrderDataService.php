@@ -36,7 +36,9 @@ class OrderDataService
             'status' => $order->status,
             'payment_method' => $order->payment_method,
             'delivery_address' => $order->delivery_address,
-            'delivery_coordinates' => $order->delivery_coordinates,
+            'delivery_coordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)
+                ? ['lat' => (float) $order->delivery_lat, 'lng' => (float) $order->delivery_lng]
+                : null,
             'phone' => $order->phone,
             'items' => $order->items,
             'order_items' => $order->orderItems,

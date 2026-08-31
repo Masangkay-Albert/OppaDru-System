@@ -140,6 +140,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           timestamp: orderCreatedAt,
           graceStartedAt: graceStartedAtNumber,
           deliveryAddress: apiOrder.delivery_address,
+          deliveryAddressCoords: apiOrder.delivery_coordinates || undefined,
+          coords: apiOrder.delivery_coordinates || undefined,
           eta: 35,
           deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
           deliveryFee: derivedDeliveryFee,

@@ -127,6 +127,8 @@ const OrderTrackingPage: React.FC = () => {
             timestamp: orderCreatedAt,
             graceStartedAt: graceStartedAtNumber,
             deliveryAddress: foundOrder.delivery_address,
+            deliveryAddressCoords: foundOrder.delivery_coordinates || undefined,
+            coords: foundOrder.delivery_coordinates || undefined,
             eta: 35,
             deliveryType: (foundOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
             deliveryFee: derivedDeliveryFee,

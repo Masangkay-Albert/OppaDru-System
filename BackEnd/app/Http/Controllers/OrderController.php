@@ -20,7 +20,7 @@ class OrderController extends Controller
     {
         $orders = Order::select([
             'id', 'order_number', 'email', 'user_id', 'total', 'status',
-            'payment_method', 'delivery_address', 'delivery_coordinates', 'phone', 'items', 'created_at',
+            'payment_method', 'delivery_address', 'delivery_lat', 'delivery_lng', 'delivery_coordinates', 'phone', 'items', 'created_at',
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',
             'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
         ])->with(['user:id,full_name', 'orderItems'])
@@ -109,6 +109,8 @@ class OrderController extends Controller
             'total' => $total,
             'delivery_type' => $request->input('delivery_type', 'standard'),
             'delivery_address' => $request->delivery_address,
+            'delivery_lat' => $request->input('delivery_coordinates.lat'),
+            'delivery_lng' => $request->input('delivery_coordinates.lng'),
             'delivery_coordinates' => $request->input('delivery_coordinates'),
             'delivery_fee' => $pricing['deliveryFee'],
             'delivery_distance_km' => $pricing['deliveryDistanceKm'],
