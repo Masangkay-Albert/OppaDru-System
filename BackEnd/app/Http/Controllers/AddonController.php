@@ -5,16 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Addon;
 use App\Models\AddonGroup;
 use App\Models\Product;
+use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class AddonController extends Controller
 {
-    private function checkAdminAuth(Request $request): bool
-    {
-        $token = $request->bearerToken();
-        return $token && \App\Models\Admin::where('api_token', hash('sha256', $token))->exists();
-    }
+    use AdminAuthTrait;
 
     public function index(Request $request)
     {

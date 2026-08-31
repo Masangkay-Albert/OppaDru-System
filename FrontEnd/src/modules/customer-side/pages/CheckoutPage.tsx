@@ -16,16 +16,7 @@ import { cleanAddress } from '../../../utils/locationUtils';
 import { useCartCalculations } from '../../../hooks/useCartCalculations';
 import { useSettings } from '../../../contexts/SettingsContext';
 import { getAvailableDates, generateTimeSlots } from '../../../services/checkoutService';
-
-interface PaymentResult {
-  success: boolean;
-  transactionId?: string;
-  referenceNumber?: string;
-  message: string;
-  timestamp: string;
-  paymentMethod: 'gcash' | 'credit_card' | 'cash_on_delivery';
-  amount: number;
-}
+import type { PaymentResult } from '../components/checkout/paymentTypes';
 
 const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();

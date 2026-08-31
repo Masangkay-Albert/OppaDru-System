@@ -4,14 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Admin;
 use App\Models\TargetProfitSale;
+use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class TargetProfitSaleController extends Controller
 {
+    use AdminAuthTrait;
+
     public function show(Request $request)
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
@@ -22,7 +25,7 @@ class TargetProfitSaleController extends Controller
 
     public function update(Request $request)
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
@@ -44,17 +47,11 @@ class TargetProfitSaleController extends Controller
 
     public function destroy(Request $request)
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
         TargetProfitSale::where('singleton_key', 'default')->delete();
         return response()->json(['data' => null]);
-    }
-
-    private function isAdmin(Request $request): bool
-    {
-        $token = $request->bearerToken();
-        return (bool) ($token && Admin::where('api_token', hash('sha256', $token))->exists());
     }
 }

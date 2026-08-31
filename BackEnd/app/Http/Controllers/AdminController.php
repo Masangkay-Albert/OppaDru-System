@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Admin;
+use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -10,11 +11,11 @@ use Illuminate\Support\Str;
 
 class AdminController extends Controller
 {
+    use AdminAuthTrait;
+
     public function index(Request $request)
     {
-        // simple token check: require Authorization: Bearer <token>
-        $auth = $request->bearerToken();
-        if (!$auth || !Admin::where('api_token', hash('sha256', $auth))->first()) {
+        if (!$this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
@@ -48,8 +49,7 @@ class AdminController extends Controller
 
     public function count(Request $request)
     {
-        $auth = $request->bearerToken();
-        if (!$auth || !Admin::where('api_token', hash('sha256', $auth))->first()) {
+        if (!$this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 

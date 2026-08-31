@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { 
   FaCreditCard, 
-  FaCheckCircle, 
-  FaTimesCircle, 
   FaLock, 
   FaCcVisa, 
   FaCcMastercard, 
@@ -17,16 +15,9 @@ import { IoClose } from 'react-icons/io5';
 import { HiOutlineCreditCard } from 'react-icons/hi';
 import { usePayment } from '../../../../hooks/usePayment';
 import type { CartItem } from '../../../../types/product.types';
-
-interface PaymentResult {
-  success: boolean;
-  transactionId?: string;
-  referenceNumber?: string;
-  message: string;
-  timestamp: string;
-  paymentMethod: 'gcash' | 'credit_card' | 'cash_on_delivery';
-  amount: number;
-}
+import type { PaymentResult } from './paymentTypes';
+import { CardField } from './CardField';
+import { PaymentStatusDialog } from './PaymentStatusDialog';
 
 interface CreditCardPaymentModalProps {
   isOpen: boolean;
@@ -147,43 +138,16 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
 
   if (result) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl animate-scaleIn">
-          <div className={`w-20 h-20 rounded-full mx-auto flex items-center justify-center ${result.success ? 'bg-green-100' : 'bg-red-100'}`}>
-            {result.success ? (
-              <FaCheckCircle className="text-5xl text-green-500" />
-            ) : (
-              <FaTimesCircle className="text-5xl text-red-500" />
-            )}
-          </div>
-          <h3 className={`text-xl font-bold mt-4 ${result.success ? 'text-green-600' : 'text-red-600'}`}>
-            {result.success ? 'Payment Successful!' : 'Payment Failed'}
-          </h3>
-          <p className="text-gray-600 mt-2">{result.message}</p>
-          {result.referenceNumber && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Reference Number</p>
-              <p className="font-mono font-bold text-[#2d6a4f] mt-1 text-lg">{result.referenceNumber}</p>
-            </div>
-          )}
-          <button
-            onClick={() => {
-              if (result.success) {
-                handleClose();
-              } else {
-                reset();
-              }
-            }}
-            className={`mt-6 w-full py-3 rounded-xl font-semibold transition ${
-              result.success
-                ? 'bg-[#2d6a4f] text-white hover:bg-[#1b4332]'
-                : 'bg-[#e76f51] text-white hover:bg-[#d45b3d]'
-            }`}
-          >
-            {result.success ? 'Continue' : 'Try Again'}
-          </button>
-        </div>
-      </div>
+      <PaymentStatusDialog
+        result={result}
+        onPrimaryAction={() => {
+          if (result.success) {
+            handleClose();
+          } else {
+            reset();
+          }
+        }}
+      />
     );
   }
 
@@ -249,46 +213,29 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
 
           {/* Form Fields */}
           <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Card Number</label>
-              <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  <FaCreditCard size={16} />
-                </div>
-                <input
-                  type="text"
-                  value={form.cardNumber}
-                  onChange={(e) => handleChange('cardNumber', e.target.value)}
-                  placeholder="1234 5678 9012 3456"
-                  className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-lg tracking-wider ${
-                    isFocused === 'cardNumber' ? 'border-[#2d6a4f] ring-2 ring-[#2d6a4f]/20' : 'border-gray-200'
-                  }`}
-                  maxLength={19}
-                  onFocus={() => setIsFocused('cardNumber')}
-                  onBlur={() => setIsFocused(null)}
-                />
-              </div>
-            </div>
+            <CardField
+              label="Card Number"
+              value={form.cardNumber}
+              placeholder="1234 5678 9012 3456"
+              icon={<FaCreditCard size={16} />}
+              onChange={(value) => handleChange('cardNumber', value)}
+              maxLength={19}
+              isFocused={isFocused === 'cardNumber'}
+              onFocus={() => setIsFocused('cardNumber')}
+              onBlur={() => setIsFocused(null)}
+            />
 
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Card Holder Name</label>
-              <div className="relative">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  <FaUser size={16} />
-                </div>
-                <input
-                  type="text"
-                  value={form.cardHolderName}
-                  onChange={(e) => handleChange('cardHolderName', e.target.value.toUpperCase())}
-                  placeholder="JOHN DOE"
-                  className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition uppercase ${
-                    isFocused === 'cardHolderName' ? 'border-[#2d6a4f] ring-2 ring-[#2d6a4f]/20' : 'border-gray-200'
-                  }`}
-                  onFocus={() => setIsFocused('cardHolderName')}
-                  onBlur={() => setIsFocused(null)}
-                />
-              </div>
-            </div>
+            <CardField
+              label="Card Holder Name"
+              value={form.cardHolderName}
+              placeholder="JOHN DOE"
+              icon={<FaUser size={16} />}
+              uppercase
+              onChange={(value) => handleChange('cardHolderName', value.toUpperCase())}
+              isFocused={isFocused === 'cardHolderName'}
+              onFocus={() => setIsFocused('cardHolderName')}
+              onBlur={() => setIsFocused(null)}
+            />
 
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">

@@ -9,6 +9,7 @@ import { ORDER_STATUS, STATUS_COLORS, STATUS_MESSAGES } from '../../../utils/con
 import { orderService } from '../../../services/orderService';
 import { OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
 import type { Order } from '../../../contexts/OrderContext';
+import { getOrderCreatedAtMs, normalizeOrderStatus } from '../../../utils/orderManagement';
 
 import RouteLayer from '../components/tracking/RouteLayer';
 import DriverMarker from '../components/tracking/DriverMarker';
@@ -39,17 +40,8 @@ const OrderTrackingPage: React.FC = () => {
   const [simulatedProgress, setSimulatedProgress] = useState(0); 
   const [isSimulating, setIsSimulating] = useState(false);
 
-  const getOrderCreatedAtMs = (targetOrder: Order | null) => {
-    if (!targetOrder) return Date.now();
-    const explicitStartedAt = (targetOrder as any).graceStartedAt;
-    if (Number.isFinite(explicitStartedAt) && explicitStartedAt > 0) return explicitStartedAt;
-    const rawTimestamp = (targetOrder as any).timestamp ?? (targetOrder as any).created_at ?? new Date().toISOString();
-    const parsed = new Date(rawTimestamp).getTime();
-    return Number.isFinite(parsed) ? parsed : Date.now();
-  };
-
   const getGraceRemainingSeconds = (targetOrder: Order | null) => {
-    if (!targetOrder || (targetOrder.status ?? '').toString().trim().toLowerCase() !== ORDER_STATUS.PENDING) return 0;
+    if (!targetOrder || normalizeOrderStatus(targetOrder.status) !== ORDER_STATUS.PENDING) return 0;
 
     const fallbackStartedAt = getOrderCreatedAtMs(targetOrder) || Date.now();
     const startedAt = graceStartedAt ?? fallbackStartedAt;
@@ -63,7 +55,7 @@ const OrderTrackingPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!order || (order.status ?? '').toString().trim().toLowerCase() !== ORDER_STATUS.PENDING) {
+    if (!order || normalizeOrderStatus(order.status) !== ORDER_STATUS.PENDING) {
       setGraceStartedAt(null);
       return;
     }

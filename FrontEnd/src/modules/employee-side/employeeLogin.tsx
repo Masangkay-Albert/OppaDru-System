@@ -1,8 +1,8 @@
-// src/pages/StaffLoginPage.tsx (You can rename this file to reflect the unified login)
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users } from "lucide-react"; // Changed icon to represent all staff
-import { employeeAuth } from "../../services/employeeAuth"; // Unified service for both kitchen staff and cashiers
+import { Users } from "lucide-react";
+import { employeeAuth } from "../../services/employeeAuth"; 
 
 const EmployeeLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -20,11 +20,9 @@ const EmployeeLoginPage: React.FC = () => {
       const result = await employeeAuth.login(email, password);
 
       if (result.success && result.position) {
-        // Route them based on their exact database position
         if (result.position === 'kitchen staff') {
           navigate("/kitchen/dashboard");
         } else if (result.position === 'cashier') {
-          // Placeholder navigation for the cashier/employee since the dashboard doesn't exist yet
           navigate("/cashier"); 
         } else {
           setError(`Position "${result.position}" is not recognized.`);

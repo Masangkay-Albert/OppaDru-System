@@ -26,13 +26,11 @@ class EmployeeAuthController extends Controller
         if (!$employee || !Hash::check($request->password, $employee->password)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
-
-        // Generate and save the manual token
+    
         $token = Str::random(60);
         $employee->api_token = hash('sha256', $token);
         $employee->save();
 
-        // Hide sensitive data before sending to React
         $safe = $employee->makeHidden(['password', 'api_token']);
 
         return response()->json([

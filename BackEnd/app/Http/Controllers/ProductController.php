@@ -4,31 +4,35 @@ namespace App\Http\Controllers;
 
 use App\Models\Admin;
 use App\Models\Product;
+use App\Services\ProductImageUploadService;
+use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
-    private function checkAdminAuth(Request $request)
+    use AdminAuthTrait;
+
+    public function __construct(private readonly ProductImageUploadService $imageUploadService)
     {
-        $token = $request->bearerToken();
+    }
 
-        if (!$token) {
-            return false;
-        }
+    private function normalizeProductImage(?string $imageValue): string
+    {
+        $image = trim((string) ($imageValue ?? ''));
+        return $image !== '' ? $image : '/oppadrulogo.jpg';
+    }
 
-        return Admin::where('api_token', hash('sha256', $token))->exists();
+    private function productQuery()
+    {
+        return Product::orderBy('category', 'asc')->orderBy('name', 'asc');
     }
 
     public function index()
     {
         try {
-            $products = Product::orderBy('category', 'asc')
-                ->orderBy('name', 'asc')
-                ->get();
-            return response()->json($products);
+            return response()->json($this->productQuery()->get());
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
@@ -49,49 +53,7 @@ class ProductController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $products = Product::orderBy('category', 'asc')
-            ->orderBy('name', 'asc')
-            ->get();
-
-        return response()->json(['data' => $products]);
-    }
-
-    private function getSupabaseStorageKey(): ?string
-    {
-        foreach (['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE', 'SUPABASE_KEY', 'SUPABASE_ANON_KEY'] as $envKey) {
-            $value = env($envKey);
-            if (!empty($value)) {
-                return (string) $value;
-            }
-        }
-
-        return null;
-    }
-
-    private function ensureBucketExists(string $supabaseUrl, string $supabaseKey, string $bucketName): bool
-    {
-        $bucketCheck = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $supabaseKey,
-            'Content-Type' => 'application/json',
-        ])->withOptions([
-            'verify' => false,
-        ])->get($supabaseUrl . '/storage/v1/bucket/' . rawurlencode($bucketName));
-
-        if ($bucketCheck->successful()) {
-            return true;
-        }
-
-        $create = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $supabaseKey,
-            'Content-Type' => 'application/json',
-        ])->withOptions([
-            'verify' => false,
-        ])->post($supabaseUrl . '/storage/v1/bucket', [
-            'name' => $bucketName,
-            'public' => true,
-        ]);
-
-        return $create->successful();
+        return response()->json(['data' => $this->productQuery()->get()]);
     }
 
     public function uploadImage(Request $request)
@@ -115,104 +77,15 @@ class ProductController extends Controller
                 return response()->json(['error' => 'Invalid image upload'], 400);
             }
 
-            $folder = trim((string) $request->input('folder', 'products'), '/');
-            $folder = $folder !== '' ? $folder : 'products';
-            $fileName = time() . '-' . Str::random(10) . '.' . $file->getClientOriginalExtension();
-            $filePath = $folder . '/' . $fileName;
-
-            $supabaseUrl = env('SUPABASE_URL');
-            $supabaseKey = $this->getSupabaseStorageKey();
-
-            if (!$supabaseUrl || !$supabaseKey) {
-                $base64 = base64_encode(file_get_contents($file->getRealPath()));
-                $mimeType = $file->getMimeType();
-                $dataUrl = 'data:' . $mimeType . ';base64,' . $base64;
-                
-                return response()->json([
-                    'success' => true,
-                    'url' => $dataUrl,
-                    'path' => $filePath,
-                ]);
-            }
-
-            $bucketReady = $this->ensureBucketExists($supabaseUrl, $supabaseKey, $folder);
-            if (!$bucketReady) {
-                $base64 = base64_encode(file_get_contents($file->getRealPath()));
-                $mimeType = $file->getMimeType();
-                $dataUrl = 'data:' . $mimeType . ';base64,' . $base64;
-                
-                return response()->json([
-                    'success' => true,
-                    'url' => $dataUrl,
-                    'path' => $filePath,
-                ]);
-            }
-
-            $content = file_get_contents($file->getRealPath());
-            if ($content === false) {
-                return response()->json(['error' => 'Could not read uploaded file'], 500);
-            }
-
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $supabaseKey,
-                'Content-Type' => $file->getMimeType(),
-                'x-upsert' => 'true',
-            ])->withOptions([
-                'verify' => false,
-            ])->withBody($content, $file->getMimeType())
-                ->put($supabaseUrl . '/storage/v1/object/' . rawurlencode($folder) . '/' . rawurlencode($fileName));
-
-            if (!$response->successful()) {
-                $base64 = base64_encode($content);
-                $mimeType = $file->getMimeType();
-                $dataUrl = 'data:' . $mimeType . ';base64,' . $base64;
-                
-                return response()->json([
-                    'success' => true,
-                    'url' => $dataUrl,
-                    'path' => $filePath,
-                ]);
-            }
-
-            $publicUrl = rtrim($supabaseUrl, '/') . '/storage/v1/object/public/' . $folder . '/' . $fileName;
-
-            return response()->json([
-                'success' => true,
-                'url' => $publicUrl,
-                'path' => $filePath,
-            ]);
+            $result = $this->imageUploadService->uploadFromRequest($file, (string) $request->input('folder', 'products'));
+            return response()->json($result);
         } catch (\Exception $e) {
-            try {
-                $file = $request->file('image');
-                if ($file && $file->isValid()) {
-                    $base64 = base64_encode(file_get_contents($file->getRealPath()));
-                    $mimeType = $file->getMimeType();
-                    $dataUrl = 'data:' . $mimeType . ';base64,' . $base64;
-                    
-                    return response()->json([
-                        'success' => true,
-                        'url' => $dataUrl,
-                        'path' => $filePath ?? null,
-                    ]);
-                }
-            } catch (\Exception $inner) {
-                // Fall through
-            }
-            
             return response()->json([
                 'success' => true,
                 'url' => '/oppadrulogo.jpg',
-                'path' => $filePath ?? null,
                 'warning' => 'Image upload failed; default image used.',
             ]);
         }
-    }
-
-    private function normalizeProductImage(?string $imageValue): string
-    {
-        $image = trim((string) ($imageValue ?? ''));
-
-        return $image !== '' ? $image : '/oppadrulogo.jpg';
     }
 
     public function store(Request $request)
@@ -239,7 +112,6 @@ class ProductController extends Controller
 
         $name = trim((string) $request->name);
         $normalizedName = strtolower(preg_replace('/\s+/', ' ', $name));
-
         $product = Product::whereRaw('LOWER(TRIM(name)) = ?', [$normalizedName])->first();
 
         if ($product) {
@@ -249,17 +121,13 @@ class ProductController extends Controller
             $product = Product::create($payload);
         }
 
-        return response()->json([
-            'product' => $product,
-            'message' => 'Product created/updated successfully!',
-        ], 201);
+        return response()->json(['product' => $product, 'message' => 'Product created/updated successfully!'], 201);
     }
 
     public function show($id)
     {
         try {
-            $product = Product::with(['addonGroups.addons'])->findOrFail($id);
-            return response()->json($product);
+            return response()->json(Product::with(['addonGroups.addons'])->findOrFail($id));
         } catch (\Exception $e) {
             return response()->json(['error' => 'Product not found'], 404);
         }
@@ -292,11 +160,7 @@ class ProductController extends Controller
         }
 
         $product->update($payload);
-
-        return response()->json([
-            'product' => $product,
-            'message' => 'Product updated successfully!',
-        ]);
+        return response()->json(['product' => $product, 'message' => 'Product updated successfully!']);
     }
 
     public function destroy(Request $request, $id)
@@ -305,9 +169,7 @@ class ProductController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $product = Product::findOrFail($id);
-        $product->delete();
-
+        Product::findOrFail($id)->delete();
         return response()->json(['message' => 'Product deleted successfully!']);
     }
 
@@ -321,20 +183,13 @@ class ProductController extends Controller
         $product->is_available = !$product->is_available;
         $product->save();
 
-        return response()->json([
-            'product' => $product,
-            'message' => 'Product availability toggled!',
-        ]);
+        return response()->json(['product' => $product, 'message' => 'Product availability toggled!']);
     }
 
     public function getAvailable()
     {
         try {
-            $products = Product::orderBy('category', 'asc')
-                ->orderBy('name', 'asc')
-                ->get();
-
-            return response()->json($products);
+            return response()->json($this->productQuery()->get());
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
@@ -343,10 +198,7 @@ class ProductController extends Controller
     public function getByCategory($category)
     {
         try {
-            $products = Product::where('category', $category)
-                ->orderBy('name', 'asc')
-                ->get();
-            return response()->json($products);
+            return response()->json(Product::where('category', $category)->orderBy('name', 'asc')->get());
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

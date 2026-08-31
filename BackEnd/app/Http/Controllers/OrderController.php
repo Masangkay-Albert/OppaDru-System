@@ -5,16 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\Order\OrderDataService;
+use App\Services\PricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use App\Services\PricingService;
-use App\Models\Product;
-use App\Models\OrderItem;
-use App\Models\OrderItemAddon;
-use App\Models\Addon;
 
 class OrderController extends Controller
 {
+    public function __construct(private readonly OrderDataService $orderDataService)
+    {
+    }
+
     public function index()
     {
         $orders = Order::select([
@@ -29,83 +30,15 @@ class OrderController extends Controller
         })
         ->orderBy('created_at', 'desc')
         ->get();
-        
-        $formattedOrders = $orders->map(function ($order) {
-            return [
-                'id' => $order->id,
-                'order_number' => $order->order_number,
-                'email' => $order->email,
-                'customer_name' => $order->user ? $order->user->full_name : 'Guest',
-                'user_id' => $order->user_id,
-                'total' => $order->total,
-                'status' => $order->status,
-                'payment_method' => $order->payment_method,
-                'delivery_address' => $order->delivery_address,
-                'phone' => $order->phone,
-                'items' => $order->items,
-                'order_items' => $order->orderItems,
-                'delivery_type' => $order->delivery_type ?? ($order->priority_fee > 0 ? 'priority' : 'standard'),
-                'delivery_fee' => $order->delivery_fee,
-                'delivery_distance_km' => $order->delivery_distance_km,
-                'delivery_calculation_method' => $order->delivery_calculation_method,
-                'service_fee' => $order->service_fee,
-                'priority_fee' => $order->priority_fee,
-                'vat' => $order->vat,
-                'service_fee_rule' => $order->service_fee_rule,
-                'scheduled_at' => $order->scheduled_at ? $this->convertToPhilippineTime($order->scheduled_at) : null,
-                'scheduled_date' => $order->scheduled_date,
-                'scheduled_time' => $order->scheduled_time,
-                'schedule_display' => $order->schedule_display,
-                'schedule_window' => $order->schedule_window,
-                'created_at' => $order->created_at ? $order->created_at->toISOString() : null,
-            ];
-        });
 
-        return response()->json($formattedOrders);
-    }
-
-    private function convertToPhilippineTime($timestamp)
-    {
-        if (!$timestamp) return null;
-        $date = new \DateTime($timestamp);
-        $date->setTimezone(new \DateTimeZone('Asia/Manila'));
-        return $date->format('Y-m-d\TH:i:sP');
+        return response()->json($this->orderDataService->formatOrders($orders));
     }
 
     public function show($id)
     {
         $order = Order::with(['user', 'orderItems'])->findOrFail($id);
-        
-        $formattedOrder = [
-            'id' => $order->id,
-            'order_number' => $order->order_number,
-            'email' => $order->email,
-            'customer_name' => $order->user ? $order->user->full_name : 'Guest',
-            'user_id' => $order->user_id,
-            'total' => $order->total,
-            'status' => $order->status,
-            'payment_method' => $order->payment_method,
-            'delivery_address' => $order->delivery_address,
-            'phone' => $order->phone,
-            'items' => $order->items,
-            'order_items' => $order->orderItems,
-            'delivery_type' => $order->delivery_type ?? ($order->priority_fee > 0 ? 'priority' : 'standard'),
-            'delivery_fee' => $order->delivery_fee,
-            'delivery_distance_km' => $order->delivery_distance_km,
-            'delivery_calculation_method' => $order->delivery_calculation_method,
-            'service_fee' => $order->service_fee,
-            'priority_fee' => $order->priority_fee,
-            'vat' => $order->vat,
-            'service_fee_rule' => $order->service_fee_rule,
-                'scheduled_at' => $order->scheduled_at ? $this->convertToPhilippineTime($order->scheduled_at) : null,
-                'scheduled_date' => $order->scheduled_date,
-                'scheduled_time' => $order->scheduled_time,
-                'schedule_display' => $order->schedule_display,
-                'schedule_window' => $order->schedule_window,
-            'created_at' => $order->created_at ? $order->created_at->toISOString() : null,
-        ];
 
-        return response()->json($formattedOrder);
+        return response()->json($this->orderDataService->formatOrder($order));
     }
 
     public function store(Request $request)
@@ -169,31 +102,7 @@ class OrderController extends Controller
             }
         }
 
-        $orderItems = [];
-
-        foreach ($request->items as $item) {
-            $product = Product::find($item['product_id']);
-            $addonIds = collect($item['selected_addons'] ?? [])->pluck('id')->filter();
-            $addons = Addon::whereIn('id', $addonIds)->get()->keyBy('id');
-            $selectedAddons = collect($item['selected_addons'] ?? [])->map(function ($addon) use ($addons) {
-                $storedAddon = $addons->get($addon['id'] ?? null);
-                if (!$storedAddon) return null;
-                return [
-                    'id' => $storedAddon->id,
-                    'name' => $storedAddon->name,
-                    'price' => (float) $storedAddon->price,
-                    'quantity' => max(1, (int) ($addon['quantity'] ?? 1)),
-                ];
-            })->filter()->values()->all();
-            $orderItems[] = [
-                'product_id' => $item['product_id'],
-                'product_name' => $product->name,
-                'product_price' => $product->price,
-                'quantity' => $item['quantity'],
-                'selected_addons' => $selectedAddons,
-                'special_instructions' => $item['special_instructions'] ?? null,
-            ];
-        }
+        $orderItems = $this->orderDataService->buildOrderItems($request->items);
 
         $user = User::where('email', $request->email)->first();
         $userId = $user ? $user->id : null;
@@ -224,26 +133,7 @@ class OrderController extends Controller
             'payment_status' => $payment ? 'paid' : 'pending',
         ]);
 
-        foreach ($orderItems as $item) {
-            $orderItem = OrderItem::create([
-                'order_id' => $order->id,
-                'product_id' => $item['product_id'],
-                'product_name' => $item['product_name'],
-                'product_price' => $item['product_price'],
-                'quantity' => $item['quantity'],
-                'special_instructions' => $item['special_instructions'],
-            ]);
-
-            foreach ($item['selected_addons'] as $addon) {
-                OrderItemAddon::create([
-                    'order_item_id' => $orderItem->id,
-                    'addon_id' => $addon['id'] ?? null,
-                    'addon_name' => $addon['name'] ?? 'Add-on',
-                    'unit_price' => $addon['price'] ?? 0,
-                    'quantity' => $addon['quantity'] ?? 1,
-                ]);
-            }
-        }
+        $this->orderDataService->syncOrderItems($order, $orderItems);
 
         $payment?->update(['order_id' => $order->id]);
         $order->refresh();
@@ -310,28 +200,7 @@ class OrderController extends Controller
         ]);
         $order->save();
 
-        $order->orderItems()->delete();
-
-        foreach ($request->items as $item) {
-            $orderItem = OrderItem::create([
-                'order_id' => $order->id,
-                'product_id' => $item['product_id'],
-                'product_name' => $item['product_name'],
-                'product_price' => $item['product_price'],
-                'quantity' => $item['quantity'],
-                'special_instructions' => $item['special_instructions'] ?? null,
-            ]);
-
-            foreach ($item['selected_addons'] ?? [] as $addon) {
-                OrderItemAddon::create([
-                    'order_item_id' => $orderItem->id,
-                    'addon_id' => $addon['id'] ?? null,
-                    'addon_name' => $addon['name'] ?? 'Add-on',
-                    'unit_price' => $addon['price'] ?? 0,
-                    'quantity' => $addon['quantity'] ?? 1,
-                ]);
-            }
-        }
+        $this->orderDataService->syncOrderItems($order, $request->items);
 
         return response()->json([
             'success' => true,
@@ -376,39 +245,9 @@ class OrderController extends Controller
     public function getUserOrders(Request $request)
     {
         $email = $request->user()->email;
-        $orders = Order::with('orderItems')->where('email', $email)
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($order) {
-                return [
-                    'id' => $order->id,
-                    'order_number' => $order->order_number,
-                    'email' => $order->email,
-                    'total' => $order->total,
-                    'status' => $order->status,
-                    'payment_method' => $order->payment_method,
-                    'delivery_type' => $order->delivery_type ?? ($order->priority_fee > 0 ? 'priority' : 'standard'),
-                    'delivery_address' => $order->delivery_address,
-                    'phone' => $order->phone,
-                    'items' => $order->items,
-                    'scheduled_at' => $order->scheduled_at ? $this->convertToPhilippineTime($order->scheduled_at) : null,
-                    'scheduled_date' => $order->scheduled_date,
-                    'scheduled_time' => $order->scheduled_time,
-                    'schedule_display' => $order->schedule_display,
-                    'schedule_window' => $order->schedule_window,
-                    'order_items' => $order->orderItems,
-                    'delivery_fee' => $order->delivery_fee,
-                    'delivery_distance_km' => $order->delivery_distance_km,
-                    'delivery_calculation_method' => $order->delivery_calculation_method,
-                    'service_fee' => $order->service_fee,
-                    'priority_fee' => $order->priority_fee,
-                    'vat' => $order->vat,
-                    'service_fee_rule' => $order->service_fee_rule,
-                    'created_at' => $order->created_at ? $order->created_at->toISOString() : null,
-                ];
-            });
+        $orders = Order::with('orderItems')->where('email', $email)->orderBy('created_at', 'desc')->get();
 
-        return response()->json($orders);
+        return response()->json($this->orderDataService->formatOrders($orders));
     }
 
     public function getAllCustomers()

@@ -4,11 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Admin;
 use App\Models\SystemSetting;
+use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class SettingController extends Controller
 {
+    use AdminAuthTrait;
+
     public function index()
     {
         return response()->json(['settings' => app(\App\Services\PricingService::class)->settings()]);
@@ -16,8 +19,7 @@ class SettingController extends Controller
 
     public function update(Request $request)
     {
-        $token = $request->bearerToken();
-        if (!$token || !Admin::where('api_token', hash('sha256', $token))->exists()) return response()->json(['message' => 'Unauthorized'], 401);
+        if (!$this->checkAdminAuth($request)) return response()->json(['message' => 'Unauthorized'], 401);
         $validator = Validator::make($request->all(), [
             'delivery_base_fee' => 'sometimes|numeric|min:0',
             'delivery_base_distance_km' => 'sometimes|numeric|min:0',

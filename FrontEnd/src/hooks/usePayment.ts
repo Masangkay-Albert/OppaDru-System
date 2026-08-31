@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { paymentService, type PaymentResult, type OTPRequestResult } from '../services/paymentService';
+import { paymentService, type OTPRequestResult } from '../services/paymentService';
+import type { PaymentResult } from '../modules/customer-side/components/checkout/paymentTypes';
 import { useToast } from '../modules/customer-side/components/ToastProvider';
 
 export const usePayment = () => {

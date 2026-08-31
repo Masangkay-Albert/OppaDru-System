@@ -1,15 +1,7 @@
-const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
 import { formatCurrency } from '../utils/formatters';
+import type { PaymentResult } from '../modules/customer-side/components/checkout/paymentTypes';
 
-export interface PaymentResult {
-  success: boolean;
-  transactionId?: string;
-  referenceNumber?: string;
-  message: string;
-  timestamp: string;
-  paymentMethod: 'gcash' | 'credit_card' | 'cash_on_delivery';
-  amount: number;
-}
+const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
 
 export interface OTPRequestResult {
   success: boolean;
