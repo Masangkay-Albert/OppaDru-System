@@ -48,6 +48,30 @@ class AdminAuthLoginTest extends TestCase
         $this->assertDatabaseMissing('addon_groups', ['id' => $group->id]);
     }
 
+    public function test_admin_can_delete_a_customer_account(): void
+    {
+        $login = $this->postJson('/api/admin/login', [
+            'email' => 'admin@oppadru.com',
+            'password' => 'Admin@123',
+        ]);
+
+        $token = $login->json('token');
+
+        $user = \App\Models\User::create([
+            'full_name' => 'Delete Me Customer',
+            'email' => 'delete.me.customer@example.com',
+            'phone' => '09171234567',
+            'password' => bcrypt('Password123'),
+        ]);
+
+        $response = $this->deleteJson('/api/admin/customers/' . $user->id, [], [
+            'Authorization' => 'Bearer ' . $token,
+        ]);
+
+        $response->assertOk();
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
+    }
+
     public function test_admin_can_create_addon_with_long_image_url(): void
     {
         $login = $this->postJson('/api/admin/login', [

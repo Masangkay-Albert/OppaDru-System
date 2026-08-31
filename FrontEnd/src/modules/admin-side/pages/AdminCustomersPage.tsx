@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Trash2, KeyRound, Users, ShoppingBag } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import AccountModal from '../components/AccountModal';
-import { getAccountsByRole, resetAccountPassword, deleteAccount, type StoredAccount } from '../../../services/adminAuthService';
+import { getAccountsByRole, resetAccountPassword, deleteAccount, fetchWithAdminAuth, type StoredAccount } from '../../../services/adminAuthService';
 import { getAllCustomers } from '../../../services/adminOrderService';
+import { API_URL } from '../../../services/apiConfig';
 import { formatCurrency } from '../../../utils/formatters';
 
 const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap';
@@ -71,8 +72,20 @@ const AdminCustomersPage: React.FC = () => {
     if (!deleteTarget) return;
 
     try {
-      await deleteAccount(deleteTarget.id);
+      const response = await fetchWithAdminAuth(`${API_URL}/admin/customers/${deleteTarget.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.message || 'Failed to delete customer');
+      }
+
+      deleteAccount(deleteTarget.id);
       await refresh();
+    } catch (error) {
+      console.error('Delete customer error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete customer');
     } finally {
       setDeleteTarget(null);
     }

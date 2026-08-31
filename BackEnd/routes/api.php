@@ -106,6 +106,7 @@ Route::prefix('admin')->group(function () {
     Route::post('/register', [AdminController::class, 'store']);
     Route::post('/login', [AdminAuthController::class, 'login']);
     Route::post('/logout', [AdminAuthController::class, 'logout']);
+    Route::delete('/customers/{id}', [AdminController::class, 'destroyCustomer']);
     Route::get('/list', [AdminController::class, 'index']);
     Route::get('/count', [AdminController::class, 'count']);
     Route::get('/target-profit-sales', [TargetProfitSaleController::class, 'show']);

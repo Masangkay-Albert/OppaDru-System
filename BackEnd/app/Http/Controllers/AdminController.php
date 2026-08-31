@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Admin;
+use App\Models\Order;
+use App\Models\User;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -55,5 +57,23 @@ class AdminController extends Controller
 
         $count = Admin::count();
         return response()->json(['count' => $count]);
+    }
+
+    public function destroyCustomer(Request $request, string $id)
+    {
+        if (!$this->checkAdminAuth($request)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $user = User::find($id);
+
+        if (!$user) {
+            return response()->json(['message' => 'Customer not found'], 404);
+        }
+
+        Order::where('user_id', $user->id)->update(['user_id' => null]);
+        $user->delete();
+
+        return response()->json(['message' => 'Customer deleted successfully']);
     }
 }
