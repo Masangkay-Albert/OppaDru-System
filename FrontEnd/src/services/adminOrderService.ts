@@ -51,6 +51,8 @@ export type AdminOrder = Omit<Order, 'timestamp'> & {
   channel: OrderChannel;
   customerName?: string;
   customer_name?: string;
+  payment_method?: string;
+  paymentMethod?: string;
   served?: boolean;
   order_number?: string;
   created_at?: string;
@@ -133,29 +135,45 @@ export const getAllOrders = async (): Promise<AdminOrder[]> => {
     const apiOrders = await response.json();
     const safeApiOrders = Array.isArray(apiOrders) ? apiOrders : [];
     
-    const onlineOrders: AdminOrder[] = safeApiOrders.map((order: any) => ({
-      ...order,
-      channel: order.channel === 'onsite' ? 'onsite' : 'online',
-      served: order.status === 'delivered',
-      customer_name: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
-      customerName: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
-      total: Number.isFinite(Number(order.total)) ? Number(order.total) : 0,
-      items: Array.isArray(order.items) ? order.items.map((item: any) => ({
-        ...item,
-        product_price: Number.isFinite(Number(item.product_price)) ? Number(item.product_price) : 0,
-        quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 0,
-      })) : [],
-      deliveryAddress: order.delivery_address || 'Onsite / Walk-in',
-      created_at: order.created_at || order.timestamp || null,
-      timestamp: order.timestamp || order.created_at || null,
-    }));
+    const onlineOrders: AdminOrder[] = safeApiOrders.map((order: any) => {
+      const paymentMethodValue = order.payment_method || order.paymentMethod || 'cash_on_delivery';
+
+      return {
+        ...order,
+        channel: order.channel === 'onsite' ? 'onsite' : 'online',
+        served: order.status === 'delivered',
+        customer_name: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
+        customerName: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
+        payment_method: paymentMethodValue,
+        paymentMethod: paymentMethodValue,
+        total: Number.isFinite(Number(order.total)) ? Number(order.total) : 0,
+        items: Array.isArray(order.items) ? order.items.map((item: any) => ({
+          ...item,
+          product_price: Number.isFinite(Number(item.product_price)) ? Number(item.product_price) : 0,
+          quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 0,
+        })) : [],
+        deliveryAddress: order.delivery_address || 'Onsite / Walk-in',
+        created_at: order.created_at || order.timestamp || null,
+        timestamp: order.timestamp || order.created_at || null,
+      };
+    });
+
+    const getSortTimestamp = (order: { created_at?: string | null; timestamp?: string | null }) => {
+      const value = order.created_at || order.timestamp || '1970-01-01T00:00:00.000Z';
+      return new Date(value).getTime();
+    };
 
     return [...onlineOrders, ...getOnsiteOrders()].sort(
-      (a, b) => new Date(b.created_at || b.timestamp).getTime() - new Date(a.created_at || a.timestamp).getTime()
+      (a, b) => getSortTimestamp(b) - getSortTimestamp(a)
     );
     } catch {
+    const getSortTimestamp = (order: { created_at?: string | null; timestamp?: string | null }) => {
+      const value = order.created_at || order.timestamp || '1970-01-01T00:00:00.000Z';
+      return new Date(value).getTime();
+    };
+
     return [...getOnlineOrders(), ...getOnsiteOrders()].sort(
-      (a, b) => new Date(b.created_at || b.timestamp).getTime() - new Date(a.created_at || a.timestamp).getTime()
+      (a, b) => getSortTimestamp(b) - getSortTimestamp(a)
     );
    }
   })();

@@ -95,6 +95,27 @@ const AdminOrdersPage: React.FC = () => {
     return match ? `${match[1]}-${match[2]}-${match[3]}T00:00:00` : '';
   };
 
+  const formatPaymentMethod = (value?: string) => {
+    const normalized = (value || 'cash_on_delivery').toLowerCase().replace(/\s+/g, '_');
+
+    switch (normalized) {
+      case 'cash_on_delivery':
+      case 'cash':
+        return 'Cash on Delivery';
+      case 'gcash':
+        return 'GCash';
+      case 'credit_card':
+      case 'credit-card':
+        return 'Credit Card';
+      default:
+        return normalized
+          .split('_')
+          .filter(Boolean)
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(' ');
+    }
+  };
+
   const formatDate = (date: string) => {
     if (!date) return 'N/A';
     const d = new Date(date);
@@ -297,7 +318,9 @@ const AdminOrdersPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-xs text-[var(--oppa-text-muted)]">Payment Method</p>
-                  <p className="font-medium capitalize">{selectedOrder.paymentMethod || 'Cash'}</p>
+                  <p className="font-medium">
+                    {formatPaymentMethod(selectedOrder.paymentMethod || selectedOrder.payment_method)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-[var(--oppa-text-muted)]">Status</p>
