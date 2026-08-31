@@ -16,6 +16,14 @@ type AddonDraft = {
   imageFile?: File | null;
 };
 
+const createEmptyAddonDraft = (): AddonDraft => ({
+  name: '',
+  price: '',
+  image: '',
+  preview: '',
+  imageFile: undefined,
+});
+
 const editableCategories = categories.filter((category) => category.id !== 'all');
 
 const AdminAddonsPage: React.FC = () => {
@@ -44,9 +52,17 @@ const AdminAddonsPage: React.FC = () => {
   };
 
   const addAddon = async (groupId: number) => {
-    const draft = newAddon[groupId];
-    if (!draft?.name?.trim()) {
+    const draft = newAddon[groupId] ?? createEmptyAddonDraft();
+    const normalizedName = draft.name?.trim() ?? '';
+    const parsedPrice = draft.price === '' ? Number.NaN : Number.parseFloat(String(draft.price));
+
+    if (!normalizedName) {
       setMessage('Enter an add-on name first.');
+      return;
+    }
+
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      setMessage('Enter a valid add-on price.');
       return;
     }
 
@@ -55,12 +71,12 @@ const AdminAddonsPage: React.FC = () => {
       if (draft.imageFile) imageUrl = await productService.uploadImage(draft.imageFile, 'addons');
 
       await productService.createAddon(groupId, {
-        name: draft.name.trim(),
-        price: Number(draft.price) || 0,
+        name: normalizedName,
+        price: parsedPrice,
         image: imageUrl || undefined,
       });
 
-      setNewAddon((current) => ({ ...current, [groupId]: { name: '', price: '', image: '', preview: '', imageFile: undefined } }));
+      setNewAddon((current) => ({ ...current, [groupId]: createEmptyAddonDraft() }));
       setMessage('Add-on added successfully.');
       await refresh();
     } catch (error) {
@@ -163,18 +179,63 @@ const AdminAddonsPage: React.FC = () => {
           </label>
           <button onClick={() => saveAddon(Number(addon.id))} className="text-xs font-medium text-[var(--oppa-green)]">Save</button>
         </> : <><img src={getAddonImage(addon.image)} alt={addon.name} onError={(event) => { event.currentTarget.src = DEFAULT_ADDON_IMAGE; }} className="h-10 w-10 shrink-0 rounded-lg object-cover" /><span className="min-w-0 flex-1 truncate">{addon.name}</span><span className="shrink-0 font-medium">₱{Number(addon.price).toFixed(2)}</span><button onClick={() => setEditingAddon({ ...editingAddon, [Number(addon.id)]: { name: addon.name, price: String(addon.price), image: addon.image || '', preview: addon.image || '' } })} className="shrink-0 text-xs text-[var(--oppa-green)]">Edit</button><button onClick={() => toggleAddonAvailability(Number(addon.id), isActive)} className="shrink-0 text-xs text-[var(--oppa-green)]">{isActive ? 'Available' : 'Not available'}</button><button onClick={() => deleteAddon(Number(addon.id), addon.name)} aria-label={`Delete ${addon.name}`} title="Delete add-on" className="shrink-0 text-red-600"><Trash2 size={15} /></button></>}</div>; })}</div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_7rem_auto_auto]"><div className="flex min-w-0 items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2"><img src={getAddonImage(newAddon[group.id]?.preview || newAddon[group.id]?.image)} alt="Add-on preview" onError={(event) => { event.currentTarget.src = DEFAULT_ADDON_IMAGE; }} className="h-10 w-10 shrink-0 rounded-lg object-cover" /><input value={newAddon[group.id]?.name || ''} onChange={(event) => setNewAddon({ ...newAddon, [group.id]: { ...(newAddon[group.id] || { price: '', image: '', preview: '', imageFile: undefined }), name: event.target.value } })} placeholder="New add-on" className="min-w-0 flex-1 border-0 bg-transparent text-sm focus:outline-none" /></div><input type="number" min="0" value={newAddon[group.id]?.price || ''} onChange={(event) => setNewAddon({ ...newAddon, [group.id]: { ...(newAddon[group.id] || { name: '', image: '', preview: '', imageFile: undefined }), price: event.target.value } })} placeholder="Price" className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" /><label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] px-3 text-sm font-medium text-[var(--oppa-green)]"><ImagePlus size={16} /> Upload<input type="file" accept="image/*" className="hidden" onChange={(event) => {
-              const file = event.target.files?.[0] ?? null;
-              if (!file) return;
-              const reader = new FileReader();
-              reader.onload = () => {
-                setNewAddon((current) => ({
+        <div className="mt-4 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/40 p-3">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(110px,0.7fr)_auto_auto]">
+            <div className="flex min-w-0 items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2">
+              <img src={getAddonImage(newAddon[group.id]?.preview || newAddon[group.id]?.image)} alt="Add-on preview" onError={(event) => { event.currentTarget.src = DEFAULT_ADDON_IMAGE; }} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+              <input
+                value={newAddon[group.id]?.name || ''}
+                onChange={(event) => setNewAddon((current) => ({
                   ...current,
-                  [group.id]: { ...(current[group.id] || { name: '', price: '', image: '', preview: '', imageFile: undefined }), imageFile: file, preview: typeof reader.result === 'string' ? reader.result : DEFAULT_ADDON_IMAGE },
-                }));
-              };
-              reader.readAsDataURL(file);
-            }} /></label><button onClick={() => addAddon(group.id)} className="flex items-center justify-center gap-2 rounded-lg bg-[var(--oppa-green-soft)] px-4 py-2 text-sm text-[var(--oppa-text)]"><Save size={15} /> Add</button></div>
+                  [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), name: event.target.value },
+                }))}
+                placeholder="New add-on"
+                className="min-w-0 flex-1 border-0 bg-transparent text-sm text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus:outline-none"
+              />
+            </div>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={newAddon[group.id]?.price ?? ''}
+              onChange={(event) => setNewAddon((current) => ({
+                ...current,
+                [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), price: event.target.value },
+              }))}
+              placeholder="Price"
+              className="w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus:border-[var(--oppa-green)] focus:outline-none"
+            />
+
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--oppa-green)] transition hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]">
+              <ImagePlus size={16} />
+              <span>{newAddon[group.id]?.imageFile ? 'Change image' : 'Upload'}</span>
+              <input type="file" accept="image/*" className="hidden" onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setNewAddon((current) => ({
+                    ...current,
+                    [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), imageFile: file, preview: typeof reader.result === 'string' ? reader.result : DEFAULT_ADDON_IMAGE },
+                  }));
+                };
+                reader.readAsDataURL(file);
+              }} />
+            </label>
+
+            <button type="button" onClick={() => addAddon(group.id)} className="flex items-center justify-center gap-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105">
+              <Save size={15} />
+              Add
+            </button>
+          </div>
+
+          {newAddon[group.id]?.imageFile && (
+            <div className="mt-2 text-xs text-[var(--oppa-text-muted)]">
+              Selected image: {newAddon[group.id].imageFile.name}
+            </div>
+          )}
+        </div>
       </section>)}</div>
     </AdminLayout>
   );
