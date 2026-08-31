@@ -105,6 +105,17 @@ class AddonController extends Controller
         return response()->json($addon);
     }
 
+    public function destroyGroup(Request $request, AddonGroup $addonGroup)
+    {
+        if (!$this->checkAdminAuth($request)) return response()->json(['message' => 'Unauthorized'], 401);
+
+        $addonGroup->addons()->delete();
+        $addonGroup->products()->detach();
+        $addonGroup->delete();
+
+        return response()->json(['message' => 'Add-on group deleted successfully.']);
+    }
+
     public function destroy(Request $request, Addon $addon)
     {
         if (!$this->checkAdminAuth($request)) return response()->json(['message' => 'Unauthorized'], 401);

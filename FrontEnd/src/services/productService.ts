@@ -144,6 +144,10 @@ class ProductService {
     return this.adminRequest(`/admin/addon-groups/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
 
+  async deleteAddonGroup(id: number): Promise<void> {
+    await this.adminRequestWithRetry(`/admin/addon-groups/${id}`, { method: 'DELETE' });
+  }
+
   async createAddon(groupId: number, data: { name: string; price: number; image?: string; is_active?: boolean }): Promise<AddonGroup> {
     return this.adminRequestWithRetry(`/admin/addon-groups/${groupId}/addons`, { method: 'POST', body: JSON.stringify(data) });
   }

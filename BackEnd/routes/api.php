@@ -90,6 +90,7 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
 Route::prefix('admin')->group(function () {
     Route::post('/addon-groups', [AddonController::class, 'storeGroup']);
     Route::put('/addon-groups/{addonGroup}', [AddonController::class, 'updateGroup']);
+    Route::delete('/addon-groups/{addonGroup}', [AddonController::class, 'destroyGroup']);
     Route::post('/addon-groups/{addonGroup}/addons', [AddonController::class, 'store']);
     Route::put('/addons/{addon}', [AddonController::class, 'update']);
     Route::delete('/addons/{addon}', [AddonController::class, 'destroy']);
