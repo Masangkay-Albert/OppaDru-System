@@ -15,7 +15,10 @@ use App\Http\Controllers\TargetProfitSaleController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\AddonController;
 use App\Http\Controllers\DriverAuthController;
+use App\Http\Controllers\KitchenOrderController;
+use App\Http\Controllers\DriverOrderController;
 use Illuminate\Http\Request;
+
 
 Route::get('/test', function () {
     return response()->json(['message' => 'API is working!']);
@@ -57,6 +60,16 @@ Route::get('/orders/customers', [OrderController::class, 'getAllCustomers']);
 Route::middleware(['auth:api', 'verified-user'])->get('/orders/user', [OrderController::class, 'getUserOrders']);
 Route::get('/orders/{id}', [OrderController::class, 'show']);
 Route::get('/settings/pricing', [SettingController::class, 'index']);
+
+
+/// KITCHEN
+Route::get('/kitchen/orders', [KitchenOrderController::class, 'index']);
+Route::patch('/kitchen/orders/{id}/status', [KitchenOrderController::class, 'updateStatus']);
+
+//drivers
+Route::get('/driver/orders', [DriverOrderController::class, 'index']);
+Route::patch('/driver/orders/{id}/status', [DriverOrderController::class, 'updateStatus']);
+
 
 Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);
 Route::post('/payment/confirm/{reference}', [PaymentController::class, 'confirmPaymentFromMobile']);
