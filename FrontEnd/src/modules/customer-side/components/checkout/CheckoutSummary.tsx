@@ -104,7 +104,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         <div className="flex justify-between">
           <div className="flex items-center gap-1">
             <span className="text-gray-500">Delivery fee</span>
-            <span className="text-xs text-gray-400">(estimated)</span>
+            <span className="text-xs text-gray-400"></span>
           </div>
           <span className="text-gray-800">{formatCurrency(deliveryFee)}</span>
         </div>
@@ -131,7 +131,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
           </div>
         )}
         <div className="flex justify-between">
-          <span className="text-gray-500">VAT (12%)</span>
+          <span className="text-gray-500">VAT </span>
           <span className="text-gray-800">{formatCurrency(vat)}</span>
         </div>
         <div className="border-t border-gray-100 pt-2 mt-2">

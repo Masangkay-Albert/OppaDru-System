@@ -55,10 +55,11 @@ class PricingService
             });
             $subtotal += ((float) $product->price + $addons) * (int) $item['quantity'];
         }
+        $subtotal = round($subtotal, 2);
 
         $settings = $this->settings();
         $deliveryDistanceKm = $this->distanceInKilometers($deliveryCoordinates, $settings);
-        // Always calculate distance-based delivery fee (no free delivery threshold)
+
         $deliveryFee = min(
             $settings['delivery_max_fee'],
             max(0, $settings['delivery_base_fee'] + max(0, $deliveryDistanceKm - $settings['delivery_base_distance_km']) * $settings['delivery_per_km_rate'])
@@ -67,8 +68,8 @@ class PricingService
         $priorityFee = strtolower($deliveryType) === 'priority' ? 99.0 : 0.0;
         $discountAmount = round(($subtotal + $deliveryFee + $serviceFee + $priorityFee) * max(0, $discountRate), 2);
         $afterDiscount = max(0, $subtotal + $deliveryFee + $serviceFee + $priorityFee - $discountAmount - max(0, $voucherDiscount));
-        $vat = round($afterDiscount * $settings['vat_rate'], 2);
-        $total = round($afterDiscount + $vat, 2);
+        $vat = round($subtotal * $settings['vat_rate'] / (1 + $settings['vat_rate']), 2);
+        $total = round($afterDiscount, 2);
 
         return compact('subtotal', 'deliveryFee', 'serviceFee', 'priorityFee', 'deliveryDistanceKm', 'discountAmount', 'vat', 'total') + [
             'deliveryCalculationMethod' => 'base_fee_plus_distance_rate_capped',

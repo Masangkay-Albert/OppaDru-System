@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { CartItem } from '../types/product.types';
-import { calculateSubtotal } from '../services/cartService';
+import { calculateIncludedVat, calculateSubtotal } from '../services/cartService';
 import { useSettings } from '../contexts/SettingsContext';
 import { FEES } from '../utils/constants';
 
@@ -41,8 +41,8 @@ export const useCartCalculations = ({
     const subtotalWithFees = subtotal + deliveryFee + serviceFee + priorityFee;
     const discountAmount = subtotalWithFees * discount;
     const afterDiscount = subtotalWithFees - discountAmount - voucherDiscount;
-    const vat = afterDiscount * pricing.vat_rate;
-    const total = Math.round((afterDiscount + vat) * 100) / 100;
+    const vat = calculateIncludedVat(subtotal, pricing.vat_rate);
+    const total = Math.round(afterDiscount * 100) / 100;
     
     return {
       subtotal,

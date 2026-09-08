@@ -63,7 +63,7 @@ class OrderPlacementTest extends TestCase
         $orderResponse
             ->assertCreated()
             ->assertJsonPath('order.email', $user->email)
-            ->assertJsonPath('order.total', '517.44')
+            ->assertJsonPath('order.total', '462.00')
             ->assertJsonPath('order.delivery_fee', '49.00')
             ->assertJsonPath('order.service_fee', '15.00')
             ->assertJsonPath('order.items.0.product_id', $product->id);

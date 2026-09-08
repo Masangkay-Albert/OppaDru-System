@@ -30,5 +30,9 @@ export const calculateItemTotal = (item: CartItem): number => {
 };
 
 export const calculateSubtotal = (items: CartItem[]): number => {
-  return items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
+  return Math.round(items.reduce((sum, item) => sum + calculateItemTotal(item), 0) * 100) / 100;
+};
+
+export const calculateIncludedVat = (vatInclusiveAmount: number, vatRate: number): number => {
+  return Math.round((vatInclusiveAmount * vatRate / (1 + vatRate)) * 100) / 100;
 };

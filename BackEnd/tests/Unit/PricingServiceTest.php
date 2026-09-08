@@ -55,7 +55,23 @@ class PricingServiceTest extends TestCase
         $this->assertSame(150.0, $pricing['deliveryFee']);
     }
 
-    private function calculateFor(float $price, ?array $coordinates = null): array
+    public function test_vat_is_reported_as_portion_included_in_product_price(): void
+    {
+        $pricing = $this->calculateFor(415);
+
+        $this->assertSame(44.46, $pricing['vat']);
+        $this->assertSame(479.0, $pricing['total']);
+    }
+
+    public function test_included_vat_scales_with_product_quantity_without_being_added_to_total(): void
+    {
+        $pricing = $this->calculateFor(415, null, 2);
+
+        $this->assertSame(88.93, $pricing['vat']);
+        $this->assertSame(903.9, $pricing['total']);
+    }
+
+    private function calculateFor(float $price, ?array $coordinates = null, int $quantity = 1): array
     {
         $product = Product::create([
             'name' => 'Test item ' . $price,
@@ -68,7 +84,7 @@ class PricingServiceTest extends TestCase
 
         return app(PricingService::class)->calculate([[
             'product_id' => $product->id,
-            'quantity' => 1,
+            'quantity' => $quantity,
         ]], 'standard', 0, 0, $coordinates);
     }
 }
