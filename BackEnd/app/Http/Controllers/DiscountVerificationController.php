@@ -52,6 +52,10 @@ class DiscountVerificationController extends Controller
 
     public function store(Request $request, string $orderId)
     {
+        if (!$request->hasFile('proof_image') && $request->hasFile('discount_proof_image')) {
+            $request->files->set('proof_image', $request->file('discount_proof_image'));
+        }
+
         $order = Order::findOrFail($orderId);
 
         $validator = Validator::make($request->all(), [
@@ -72,8 +76,8 @@ class DiscountVerificationController extends Controller
         $discountAmount = round((float) $order->total * $discountRate, 2);
 
         $proofUrl = null;
-        if ($request->hasFile('proof_image')) {
-            $file = $request->file('proof_image');
+        if ($request->hasFile('proof_image') || $request->hasFile('discount_proof_image')) {
+            $file = $request->file('proof_image') ?? $request->file('discount_proof_image');
             $filename = time() . '-' . uniqid() . '.' . $file->getClientOriginalExtension();
             $path = $file->storeAs('discount-proof', $filename, 'public');
             $proofUrl = rtrim(config('app.url', 'https://oppadru-system-1.onrender.com'), '/') . '/storage/' . ltrim($path, '/');

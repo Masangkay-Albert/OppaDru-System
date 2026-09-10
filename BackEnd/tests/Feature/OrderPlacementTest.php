@@ -126,7 +126,7 @@ class OrderPlacementTest extends TestCase
         $response
             ->assertCreated()
             ->assertJsonPath('order.delivery_type', 'scheduled')
-            ->assertJsonPath('order.scheduled_date', '2026-09-02')
+            ->assertJsonPath('order.scheduled_date', now()->addDay()->format('Y-m-d'))
             ->assertJsonPath('order.scheduled_time', '2:00 PM - 2:30 PM');
     }
 

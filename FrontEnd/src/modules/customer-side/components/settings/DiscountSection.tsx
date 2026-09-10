@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { FiUser, FiCalendar, FiSave, FiCheckCircle } from 'react-icons/fi';
+import { FiUser, FiCalendar, FiSave, FiCheckCircle, FiUpload } from 'react-icons/fi';
 import { useSettings } from '../../../../contexts/SettingsContext';
+
+const getAuthToken = () => localStorage.getItem('auth_token');
 
 const DiscountSection: React.FC = () => {
   const { discountInfo, updateDiscountInfo, getActiveDiscount } = useSettings();
@@ -10,6 +12,8 @@ const DiscountSection: React.FC = () => {
     idNumber: '',
     fullName: '',
     expiryDate: '',
+    proofImage: null as File | null,
+    proofPreview: '',
   });
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -18,13 +22,14 @@ const DiscountSection: React.FC = () => {
   const activeDiscount = getActiveDiscount();
 
   useEffect(() => {
-    setFormData({
+    setFormData((prev) => ({
+      ...prev,
       isPWD: discountInfo.isPWD || false,
       isSenior: discountInfo.isSenior || false,
       idNumber: discountInfo.idNumber || '',
       fullName: discountInfo.fullName || '',
       expiryDate: discountInfo.expiryDate || '',
-    });
+    }));
   }, [discountInfo]);
 
   const handleSave = async () => {
@@ -49,8 +54,42 @@ const DiscountSection: React.FC = () => {
       return;
     }
 
+    if (!formData.proofImage) {
+      setMessage({ type: 'error', text: 'Please upload a valid proof image before submitting your discount request.' });
+      setIsSaving(false);
+      return;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+      setMessage({ type: 'error', text: 'Your session is expired. Please log in again.' });
+      setIsSaving(false);
+      return;
+    }
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
+      const form = new FormData();
+      form.append('discount_type', formData.isPWD ? 'PWD' : 'Senior Citizen');
+      form.append('full_name', formData.fullName.trim());
+      form.append('id_number', formData.idNumber.trim());
+      if (formData.expiryDate) form.append('expiry_date', formData.expiryDate);
+      form.append('proof_image', formData.proofImage);
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/discount/applications`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: form,
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const errorMessage = result?.errors ? Object.values(result.errors).flat().join(' ') : (result?.message || 'Failed to submit discount application');
+        throw new Error(errorMessage);
+      }
+
       updateDiscountInfo({
         isPWD: formData.isPWD,
         isSenior: formData.isSenior,
@@ -58,10 +97,12 @@ const DiscountSection: React.FC = () => {
         fullName: formData.fullName,
         expiryDate: formData.expiryDate,
       });
-      setMessage({ type: 'success', text: 'Discount information saved successfully!' });
+
+      setMessage({ type: 'success', text: 'Discount request submitted successfully! It is now pending admin verification.' });
       setIsEditing(false);
-    } catch {
-      setMessage({ type: 'error', text: 'Failed to save discount information' });
+      setFormData((prev) => ({ ...prev, proofImage: null, proofPreview: '' }));
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error?.message || 'Failed to save discount information' });
     } finally {
       setIsSaving(false);
     }
@@ -228,6 +269,36 @@ const DiscountSection: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
               className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-sm"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Proof Image</label>
+            <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-3">
+              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-5 text-center transition hover:border-[#2d6a4f] hover:bg-[#d8f3dc]/10">
+                <FiUpload className="text-[#2d6a4f]" size={20} />
+                <span className="text-sm font-medium text-gray-700">Upload valid ID or discount proof</span>
+                <span className="text-xs text-gray-400">PNG, JPG, JPEG, GIF, WEBP up to 5MB</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    if (!file) return;
+                    setFormData((prev) => ({
+                      ...prev,
+                      proofImage: file,
+                      proofPreview: URL.createObjectURL(file),
+                    }));
+                  }}
+                />
+              </label>
+              {formData.proofPreview && (
+                <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                  <img src={formData.proofPreview} alt="Proof preview" className="h-36 w-full object-cover" />
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">

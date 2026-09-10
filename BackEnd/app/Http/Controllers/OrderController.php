@@ -102,6 +102,10 @@ class OrderController extends Controller
 
     public function store(Request $request)
     {
+        if (!$request->hasFile('proof_image') && $request->hasFile('discount_proof_image')) {
+            $request->files->set('proof_image', $request->file('discount_proof_image'));
+        }
+
         if (is_string($request->input('items')) && !is_array($request->input('items'))) {
             $decodedItems = json_decode((string) $request->input('items'), true);
             if (is_array($decodedItems)) {
@@ -141,11 +145,16 @@ class OrderController extends Controller
             'delivery_coordinates.lng' => 'required_with:delivery_coordinates|numeric|between:-180,180',
             'phone' => 'required|string',
             'discount_type' => 'nullable|string|in:PWD,Senior Citizen',
-            'proof_image' => 'required_with:discount_type|nullable|file|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
+            'proof_image' => 'nullable|file|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
+            'discount_proof_image' => 'nullable|file|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
             'payment_reference' => 'required_if:payment_method,gcash,credit_card|nullable|string|exists:payments,reference',
         ]);
 
         $validator->after(function ($validator) use ($request) {
+            if ($request->filled('discount_type') && !$request->hasFile('proof_image') && !$request->hasFile('discount_proof_image')) {
+                $validator->errors()->add('proof_image', 'The proof image field is required when discount type is present.');
+            }
+
             if (strtolower((string) $request->input('delivery_type', 'standard')) !== 'scheduled') {
                 return;
             }
@@ -222,8 +231,8 @@ class OrderController extends Controller
 
         if ($discountType !== '') {
             $discountAmount = round((float) $total * $discountRate, 2);
-            if ($request->hasFile('proof_image')) {
-                $file = $request->file('proof_image');
+            if ($request->hasFile('proof_image') || $request->hasFile('discount_proof_image')) {
+                $file = $request->file('proof_image') ?? $request->file('discount_proof_image');
                 $filename = time() . '-' . uniqid('', true) . '.' . $file->getClientOriginalExtension();
                 $path = $file->storeAs('discount-proof', $filename, 'public');
                 $discountProofUrl = rtrim(config('app.url', 'https://oppadru-system-1.onrender.com'), '/') . '/storage/' . ltrim($path, '/');

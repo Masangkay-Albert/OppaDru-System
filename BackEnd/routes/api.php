@@ -18,6 +18,7 @@ use App\Http\Controllers\DriverAuthController;
 use App\Http\Controllers\KitchenOrderController;
 use App\Http\Controllers\DriverOrderController;
 use App\Http\Controllers\DiscountVerificationController;
+use App\Http\Controllers\DiscountApplicationController;
 use Illuminate\Http\Request;
 
 
@@ -94,6 +95,7 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::put('/orders/{id}', [OrderController::class, 'update']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);
     Route::post('/orders/{id}/discount-verification', [DiscountVerificationController::class, 'store']);
+    Route::post('/discount/applications', [DiscountApplicationController::class, 'store']);
 
     Route::post('/payment/gcash/request-otp', [PaymentController::class, 'requestGCashOTP']);
     Route::post('/payment/gcash/verify', [PaymentController::class, 'verifyGCash']);
@@ -126,6 +128,8 @@ Route::prefix('admin')->group(function () {
     Route::get('/count', [AdminController::class, 'count']);
     Route::get('/discount-verifications', [DiscountVerificationController::class, 'index']);
     Route::patch('/discount-verifications/{id}', [DiscountVerificationController::class, 'updateStatus']);
+    Route::get('/discount-applications', [DiscountApplicationController::class, 'index']);
+    Route::patch('/discount-applications/{id}', [DiscountApplicationController::class, 'updateStatus']);
     Route::get('/target-profit-sales', [TargetProfitSaleController::class, 'show']);
     Route::put('/target-profit-sales', [TargetProfitSaleController::class, 'update']);
     Route::delete('/target-profit-sales', [TargetProfitSaleController::class, 'destroy']);
