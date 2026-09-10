@@ -60,6 +60,10 @@ class User extends Authenticatable implements MustVerifyEmail
         $primaryMailer = config('mail.default');
         $smtpConfigured = !empty(config('mail.mailers.smtp.username')) && !empty(config('mail.mailers.smtp.password'));
 
+        if ($primaryMailer === 'gmail_api' && $smtpConfigured) {
+            config()->set('mail.default', 'smtp');
+        }
+
         try {
             $this->notify(new VerifyUserEmail());
             return;
