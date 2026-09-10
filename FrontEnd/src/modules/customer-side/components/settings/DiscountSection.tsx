@@ -174,6 +174,14 @@ const DiscountSection: React.FC = () => {
               </div>
             </div>
           </div>
+          <div className="mt-6 flex gap-3 pt-6 border-t border-amber-200">
+            <button
+              onClick={handleRemove}
+              className="px-6 py-2.5 border-2 border-red-300 text-red-600 rounded-xl font-semibold hover:bg-red-50 transition"
+            >
+              Remove Request
+            </button>
+          </div>
         </div>
       ) : isRejected && !isEditing ? (
         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6">
@@ -224,14 +232,8 @@ const DiscountSection: React.FC = () => {
           </div>
           <div className="flex gap-3 mt-6 pt-6 border-t border-[#2d6a4f]/20">
             <button
-              onClick={() => setIsEditing(true)}
-              className="px-6 py-2.5 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition"
-            >
-              Edit Discount
-            </button>
-            <button
               onClick={handleRemove}
-              className="px-6 py-2.5 border-2 border-red-300 text-red-600 rounded-xl font-semibold hover:bg-red-50 transition"
+              className="flex-1 px-6 py-2.5 border-2 border-red-300 text-red-600 rounded-xl font-semibold hover:bg-red-50 transition"
             >
               Remove Discount
             </button>
