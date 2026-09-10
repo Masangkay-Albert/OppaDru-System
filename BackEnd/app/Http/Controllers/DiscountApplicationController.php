@@ -27,7 +27,8 @@ class DiscountApplicationController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $userId = auth()->id();
+        $user = $request->user();
+        $userId = $user?->id;
         if (!$userId) {
             return response()->json(['message' => 'User is not authenticated.'], 401);
         }
