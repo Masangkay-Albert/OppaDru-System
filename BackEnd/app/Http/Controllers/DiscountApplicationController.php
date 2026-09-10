@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Admin;
 use App\Models\DiscountApplication;
+use App\Notifications\DiscountApplicationDecisionNotification;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -123,6 +124,8 @@ class DiscountApplicationController extends Controller
                 'rejection_reason' => null,
             ]);
 
+            $this->sendDecisionEmail($application, 'approved');
+
             return response()->json([
                 'success' => true,
                 'message' => 'Discount application approved.',
@@ -130,17 +133,36 @@ class DiscountApplicationController extends Controller
             ]);
         }
 
+        $reason = $request->input('rejection_reason') ?: 'No reason provided.';
+
         $application->update([
             'status' => 'rejected',
-            'rejection_reason' => $request->input('rejection_reason') ?: 'No reason provided.',
+            'rejection_reason' => $reason,
             'reviewed_at' => now(),
             'reviewed_by_admin_id' => $admin?->id,
         ]);
+
+        $this->sendDecisionEmail($application, 'rejected', $reason);
 
         return response()->json([
             'success' => true,
             'message' => 'Discount application rejected.',
             'application' => $application->fresh(),
         ]);
+    }
+
+    protected function sendDecisionEmail(DiscountApplication $application, string $status, ?string $rejectionReason = null): void
+    {
+        $user = $application->user;
+        if (!$user || !$user->email) {
+            return;
+        }
+
+        $user->notify(new DiscountApplicationDecisionNotification(
+            $application->discount_type,
+            $status,
+            $rejectionReason,
+            $application->full_name,
+        ));
     }
 }

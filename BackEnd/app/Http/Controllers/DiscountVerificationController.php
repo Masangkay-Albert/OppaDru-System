@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Admin;
 use App\Models\DiscountVerificationRequest;
 use App\Models\Order;
+use App\Notifications\DiscountApplicationDecisionNotification;
 use App\Services\PricingService;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
@@ -158,6 +159,8 @@ class DiscountVerificationController extends Controller
                 'discount_reviewed_at' => now(),
             ]);
 
+            $this->sendOrderDecisionEmail($order, 'approved');
+
             return response()->json([
                 'success' => true,
                 'request' => $discountRequest->fresh(),
@@ -166,9 +169,11 @@ class DiscountVerificationController extends Controller
             ]);
         }
 
+        $reason = $request->input('rejection_reason') ?: 'No reason provided.';
+
         $discountRequest->update([
             'status' => 'rejected',
-            'rejection_reason' => $request->input('rejection_reason') ?: 'No reason provided.',
+            'rejection_reason' => $reason,
             'reviewed_at' => now(),
             'reviewed_by_admin_id' => $reviewedBy,
         ]);
@@ -179,9 +184,11 @@ class DiscountVerificationController extends Controller
             'discount_amount' => 0,
             'discount_status' => 'rejected',
             'discount_proof_image' => $discountRequest->proof_image_url,
-            'discount_rejection_reason' => $request->input('rejection_reason') ?: 'No reason provided.',
+            'discount_rejection_reason' => $reason,
             'discount_reviewed_at' => now(),
         ]);
+
+        $this->sendOrderDecisionEmail($order, 'rejected', $reason);
 
         return response()->json([
             'success' => true,
@@ -189,5 +196,24 @@ class DiscountVerificationController extends Controller
             'order' => $order->fresh(),
             'message' => 'Discount request rejected.'
         ]);
+    }
+
+    protected function sendOrderDecisionEmail(Order $order, string $status, ?string $rejectionReason = null): void
+    {
+        if (!$order->email) {
+            return;
+        }
+
+        $customer = \App\Models\User::where('email', $order->email)->first();
+        if (!$customer) {
+            return;
+        }
+
+        $customer->notify(new DiscountApplicationDecisionNotification(
+            $order->discount_type ?? 'PWD',
+            $status,
+            $rejectionReason,
+            $order->customer_name ?? $customer->full_name ?? $order->email,
+        ));
     }
 }

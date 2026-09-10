@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Models\DiscountApplication;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
+use App\Notifications\DiscountApplicationDecisionNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class OrderPlacementTest extends TestCase
@@ -327,6 +330,44 @@ class OrderPlacementTest extends TestCase
         $response
             ->assertStatus(422)
             ->assertJsonPath('message', 'Order cancellation is only allowed within 20 seconds of creation.');
+    }
+
+    public function test_discount_application_decision_sends_email_to_customer(): void
+    {
+        Notification::fake();
+
+        $user = User::create([
+            'full_name' => 'Approved Customer',
+            'email' => 'approved.customer@example.com',
+            'phone' => '09171234569',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+
+        $application = DiscountApplication::create([
+            'user_id' => $user->id,
+            'discount_type' => 'PWD',
+            'full_name' => $user->full_name,
+            'id_number' => 'PWD-12345',
+            'expiry_date' => now()->addMonths(6),
+            'proof_image_url' => 'https://example.com/proof.jpg',
+            'status' => 'pending',
+            'submitted_at' => now(),
+        ]);
+
+        $adminLogin = $this->postJson('/api/admin/login', [
+            'email' => 'admin@oppadru.com',
+            'password' => 'Admin@123',
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$adminLogin->json('token'))
+            ->patchJson('/api/admin/discount-applications/'.$application->id, ['action' => 'approve'])
+            ->assertOk();
+
+        Notification::assertSentTo($user, DiscountApplicationDecisionNotification::class, function ($notification) {
+            return str_contains(strtolower($notification->status), 'approved');
+        });
     }
 
     public function test_discount_verification_request_can_be_created_and_approved_by_admin(): void
