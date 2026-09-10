@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DiscountVerificationRequest;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\User;
@@ -9,6 +10,7 @@ use App\Services\Order\OrderDataService;
 use App\Services\PricingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
@@ -100,6 +102,20 @@ class OrderController extends Controller
 
     public function store(Request $request)
     {
+        if (is_string($request->input('items')) && !is_array($request->input('items'))) {
+            $decodedItems = json_decode((string) $request->input('items'), true);
+            if (is_array($decodedItems)) {
+                $request->merge(['items' => $decodedItems]);
+            }
+        }
+
+        if (is_string($request->input('delivery_coordinates')) && !is_array($request->input('delivery_coordinates'))) {
+            $decodedCoordinates = json_decode((string) $request->input('delivery_coordinates'), true);
+            if (is_array($decodedCoordinates)) {
+                $request->merge(['delivery_coordinates' => $decodedCoordinates]);
+            }
+        }
+
         $validator = Validator::make($request->all(), [
             'email' => 'required|string|email',
             'items' => 'required|array|min:1',
@@ -124,6 +140,8 @@ class OrderController extends Controller
             'delivery_coordinates.lat' => 'required_with:delivery_coordinates|numeric|between:-90,90',
             'delivery_coordinates.lng' => 'required_with:delivery_coordinates|numeric|between:-180,180',
             'phone' => 'required|string',
+            'discount_type' => 'nullable|string|in:PWD,Senior Citizen',
+            'proof_image' => 'required_with:discount_type|nullable|file|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
             'payment_reference' => 'required_if:payment_method,gcash,credit_card|nullable|string|exists:payments,reference',
         ]);
 
@@ -197,6 +215,21 @@ class OrderController extends Controller
         $user = User::where('email', $request->email)->first();
         $userId = $user ? $user->id : null;
 
+        $discountType = trim((string) $request->input('discount_type', ''));
+        $discountRate = 0.20;
+        $discountAmount = 0;
+        $discountProofUrl = null;
+
+        if ($discountType !== '') {
+            $discountAmount = round((float) $total * $discountRate, 2);
+            if ($request->hasFile('proof_image')) {
+                $file = $request->file('proof_image');
+                $filename = time() . '-' . uniqid('', true) . '.' . $file->getClientOriginalExtension();
+                $path = $file->storeAs('discount-proof', $filename, 'public');
+                $discountProofUrl = rtrim(config('app.url', 'https://oppadru-system-1.onrender.com'), '/') . '/storage/' . ltrim($path, '/');
+            }
+        }
+
         $order = Order::create([
             'email' => $request->email,
             'user_id' => $userId,
@@ -224,15 +257,38 @@ class OrderController extends Controller
             'schedule_window' => $scheduledData['schedule_window'],
             'payment_reference' => $payment?->reference,
             'payment_status' => $payment ? 'paid' : 'pending',
+            'discount_type' => $discountType !== '' ? $discountType : null,
+            'discount_rate' => $discountType !== '' ? $discountRate : null,
+            'discount_amount' => $discountType !== '' ? 0 : null,
+            'discount_status' => $discountType !== '' ? 'pending' : 'not_requested',
+            'discount_proof_image' => $discountType !== '' ? $discountProofUrl : null,
+            'discount_requested_at' => $discountType !== '' ? now() : null,
+            'discount_rejection_reason' => null,
+            'discount_reviewed_at' => null,
         ]);
 
         $this->orderDataService->syncOrderItems($order, $orderItems);
+
+        $discountRequest = null;
+        if ($discountType !== '') {
+            $discountRequest = DiscountVerificationRequest::create([
+                'order_id' => $order->id,
+                'discount_type' => $discountType,
+                'discount_rate' => $discountRate,
+                'discount_amount' => $discountAmount,
+                'proof_image_url' => $discountProofUrl,
+                'status' => 'pending',
+                'submitted_at' => now(),
+                'order_total_at_submission' => $total,
+            ]);
+        }
 
         $payment?->update(['order_id' => $order->id]);
         $order->refresh();
 
         return response()->json([
             'order' => $order,
+            'discount_request' => $discountRequest,
             'message' => 'Order placed successfully!'
         ], 201);
     }

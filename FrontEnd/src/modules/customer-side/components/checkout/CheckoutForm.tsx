@@ -26,6 +26,9 @@ interface CheckoutFormProps {
   setPaymentMethod: (method: string) => void;
   scheduleDisplay: string;
   onScheduleClick: () => void;
+  discountType?: 'PWD' | 'Senior Citizen' | null;
+  discountProof?: File | null;
+  onDiscountProofChange?: (file: File | null) => void;
 }
 
 const CheckoutForm: React.FC<CheckoutFormProps> = ({
@@ -37,7 +40,10 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   paymentMethod,
   setPaymentMethod,
   scheduleDisplay,
-  onScheduleClick
+  onScheduleClick,
+  discountType,
+  discountProof,
+  onDiscountProofChange,
 }) => {
   const { user } = useAuth();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
@@ -125,6 +131,31 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       />
 
       <PaymentMethods paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />
+
+      {discountType && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Discount verification</p>
+              <p className="text-xs text-amber-700">{discountType} discount request is pending admin review.</p>
+            </div>
+          </div>
+
+          <label className="block w-full">
+            <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-amber-800">Upload valid ID / proof</span>
+            <input
+              type="file"
+              accept="image/*"
+              className="block w-full cursor-pointer rounded-xl border border-dashed border-amber-300 bg-white px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-600 file:px-3 file:py-2 file:text-xs file:font-medium file:text-white"
+              onChange={(event) => onDiscountProofChange?.(event.target.files?.[0] || null)}
+            />
+          </label>
+
+          {discountProof && (
+            <p className="mt-2 text-xs text-amber-800">Selected file: {discountProof.name}</p>
+          )}
+        </div>
+      )}
 
       {showLocationPicker && (
         <LocationPicker

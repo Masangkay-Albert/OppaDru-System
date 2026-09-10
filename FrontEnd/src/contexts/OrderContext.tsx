@@ -28,6 +28,11 @@ export interface Order {
   serviceFee?: number;
   priorityFee?: number;
   vat?: number;
+  discountType?: 'PWD' | 'Senior Citizen' | null;
+  discountRate?: number;
+  discountAmount?: number;
+  discountStatus?: string;
+  discountProofImage?: string | null;
   scheduledAt?: string | null;
   scheduledDate?: string | null;
   scheduledTime?: string | null;
@@ -50,12 +55,14 @@ interface OrderContextType {
     paymentReference?: string,
     deliveryType?: 'standard' | 'priority' | 'scheduled',
     voucherDiscount?: number,
-    discountRate?: number,
+    _discountRate?: number,
     scheduledAt?: string | null,
     scheduledDate?: string | null,
     scheduledTime?: string | null,
     scheduleDisplay?: string | null,
-    scheduleWindow?: string | null
+    scheduleWindow?: string | null,
+    discountType?: 'PWD' | 'Senior Citizen' | null,
+    discountProof?: File | null,
   ) => Promise<boolean>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   clearOrder: () => void;
@@ -148,6 +155,11 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           serviceFee: Number(apiOrder.service_fee || 0),
           priorityFee: Number(apiOrder.priority_fee || 0),
           vat: Number(apiOrder.vat || 0),
+          discountType: apiOrder.discount_type || null,
+          discountRate: Number(apiOrder.discount_rate || 0),
+          discountAmount: Number(apiOrder.discount_amount || 0),
+          discountStatus: apiOrder.discount_status || 'not_requested',
+          discountProofImage: apiOrder.discount_proof_image || null,
           scheduledAt: apiOrder.scheduled_at || null,
           scheduledDate: apiOrder.scheduled_date || null,
           scheduledTime: apiOrder.scheduled_time || apiOrder.schedule_window || null,
@@ -247,12 +259,14 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     paymentReference?: string,
     deliveryType: 'standard' | 'priority' | 'scheduled' = 'standard',
     voucherDiscount: number = 0,
-    discountRate: number = 0,
+    _discountRate: number = 0,
     scheduledAt: string | null = null,
     scheduledDate: string | null = null,
     scheduledTime: string | null = null,
     scheduleDisplay: string | null = null,
-    scheduleWindow: string | null = null
+    scheduleWindow: string | null = null,
+    discountType?: 'PWD' | 'Senior Citizen' | null,
+    discountProof?: File | null
   ): Promise<boolean> => {
     const activeUser = user ?? authService.getUserFromStorage();
     if (!activeUser) {
@@ -297,7 +311,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         delivery_coordinates: deliveryAddressCoords,
         payment_reference: paymentReference,
         voucher_discount: voucherDiscount,
-        discount_rate: discountRate,
+        discount_rate: 0,
+        discount_type: discountType || undefined,
+        proof_image: discountProof || undefined,
         scheduled_at: deliveryType === 'scheduled' ? (scheduledAt || new Date().toISOString()) : null,
         scheduled_date: deliveryType === 'scheduled' ? (scheduledDate || null) : null,
         scheduled_time: deliveryType === 'scheduled' ? (scheduledTime || scheduleWindow || null) : null,
@@ -338,6 +354,11 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         serviceFee: Number(apiOrder.service_fee || 0),
         priorityFee: Number(apiOrder.priority_fee || 0),
         vat: Number(apiOrder.vat || 0),
+        discountType: apiOrder.discount_type || discountType || null,
+        discountRate: Number(apiOrder.discount_rate || 0),
+        discountAmount: Number(apiOrder.discount_amount || 0),
+        discountStatus: apiOrder.discount_status || 'pending',
+        discountProofImage: apiOrder.discount_proof_image || null,
         scheduledAt: apiOrder.scheduled_at || null,
         scheduledDate: apiOrder.scheduled_date || null,
         scheduledTime: apiOrder.scheduled_time || apiOrder.schedule_window || null,

@@ -35,8 +35,20 @@ const CheckoutPage: React.FC = () => {
   const [scheduleDisplay, setScheduleDisplay] = useState('Select date & time');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [discountType, setDiscountType] = useState<'PWD' | 'Senior Citizen' | null>(activeDiscount.type === 'PWD' ? 'PWD' : activeDiscount.type === 'Senior' ? 'Senior Citizen' : null);
+  const [discountProof, setDiscountProof] = useState<File | null>(null);
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates>(OPPA_DRU_STORE_COORDS);
   const orderRequestRef = useRef<Promise<void> | null>(null);
+
+  useEffect(() => {
+    if (!activeDiscount.type) {
+      setDiscountType(null);
+      setDiscountProof(null);
+      return;
+    }
+
+    setDiscountType(activeDiscount.type === 'PWD' ? 'PWD' : 'Senior Citizen');
+  }, [activeDiscount.type]);
 
   const {
     address,
@@ -151,9 +163,14 @@ const CheckoutPage: React.FC = () => {
       const scheduleDisplayValue = deliveryType === 'scheduled' ? scheduleDisplay : null;
       const scheduleWindowValue = deliveryType === 'scheduled' ? selectedTime : null;
 
+      if (discountType && !discountProof) {
+        showToast('Please upload your valid ID or proof for the discount request.', 'error');
+        return;
+      }
+
       const success = await placeOrder(
         cartItems,
-        0, // Backend calculates actual total with delivery fee
+        0,
         fullDeliveryAddress,
         paymentMethod,
         tempPerson.phone,
@@ -166,7 +183,9 @@ const CheckoutPage: React.FC = () => {
         scheduledDate,
         scheduledTime,
         scheduleDisplayValue,
-        scheduleWindowValue
+        scheduleWindowValue,
+        discountType,
+        discountProof
       );
 
       if (success) {
@@ -308,6 +327,9 @@ const CheckoutPage: React.FC = () => {
               setPaymentMethod={setPaymentMethod}
               scheduleDisplay={scheduleDisplay}
               onScheduleClick={() => setShowScheduleModal(true)}
+              discountType={discountType}
+              discountProof={discountProof}
+              onDiscountProofChange={setDiscountProof}
             />
           </div>
 

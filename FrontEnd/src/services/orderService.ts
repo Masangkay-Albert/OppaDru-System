@@ -21,6 +21,8 @@ export interface CreateOrderData {
     payment_reference?: string;
     voucher_discount?: number;
     discount_rate?: number;
+    discount_type?: 'PWD' | 'Senior Citizen';
+    proof_image?: File | null;
     scheduled_at?: string | null;
     scheduled_date?: string | null;
     scheduled_time?: string | null;
@@ -46,6 +48,11 @@ export interface Order {
     items: OrderItem[];
     created_at?: string;
     updated_at?: string;
+    discount_type?: 'PWD' | 'Senior Citizen' | null;
+    discount_rate?: number;
+    discount_amount?: number;
+    discount_status?: string;
+    discount_proof_image?: string | null;
     scheduled_at?: string | null;
     scheduled_date?: string | null;
     scheduled_time?: string | null;
@@ -81,10 +88,42 @@ class OrderService {
     }
 
     async createOrder(data: CreateOrderData): Promise<Order> {
+        const hasProof = Boolean(data.proof_image);
+        const isFormData = hasProof || data.discount_type !== undefined;
+
+        const body = isFormData ? new FormData() : JSON.stringify(data);
+
+        if (isFormData) {
+            const formData = body as FormData;
+            formData.append('email', data.email);
+            formData.append('items', JSON.stringify(data.items));
+            formData.append('total', String(data.total));
+            formData.append('delivery_address', data.delivery_address);
+            formData.append('payment_method', data.payment_method);
+            if (data.delivery_type) formData.append('delivery_type', data.delivery_type);
+            formData.append('phone', data.phone);
+            if (data.delivery_coordinates) {
+                formData.append('delivery_coordinates[lat]', String(data.delivery_coordinates.lat));
+                formData.append('delivery_coordinates[lng]', String(data.delivery_coordinates.lng));
+            }
+            if (data.payment_reference) formData.append('payment_reference', data.payment_reference);
+            if (typeof data.voucher_discount !== 'undefined') formData.append('voucher_discount', String(data.voucher_discount));
+            if (typeof data.discount_rate !== 'undefined') formData.append('discount_rate', String(data.discount_rate));
+            if (data.discount_type) formData.append('discount_type', data.discount_type);
+            if (data.proof_image) formData.append('proof_image', data.proof_image);
+            if (data.scheduled_at) formData.append('scheduled_at', data.scheduled_at);
+            if (data.scheduled_date) formData.append('scheduled_date', data.scheduled_date);
+            if (data.scheduled_time) formData.append('scheduled_time', data.scheduled_time);
+            if (data.schedule_display) formData.append('schedule_display', data.schedule_display);
+            if (data.schedule_window) formData.append('schedule_window', data.schedule_window);
+        }
+
         const response = await fetch(`${API_URL}/orders`, {
             method: 'POST',
-            headers: this.getHeaders(),
-            body: JSON.stringify(data),
+            headers: isFormData ? {
+                ...(this.getToken() ? { Authorization: `Bearer ${this.getToken()}` } : {}),
+            } : this.getHeaders(),
+            body: isFormData ? body as FormData : body as string,
         });
 
         if (!response.ok) {

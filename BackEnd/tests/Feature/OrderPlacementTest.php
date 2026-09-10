@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -99,6 +100,7 @@ class OrderPlacementTest extends TestCase
             'password' => 'password123',
         ]);
 
+        $futureDate = now()->addDay()->format('Y-m-d');
         $response = $this
             ->withHeader('Authorization', 'Bearer '.$loginResponse->json('token'))
             ->postJson('/api/orders', [
@@ -114,10 +116,10 @@ class OrderPlacementTest extends TestCase
                 'payment_method' => 'cash_on_delivery',
                 'delivery_type' => 'scheduled',
                 'phone' => '09176543210',
-                'scheduled_at' => '2026-09-02T14:00:00+08:00',
-                'scheduled_date' => '2026-09-02',
+                'scheduled_at' => now()->addDay()->setTime(14, 0)->toISOString(),
+                'scheduled_date' => $futureDate,
                 'scheduled_time' => '2:00 PM - 2:30 PM',
-                'schedule_display' => 'Sep 2, 2026 at 2:00 PM',
+                'schedule_display' => now()->addDay()->setTime(14, 0)->translatedFormat('M j, Y') . ' at 2:00 PM',
                 'schedule_window' => '2:00 PM - 2:30 PM',
             ]);
 
@@ -325,5 +327,76 @@ class OrderPlacementTest extends TestCase
         $response
             ->assertStatus(422)
             ->assertJsonPath('message', 'Order cancellation is only allowed within 20 seconds of creation.');
+    }
+
+    public function test_discount_verification_request_can_be_created_and_approved_by_admin(): void
+    {
+        $user = User::create([
+            'full_name' => 'PWD Customer',
+            'email' => 'pwd@example.com',
+            'phone' => '09171234568',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+
+        $product = Product::create([
+            'name' => 'PWD Chicken',
+            'description' => 'Test discount verification order',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => 'pwd-chicken.jpg',
+            'is_available' => true,
+        ]);
+
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ]);
+
+        $adminLogin = $this->postJson('/api/admin/login', [
+            'email' => 'admin@oppadru.com',
+            'password' => 'Admin@123',
+        ]);
+
+        $orderResponse = $this
+            ->withHeader('Authorization', 'Bearer '.$loginResponse->json('token'))
+            ->post('/api/orders', [
+                'email' => $user->email,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'delivery_address' => 'Block 10, Lot 2, Dasmarinas, Cavite',
+                'payment_method' => 'cash_on_delivery',
+                'phone' => '09171234568',
+                'discount_type' => 'PWD',
+                'discount_proof_image' => UploadedFile::fake()->create('pwd-id.jpg', 10, 'image/jpeg'),
+            ]);
+
+        $orderResponse
+            ->assertCreated()
+            ->assertJsonPath('order.discount_type', 'PWD')
+            ->assertJsonPath('order.discount_status', 'pending');
+
+        $requestId = $orderResponse->json('discount_request.id');
+        $this->assertNotNull($requestId);
+
+        $reviewResponse = $this
+            ->withHeader('Authorization', 'Bearer '.$adminLogin->json('token'))
+            ->patchJson('/api/admin/discount-verifications/'.$requestId, [
+                'action' => 'approve',
+            ]);
+
+        $reviewResponse
+            ->assertOk()
+            ->assertJsonPath('request.status', 'approved');
+
+        $order = Order::findOrFail($orderResponse->json('order.id'));
+        $this->assertSame('approved', $order->discount_status);
+        $this->assertSame('PWD', $order->discount_type);
+        $this->assertGreaterThan(0, (float) $order->discount_amount);
     }
 }

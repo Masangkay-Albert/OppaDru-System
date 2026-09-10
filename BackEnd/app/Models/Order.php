@@ -44,6 +44,14 @@ class Order extends Model
         'schedule_window',
         'payment_reference',
         'payment_status',
+        'discount_type',
+        'discount_rate',
+        'discount_amount',
+        'discount_status',
+        'discount_proof_image',
+        'discount_rejection_reason',
+        'discount_requested_at',
+        'discount_reviewed_at',
     ];
 
     protected $casts = [
@@ -59,6 +67,10 @@ class Order extends Model
         'vat' => 'decimal:2',
         'items' => 'array',
         'scheduled_at' => 'datetime',
+        'discount_rate' => 'decimal:4',
+        'discount_amount' => 'decimal:2',
+        'discount_requested_at' => 'datetime',
+        'discount_reviewed_at' => 'datetime',
     ];
 
     protected static function boot()
@@ -82,6 +94,11 @@ class Order extends Model
     public function payment()
     {
         return $this->hasOne(Payment::class, 'order_id', 'id');
+    }
+
+    public function discountVerificationRequest()
+    {
+        return $this->hasOne(DiscountVerificationRequest::class, 'order_id', 'id');
     }
 
     public function orderItems()
