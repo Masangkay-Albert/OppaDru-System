@@ -32,4 +32,4 @@ RUN mkdir -p \
 ENV PORT=10000
 EXPOSE 10000
 
-CMD ["sh", "-c", "php artisan config:clear; php artisan storage:link --force || true; if [ -n \"$DB_HOST\" ] || [ -n \"$DB_URL\" ] || [ -n \"$DATABASE_URL\" ]; then php artisan migrate --force || true; fi; exec php artisan serve --host=0.0.0.0 --port=${PORT:-10000}"]
+CMD sh -c 'php artisan config:clear; php artisan storage:link --force || true; if [ -n "$DB_HOST" ] || [ -n "$DB_URL" ] || [ -n "$DATABASE_URL" ]; then php artisan migrate --force || true; fi; exec php artisan serve --host=0.0.0.0 --port=${PORT:-10000}'
