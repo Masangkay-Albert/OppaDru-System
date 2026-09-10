@@ -7,6 +7,7 @@ use App\Models\DiscountApplication;
 use App\Notifications\DiscountApplicationDecisionNotification;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
@@ -75,7 +76,10 @@ class DiscountApplicationController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $applications = DiscountApplication::with('user:id,full_name,email')->orderBy('submitted_at', 'desc')->get();
+        $applications = DiscountApplication::with('user:id,full_name,email')
+            ->where('status', 'pending')
+            ->orderBy('submitted_at', 'desc')
+            ->get();
 
         return response()->json(['data' => $applications->map(function ($application) {
             return [
@@ -151,6 +155,35 @@ class DiscountApplicationController extends Controller
         ]);
     }
 
+    public function myApplications(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'User is not authenticated.'], 401);
+        }
+
+        $applications = DiscountApplication::where('user_id', $user->id)
+            ->orderBy('submitted_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'data' => $applications->map(function ($application) {
+                return [
+                    'id' => $application->id,
+                    'discount_type' => $application->discount_type,
+                    'full_name' => $application->full_name,
+                    'id_number' => $application->id_number,
+                    'expiry_date' => $application->expiry_date?->toDateString(),
+                    'proof_image_url' => $application->proof_image_url,
+                    'status' => $application->status,
+                    'rejection_reason' => $application->rejection_reason,
+                    'submitted_at' => $application->submitted_at?->toISOString(),
+                    'reviewed_at' => $application->reviewed_at?->toISOString(),
+                ];
+            }),
+        ]);
+    }
+
     protected function sendDecisionEmail(DiscountApplication $application, string $status, ?string $rejectionReason = null): void
     {
         $user = $application->user;
@@ -158,11 +191,20 @@ class DiscountApplicationController extends Controller
             return;
         }
 
-        $user->notify(new DiscountApplicationDecisionNotification(
-            $application->discount_type,
-            $status,
-            $rejectionReason,
-            $application->full_name,
-        ));
+        try {
+            $user->notify(new DiscountApplicationDecisionNotification(
+                $application->discount_type,
+                $status,
+                $rejectionReason,
+                $application->full_name,
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Discount application decision email failed.', [
+                'application_id' => $application->id,
+                'user_id' => $user->id,
+                'status' => $status,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

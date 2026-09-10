@@ -13,7 +13,8 @@ const AdminDiscountApprovalsPage: React.FC = () => {
     setLoading(true);
     try {
       const data = await listDiscountApplications();
-      setApplications(Array.isArray(data) ? data : []);
+      const pendingOnly = Array.isArray(data) ? data.filter((application) => application.status === 'pending') : [];
+      setApplications(pendingOnly);
     } catch {
       setApplications([]);
     } finally {

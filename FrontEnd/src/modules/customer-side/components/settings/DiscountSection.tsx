@@ -91,11 +91,12 @@ const DiscountSection: React.FC = () => {
       }
 
       updateDiscountInfo({
-        isPWD: formData.isPWD,
-        isSenior: formData.isSenior,
+        isPWD: false,
+        isSenior: false,
         idNumber: formData.idNumber,
         fullName: formData.fullName,
         expiryDate: formData.expiryDate,
+        status: 'pending',
       });
 
       setMessage({ type: 'success', text: 'Discount request submitted successfully! It is now pending admin verification.' });
@@ -116,13 +117,16 @@ const DiscountSection: React.FC = () => {
         idNumber: '',
         fullName: '',
         expiryDate: '',
+        status: 'not_requested',
       });
       setMessage({ type: 'success', text: 'Discount removed successfully!' });
       setIsEditing(false);
     }
   };
 
-  const hasActiveDiscount = discountInfo.isPWD || discountInfo.isSenior;
+  const hasActiveDiscount = discountInfo.status === 'approved' && (discountInfo.isPWD || discountInfo.isSenior);
+  const isPendingReview = discountInfo.status === 'pending';
+  const isRejected = discountInfo.status === 'rejected';
 
   return (
     <div>
@@ -145,7 +149,44 @@ const DiscountSection: React.FC = () => {
         </div>
       )}
 
-      {hasActiveDiscount && !isEditing ? (
+      {isPendingReview && !isEditing ? (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-6">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <FiCheckCircle className="text-amber-600" size={20} />
+              <div>
+                <p className="text-sm text-amber-700">Pending review</p>
+                <p className="font-medium text-gray-800">Your discount request is currently under admin review.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <FiUser className="text-amber-600" size={20} />
+              <div>
+                <p className="text-sm text-gray-500">Full Name</p>
+                <p className="font-medium text-gray-800">{discountInfo.fullName}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <FiCalendar className="text-amber-600" size={20} />
+              <div>
+                <p className="text-sm text-gray-500">ID Number</p>
+                <p className="font-medium text-gray-800">{discountInfo.idNumber}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : isRejected && !isEditing ? (
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6">
+          <p className="text-sm font-medium text-red-700">Your discount request was rejected.</p>
+          <p className="mt-2 text-sm text-gray-700">You may submit a new request with updated proof if needed.</p>
+          <button
+            onClick={() => setIsEditing(true)}
+            className="mt-4 px-6 py-2.5 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition"
+          >
+            Submit New Request
+          </button>
+        </div>
+      ) : hasActiveDiscount && !isEditing ? (
         <div className="bg-[#d8f3dc]/20 border-2 border-[#2d6a4f] rounded-xl p-6">
           <div className="space-y-3">
             <div className="flex items-center gap-3">

@@ -95,6 +95,7 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::put('/orders/{id}', [OrderController::class, 'update']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);
     Route::post('/orders/{id}/discount-verification', [DiscountVerificationController::class, 'store']);
+    Route::get('/discount/applications/me', [DiscountApplicationController::class, 'myApplications']);
     Route::post('/discount/applications', [DiscountApplicationController::class, 'store']);
 
     Route::post('/payment/gcash/request-otp', [PaymentController::class, 'requestGCashOTP']);

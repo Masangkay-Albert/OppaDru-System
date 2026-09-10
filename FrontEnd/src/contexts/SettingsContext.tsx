@@ -33,6 +33,7 @@ export interface DiscountInfo {
   idNumber: string;
   fullName: string;
   expiryDate: string;
+  status: 'pending' | 'approved' | 'rejected' | 'not_requested';
 }
 
 export interface PricingSettings {
@@ -96,6 +97,7 @@ const defaultDiscountInfo: DiscountInfo = {
   idNumber: '',
   fullName: '',
   expiryDate: '',
+  status: 'not_requested',
 };
 
 const defaultPricing: PricingSettings = {
@@ -143,7 +145,35 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setPreferences(savedPreferences ? JSON.parse(savedPreferences) : defaultPreferences);
 
       const savedDiscount = localStorage.getItem(`discount_${user.id}`);
-      setDiscountInfo(savedDiscount ? JSON.parse(savedDiscount) : defaultDiscountInfo);
+      const restoredDiscount = savedDiscount ? JSON.parse(savedDiscount) : defaultDiscountInfo;
+      setDiscountInfo({ ...defaultDiscountInfo, ...restoredDiscount });
+
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/discount/applications/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+          .then((response) => response.ok ? response.json() : null)
+          .then((data) => {
+            const latest = Array.isArray(data?.data) ? data.data[0] : null;
+            if (!latest) return;
+
+            const nextType = latest.discount_type === 'PWD' ? 'PWD' : 'Senior Citizen';
+            const isApproved = latest.status === 'approved';
+            setDiscountInfo((prev) => ({
+              ...prev,
+              isPWD: isApproved && nextType === 'PWD',
+              isSenior: isApproved && nextType === 'Senior Citizen',
+              idNumber: latest.id_number || prev.idNumber,
+              fullName: latest.full_name || prev.fullName,
+              expiryDate: latest.expiry_date || prev.expiryDate,
+              status: latest.status || prev.status,
+            }));
+          })
+          .catch(() => undefined);
+      }
     }
     setIsLoading(false);
   }, [user?.id]);
@@ -253,10 +283,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const getActiveDiscount = () => {
-    if (discountInfo.isPWD) {
+    if (discountInfo.status === 'approved' && discountInfo.isPWD) {
       return { type: 'PWD' as const, discountRate: 0.20 };
     }
-    if (discountInfo.isSenior) {
+    if (discountInfo.status === 'approved' && discountInfo.isSenior) {
       return { type: 'Senior' as const, discountRate: 0.20 };
     }
     return { type: null, discountRate: 0 };
