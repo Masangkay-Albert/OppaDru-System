@@ -35,6 +35,7 @@ class GmailApiTransport extends AbstractTransport
 
             try {
                 $response = $httpClient->post('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', [
+                    'http_errors' => false,
                     'headers' => [
                         'Authorization' => 'Bearer ' . $accessToken,
                         'Content-Type' => 'application/json',
@@ -93,6 +94,7 @@ class GmailApiTransport extends AbstractTransport
 
         try {
             $response = $httpClient->post('https://oauth2.googleapis.com/token', [
+                'http_errors' => false,
                 'form_params' => [
                     'client_id' => $this->clientId,
                     'client_secret' => $this->clientSecret,
