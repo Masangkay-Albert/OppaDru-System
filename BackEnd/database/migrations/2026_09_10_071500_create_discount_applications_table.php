@@ -11,7 +11,7 @@ return new class extends Migration
         if (!Schema::hasTable('discount_applications')) {
             Schema::create('discount_applications', function (Blueprint $table) {
                 $table->string('id', 100)->primary();
-                $table->unsignedBigInteger('user_id');
+                $table->string('user_id', 100);
                 $table->string('discount_type');
                 $table->string('full_name');
                 $table->string('id_number');
