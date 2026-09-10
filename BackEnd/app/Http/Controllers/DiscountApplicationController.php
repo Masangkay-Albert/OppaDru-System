@@ -137,7 +137,8 @@ class DiscountApplicationController extends Controller
             ]);
         }
 
-        $reason = $request->input('rejection_reason') ?: 'No reason provided.';
+        $reason = trim((string) $request->input('rejection_reason'))
+            ?: 'The submitted proof could not be verified. Please submit a clear and valid document.';
 
         $application->update([
             'status' => 'rejected',

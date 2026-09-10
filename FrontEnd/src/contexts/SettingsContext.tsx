@@ -33,6 +33,7 @@ export interface DiscountInfo {
   idNumber: string;
   fullName: string;
   expiryDate: string;
+  rejectionReason: string;
   status: 'pending' | 'approved' | 'rejected' | 'not_requested';
 }
 
@@ -97,6 +98,7 @@ const defaultDiscountInfo: DiscountInfo = {
   idNumber: '',
   fullName: '',
   expiryDate: '',
+  rejectionReason: '',
   status: 'not_requested',
 };
 
@@ -169,6 +171,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               idNumber: latest.id_number || prev.idNumber,
               fullName: latest.full_name || prev.fullName,
               expiryDate: latest.expiry_date || prev.expiryDate,
+              rejectionReason: latest.rejection_reason || '',
               status: latest.status || prev.status,
             }));
           })

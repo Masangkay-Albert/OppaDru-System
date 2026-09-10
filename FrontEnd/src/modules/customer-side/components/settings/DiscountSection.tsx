@@ -96,6 +96,7 @@ const DiscountSection: React.FC = () => {
         idNumber: formData.idNumber,
         fullName: formData.fullName,
         expiryDate: formData.expiryDate,
+        rejectionReason: '',
         status: 'pending',
       });
 
@@ -186,6 +187,9 @@ const DiscountSection: React.FC = () => {
       ) : isRejected && !isEditing ? (
         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6">
           <p className="text-sm font-medium text-red-700">Your discount request was rejected.</p>
+          {discountInfo.rejectionReason && (
+            <p className="mt-2 text-sm text-red-800"><span className="font-semibold">Reason:</span> {discountInfo.rejectionReason}</p>
+          )}
           <p className="mt-2 text-sm text-gray-700">You may submit a new request with updated proof if needed.</p>
           <button
             onClick={() => setIsEditing(true)}

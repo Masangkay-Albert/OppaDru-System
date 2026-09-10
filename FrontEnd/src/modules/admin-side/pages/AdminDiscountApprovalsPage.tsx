@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BadgeCheck, CheckCircle, RefreshCw, XCircle } from 'lucide-react';
+import { BadgeCheck, CheckCircle, RefreshCw, X, XCircle } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { listDiscountApplications, updateDiscountApplicationStatus, type DiscountApplicationRequest } from '../../../services/discountApplicationService';
 
@@ -8,6 +8,7 @@ const AdminDiscountApprovalsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [selectedReason, setSelectedReason] = useState<Record<string, string>>({});
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+  const [selectedProof, setSelectedProof] = useState<DiscountApplicationRequest | null>(null);
 
   const loadApplications = async () => {
     setLoading(true);
@@ -121,7 +122,8 @@ const AdminDiscountApprovalsPage: React.FC = () => {
                       <img
                         src={application.proof_image_url}
                         alt={`${application.discount_type} proof`}
-                        className="h-40 w-full rounded-xl border border-[var(--oppa-border)] bg-white object-cover"
+                        className="h-40 w-full cursor-zoom-in rounded-xl border border-[var(--oppa-border)] bg-white object-cover"
+                        onClick={() => setSelectedProof(application)}
                       />
                     ) : (
                       <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-[var(--oppa-border)] bg-white text-xs text-[var(--oppa-text-muted)]">
@@ -169,6 +171,32 @@ const AdminDiscountApprovalsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {selectedProof?.proof_image_url && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Discount proof preview"
+          onClick={() => setSelectedProof(null)}
+        >
+          <div className="relative max-h-full max-w-5xl" onClick={(event) => event.stopPropagation()}>
+            <img
+              src={selectedProof.proof_image_url}
+              alt={`${selectedProof.discount_type} proof enlarged`}
+              className="max-h-[90vh] max-w-full rounded-xl bg-white object-contain shadow-2xl"
+            />
+            <button
+              type="button"
+              onClick={() => setSelectedProof(null)}
+              aria-label="Close proof preview"
+              className="absolute -right-3 -top-3 rounded-full bg-white p-2 text-gray-700 shadow-lg hover:bg-gray-100"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 };

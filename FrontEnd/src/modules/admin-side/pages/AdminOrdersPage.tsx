@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, Eye, RefreshCw, Clock, Truck, Package, Coffee, CalendarDays, BadgeCheck } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, RefreshCw, Clock, Truck, Package, Coffee, CalendarDays } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
 import { orderService } from '../../../services/orderService';
 import { formatCurrency } from '../../../utils/formatters';
-import { listDiscountVerificationRequests, updateDiscountVerificationStatus, type DiscountVerificationRequest } from '../../../services/discountVerificationService';
-import { listDiscountApplications, updateDiscountApplicationStatus, type DiscountApplicationRequest } from '../../../services/discountApplicationService';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -45,10 +43,6 @@ const AdminOrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [filter, setFilter] = useState<'all' | 'online' | 'onsite'>('all');
   const [loading, setLoading] = useState(false);
-  const [verificationRequests, setVerificationRequests] = useState<DiscountVerificationRequest[]>([]);
-  const [applicationRequests, setApplicationRequests] = useState<DiscountApplicationRequest[]>([]);
-  const [verificationLoading, setVerificationLoading] = useState(false);
-  const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
 
   const loadOrders = async () => {
     setLoading(true);
@@ -62,59 +56,9 @@ const AdminOrdersPage: React.FC = () => {
     }
   };
 
-  const loadVerificationRequests = async () => {
-    setVerificationLoading(true);
-    try {
-      const requests = await listDiscountVerificationRequests();
-      setVerificationRequests(Array.isArray(requests) ? requests : []);
-    } catch {
-      setVerificationRequests([]);
-    } finally {
-      setVerificationLoading(false);
-    }
-  };
-
-  const loadApplicationRequests = async () => {
-    try {
-      const requests = await listDiscountApplications();
-      setApplicationRequests(Array.isArray(requests) ? requests : []);
-    } catch {
-      setApplicationRequests([]);
-    }
-  };
-
   useEffect(() => {
     void loadOrders();
-    void loadVerificationRequests();
-    void loadApplicationRequests();
   }, []);
-
-  const handleVerificationAction = async (requestId: string, action: 'approve' | 'reject') => {
-    try {
-      await updateDiscountVerificationStatus(
-        requestId,
-        action,
-        action === 'reject' ? (rejectionReasons[requestId] || 'No reason provided.') : undefined,
-      );
-      await loadVerificationRequests();
-      await loadOrders();
-    } catch {
-      // Silently fail
-    }
-  };
-
-  const handleApplicationAction = async (applicationId: string, action: 'approve' | 'reject') => {
-    try {
-      await updateDiscountApplicationStatus(
-        applicationId,
-        action,
-        action === 'reject' ? (rejectionReasons[applicationId] || 'No reason provided.') : undefined,
-      );
-      await loadApplicationRequests();
-    } catch {
-      // Silently fail
-    }
-  };
 
   const handleMarkDelivered = async (orderId: string) => {
     try {
@@ -219,152 +163,6 @@ const AdminOrdersPage: React.FC = () => {
           </button>
         </div>
       </div>
-
-      <section className="mb-6 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-amber-100 p-2 text-amber-700">
-              <BadgeCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="font-serif text-xl font-semibold text-[var(--oppa-text)]">Discount Verification</h2>
-              <p className="text-sm text-[var(--oppa-text-muted)]">Review PWD and Senior Citizen proof before applying discounts.</p>
-            </div>
-          </div>
-          <button
-            onClick={() => void loadVerificationRequests()}
-            disabled={verificationLoading}
-            className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-medium text-[var(--oppa-text)] transition hover:bg-[var(--oppa-cream)] disabled:opacity-50"
-          >
-            {verificationLoading ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          {applicationRequests.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Customer discount applications</h3>
-              {applicationRequests.map((application) => (
-                <div key={application.id} className="rounded-xl border border-[var(--oppa-border)] bg-white p-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="space-y-2 text-sm text-[var(--oppa-text)]">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">{application.discount_type}</span>
-                        <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">{application.status}</span>
-                      </div>
-                      <p><span className="font-medium">Name:</span> {application.full_name}</p>
-                      <p><span className="font-medium">ID Number:</span> {application.id_number}</p>
-                      {application.expiry_date && <p><span className="font-medium">Expiry Date:</span> {new Date(application.expiry_date).toLocaleDateString('en-US', { timeZone: 'Asia/Manila' })}</p>}
-                      <p><span className="font-medium">Submitted:</span> {application.submitted_at ? new Date(application.submitted_at).toLocaleString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A'}</p>
-                    </div>
-
-                    <div className="w-full max-w-md space-y-2">
-                      {application.proof_image_url ? (
-                        <img
-                          src={application.proof_image_url}
-                          alt={`${application.discount_type} proof`}
-                          className="h-32 w-full rounded-xl object-cover border border-[var(--oppa-border)] bg-white"
-                        />
-                      ) : (
-                        <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-[var(--oppa-border)] bg-white text-xs text-[var(--oppa-text-muted)]">
-                          No proof image attached.
-                        </div>
-                      )}
-
-                      <textarea
-                        value={rejectionReasons[application.id] || ''}
-                        onChange={(event) => setRejectionReasons((prev) => ({ ...prev, [application.id]: event.target.value }))}
-                        rows={2}
-                        placeholder="Rejection reason (optional)"
-                        className="w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)]"
-                      />
-
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => void handleApplicationAction(application.id, 'approve')}
-                          className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => void handleApplicationAction(application.id, 'reject')}
-                          className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {verificationRequests.length === 0 && applicationRequests.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/50 p-6 text-center text-sm text-[var(--oppa-text-muted)]">
-              No discount verification requests waiting for approval.
-            </div>
-          ) : (
-            verificationRequests.length > 0 && (
-              <div className="space-y-3">
-                {verificationRequests.map((request) => (
-                  <div key={request.id} className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/40 p-4">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-2 text-sm text-[var(--oppa-text)]">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">{request.discount_type}</span>
-                          <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">{request.status}</span>
-                        </div>
-                        <p><span className="font-medium">Order:</span> {request.order?.order_number || request.order_id}</p>
-                        <p><span className="font-medium">Customer:</span> {request.order?.email || 'N/A'}</p>
-                        <p><span className="font-medium">Amount:</span> {formatCurrency(request.discount_amount || 0)}</p>
-                        <p><span className="font-medium">Submitted:</span> {request.submitted_at ? new Date(request.submitted_at).toLocaleString('en-US', { timeZone: 'Asia/Manila' }) : 'N/A'}</p>
-                      </div>
-
-                      <div className="w-full max-w-md space-y-2">
-                        {request.proof_image_url ? (
-                          <img
-                            src={request.proof_image_url}
-                            alt={`${request.discount_type} proof`}
-                            className="h-32 w-full rounded-xl object-cover border border-[var(--oppa-border)] bg-white"
-                          />
-                        ) : (
-                          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-[var(--oppa-border)] bg-white text-xs text-[var(--oppa-text-muted)]">
-                            No proof image attached.
-                          </div>
-                        )}
-
-                        <textarea
-                          value={rejectionReasons[request.id] || ''}
-                          onChange={(event) => setRejectionReasons((prev) => ({ ...prev, [request.id]: event.target.value }))}
-                          rows={2}
-                          placeholder="Rejection reason (optional)"
-                          className="w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)]"
-                        />
-
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => void handleVerificationAction(request.id, 'approve')}
-                            className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => void handleVerificationAction(request.id, 'reject')}
-                            className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          )}
-        </div>
-      </section>
 
       <div className="mb-4 flex flex-wrap gap-2">
         {['all', 'online', 'onsite'].map((type) => (
