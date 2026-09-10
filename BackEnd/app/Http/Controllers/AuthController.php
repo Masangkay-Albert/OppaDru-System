@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\GmailApiException;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -40,11 +41,26 @@ class AuthController extends Controller
 
         try {
             $user->sendEmailVerificationNotification();
+        } catch (GmailApiException $exception) {
+            Log::error('Registration email could not be sent using Gmail API.', [
+                'user_id' => $user->id,
+                'gmail_phase' => $exception->phase(),
+                'gmail_reason' => $exception->reason(),
+                'google_payload' => $exception->payload(),
+                'exception_class' => get_class($exception),
+                'exception_message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $exception->frontendMessage(),
+                'error_code' => $exception->reason(),
+            ], $exception->getCode());
         } catch (\Throwable $exception) {
-            Log::error('Registration email could not be sent.', [
+            Log::error('Registration email failed for an unexpected reason.', [
                 'user_id' => $user->id,
                 'exception_class' => get_class($exception),
                 'exception_message' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
             ]);
 
             return response()->json([

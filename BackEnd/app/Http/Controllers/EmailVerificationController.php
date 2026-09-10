@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\GmailApiException;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -39,6 +40,20 @@ class EmailVerificationController extends Controller
         if ($user && !$user->hasVerifiedEmail()) {
             try {
                 $user->sendEmailVerificationNotification();
+            } catch (GmailApiException $exception) {
+                Log::error('Verification email could not be resent via Gmail API.', [
+                    'user_id' => $user->id,
+                    'gmail_phase' => $exception->phase(),
+                    'gmail_reason' => $exception->reason(),
+                    'google_payload' => $exception->payload(),
+                    'exception_class' => get_class($exception),
+                    'exception_message' => $exception->getMessage(),
+                ]);
+
+                return response()->json([
+                    'message' => $exception->frontendMessage(),
+                    'error_code' => $exception->reason(),
+                ], $exception->getCode());
             } catch (\Throwable $exception) {
                 Log::error('Verification email could not be resent.', [
                     'user_id' => $user->id,
