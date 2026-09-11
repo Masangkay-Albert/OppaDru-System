@@ -58,6 +58,8 @@ Route::get('/products/{id}', [ProductController::class, 'show']);
 Route::get('/addon-groups', [AddonController::class, 'index']);
 
 Route::get('/orders', [OrderController::class, 'index']);
+Route::post('/orders/onsite', [OrderController::class, 'storeOnsite']);
+Route::patch('/orders/{id}/status-update', [OrderController::class, 'updateStatusOnsite']);
 Route::get('/orders/customers', [OrderController::class, 'getAllCustomers']);
 Route::middleware(['auth:api', 'verified-user'])->get('/orders/user', [OrderController::class, 'getUserOrders']);
 Route::get('/orders/{id}', [OrderController::class, 'show']);

@@ -57,6 +57,10 @@ export type AdminOrder = Omit<Order, 'timestamp'> & {
   order_number?: string;
   created_at?: string;
   timestamp?: string;
+  diningOption?: 'dine_in' | 'takeout';
+  notes?: string;
+  cashTendered?: number;
+  changeDue?: number;
 };
 
 const isPendingGracePeriodOrder = (order: any): boolean => {
@@ -213,69 +217,297 @@ export const getAllCustomers = async (): Promise<any[]> => {
   return request;
 };
 
-export const addOnsiteOrder = (data: {
-  customerName: string;
-  items: { name: string; quantity: number; price: number }[];
+export interface OnsiteOrderData {
+  customerName?: string;
+  cashierEmail?: string;
+  email?: string;
+  items: (CartItem | {
+    id?: string;
+    cartItemId?: string;
+    name: string;
+    quantity: number;
+    price: number;
+    selectedAddons?: Array<{ id: string; name: string; price: number }>;
+    specialInstructions?: string;
+    selectedSize?: string;
+    category?: any;
+    image?: string;
+    [key: string]: any;
+  })[];
   paymentMethod: string;
-}): AdminOrder => {
-  const total = data.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  paymentReference?: string;
+  diningOption?: 'dine_in' | 'takeout';
+  notes?: string;
+  phone?: string;
+  discountType?: 'PWD' | 'Senior Citizen' | null;
+  discountRate?: number;
+  discountAmount?: number;
+  discountIdNumber?: string;
+  cashTendered?: number;
+  changeDue?: number;
+  subtotal?: number;
+  total?: number;
+  vat?: number;
+}
+
+export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder> => {
+  const getCashierEmail = (): string => {
+    try {
+      const raw = localStorage.getItem('employee_auth');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.email && typeof parsed.email === 'string' && parsed.email.trim()) {
+          return parsed.email.trim();
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return 'cashier@oppadru.ph';
+  };
+
+  const cashierEmail = data.cashierEmail || data.email || getCashierEmail();
+
+  const calculatedTotal = data.total !== undefined
+    ? data.total
+    : data.items.reduce((sum, i) => {
+        const addonsTotal = (i.selectedAddons || (i as any).selected_addons || []).reduce((aSum: number, a: any) => aSum + Number(a.price || 0), 0);
+        return sum + (Number(i.price || (i as any).product_price || 0) * Number(i.quantity || 1)) + addonsTotal;
+      }, 0);
+
+  const itemsPayload = data.items.map((i) => ({
+    product_id: i.id || (i as any).product_id || '',
+    product_name: i.name || (i as any).product_name || 'Item',
+    product_price: Number(i.price || (i as any).product_price || 0),
+    quantity: Number(i.quantity || 1),
+    selected_addons: (i.selectedAddons || (i as any).selected_addons || []).map((a: any) => ({
+      id: a.id,
+      name: a.name,
+      price: Number(a.price || 0),
+      quantity: Number(a.quantity || 1),
+    })),
+    special_instructions: i.specialInstructions || (i as any).special_instructions || undefined,
+  }));
+
+  const payload = {
+    customer_name: data.customerName?.trim() || 'Walk-in Customer',
+    phone: data.phone || '09000000000',
+    email: cashierEmail,
+    cashier_email: cashierEmail,
+    dining_option: data.diningOption || 'takeout',
+    notes: data.notes || '',
+    payment_method: data.paymentMethod || 'cash',
+    payment_reference: data.paymentReference || (data.paymentMethod === 'cash' ? `CASH-${Date.now().toString().slice(-6)}` : undefined),
+    cash_tendered: data.cashTendered,
+    change_due: data.changeDue,
+    discount_type: data.discountType || null,
+    discount_rate: data.discountRate || 0,
+    discount_amount: data.discountAmount || 0,
+    discount_id_number: data.discountIdNumber,
+    items: itemsPayload,
+    total: calculatedTotal,
+    vat: data.vat || Math.round(calculatedTotal * 0.12 * 100) / 100,
+  };
+
+  let backendOrder: any = null;
+  try {
+    const employeeToken = localStorage.getItem('employee_token') || localStorage.getItem('adminToken');
+    const response = await fetch(`${API_URL}/orders/onsite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(employeeToken ? { 'Authorization': `Bearer ${employeeToken}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      backendOrder = result.order;
+    } else {
+      console.warn('Backend order creation returned status', response.status);
+    }
+  } catch (err) {
+    console.warn('Could not reach backend API for onsite order, falling back to local store', err);
+  }
+
+  const orderId = backendOrder?.id || `WI-${Date.now()}`;
+  const orderNumber = backendOrder?.order_number || `WI-${Date.now().toString().slice(-6)}`;
+  const diningLabel = data.diningOption === 'dine_in' ? 'Dine In' : 'Takeout';
+  const deliveryAddress = `Onsite - ${diningLabel} (Customer: ${data.customerName?.trim() || 'Walk-in Customer'})`;
+
   const newOrder: AdminOrder = {
-    id: `WI-${Date.now()}`,
-    email: '',
-    userId: `onsite-${Date.now()}`,
+    id: orderId,
+    order_number: orderNumber,
+    orderNumber: orderNumber,
+    email: backendOrder?.email || cashierEmail,
+    phone: data.phone || '',
+    userId: backendOrder?.user_id || `onsite-${Date.now()}`,
     items: data.items.map((i) => {
-      const cartItemId = `${i.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const cartItemId = (i as any).cartItemId || `${i.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const item: CartItem = {
-        id: cartItemId,
+        id: i.id || (i as any).product_id || cartItemId,
         cartItemId,
-        name: i.name,
-        description: '',
-        price: i.price,
-        category: 'chicken',
-        image: '',
+        name: i.name || (i as any).product_name || 'Item',
+        description: (i as any).description || '',
+        price: Number(i.price || (i as any).product_price || 0),
+        category: (i as any).category || 'chicken',
+        image: (i as any).image || '',
         is_available: true,
         isAvailable: true,
-        quantity: i.quantity,
+        quantity: Number(i.quantity || 1),
+        selectedAddons: i.selectedAddons || (i as any).selected_addons || [],
+        specialInstructions: i.specialInstructions || (i as any).special_instructions,
+        selectedSize: (i as any).selectedSize as any,
       };
       return item;
     }),
-    total,
-    address: 'Onsite / Walk-in',
+    total: calculatedTotal,
+    vat: data.vat || Math.round(calculatedTotal * 0.12 * 100) / 100,
+    discountType: data.discountType || null,
+    discountRate: data.discountRate || 0,
+    discountAmount: data.discountAmount || 0,
+    address: deliveryAddress,
     coords: { lat: 0, lng: 0 },
-    status: 'preparing',
-    timestamp: new Date().toISOString(),
+    status: backendOrder?.status || 'pending',
+    timestamp: backendOrder?.created_at || new Date().toISOString(),
+    created_at: backendOrder?.created_at || new Date().toISOString(),
     paymentMethod: data.paymentMethod,
-    deliveryAddress: 'Onsite / Walk-in',
+    payment_method: data.paymentMethod,
+    deliveryAddress: deliveryAddress,
     deliveryAddressCoords: { lat: 0, lng: 0 },
     channel: 'onsite',
-    customerName: data.customerName,
+    customerName: data.customerName?.trim() || 'Walk-in Customer',
+    customer_name: data.customerName?.trim() || 'Walk-in Customer',
+    diningOption: data.diningOption || 'takeout',
+    notes: data.notes || '',
+    cashTendered: data.cashTendered,
+    changeDue: data.changeDue,
     served: false,
   };
 
   const existing = getOnsiteOrders();
-  const updated = [...existing, newOrder];
+  const updated = [newOrder, ...existing.filter((o) => o.id !== orderId)];
   localStorage.setItem(ONSITE_ORDERS_KEY, JSON.stringify(updated));
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('onsite-orders-updated', { detail: newOrder }));
+  }
+
   return newOrder;
 };
 
-export const markOrderServed = (orderId: string, channel: OrderChannel): void => {
+export const fetchOnsiteOrders = async (): Promise<AdminOrder[]> => {
+  try {
+    const response = await fetch(`${API_URL}/orders`);
+    if (!response.ok) return getOnsiteOrders();
+    const orders = await response.json();
+    if (!Array.isArray(orders)) return getOnsiteOrders();
+
+    const onsiteApiOrders: AdminOrder[] = orders
+      .filter((o: any) => o.delivery_type === 'onsite' || o.channel === 'onsite')
+      .map((o: any) => {
+        const paymentMethod = o.payment_method || 'cash';
+        return {
+          ...o,
+          channel: 'onsite' as const,
+          served: o.status === 'delivered',
+          customerName: o.customer_name || 'Walk-in Customer',
+          customer_name: o.customer_name || 'Walk-in Customer',
+          paymentMethod,
+          payment_method: paymentMethod,
+          total: Number(o.total || 0),
+          items: Array.isArray(o.items) ? o.items.map((item: any) => ({
+            id: item.product_id || item.id || '',
+            cartItemId: `${item.product_id || 'item'}-${Date.now()}`,
+            name: item.product_name || item.name || 'Item',
+            description: '',
+            price: Number(item.product_price || item.price || 0),
+            category: 'chicken',
+            image: '',
+            is_available: true,
+            quantity: Number(item.quantity || 1),
+            selectedAddons: item.selected_addons || item.selectedAddons || [],
+            specialInstructions: item.special_instructions || item.specialInstructions,
+          })) : [],
+          created_at: o.created_at || o.timestamp || new Date().toISOString(),
+          timestamp: o.timestamp || o.created_at || new Date().toISOString(),
+        };
+      });
+
+    const localOrders = getOnsiteOrders();
+    const map = new Map<string, AdminOrder>();
+    onsiteApiOrders.forEach((o) => map.set(o.id, o));
+    localOrders.forEach((o) => {
+      if (!map.has(o.id)) {
+        map.set(o.id, o);
+      }
+    });
+
+    const merged = Array.from(map.values()).sort((a, b) => {
+      const timeA = new Date(a.created_at || a.timestamp || 0).getTime();
+      const timeB = new Date(b.created_at || b.timestamp || 0).getTime();
+      return timeB - timeA;
+    });
+
+    localStorage.setItem(ONSITE_ORDERS_KEY, JSON.stringify(merged));
+    return merged;
+  } catch {
+    return getOnsiteOrders();
+  }
+};
+
+export const markOrderServed = async (orderId: string, channel: OrderChannel): Promise<void> => {
   if (channel === 'onsite') {
     const orders = getOnsiteOrders().map((o) =>
       o.id === orderId ? { ...o, served: true, status: 'delivered' as const } : o
     );
     localStorage.setItem(ONSITE_ORDERS_KEY, JSON.stringify(orders));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('onsite-orders-updated'));
+    }
+
+    try {
+      await fetch(`${API_URL}/orders/${orderId}/status-update`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ status: 'delivered' }),
+      });
+    } catch {
+    }
   } else {
     updateOnlineOrdersInStorage((orders) =>
       orders.map((o) => (o.id === orderId ? { ...o, status: 'delivered' as const } : o))
     );
+    try {
+      await orderService.updateOrderStatus(orderId, 'delivered');
+    } catch {
+    }
   }
 };
 
-export const removeOrder = (orderId: string, channel: OrderChannel): void => {
+export const removeOrder = async (orderId: string, channel: OrderChannel): Promise<void> => {
   if (channel === 'onsite') {
     const orders = getOnsiteOrders().filter((o) => o.id !== orderId);
     localStorage.setItem(ONSITE_ORDERS_KEY, JSON.stringify(orders));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('onsite-orders-updated'));
+    }
+
+    try {
+      await fetch(`${API_URL}/orders/${orderId}/status-update`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+    } catch {
+    }
   } else {
     updateOnlineOrdersInStorage((orders) => orders.filter((o) => o.id !== orderId));
+    try {
+      await orderService.updateOrderStatus(orderId, 'cancelled');
+    } catch {
+    }
   }
 };

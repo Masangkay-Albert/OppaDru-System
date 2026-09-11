@@ -20,10 +20,11 @@ const EmployeeLoginPage: React.FC = () => {
       const result = await employeeAuth.login(email, password);
 
       if (result.success && result.position) {
-        if (result.position === 'kitchen staff') {
+        const normalizedPos = result.position.toLowerCase().trim();
+        if (normalizedPos === 'kitchen staff' || normalizedPos === 'kitchen') {
           navigate("/kitchen/dashboard");
-        } else if (result.position === 'cashier') {
-          navigate("/cashier"); 
+        } else if (normalizedPos === 'cashier' || normalizedPos === 'staff' || normalizedPos === 'employee') {
+          navigate("/employee"); 
         } else {
           setError(`Position "${result.position}" is not recognized.`);
         }

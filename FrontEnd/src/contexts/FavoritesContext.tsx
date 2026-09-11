@@ -33,6 +33,19 @@ export const useFavorites = () => {
 
 export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const getActiveUserId = (): string | null => {
+    if (user?.id) return user.id;
+    try {
+      const raw = localStorage.getItem('employee_auth');
+      if (raw) {
+        const emp = JSON.parse(raw);
+        return emp?.id ? `emp_${emp.id}` : null;
+      }
+    } catch {}
+    return null;
+  };
+  const activeUserId = getActiveUserId();
+
   const [favorites, setFavorites] = useState<Product[]>([]);
   const [orderCounts, setOrderCounts] = useState<OrderCount[]>([]);
   const [lastOrderedProductId, setLastOrderedProductId] = useState<string | null>(null);
@@ -42,17 +55,17 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [notificationTimer, setNotificationTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (user?.id) {
-      const savedFavorites = localStorage.getItem(`favorites_${user.id}`);
+    if (activeUserId) {
+      const savedFavorites = localStorage.getItem(`favorites_${activeUserId}`);
       setFavorites(savedFavorites ? JSON.parse(savedFavorites) : []);
 
-      const savedOrderCounts = localStorage.getItem(`orderCounts_${user.id}`);
+      const savedOrderCounts = localStorage.getItem(`orderCounts_${activeUserId}`);
       setOrderCounts(savedOrderCounts ? JSON.parse(savedOrderCounts) : []);
 
-      const savedLastOrdered = localStorage.getItem(`lastOrderedProductId_${user.id}`);
+      const savedLastOrdered = localStorage.getItem(`lastOrderedProductId_${activeUserId}`);
       setLastOrderedProductId(savedLastOrdered || null);
 
-      const savedNotificationCount = localStorage.getItem(`favoriteNotificationCount_${user.id}`);
+      const savedNotificationCount = localStorage.getItem(`favoriteNotificationCount_${activeUserId}`);
       setFavoriteNotificationCount(savedNotificationCount ? JSON.parse(savedNotificationCount) : 0);
     } else {
       setFavorites([]);
@@ -62,35 +75,35 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setNewFavoriteName('');
       setFavoriteNotificationCount(0);
     }
-  }, [user?.id]);
+  }, [activeUserId]);
 
   useEffect(() => {
-    if (user?.id) {
-      localStorage.setItem(`favorites_${user.id}`, JSON.stringify(favorites));
+    if (activeUserId) {
+      localStorage.setItem(`favorites_${activeUserId}`, JSON.stringify(favorites));
     }
-  }, [favorites, user?.id]);
+  }, [favorites, activeUserId]);
 
   useEffect(() => {
-    if (user?.id) {
-      localStorage.setItem(`orderCounts_${user.id}`, JSON.stringify(orderCounts));
+    if (activeUserId) {
+      localStorage.setItem(`orderCounts_${activeUserId}`, JSON.stringify(orderCounts));
     }
-  }, [orderCounts, user?.id]);
+  }, [orderCounts, activeUserId]);
 
   useEffect(() => {
-    if (user?.id) {
+    if (activeUserId) {
       if (lastOrderedProductId) {
-        localStorage.setItem(`lastOrderedProductId_${user.id}`, lastOrderedProductId);
+        localStorage.setItem(`lastOrderedProductId_${activeUserId}`, lastOrderedProductId);
       } else {
-        localStorage.removeItem(`lastOrderedProductId_${user.id}`);
+        localStorage.removeItem(`lastOrderedProductId_${activeUserId}`);
       }
     }
-  }, [lastOrderedProductId, user?.id]);
+  }, [lastOrderedProductId, activeUserId]);
 
   useEffect(() => {
-    if (user?.id) {
-      localStorage.setItem(`favoriteNotificationCount_${user.id}`, JSON.stringify(favoriteNotificationCount));
+    if (activeUserId) {
+      localStorage.setItem(`favoriteNotificationCount_${activeUserId}`, JSON.stringify(favoriteNotificationCount));
     }
-  }, [favoriteNotificationCount, user?.id]);
+  }, [favoriteNotificationCount, activeUserId]);
 
   const clearNotificationTimer = () => {
     if (notificationTimer) {
@@ -100,7 +113,7 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const addOrder = (product: Product) => {
-    if (!user?.id) {
+    if (!activeUserId) {
       console.warn('Cannot add order: User not logged in');
       return;
     }
@@ -160,7 +173,7 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const isFavorite = (productId: string) => favorites.some(f => f.id === productId);
 
   const toggleFavorite = (product: Product) => {
-    if (!user?.id) {
+    if (!activeUserId) {
       console.warn('Cannot toggle favorite: User not logged in');
       return;
     }

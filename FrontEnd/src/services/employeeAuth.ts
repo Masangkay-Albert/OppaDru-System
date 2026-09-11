@@ -1,4 +1,6 @@
-const API_BASE_URL = "http://localhost:8000/api";
+import { API_URL } from './apiConfig';
+
+const API_BASE_URL = API_URL;
 
 export const employeeAuth = {
   login: async (email: string, password: string): Promise<{ success: boolean; position?: string; message?: string }> => {

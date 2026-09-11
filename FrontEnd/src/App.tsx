@@ -48,6 +48,14 @@ import KitchenDashboardPage from "./modules/kitchen-side/kitchenDashboard";
 import PaymentConfirmPage from "./modules/customer-side/pages/PaymentConfirmPage";
 import ProtectedRoute from "./modules/customer-side/components/ProtectedRoute";
 
+// ============ EMPLOYEE / POS PAGES ============
+import ProtectedEmployeeRoute from "./modules/employee-side/components/ProtectedEmployeeRoute";
+import EmployeeMenuPage from "./modules/employee-side/pages/EmployeeMenuPage";
+import EmployeeCheckoutPage from "./modules/employee-side/pages/EmployeeCheckoutPage";
+import EmployeeOrdersPage from "./modules/employee-side/pages/EmployeeOrdersPage";
+import EmployeeFavoritesPage from "./modules/employee-side/pages/EmployeeFavoritesPage";
+import EmployeeSettingsPage from "./modules/employee-side/pages/EmployeeSettingsPage";
+
 function App() {
   return (
     <AuthProvider>
@@ -96,8 +104,24 @@ function App() {
                       <Route path="/delivery/dashboard" element={<DriverDashboardPage/>}/>
 
                       {/* ===== Employee ROUTES ===== */}
-                      <Route path="/employee/login" element={<EmployeeLoginPage/>}/>
-                      <Route path="/kitchen/dashboard" element={<KitchenDashboardPage/>}/>
+                      <Route path="/employee/login" element={<EmployeeLoginPage />} />
+                      <Route path="/staff/login" element={<EmployeeLoginPage />} />
+                      <Route path="/cashier/login" element={<EmployeeLoginPage />} />
+                      <Route path="/employee" element={<ProtectedEmployeeRoute><EmployeeMenuPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/employee/checkout" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/employee/pos" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/employee/orders" element={<ProtectedEmployeeRoute><EmployeeOrdersPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/employee/favorites" element={<ProtectedEmployeeRoute><EmployeeFavoritesPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/employee/settings" element={<ProtectedEmployeeRoute><EmployeeSettingsPage /></ProtectedEmployeeRoute>} />
+
+                      {/* Cashier routes matching employeeLogin.tsx redirect */}
+                      <Route path="/cashier" element={<ProtectedEmployeeRoute><EmployeeMenuPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/checkout" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/orders" element={<ProtectedEmployeeRoute><EmployeeOrdersPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/favorites" element={<ProtectedEmployeeRoute><EmployeeFavoritesPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/settings" element={<ProtectedEmployeeRoute><EmployeeSettingsPage /></ProtectedEmployeeRoute>} />
+
+                      <Route path="/kitchen/dashboard" element={<KitchenDashboardPage />} />
 
                     </Routes>
                     </Suspense>

@@ -28,36 +28,63 @@ export const useCart = () => {
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const resolvedUser = user ?? authService.getUserFromStorage();
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
-  const getCartKey = useCallback(() => {
+  const resolveCurrentKey = useCallback((): string => {
     if (resolvedUser?.id) {
       return `cart_user_${resolvedUser.id}`;
     }
-    return 'cart_guest';
-  }, [resolvedUser]);
+    try {
+      const raw = localStorage.getItem('employee_auth');
+      if (raw) {
+        const emp = JSON.parse(raw);
+        if (emp?.id) return `cart_employee_${emp.id}`;
+      }
+    } catch {}
+    return 'cart_employee_register';
+  }, [resolvedUser?.id]);
 
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    try {
+      const key = resolveCurrentKey();
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Load cart when user session changes
   useEffect(() => {
-    if (resolvedUser) {
-      const savedCart = localStorage.getItem(getCartKey());
-      setCartItems(savedCart ? JSON.parse(savedCart) : []);
-    } else {
+    const key = resolveCurrentKey();
+    try {
+      const saved = localStorage.getItem(key);
+      setCartItems(saved ? JSON.parse(saved) : []);
+    } catch {
       setCartItems([]);
     }
-  }, [resolvedUser, getCartKey]);
+  }, [resolveCurrentKey]);
 
+  // Persist cart when cartItems changes
   useEffect(() => {
-    if (resolvedUser) {
-      localStorage.setItem(getCartKey(), JSON.stringify(cartItems));
+    const key = resolveCurrentKey();
+    try {
+      localStorage.setItem(key, JSON.stringify(cartItems));
+    } catch (e) {
+      console.warn('Failed to save cart:', e);
     }
-  }, [cartItems, resolvedUser, getCartKey]);
+  }, [cartItems, resolveCurrentKey]);
 
   const addToCart = (item: Omit<CartItem, 'cartItemId'>) => {
     if (!item.id) {
       return;
     }
     
-    const cartItemId = generateCartItemId(item.id, item.selectedAddons, item.specialInstructions);
+    const cartItemId = generateCartItemId(
+      item.id,
+      item.selectedAddons,
+      item.specialInstructions,
+      item.selectedSize
+    );
 
     setCartItems(prevItems => {
       const existingItemIndex = prevItems.findIndex(existing => existing.cartItemId === cartItemId);
@@ -83,7 +110,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newCartItemId = generateCartItemId(
       updatedItem.id,
       updatedItem.selectedAddons,
-      updatedItem.specialInstructions
+      updatedItem.specialInstructions,
+      updatedItem.selectedSize
     );
 
     setCartItems(prevItems => {

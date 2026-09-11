@@ -4,6 +4,7 @@ import { ChefHat, CheckCircle, Clock, User, Eye, X, ArrowDownUp } from 'lucide-r
 
 import { STATUS_COLORS } from '../../utils/constants';
 import KitchenLayout from './components/kitchenLayout'; 
+import { API_URL } from '../../services/apiConfig'; 
 
 const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap';
 const chipPrimary = `${chipBase} bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]/70 cursor-pointer`;
@@ -70,7 +71,7 @@ const KitchenDashboardPage: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("employee_token");
-      const response = await fetch(`http://localhost:8000/api/kitchen/orders?tab=${activeTab}`, {
+      const response = await fetch(`${API_URL}/kitchen/orders?tab=${activeTab}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json'
@@ -97,7 +98,7 @@ const KitchenDashboardPage: React.FC = () => {
   const updateOrderStatus = async (orderId: string, newStatus: string, nextTab: TabView) => {
     try {
       const token = localStorage.getItem("employee_token");
-      const response = await fetch(`http://localhost:8000/api/kitchen/orders/${orderId}/status`, {
+      const response = await fetch(`${API_URL}/kitchen/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,

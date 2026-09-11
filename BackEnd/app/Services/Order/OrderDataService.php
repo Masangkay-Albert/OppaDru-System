@@ -30,7 +30,11 @@ class OrderDataService
             'id' => $order->id,
             'order_number' => $order->order_number,
             'email' => $order->email,
-            'customer_name' => $order->user ? $order->user->full_name : 'Guest',
+            'customer_name' => $order->user
+                ? ($order->user->full_name ?? trim(($order->user->first_name ?? '') . ' ' . ($order->user->last_name ?? '')))
+                : (preg_match('/Customer:\s*([^)|]+)/i', (string) $order->delivery_address, $matches)
+                    ? trim($matches[1])
+                    : (!empty($order->email) && !str_starts_with($order->email, 'onsite') ? $order->email : 'Guest Customer')),
             'user_id' => $order->user_id,
             'total' => $order->total,
             'status' => $order->status,
@@ -78,30 +82,42 @@ class OrderDataService
         $orderItems = [];
 
         foreach ($items as $item) {
-            $product = Product::find($item['product_id']);
-            $addonIds = collect($item['selected_addons'] ?? [])->pluck('id')->filter();
+            $rawProductId = $item['product_id'] ?? ($item['id'] ?? null);
+            $product = $rawProductId ? Product::find($rawProductId) : null;
+            $addonList = $item['selected_addons'] ?? ($item['selectedAddons'] ?? []);
+            $addonIds = collect($addonList)->pluck('id')->filter();
             $addons = Addon::whereIn('id', $addonIds)->get()->keyBy('id');
-            $selectedAddons = collect($item['selected_addons'] ?? [])->map(function ($addon) use ($addons) {
+
+            $selectedAddons = collect($addonList)->map(function ($addon) use ($addons) {
                 $storedAddon = $addons->get($addon['id'] ?? null);
-                if (!$storedAddon) {
-                    return null;
+                if ($storedAddon) {
+                    return [
+                        'id' => $storedAddon->id,
+                        'name' => $storedAddon->name,
+                        'price' => (float) $storedAddon->price,
+                        'quantity' => max(1, (int) ($addon['quantity'] ?? 1)),
+                    ];
                 }
 
-                return [
-                    'id' => $storedAddon->id,
-                    'name' => $storedAddon->name,
-                    'price' => (float) $storedAddon->price,
-                    'quantity' => max(1, (int) ($addon['quantity'] ?? 1)),
-                ];
+                if (!empty($addon['name'])) {
+                    return [
+                        'id' => $addon['id'] ?? null,
+                        'name' => $addon['name'],
+                        'price' => (float) ($addon['price'] ?? 0),
+                        'quantity' => max(1, (int) ($addon['quantity'] ?? 1)),
+                    ];
+                }
+
+                return null;
             })->filter()->values()->all();
 
             $orderItems[] = [
-                'product_id' => $item['product_id'],
-                'product_name' => $product?->name ?? $item['product_name'],
-                'product_price' => $product?->price ?? (float) ($item['product_price'] ?? 0),
-                'quantity' => $item['quantity'],
+                'product_id' => $product?->id ?? $rawProductId,
+                'product_name' => $product?->name ?? ($item['product_name'] ?? ($item['name'] ?? 'Item')),
+                'product_price' => $product?->price ?? (float) ($item['product_price'] ?? ($item['price'] ?? 0)),
+                'quantity' => max(1, (int) ($item['quantity'] ?? 1)),
                 'selected_addons' => $selectedAddons,
-                'special_instructions' => $item['special_instructions'] ?? null,
+                'special_instructions' => $item['special_instructions'] ?? ($item['specialInstructions'] ?? null),
             ];
         }
 
@@ -113,22 +129,35 @@ class OrderDataService
         $order->orderItems()->delete();
 
         foreach ($items as $item) {
+            $rawProductId = $item['product_id'] ?? ($item['id'] ?? null);
+            $productId = null;
+            if (!empty($rawProductId) && Product::where('id', $rawProductId)->exists()) {
+                $productId = $rawProductId;
+            }
+
             $orderItem = OrderItem::create([
                 'order_id' => $order->id,
-                'product_id' => $item['product_id'],
-                'product_name' => $item['product_name'],
-                'product_price' => $item['product_price'],
-                'quantity' => $item['quantity'],
-                'special_instructions' => $item['special_instructions'] ?? null,
+                'product_id' => $productId,
+                'product_name' => $item['product_name'] ?? ($item['name'] ?? 'Item'),
+                'product_price' => (float) ($item['product_price'] ?? ($item['price'] ?? 0)),
+                'quantity' => max(1, (int) ($item['quantity'] ?? 1)),
+                'special_instructions' => $item['special_instructions'] ?? ($item['specialInstructions'] ?? null),
             ]);
 
-            foreach ($item['selected_addons'] ?? [] as $addon) {
+            $addonList = $item['selected_addons'] ?? ($item['selectedAddons'] ?? []);
+            foreach ($addonList as $addon) {
+                $addonId = null;
+                $rawAddonId = $addon['id'] ?? null;
+                if (!empty($rawAddonId) && is_numeric($rawAddonId) && Addon::where('id', $rawAddonId)->exists()) {
+                    $addonId = (int) $rawAddonId;
+                }
+
                 OrderItemAddon::create([
                     'order_item_id' => $orderItem->id,
-                    'addon_id' => $addon['id'] ?? null,
+                    'addon_id' => $addonId,
                     'addon_name' => $addon['name'] ?? 'Add-on',
-                    'unit_price' => $addon['price'] ?? 0,
-                    'quantity' => $addon['quantity'] ?? 1,
+                    'unit_price' => (float) ($addon['price'] ?? 0),
+                    'quantity' => max(1, (int) ($addon['quantity'] ?? 1)),
                 ]);
             }
         }

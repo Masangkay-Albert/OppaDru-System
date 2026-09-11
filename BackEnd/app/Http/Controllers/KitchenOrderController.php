@@ -30,10 +30,19 @@ class KitchenOrderController extends Controller
 
         // Format the data to match what your React frontend expects
         $formattedOrders = $orders->map(function ($order) {
+            $customerName = 'Guest Customer';
+            if ($order->user) {
+                $name = trim(($order->user->first_name ?? '') . ' ' . ($order->user->last_name ?? ''));
+                $customerName = $name ?: ($order->user->full_name ?? $order->email ?? 'Customer');
+            } elseif (!empty($order->delivery_address) && preg_match('/Customer:\s*([^)|]+)/i', (string) $order->delivery_address, $matches)) {
+                $customerName = trim($matches[1]);
+            } elseif (!empty($order->email) && !str_starts_with($order->email, 'onsite')) {
+                $customerName = $order->email;
+            }
+
             return [
                 'id' => $order->id,
-                // Fallback to email if user relationship doesn't have a name
-                'customerName' => $order->user ? $order->user->first_name . ' ' . $order->user->last_name : ($order->email ?? 'Guest Customer'),
+                'customerName' => $customerName,
                 'status' => $order->status,
                 'items' => $order->items, // Your model already casts this to an array
                 'scheduleDisplay' => $order->schedule_display,
