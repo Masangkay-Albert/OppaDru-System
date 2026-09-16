@@ -21,7 +21,7 @@ class KitchenOrderController extends Controller
             $query->whereIn('status', ['preparing']);
         } else {
             // History tab
-            $query->whereIn('status', ['prepared', 'completed', 'cancelled']);
+            $query->whereIn('status', ['prepared', 'delivered', 'completed', 'cancelled']);
         }
 
         // Order by oldest first for pending (so first in, first out), or newest for history

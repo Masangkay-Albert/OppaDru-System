@@ -5,6 +5,7 @@ import DriverLayout from '../components/DriverLayout';
 
 import { formatCurrency } from '../../../utils/formatters';
 import { STATUS_COLORS } from '../../../utils/constants';
+import { API_URL } from '../../../services/apiConfig';
 
 
 const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap';
@@ -17,6 +18,7 @@ type SortOrder = 'desc' | 'asc';
 
 export interface DriverOrder {
   id: string;
+  driver_id?: string | null;
   customerName: string;
   status: string;
   items?: any[];
@@ -59,6 +61,7 @@ const DriverDashboardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabView>('available');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [driverName, setDriverName] = useState<string>("Driver");
+  const [driverId, setDriverId] = useState<string>("");
   
   const [selectedOrder, setSelectedOrder] = useState<DriverOrder | null>(null);
 
@@ -77,6 +80,9 @@ const DriverDashboardPage: React.FC = () => {
       if (driver && driver.name) {
         setDriverName(driver.name);
       }
+      if (driver && driver.id) {
+        setDriverId(driver.id);
+      }
     } catch (error) {
       console.error("Failed to parse driver data", error);
       navigate('/delivery/login', { replace: true }); 
@@ -88,7 +94,7 @@ const DriverDashboardPage: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("driver_token");
-      const response = await fetch(`http://localhost:8000/api/driver/orders?tab=${activeTab}`, {
+      const response = await fetch(`${API_URL}/driver/orders?tab=${activeTab}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json'
@@ -114,7 +120,7 @@ const DriverDashboardPage: React.FC = () => {
   const updateOrderStatus = async (orderId: string, newStatus: string, nextTab: TabView) => {
     try {
       const token = localStorage.getItem("driver_token");
-      const response = await fetch(`http://localhost:8000/api/driver/orders/${orderId}/status`, {
+      const response = await fetch(`${API_URL}/driver/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -134,8 +140,17 @@ const DriverDashboardPage: React.FC = () => {
     }
   };
 
-  // Sort the orders safely
-  const sortedOrders = [...orders].sort((a, b) => {
+  // Filter and sort the orders safely
+  const filteredOrders = orders.filter((order) => {
+    if (activeTab === 'history' || activeTab === 'active') {
+      if (order.driver_id && driverId && order.driver_id !== driverId) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
     const dateA = new Date(a.created_at || 0).getTime();
     const dateB = new Date(b.created_at || 0).getTime();
     return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
@@ -275,18 +290,18 @@ const DriverDashboardPage: React.FC = () => {
 
                 <div className="mt-4 flex items-center gap-2 border-t border-[var(--oppa-border)] pt-3">
                   {activeTab === 'available' ? (
-                    // Driver changes status to "out_for_delivery" when they accept it
-                    <button onClick={() => updateOrderStatus(order.id, 'out_for_delivery', 'active')} className={chipPrimary + " w-full justify-center"}>
+                    // Driver changes status to "on_the_way" when they accept it
+                    <button onClick={() => updateOrderStatus(order.id, 'on_the_way', 'active')} className={chipPrimary + " w-full justify-center"}>
                       <Truck size={14} /> Accept Order
                     </button>
                   ) : activeTab === 'active' ? (
-                    // Driver changes status to "completed" (or delivered) when finished
-                    <button onClick={() => updateOrderStatus(order.id, 'completed', 'history')} className={chipSuccess + " w-full justify-center"}>
+                    // Driver changes status to "delivered" when finished
+                    <button onClick={() => updateOrderStatus(order.id, 'delivered', 'history')} className={chipSuccess + " w-full justify-center"}>
                       <CheckCircle size={14} /> Mark Delivered
                     </button>
                   ) : (
                     <span className={chipDisabled + " w-full justify-center"}>
-                      <CheckCircle size={14} /> Completed
+                      <CheckCircle size={14} /> Delivered
                     </span>
                   )}
                 </div>
@@ -355,16 +370,16 @@ const DriverDashboardPage: React.FC = () => {
                         </button>
                         
                         {activeTab === 'available' ? (
-                          <button onClick={() => updateOrderStatus(order.id, 'out_for_delivery', 'active')} className={`${chipPrimary} w-[120px] justify-center`}>
+                          <button onClick={() => updateOrderStatus(order.id, 'on_the_way', 'active')} className={`${chipPrimary} w-[120px] justify-center`}>
                             <Truck size={14} /> Accept
                           </button>
                         ) : activeTab === 'active' ? (
-                          <button onClick={() => updateOrderStatus(order.id, 'completed', 'history')} className={`${chipSuccess} w-[120px] justify-center`}>
-                            <CheckCircle size={14} /> Delivered
+                          <button onClick={() => updateOrderStatus(order.id, 'delivered', 'history')} className={`${chipSuccess} w-[120px] justify-center`}>
+                            <CheckCircle size={14} /> Mark Delivered
                           </button>
                         ) : (
                           <span className={`${chipDisabled} w-[120px] justify-center`}>
-                            <CheckCircle size={14} /> Done
+                            <CheckCircle size={14} /> Delivered
                           </span>
                         )}
                       </div>

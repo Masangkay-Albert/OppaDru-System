@@ -19,6 +19,7 @@ class Order extends Model
         'updated_at',
         'email',
         'user_id',
+        'driver_id',
         'order_number',
         'total',
         'delivery_fee',
@@ -89,6 +90,11 @@ class Order extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id', 'id');
+    }
+
+    public function driver()
+    {
+        return $this->belongsTo(Driver::class, 'driver_id', 'id');
     }
 
     public function payment()

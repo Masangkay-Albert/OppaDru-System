@@ -11,7 +11,6 @@ const statusColors: Record<string, string> = {
   ready: 'bg-purple-100 text-purple-700',
   scheduled: 'bg-orange-100 text-orange-700',
   on_the_way: 'bg-orange-100 text-orange-700',
-  out_for_delivery: 'bg-orange-100 text-orange-700',
   delivered: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
 };
@@ -22,7 +21,6 @@ const statusIcons: Record<string, any> = {
   ready: Package,
   scheduled: CalendarDays,
   on_the_way: Truck,
-  out_for_delivery: Truck,
   delivered: CheckCircle,
   cancelled: XCircle,
 };
@@ -33,7 +31,6 @@ const statusLabels: Record<string, string> = {
   ready: 'Ready',
   scheduled: 'Scheduled',
   on_the_way: 'On the way',
-  out_for_delivery: 'Out for Delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
 };
