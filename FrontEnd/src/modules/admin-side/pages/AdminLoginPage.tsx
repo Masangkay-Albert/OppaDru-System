@@ -128,10 +128,6 @@ const AdminLoginPage: React.FC = () => {
             <ArrowLeft size={16} />
             Back to Home
           </button>
-
-          <p className="mt-6 text-center text-xs text-[var(--oppa-text-muted)]">
-            Default demo credentials: admin@oppadru.com / Admin@123
-          </p>
         </div>
       </div>
     </div>

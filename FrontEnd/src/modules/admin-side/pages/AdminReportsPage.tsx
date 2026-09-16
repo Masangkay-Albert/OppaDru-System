@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Download, Globe2, RefreshCw, Store, TrendingUp } from 'lucide-react';
+import { BarChart3, FileText, Globe2, Loader2, RefreshCw, Shield, Store, TrendingUp } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
+import { useAdminAuth } from '../../../contexts/AdminAuthContext';
+import { getCurrentAdmin } from '../../../services/adminAuthService';
 import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
 import { formatCurrency } from '../../../utils/formatters';
+import { generateSalesReportPdf } from '../../../utils/reportPdfGenerator';
 
 type ReportRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -70,8 +73,6 @@ const formatDateRange = (range: [Date, Date]): string => {
   const formatDate = (date: Date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   return `${formatDate(range[0])} - ${formatDate(range[1])}`;
 };
-
-const csvCell = (value: string | number): string => `"${String(value).replace(/"/g, '""')}"`;
 
 interface TrendBucket {
   label: string;
@@ -142,6 +143,7 @@ const getTrendBuckets = (orders: AdminOrder[], range: ReportRange, filters: Repo
 };
 
 const AdminReportsPage: React.FC = () => {
+  const { admin } = useAdminAuth();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [filters, setFilters] = useState<ReportFilters>({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
   const [goal, setGoal] = useState(0);
@@ -151,6 +153,7 @@ const AdminReportsPage: React.FC = () => {
   const [goalSaving, setGoalSaving] = useState(false);
   const [goalError, setGoalError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -165,15 +168,34 @@ const AdminReportsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadOrders();
+    let isMounted = true;
+    getAllOrders()
+      .then((allOrders) => {
+        if (isMounted) setOrders(Array.isArray(allOrders) ? allOrders : []);
+      })
+      .catch(() => {
+        if (isMounted) setOrders([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
     getTargetProfitSale()
       .then((savedGoal) => {
-        setGoal(savedGoal);
-        setGoalBeforeEdit(savedGoal);
-        setGoalDirty(false);
-        setEditingGoal(false);
+        if (isMounted) {
+          setGoal(savedGoal);
+          setGoalBeforeEdit(savedGoal);
+          setGoalDirty(false);
+          setEditingGoal(false);
+        }
       })
-      .catch(() => setGoalError('Sales target could not be loaded.'));
+      .catch(() => {
+        if (isMounted) setGoalError('Sales target could not be loaded.');
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const filteredOrders = useMemo(
@@ -214,7 +236,7 @@ const AdminReportsPage: React.FC = () => {
     const getTop = (channel: 'online' | 'onsite') => {
       const products = new Map<string, number>();
       salesOrders.filter((order) => order.channel === channel).forEach((order) => {
-        order.items?.forEach((item: any) => {
+        order.items?.forEach((item: { product_name?: string; name?: string; quantity?: number }) => {
           const name = item.product_name || item.name || 'Unnamed item';
           products.set(name, (products.get(name) || 0) + Number(item.quantity || 0));
         });
@@ -317,26 +339,41 @@ const AdminReportsPage: React.FC = () => {
     if (editingGoal && !goalDirty) void saveGoal();
   };
 
-  const handleExportCSV = () => {
-    const rows = [
-      ['Order ID', 'Customer', 'Channel', 'Total', 'Status', 'Date'],
-      ...salesOrders.map((order) => [
-        order.order_number || order.id,
-        order.customerName || order.email || 'Customer',
-        order.channel,
-        Number(order.total || 0).toFixed(2),
-        String(order.status || 'pending'),
-        getOrderDate(order)?.toLocaleString() || 'N/A',
-      ]),
-    ];
-    const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `sales-report-${timelineRange}-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const handleExportPDF = async () => {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      const currentAdmin = admin || getCurrentAdmin();
+      const weekRange = getWeekDateRange(filters);
+      const weekRangeText = weekRange ? formatDateRange(weekRange).replace(`, ${filters.year}`, '') : undefined;
+
+      await generateSalesReportPdf({
+        orders: salesOrders,
+        metrics,
+        goal,
+        goalReached,
+        goalSet,
+        timelineRange,
+        activeFilterSummary,
+        filters: {
+          ...filters,
+          weekRangeText,
+        },
+        topProducts: topProductsByChannel,
+        generatedBy: {
+          name: currentAdmin?.fullName || 'System Administrator',
+          email: currentAdmin?.email || 'admin@oppadru.com',
+          role: currentAdmin?.role || 'admin',
+        },
+      });
+    } catch (error) {
+      console.error('Failed to generate sales report PDF:', error);
+    } finally {
+      setExportingPdf(false);
+    }
   };
+
+  const currentAdmin = admin || getCurrentAdmin();
 
   return (
     <AdminLayout>
@@ -345,13 +382,25 @@ const AdminReportsPage: React.FC = () => {
           <h1 className="font-serif text-3xl font-bold leading-tight text-[var(--oppa-text)]">Sales report</h1>
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">A clear view of revenue and order performance across every channel.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={loadOrders} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-50">
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
-          </button>
-          <button onClick={handleExportCSV} disabled={loading} className="bg-oppa-gradient inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50">
-            <Download size={15} /> Export CSV
-          </button>
+        <div className="flex flex-col items-start gap-1.5 sm:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={loadOrders} disabled={loading || exportingPdf} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-50">
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
+            </button>
+            <button onClick={handleExportPDF} disabled={loading || exportingPdf} className="bg-oppa-gradient inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50 shadow-sm">
+              {exportingPdf ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
+              {exportingPdf ? 'Generating PDF...' : 'Export PDF'}
+            </button>
+          </div>
+          {currentAdmin && (
+            <div className="inline-flex items-center gap-1.5 text-xs text-[var(--oppa-text-muted)]">
+              <Shield size={13} className="text-[var(--oppa-green)] flex-shrink-0" />
+              <span>
+                Exporting as: <strong className="font-semibold text-[var(--oppa-text)]">{currentAdmin.fullName || 'Admin'}</strong>{' '}
+                <span className="text-[11px] text-[var(--oppa-text-muted)]">({currentAdmin.email || 'admin@oppadru.com'})</span>
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
