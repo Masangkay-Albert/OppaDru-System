@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Download, Globe2, RefreshCw, Store, TrendingUp } from 'lucide-react';
+import { BarChart3, FileText, Globe2, Loader2, RefreshCw, Store, TrendingUp } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
 import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
 import { formatCurrency } from '../../../utils/formatters';
+import { generateSalesReportPdf } from '../../../utils/reportPdfGenerator';
 
 type ReportRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -70,8 +71,6 @@ const formatDateRange = (range: [Date, Date]): string => {
   const formatDate = (date: Date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   return `${formatDate(range[0])} - ${formatDate(range[1])}`;
 };
-
-const csvCell = (value: string | number): string => `"${String(value).replace(/"/g, '""')}"`;
 
 interface TrendBucket {
   label: string;
@@ -151,6 +150,7 @@ const AdminReportsPage: React.FC = () => {
   const [goalSaving, setGoalSaving] = useState(false);
   const [goalError, setGoalError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -165,15 +165,34 @@ const AdminReportsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadOrders();
+    let isMounted = true;
+    getAllOrders()
+      .then((allOrders) => {
+        if (isMounted) setOrders(Array.isArray(allOrders) ? allOrders : []);
+      })
+      .catch(() => {
+        if (isMounted) setOrders([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
     getTargetProfitSale()
       .then((savedGoal) => {
-        setGoal(savedGoal);
-        setGoalBeforeEdit(savedGoal);
-        setGoalDirty(false);
-        setEditingGoal(false);
+        if (isMounted) {
+          setGoal(savedGoal);
+          setGoalBeforeEdit(savedGoal);
+          setGoalDirty(false);
+          setEditingGoal(false);
+        }
       })
-      .catch(() => setGoalError('Sales target could not be loaded.'));
+      .catch(() => {
+        if (isMounted) setGoalError('Sales target could not be loaded.');
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const filteredOrders = useMemo(
@@ -214,7 +233,7 @@ const AdminReportsPage: React.FC = () => {
     const getTop = (channel: 'online' | 'onsite') => {
       const products = new Map<string, number>();
       salesOrders.filter((order) => order.channel === channel).forEach((order) => {
-        order.items?.forEach((item: any) => {
+        order.items?.forEach((item: { product_name?: string; name?: string; quantity?: number }) => {
           const name = item.product_name || item.name || 'Unnamed item';
           products.set(name, (products.get(name) || 0) + Number(item.quantity || 0));
         });
@@ -317,25 +336,32 @@ const AdminReportsPage: React.FC = () => {
     if (editingGoal && !goalDirty) void saveGoal();
   };
 
-  const handleExportCSV = () => {
-    const rows = [
-      ['Order ID', 'Customer', 'Channel', 'Total', 'Status', 'Date'],
-      ...salesOrders.map((order) => [
-        order.order_number || order.id,
-        order.customerName || order.email || 'Customer',
-        order.channel,
-        Number(order.total || 0).toFixed(2),
-        String(order.status || 'pending'),
-        getOrderDate(order)?.toLocaleString() || 'N/A',
-      ]),
-    ];
-    const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `sales-report-${timelineRange}-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const handleExportPDF = async () => {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      const weekRange = getWeekDateRange(filters);
+      const weekRangeText = weekRange ? formatDateRange(weekRange).replace(`, ${filters.year}`, '') : undefined;
+
+      await generateSalesReportPdf({
+        orders: salesOrders,
+        metrics,
+        goal,
+        goalReached,
+        goalSet,
+        timelineRange,
+        activeFilterSummary,
+        filters: {
+          ...filters,
+          weekRangeText,
+        },
+        topProducts: topProductsByChannel,
+      });
+    } catch (error) {
+      console.error('Failed to generate sales report PDF:', error);
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   return (
@@ -346,11 +372,12 @@ const AdminReportsPage: React.FC = () => {
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">A clear view of revenue and order performance across every channel.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={loadOrders} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-50">
+          <button onClick={loadOrders} disabled={loading || exportingPdf} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-50">
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
           </button>
-          <button onClick={handleExportCSV} disabled={loading} className="bg-oppa-gradient inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50">
-            <Download size={15} /> Export CSV
+          <button onClick={handleExportPDF} disabled={loading || exportingPdf} className="bg-oppa-gradient inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50 shadow-sm">
+            {exportingPdf ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
+            {exportingPdf ? 'Generating PDF...' : 'Export PDF'}
           </button>
         </div>
       </div>
