@@ -101,14 +101,18 @@ export const ensureAdminSession = async (): Promise<string | null> => {
       return null;
     }
 
-    const admin = body.admin || {
-      id: ADMIN_ACCOUNT.id,
-      fullName: ADMIN_ACCOUNT.fullName,
-      email: ADMIN_ACCOUNT.email,
-      role: 'admin' as const,
-    };
+    const rawAdmin = body.admin;
+    const storedAdmin = getCurrentAdmin();
+    const admin: AdminUser = rawAdmin
+      ? {
+          id: String(rawAdmin.id || 'admin-001'),
+          fullName: rawAdmin.full_name || rawAdmin.fullName || rawAdmin.name || storedAdmin?.fullName || ADMIN_ACCOUNT.fullName,
+          email: rawAdmin.email || storedAdmin?.email || ADMIN_ACCOUNT.email,
+          role: 'admin' as const,
+        }
+      : storedAdmin || ADMIN_ACCOUNT;
 
-    setCurrentAdmin(admin as AdminUser);
+    setCurrentAdmin(admin);
     setStoredAdminToken(token);
     return token;
   } catch {
@@ -161,7 +165,14 @@ export const getCurrentAdmin = (): AdminUser | null => {
   const stored = localStorage.getItem(STORAGE_KEYS.ADMIN_CURRENT);
   if (!stored) return null;
   try {
-    return JSON.parse(stored) as AdminUser;
+    const parsed = JSON.parse(stored) as any;
+    if (!parsed) return null;
+    return {
+      id: String(parsed.id || 'admin-001'),
+      fullName: parsed.fullName || parsed.full_name || parsed.name || 'System Administrator',
+      email: parsed.email || 'admin@oppadru.com',
+      role: 'admin',
+    };
   } catch {
     return null;
   }

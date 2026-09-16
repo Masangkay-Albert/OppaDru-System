@@ -38,16 +38,22 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsLoading(true);
     try {
       const res = await adminAuthService.apiAdminLogin(email, password);
-      const admin = res.admin;
+      const rawAdmin = res.admin;
       const token = res.token;
-      if (admin) {
-        const adminWithToken = token ? { ...admin, token } : admin;
+      if (rawAdmin) {
+        const normalizedAdmin: AdminUser = {
+          id: String(rawAdmin.id ?? 'admin-001'),
+          fullName: rawAdmin.full_name || rawAdmin.fullName || rawAdmin.name || email.split('@')[0] || 'Admin',
+          email: rawAdmin.email || email,
+          role: 'admin',
+        };
+        const adminWithToken = token ? { ...normalizedAdmin, token } : normalizedAdmin;
         adminAuthService.setCurrentAdmin(adminWithToken as any);
         if (token) {
           adminAuthService.setStoredAdminToken(token);
           localStorage.setItem('adminToken', token);
         }
-        setAdmin(admin);
+        setAdmin(normalizedAdmin);
         setIsLoading(false);
         return true;
       }

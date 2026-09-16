@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, FileText, Globe2, Loader2, RefreshCw, Store, TrendingUp } from 'lucide-react';
+import { BarChart3, FileText, Globe2, Loader2, RefreshCw, Shield, Store, TrendingUp } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
+import { useAdminAuth } from '../../../contexts/AdminAuthContext';
+import { getCurrentAdmin } from '../../../services/adminAuthService';
 import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
 import { formatCurrency } from '../../../utils/formatters';
 import { generateSalesReportPdf } from '../../../utils/reportPdfGenerator';
@@ -141,6 +143,7 @@ const getTrendBuckets = (orders: AdminOrder[], range: ReportRange, filters: Repo
 };
 
 const AdminReportsPage: React.FC = () => {
+  const { admin } = useAdminAuth();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [filters, setFilters] = useState<ReportFilters>({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
   const [goal, setGoal] = useState(0);
@@ -340,6 +343,7 @@ const AdminReportsPage: React.FC = () => {
     if (exportingPdf) return;
     setExportingPdf(true);
     try {
+      const currentAdmin = admin || getCurrentAdmin();
       const weekRange = getWeekDateRange(filters);
       const weekRangeText = weekRange ? formatDateRange(weekRange).replace(`, ${filters.year}`, '') : undefined;
 
@@ -356,6 +360,11 @@ const AdminReportsPage: React.FC = () => {
           weekRangeText,
         },
         topProducts: topProductsByChannel,
+        generatedBy: {
+          name: currentAdmin?.fullName || 'System Administrator',
+          email: currentAdmin?.email || 'admin@oppadru.com',
+          role: currentAdmin?.role || 'admin',
+        },
       });
     } catch (error) {
       console.error('Failed to generate sales report PDF:', error);
@@ -364,6 +373,8 @@ const AdminReportsPage: React.FC = () => {
     }
   };
 
+  const currentAdmin = admin || getCurrentAdmin();
+
   return (
     <AdminLayout>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -371,14 +382,25 @@ const AdminReportsPage: React.FC = () => {
           <h1 className="font-serif text-3xl font-bold leading-tight text-[var(--oppa-text)]">Sales report</h1>
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">A clear view of revenue and order performance across every channel.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={loadOrders} disabled={loading || exportingPdf} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-50">
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
-          </button>
-          <button onClick={handleExportPDF} disabled={loading || exportingPdf} className="bg-oppa-gradient inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50 shadow-sm">
-            {exportingPdf ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
-            {exportingPdf ? 'Generating PDF...' : 'Export PDF'}
-          </button>
+        <div className="flex flex-col items-start gap-1.5 sm:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={loadOrders} disabled={loading || exportingPdf} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-50">
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
+            </button>
+            <button onClick={handleExportPDF} disabled={loading || exportingPdf} className="bg-oppa-gradient inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50 shadow-sm">
+              {exportingPdf ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
+              {exportingPdf ? 'Generating PDF...' : 'Export PDF'}
+            </button>
+          </div>
+          {currentAdmin && (
+            <div className="inline-flex items-center gap-1.5 text-xs text-[var(--oppa-text-muted)]">
+              <Shield size={13} className="text-[var(--oppa-green)] flex-shrink-0" />
+              <span>
+                Exporting as: <strong className="font-semibold text-[var(--oppa-text)]">{currentAdmin.fullName || 'Admin'}</strong>{' '}
+                <span className="text-[11px] text-[var(--oppa-text-muted)]">({currentAdmin.email || 'admin@oppadru.com'})</span>
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

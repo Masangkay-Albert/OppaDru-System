@@ -33,6 +33,11 @@ export interface ReportPdfData {
     online: [string, number][];
     onsite: [string, number][];
   };
+  generatedBy?: {
+    name?: string;
+    email?: string;
+    role?: string;
+  };
 }
 
 const MONTH_NAMES = [
@@ -163,8 +168,8 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
   doc.text('EXECUTIVE SALES & PERFORMANCE REPORT', brandTextStartX, headerY + 16);
 
   // Metadata Card (Right Aligned)
-  const metaCardWidth = 62;
-  const metaCardHeight = 19;
+  const metaCardWidth = 68;
+  const metaCardHeight = 24.5;
   const metaCardX = pageWidth - margin - metaCardWidth;
 
   doc.setFillColor(...lightCardBg);
@@ -180,36 +185,59 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
     minute: '2-digit',
   });
 
+  const adminAccountName = data.generatedBy?.name || 'System Administrator';
+  const adminAccountEmail = data.generatedBy?.email || 'admin@oppadru.com';
+
   // Metadata items
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.2);
+  doc.setFontSize(5.6);
   doc.setTextColor(...mutedText);
-  doc.text('GENERATED:', metaCardX + 3, headerY + 4.5);
+  doc.text('GENERATED:', metaCardX + 3, headerY + 4);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
+  doc.setFontSize(6);
   doc.setTextColor(...darkSlateText);
-  doc.text(generatedDateStr, metaCardX + 21, headerY + 4.5);
+  doc.text(generatedDateStr, metaCardX + 22, headerY + 4);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.2);
+  doc.setFontSize(5.6);
   doc.setTextColor(...mutedText);
-  doc.text('TIMELINE:', metaCardX + 3, headerY + 9.5);
+  doc.text('ADMIN NAME:', metaCardX + 3, headerY + 8);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
+  doc.setFontSize(6);
   doc.setTextColor(...brandDarkGreen);
-  doc.text(data.timelineRange.toUpperCase(), metaCardX + 21, headerY + 9.5);
+  const trimmedAdminName = doc.splitTextToSize(adminAccountName, metaCardWidth - 25)[0] || adminAccountName;
+  doc.text(trimmedAdminName, metaCardX + 22, headerY + 8);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.2);
+  doc.setFontSize(5.6);
   doc.setTextColor(...mutedText);
-  doc.text('RECORDS:', metaCardX + 3, headerY + 14.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
+  doc.text('ADMIN EMAIL:', metaCardX + 3, headerY + 12);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.8);
   doc.setTextColor(...darkSlateText);
-  doc.text(`${data.orders.length} Sales Orders`, metaCardX + 21, headerY + 14.5);
+  const trimmedAdminEmail = doc.splitTextToSize(adminAccountEmail, metaCardWidth - 25)[0] || adminAccountEmail;
+  doc.text(trimmedAdminEmail, metaCardX + 22, headerY + 12);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.6);
+  doc.setTextColor(...mutedText);
+  doc.text('TIMELINE:', metaCardX + 3, headerY + 16);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(...brandDarkGreen);
+  doc.text(data.timelineRange.toUpperCase(), metaCardX + 22, headerY + 16);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.6);
+  doc.setTextColor(...mutedText);
+  doc.text('RECORDS:', metaCardX + 3, headerY + 20);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(...darkSlateText);
+  doc.text(`${data.orders.length} Sales Orders`, metaCardX + 22, headerY + 20);
 
   // Header bottom dividing line
-  const dividerY = headerY + logoBoxSize + 2.5;
+  const dividerY = headerY + Math.max(logoBoxSize, metaCardHeight) + 2.5;
   doc.setDrawColor(...borderLineColor);
   doc.setLineWidth(0.35);
   doc.line(margin, dividerY, pageWidth - margin, dividerY);
@@ -689,11 +717,15 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
       doc.setLineWidth(0.25);
       doc.line(margin, footerY - 2, pageWidth - margin, footerY - 2);
 
+      const adminFooterText = data.generatedBy?.name
+        ? `Exported by: ${data.generatedBy.name}${data.generatedBy.email ? ` (${data.generatedBy.email})` : ''} • `
+        : '';
+
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.2);
+      doc.setFontSize(5.8);
       doc.setTextColor(...mutedText);
       doc.text(
-        'CONFIDENTIAL • Oppa Dru Restaurant & Management System • Internal Use Only',
+        `${adminFooterText}CONFIDENTIAL • Oppa Dru Restaurant & Management System • Internal Use Only`,
         margin,
         footerY + 2
       );
@@ -702,6 +734,69 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
       doc.text(pageStr, pageWidth - margin, footerY + 2, { align: 'right' });
     },
   });
+
+  // 7. Sign-off / Admin Export Verification Box below the table
+  const finalTableY = (doc as any).lastAutoTable?.finalY ?? (tableStartY + 30);
+  const auditBlockHeight = 18;
+  const pageBottomLimit = pageHeight - 16;
+
+  let auditY = finalTableY + 4;
+  if (auditY + auditBlockHeight > pageBottomLimit) {
+    doc.addPage();
+    auditY = 22;
+  }
+
+  doc.setFillColor(...lightCardBg);
+  doc.setDrawColor(...borderLineColor);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(margin, auditY, contentWidth, auditBlockHeight, 2, 2, 'FD');
+
+  const adminName = data.generatedBy?.name || 'System Administrator';
+  const adminEmail = data.generatedBy?.email || 'admin@oppadru.com';
+  const adminRole = data.generatedBy?.role ? data.generatedBy.role.toUpperCase() : 'ADMIN';
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(...brandDarkGreen);
+  doc.text('REPORT EXPORT & SYSTEM AUDIT VERIFICATION', margin + 3.5, auditY + 4.5);
+
+  // Left column: Account Name & Email
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(...mutedText);
+  doc.text('Exported By Name:', margin + 3.5, auditY + 9.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...darkSlateText);
+  doc.text(adminName, margin + 28, auditY + 9.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(...mutedText);
+  doc.text('Admin Email:', margin + 3.5, auditY + 14.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.2);
+  doc.setTextColor(...darkSlateText);
+  doc.text(adminEmail, margin + 28, auditY + 14.5);
+
+  // Right column: Role & Timestamp
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(...mutedText);
+  doc.text('Account Role:', margin + 110, auditY + 9.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...brandForestGreen);
+  doc.text(`Authorized ${adminRole}`, margin + 130, auditY + 9.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.setTextColor(...mutedText);
+  doc.text('Export Timestamp:', margin + 110, auditY + 14.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.2);
+  doc.setTextColor(...darkSlateText);
+  doc.text(generatedDateStr, margin + 130, auditY + 14.5);
 
   // Final Total Pages numbering correction pass
   const totalPages = doc.getNumberOfPages();
