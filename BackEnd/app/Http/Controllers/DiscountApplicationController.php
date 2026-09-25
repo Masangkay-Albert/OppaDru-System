@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Database\QueryException;
 
 class DiscountApplicationController extends Controller
 {
@@ -19,7 +20,6 @@ class DiscountApplicationController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'discount_type' => ['required', 'string', 'in:PWD,Senior Citizen'],
-            'full_name' => ['required', 'string', 'max:255'],
             'id_number' => ['required', 'string', 'max:255'],
             'expiry_date' => ['nullable', 'date'],
             'proof_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,gif,webp', 'max:5120'],
@@ -35,6 +35,10 @@ class DiscountApplicationController extends Controller
             return response()->json(['message' => 'User is not authenticated.'], 401);
         }
 
+        if (DiscountApplication::where('user_id', $userId)->exists()) {
+            return response()->json(['message' => 'You have already submitted a discount request.'], 409);
+        }
+
         $proofPath = null;
         if ($request->hasFile('proof_image')) {
             $file = $request->file('proof_image');
@@ -43,16 +47,24 @@ class DiscountApplicationController extends Controller
             $proofPath = rtrim(config('app.url', 'https://oppadru-system-1.onrender.com'), '/') . '/storage/' . ltrim($path, '/');
         }
 
-        $application = DiscountApplication::create([
-            'user_id' => $userId,
-            'discount_type' => trim((string) $request->input('discount_type')),
-            'full_name' => trim((string) $request->input('full_name')),
-            'id_number' => trim((string) $request->input('id_number')),
-            'expiry_date' => $request->input('expiry_date'),
-            'proof_image_url' => $proofPath,
-            'status' => 'pending',
-            'submitted_at' => now(),
-        ]);
+        try {
+            $application = DiscountApplication::create([
+                'user_id' => $userId,
+                'discount_type' => trim((string) $request->input('discount_type')),
+                'full_name' => $user->full_name,
+                'id_number' => trim((string) $request->input('id_number')),
+                'expiry_date' => $request->input('expiry_date'),
+                'proof_image_url' => $proofPath,
+                'status' => 'pending',
+                'submitted_at' => now(),
+            ]);
+        } catch (QueryException $exception) {
+            if ($exception->getCode() !== '23000') {
+                throw $exception;
+            }
+
+            return response()->json(['message' => 'You have already submitted a discount request.'], 409);
+        }
 
         return response()->json([
             'success' => true,
@@ -182,6 +194,26 @@ class DiscountApplicationController extends Controller
                     'reviewed_at' => $application->reviewed_at?->toISOString(),
                 ];
             }),
+        ]);
+    }
+
+    public function destroyMine(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'User is not authenticated.'], 401);
+        }
+
+        $application = DiscountApplication::where('user_id', $user->id)->first();
+        if (!$application) {
+            return response()->json(['message' => 'Discount request not found.'], 404);
+        }
+
+        $application->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Discount request removed successfully.',
         ]);
     }
 

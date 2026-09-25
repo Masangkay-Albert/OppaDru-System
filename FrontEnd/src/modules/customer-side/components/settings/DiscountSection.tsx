@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { FiUser, FiCalendar, FiSave, FiCheckCircle, FiUpload } from 'react-icons/fi';
 import { useSettings } from '../../../../contexts/SettingsContext';
+import { useAuth } from '../../../../contexts/Authcontext';
 
 const getAuthToken = () => localStorage.getItem('auth_token');
 
 const DiscountSection: React.FC = () => {
   const { discountInfo, updateDiscountInfo, getActiveDiscount } = useSettings();
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     isPWD: false,
     isSenior: false,
@@ -17,6 +19,7 @@ const DiscountSection: React.FC = () => {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const activeDiscount = getActiveDiscount();
@@ -48,12 +51,6 @@ const DiscountSection: React.FC = () => {
       return;
     }
 
-    if (!formData.fullName.trim()) {
-      setMessage({ type: 'error', text: 'Please enter your full name' });
-      setIsSaving(false);
-      return;
-    }
-
     if (!formData.proofImage) {
       setMessage({ type: 'error', text: 'Please upload a valid proof image before submitting your discount request.' });
       setIsSaving(false);
@@ -67,10 +64,16 @@ const DiscountSection: React.FC = () => {
       return;
     }
 
+    if (!user?.full_name?.trim()) {
+      setMessage({ type: 'error', text: 'Your account name is unavailable. Please log in again.' });
+      setIsSaving(false);
+      return;
+    }
+
     try {
       const form = new FormData();
       form.append('discount_type', formData.isPWD ? 'PWD' : 'Senior Citizen');
-      form.append('full_name', formData.fullName.trim());
+      form.append('full_name', user.full_name.trim());
       form.append('id_number', formData.idNumber.trim());
       if (formData.expiryDate) form.append('expiry_date', formData.expiryDate);
       form.append('proof_image', formData.proofImage);
@@ -94,7 +97,7 @@ const DiscountSection: React.FC = () => {
         isPWD: false,
         isSenior: false,
         idNumber: formData.idNumber,
-        fullName: formData.fullName,
+        fullName: user?.full_name || '',
         expiryDate: formData.expiryDate,
         rejectionReason: '',
         status: 'pending',
@@ -110,18 +113,39 @@ const DiscountSection: React.FC = () => {
     }
   };
 
-  const handleRemove = () => {
-    if (window.confirm('Are you sure you want to remove your discount?')) {
+  const handleRemove = async () => {
+    if (!window.confirm('Are you sure you want to remove your discount request?')) return;
+
+    const token = getAuthToken();
+    if (!token) {
+      setMessage({ type: 'error', text: 'Your session is expired. Please log in again.' });
+      return;
+    }
+
+    setIsRemoving(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/discount/applications/me`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.message || 'Failed to remove discount request');
+
       updateDiscountInfo({
         isPWD: false,
         isSenior: false,
         idNumber: '',
-        fullName: '',
+        fullName: user?.full_name || '',
         expiryDate: '',
+        rejectionReason: '',
         status: 'not_requested',
       });
-      setMessage({ type: 'success', text: 'Discount removed successfully!' });
+      setMessage({ type: 'success', text: 'Discount request removed successfully!' });
       setIsEditing(false);
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error?.message || 'Failed to remove discount request' });
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -178,9 +202,10 @@ const DiscountSection: React.FC = () => {
           <div className="mt-6 flex gap-3 pt-6 border-t border-amber-200">
             <button
               onClick={handleRemove}
+              disabled={isRemoving}
               className="px-6 py-2.5 border-2 border-red-300 text-red-600 rounded-xl font-semibold hover:bg-red-50 transition"
             >
-              Remove Request
+              {isRemoving ? 'Removing...' : 'Remove Request'}
             </button>
           </div>
         </div>
@@ -190,13 +215,7 @@ const DiscountSection: React.FC = () => {
           {discountInfo.rejectionReason && (
             <p className="mt-2 text-sm text-red-800"><span className="font-semibold">Reason:</span> {discountInfo.rejectionReason}</p>
           )}
-          <p className="mt-2 text-sm text-gray-700">You may submit a new request with updated proof if needed.</p>
-          <button
-            onClick={() => setIsEditing(true)}
-            className="mt-4 px-6 py-2.5 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition"
-          >
-            Submit New Request
-          </button>
+          <p className="mt-2 text-sm text-gray-700">You have already submitted a discount request for this account.</p>
         </div>
       ) : hasActiveDiscount && !isEditing ? (
         <div className="bg-[#d8f3dc]/20 border-2 border-[#2d6a4f] rounded-xl p-6">
@@ -237,9 +256,10 @@ const DiscountSection: React.FC = () => {
           <div className="flex gap-3 mt-6 pt-6 border-t border-[#2d6a4f]/20">
             <button
               onClick={handleRemove}
-              className="flex-1 px-6 py-2.5 border-2 border-red-300 text-red-600 rounded-xl font-semibold hover:bg-red-50 transition"
+              disabled={isRemoving}
+              className="flex-1 px-6 py-2.5 border-2 border-red-300 text-red-600 rounded-xl font-semibold hover:bg-red-50 transition disabled:opacity-50"
             >
-              Remove Discount
+              {isRemoving ? 'Removing...' : 'Remove Discount'}
             </button>
           </div>
         </div>
@@ -278,19 +298,9 @@ const DiscountSection: React.FC = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-            <div className="relative">
-              <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="text"
-                value={formData.fullName}
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                placeholder="Enter your full name"
-                className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-sm"
-                required
-              />
-            </div>
+          <div className="rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2.5">
+            <p className="text-xs font-medium text-gray-500">Account name</p>
+            <p className="text-sm font-medium text-gray-800">{user?.full_name || 'Loading account name...'}</p>
           </div>
 
           <div>

@@ -99,6 +99,7 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::post('/orders/{id}/discount-verification', [DiscountVerificationController::class, 'store']);
     Route::get('/discount/applications/me', [DiscountApplicationController::class, 'myApplications']);
     Route::post('/discount/applications', [DiscountApplicationController::class, 'store']);
+    Route::delete('/discount/applications/me', [DiscountApplicationController::class, 'destroyMine']);
 
     Route::post('/payment/gcash/request-otp', [PaymentController::class, 'requestGCashOTP']);
     Route::post('/payment/gcash/verify', [PaymentController::class, 'verifyGCash']);

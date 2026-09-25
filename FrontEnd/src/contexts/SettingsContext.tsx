@@ -160,7 +160,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           .then((response) => response.ok ? response.json() : null)
           .then((data) => {
             const latest = Array.isArray(data?.data) ? data.data[0] : null;
-            if (!latest) return;
+            if (!latest) {
+              setDiscountInfo({ ...defaultDiscountInfo, fullName: user.full_name || '' });
+              return;
+            }
 
             const nextType = latest.discount_type === 'PWD' ? 'PWD' : 'Senior Citizen';
             const isApproved = latest.status === 'approved';
@@ -169,7 +172,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               isPWD: isApproved && nextType === 'PWD',
               isSenior: isApproved && nextType === 'Senior Citizen',
               idNumber: latest.id_number || prev.idNumber,
-              fullName: latest.full_name || prev.fullName,
+              fullName: user.full_name || latest.full_name || prev.fullName,
               expiryDate: latest.expiry_date || prev.expiryDate,
               rejectionReason: latest.rejection_reason || '',
               status: latest.status || prev.status,
