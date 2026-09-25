@@ -425,7 +425,7 @@ class OrderController extends Controller
     public function updateStatusOnsite(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'status' => 'required|string|in:pending,preparing,ready,delivered,cancelled',
+            'status' => 'required|string|in:pending,preparing,prepared,ready,delivered,cancelled',
         ]);
 
         if ($validator->fails()) {
@@ -513,7 +513,7 @@ class OrderController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'status' => 'required|string|in:pending,preparing,ready,scheduled,on_the_way,out_for_delivery,delivered,cancelled',
+            'status' => 'required|string|in:pending,preparing,prepared,ready,scheduled,on_the_way,delivered,cancelled',
         ]);
 
         if ($validator->fails()) {
@@ -534,11 +534,11 @@ class OrderController extends Controller
             }
         }
 
-        if (in_array($request->status, ['out_for_delivery', 'delivered'], true) && strtolower((string) ($order->delivery_type ?? 'standard')) === 'scheduled') {
+        if (in_array($request->status, ['on_the_way', 'delivered'], true) && strtolower((string) ($order->delivery_type ?? 'standard')) === 'scheduled') {
             $scheduledAt = $order->scheduled_at ? Carbon::parse($order->scheduled_at, 'Asia/Manila') : null;
             if (!$scheduledAt || $scheduledAt->isFuture()) {
                 return response()->json([
-                    'message' => 'Scheduled orders cannot be marked as out for delivery or delivered before their scheduled time.',
+                    'message' => 'Scheduled orders cannot be marked as on the way or delivered before their scheduled time.',
                 ], 422);
             }
         }

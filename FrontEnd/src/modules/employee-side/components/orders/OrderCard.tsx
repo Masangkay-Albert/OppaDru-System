@@ -52,10 +52,10 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         </span>
       );
     }
-    if (order.status === 'ready') {
+    if (order.status === 'prepared' || order.status === 'ready') {
       return (
         <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-purple-200">
-          Ready for Pickup
+          Prepared
         </span>
       );
     }

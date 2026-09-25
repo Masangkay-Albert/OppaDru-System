@@ -10,7 +10,7 @@ const EmployeeOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'preparing' | 'ready' | 'delivered'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'preparing' | 'prepared' | 'delivered'>('all');
   const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({});
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<AdminOrder | null>(null);
 
@@ -47,6 +47,7 @@ const EmployeeOrdersPage: React.FC = () => {
 
       if (filterStatus === 'all') return true;
       if (filterStatus === 'delivered') return order.status === 'delivered' || order.served;
+      if (filterStatus === 'prepared') return (order.status === 'prepared' || order.status === 'ready') && !order.served;
       return order.status === filterStatus;
     });
   }, [orders, searchTerm, filterStatus]);
@@ -54,9 +55,9 @@ const EmployeeOrdersPage: React.FC = () => {
   const stats = useMemo(() => {
     const total = orders.length;
     const preparing = orders.filter(o => o.status === 'preparing' && !o.served).length;
-    const ready = orders.filter(o => o.status === 'ready' && !o.served).length;
+    const prepared = orders.filter(o => (o.status === 'prepared' || o.status === 'ready') && !o.served).length;
     const delivered = orders.filter(o => o.status === 'delivered' || o.served).length;
-    return { total, preparing, ready, delivered };
+    return { total, preparing, prepared, delivered };
   }, [orders]);
 
   const toggleOrderDetails = (orderId: string) => {
@@ -126,10 +127,10 @@ const EmployeeOrdersPage: React.FC = () => {
 
           <div className="bg-white/90 backdrop-blur-sm p-4 rounded-2xl border border-purple-100 shadow-sm">
             <div className="flex items-center justify-between text-purple-600 mb-1 text-xs font-medium">
-              <span>Ready</span>
+              <span>Prepared</span>
               <FiShoppingBag className="text-purple-500" />
             </div>
-            <p className="text-2xl font-bold text-purple-700">{stats.ready}</p>
+            <p className="text-2xl font-bold text-purple-700">{stats.prepared}</p>
           </div>
 
           <div className="bg-white/90 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100 shadow-sm">
@@ -184,14 +185,14 @@ const EmployeeOrdersPage: React.FC = () => {
               Preparing ({stats.preparing})
             </button>
             <button
-              onClick={() => setFilterStatus('ready')}
+              onClick={() => setFilterStatus('prepared')}
               className={`px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
-                filterStatus === 'ready'
+                filterStatus === 'prepared'
                   ? 'bg-[var(--oppa-green)] text-white shadow-sm'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
             >
-              Ready ({stats.ready})
+              Prepared ({stats.prepared})
             </button>
             <button
               onClick={() => setFilterStatus('delivered')}
