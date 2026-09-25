@@ -20,7 +20,7 @@ const LandingPage: React.FC = () => {
     <div className="min-h-screen bg-[var(--oppa-cream)] text-gray-800 antialiased selection:bg-lime-700 selection:text-white">
       <Navbar />
 
-      <section className="min-h-[90vh] flex items-center justify-center relative overflow-hidden">
+      <section id="home" className="min-h-[90vh] flex items-center justify-center relative overflow-hidden">
         <div className="absolute inset-0">
           <img
             src={heroSectionImg}
@@ -61,7 +61,7 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      <section id="categories" className="max-w-7xl mx-auto px-6 py-20">
+      <section id="menu" className="max-w-7xl mx-auto px-6 py-20">
         <div className="text-center mb-14">
           <span className="text-sm font-semibold text-lime-700 uppercase tracking-widest">Categories</span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2">Our Menu Categories</h2>
