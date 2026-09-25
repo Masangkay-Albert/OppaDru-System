@@ -4,6 +4,12 @@ import { useSettings } from '../../../../contexts/SettingsContext';
 import { useAuth } from '../../../../contexts/Authcontext';
 
 const getAuthToken = () => localStorage.getItem('auth_token');
+const getToday = () => {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${today.getFullYear()}-${month}-${day}`;
+};
 
 const DiscountSection: React.FC = () => {
   const { discountInfo, updateDiscountInfo, getActiveDiscount } = useSettings();
@@ -47,6 +53,18 @@ const DiscountSection: React.FC = () => {
 
     if (!formData.idNumber.trim()) {
       setMessage({ type: 'error', text: 'Please enter your ID number' });
+      setIsSaving(false);
+      return;
+    }
+
+    if (!/^(?=.*\d)[A-Za-z0-9][A-Za-z0-9 -]{5,19}$/.test(formData.idNumber.trim())) {
+      setMessage({ type: 'error', text: 'Enter a valid PWD or Senior Citizen ID number (6-20 characters with at least one number).' });
+      setIsSaving(false);
+      return;
+    }
+
+    if (formData.expiryDate && formData.expiryDate < getToday()) {
+      setMessage({ type: 'error', text: 'Expiry date cannot be yesterday or an earlier date.' });
       setIsSaving(false);
       return;
     }
@@ -321,7 +339,10 @@ const DiscountSection: React.FC = () => {
                 type="text"
                 value={formData.idNumber}
                 onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
-                placeholder="Enter your PWD or Senior ID number"
+                placeholder="Enter a valid PWD or Senior ID number"
+                minLength={6}
+                maxLength={20}
+                pattern="(?=.*\d)[A-Za-z0-9][A-Za-z0-9 -]{5,19}"
                 className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-sm"
                 required
               />
@@ -334,6 +355,7 @@ const DiscountSection: React.FC = () => {
               type="date"
               value={formData.expiryDate}
               onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
+              min={getToday()}
               className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-sm"
             />
           </div>

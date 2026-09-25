@@ -20,8 +20,8 @@ class DiscountApplicationController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'discount_type' => ['required', 'string', 'in:PWD,Senior Citizen'],
-            'id_number' => ['required', 'string', 'max:255'],
-            'expiry_date' => ['nullable', 'date'],
+            'id_number' => ['required', 'string', 'regex:/^(?=.*\d)[A-Za-z0-9][A-Za-z0-9 -]{5,19}$/'],
+            'expiry_date' => ['nullable', 'date', 'after_or_equal:today'],
             'proof_image' => ['required', 'file', 'image', 'mimes:jpeg,jpg,png,gif,webp', 'max:5120'],
         ]);
 
