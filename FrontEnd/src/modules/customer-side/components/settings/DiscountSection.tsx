@@ -216,6 +216,16 @@ const DiscountSection: React.FC = () => {
             <p className="mt-2 text-sm text-red-800"><span className="font-semibold">Reason:</span> {discountInfo.rejectionReason}</p>
           )}
           <p className="mt-2 text-sm text-gray-700">You have already submitted a discount request for this account.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setMessage(null);
+              setIsEditing(true);
+            }}
+            className="mt-4 rounded-xl bg-[#2d6a4f] px-6 py-2.5 font-semibold text-white transition hover:bg-[#1b4d3e]"
+          >
+            Submit Again
+          </button>
         </div>
       ) : hasActiveDiscount && !isEditing ? (
         <div className="bg-[#d8f3dc]/20 border-2 border-[#2d6a4f] rounded-xl p-6">

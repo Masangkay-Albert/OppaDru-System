@@ -9,15 +9,18 @@ const AdminDiscountApprovalsPage: React.FC = () => {
   const [selectedReason, setSelectedReason] = useState<Record<string, string>>({});
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
   const [selectedProof, setSelectedProof] = useState<DiscountApplicationRequest | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadApplications = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await listDiscountApplications();
       const pendingOnly = Array.isArray(data) ? data.filter((application) => application.status === 'pending') : [];
       setApplications(pendingOnly);
-    } catch {
+    } catch (error) {
       setApplications([]);
+      setLoadError(error instanceof Error ? error.message : 'Failed to fetch discount applications.');
     } finally {
       setLoading(false);
     }
@@ -76,7 +79,11 @@ const AdminDiscountApprovalsPage: React.FC = () => {
           </div>
         </div>
 
-        {loading && applications.length === 0 ? (
+        {loadError ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">
+            {loadError}
+          </div>
+        ) : loading && applications.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-8 text-center text-sm text-[var(--oppa-text-muted)]">
             Loading requests...
           </div>

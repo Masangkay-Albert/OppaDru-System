@@ -1,4 +1,5 @@
 const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
+import { fetchWithAdminAuth } from './adminAuthService';
 
 export type DiscountApplicationStatus = 'pending' | 'approved' | 'rejected';
 export type DiscountApplicationType = 'PWD' | 'Senior Citizen';
@@ -22,20 +23,8 @@ export interface DiscountApplicationRequest {
   } | null;
 }
 
-const getAdminToken = (): string | null => localStorage.getItem('adminToken');
-
-const buildHeaders = (includeJson = true): HeadersInit => {
-  const headers: Record<string, string> = {};
-  if (includeJson) headers['Content-Type'] = 'application/json';
-  const token = getAdminToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
-};
-
 export const listDiscountApplications = async (): Promise<DiscountApplicationRequest[]> => {
-  const response = await fetch(`${API_URL}/admin/discount-applications`, {
-    headers: buildHeaders(),
-  });
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/discount-applications`);
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
@@ -51,9 +40,8 @@ export const updateDiscountApplicationStatus = async (
   action: 'approve' | 'reject',
   rejectionReason?: string,
 ): Promise<DiscountApplicationRequest> => {
-  const response = await fetch(`${API_URL}/admin/discount-applications/${applicationId}`, {
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/discount-applications/${applicationId}`, {
     method: 'PATCH',
-    headers: buildHeaders(),
     body: JSON.stringify({ action, rejection_reason: rejectionReason || null }),
   });
 

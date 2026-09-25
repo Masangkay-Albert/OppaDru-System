@@ -35,7 +35,8 @@ class DiscountApplicationController extends Controller
             return response()->json(['message' => 'User is not authenticated.'], 401);
         }
 
-        if (DiscountApplication::where('user_id', $userId)->exists()) {
+        $existingApplication = DiscountApplication::where('user_id', $userId)->first();
+        if ($existingApplication && $existingApplication->status !== 'rejected') {
             return response()->json(['message' => 'You have already submitted a discount request.'], 409);
         }
 
@@ -47,17 +48,27 @@ class DiscountApplicationController extends Controller
             $proofPath = rtrim(config('app.url', 'https://oppadru-system-1.onrender.com'), '/') . '/storage/' . ltrim($path, '/');
         }
 
+        $applicationData = [
+            'user_id' => $userId,
+            'discount_type' => trim((string) $request->input('discount_type')),
+            'full_name' => $user->full_name,
+            'id_number' => trim((string) $request->input('id_number')),
+            'expiry_date' => $request->input('expiry_date'),
+            'proof_image_url' => $proofPath,
+            'status' => 'pending',
+            'rejection_reason' => null,
+            'submitted_at' => now(),
+            'reviewed_at' => null,
+            'reviewed_by_admin_id' => null,
+        ];
+
         try {
-            $application = DiscountApplication::create([
-                'user_id' => $userId,
-                'discount_type' => trim((string) $request->input('discount_type')),
-                'full_name' => $user->full_name,
-                'id_number' => trim((string) $request->input('id_number')),
-                'expiry_date' => $request->input('expiry_date'),
-                'proof_image_url' => $proofPath,
-                'status' => 'pending',
-                'submitted_at' => now(),
-            ]);
+            if ($existingApplication) {
+                $existingApplication->update($applicationData);
+                $application = $existingApplication->fresh();
+            } else {
+                $application = DiscountApplication::create($applicationData);
+            }
         } catch (QueryException $exception) {
             if ($exception->getCode() !== '23000') {
                 throw $exception;
