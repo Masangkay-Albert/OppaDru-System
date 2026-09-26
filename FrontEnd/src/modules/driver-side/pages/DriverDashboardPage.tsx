@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Truck, MapPin, CheckCircle, Phone, Clock, CreditCard, User, Eye, X, ArrowDownUp } from 'lucide-react';
+import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Truck, MapPin, CheckCircle, Phone, Clock, CreditCard, User, Eye, X, ArrowDownUp, Camera } from 'lucide-react';
 import DriverLayout from '../components/DriverLayout';
+import RouteLayer from '../../customer-side/components/tracking/RouteLayer';
+import { destinationIcon, storeIcon } from '../../customer-side/components/tracking/MapIcons';
 
 import { formatCurrency } from '../../../utils/formatters';
 import { STATUS_COLORS } from '../../../utils/constants';
 import { API_URL } from '../../../services/apiConfig';
+import { OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
 
 
 const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap';
@@ -30,6 +35,9 @@ export interface DriverOrder {
   phone?: string;
   total?: number;
   paymentMethod?: string;
+  deliveryCoordinates?: { lat: number; lng: number } | null;
+  deliveryProofImageUrl?: string | null;
+  deliveryProofUploadedAt?: string | null;
 }
 
 const formatPaymentMethod = (method?: string) => {
@@ -64,6 +72,7 @@ const DriverDashboardPage: React.FC = () => {
   const [driverId, setDriverId] = useState<string>("");
   
   const [selectedOrder, setSelectedOrder] = useState<DriverOrder | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
 
   
   useEffect(() => {
@@ -137,6 +146,41 @@ const DriverDashboardPage: React.FC = () => {
     } catch (error) {
       console.error("Error updating status:", error);
       alert("Failed to update order status. Please try again.");
+    }
+  };
+
+  const uploadDeliveryProof = async (file: File) => {
+    if (!selectedOrder) return;
+
+    setUploadingProof(true);
+    try {
+      const token = localStorage.getItem('driver_token');
+      const formData = new FormData();
+      formData.append('proof_image', file);
+      const response = await fetch(`${API_URL}/driver/orders/${selectedOrder.id}/delivery-proof`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+        body: formData,
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.message || 'Could not submit the delivery photo.');
+      }
+
+      const updatedOrder = {
+        ...selectedOrder,
+        deliveryProofImageUrl: result.delivery_proof_image_url,
+        deliveryProofUploadedAt: result.delivery_proof_uploaded_at,
+      };
+      setSelectedOrder(updatedOrder);
+      setOrders((current) => current.map((order) => order.id === updatedOrder.id ? updatedOrder : order));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not submit the delivery photo.');
+    } finally {
+      setUploadingProof(false);
     }
   };
 
@@ -295,9 +339,8 @@ const DriverDashboardPage: React.FC = () => {
                       <Truck size={14} /> Accept Order
                     </button>
                   ) : activeTab === 'active' ? (
-                    // Driver changes status to "delivered" when finished
-                    <button onClick={() => updateOrderStatus(order.id, 'delivered', 'history')} className={chipSuccess + " w-full justify-center"}>
-                      <CheckCircle size={14} /> Mark Delivered
+                    <button onClick={() => setSelectedOrder(order)} className={chipSuccess + " w-full justify-center"}>
+                      <Camera size={14} /> {order.deliveryProofImageUrl ? 'Proof Submitted' : 'Delivery Details'}
                     </button>
                   ) : (
                     <span className={chipDisabled + " w-full justify-center"}>
@@ -374,8 +417,8 @@ const DriverDashboardPage: React.FC = () => {
                             <Truck size={14} /> Accept
                           </button>
                         ) : activeTab === 'active' ? (
-                          <button onClick={() => updateOrderStatus(order.id, 'delivered', 'history')} className={`${chipSuccess} w-[120px] justify-center`}>
-                            <CheckCircle size={14} /> Mark Delivered
+                          <button onClick={() => setSelectedOrder(order)} className={`${chipSuccess} w-[120px] justify-center`}>
+                            <Camera size={14} /> {order.deliveryProofImageUrl ? 'Proof Sent' : 'Details / Proof'}
                           </button>
                         ) : (
                           <span className={`${chipDisabled} w-[120px] justify-center`}>
@@ -436,6 +479,41 @@ const DriverDashboardPage: React.FC = () => {
                   {selectedOrder.deliveryAddress || selectedOrder.address || 'No address provided'}
                 </p>
               </div>
+
+              {selectedOrder.deliveryCoordinates ? (
+                <div className="overflow-hidden rounded-xl border border-gray-200">
+                  <MapContainer
+                    key={selectedOrder.id}
+                    center={[selectedOrder.deliveryCoordinates.lat, selectedOrder.deliveryCoordinates.lng]}
+                    zoom={14}
+                    scrollWheelZoom={false}
+                    style={{ height: 280, width: '100%' }}
+                  >
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <RouteLayer
+                      start={OPPA_DRU_STORE_COORDS}
+                      end={selectedOrder.deliveryCoordinates}
+                      progress={0}
+                    />
+                    <Marker position={[OPPA_DRU_STORE_COORDS.lat, OPPA_DRU_STORE_COORDS.lng]} icon={storeIcon}>
+                      <Popup>Oppa Dru store</Popup>
+                    </Marker>
+                    <Marker
+                      position={[selectedOrder.deliveryCoordinates.lat, selectedOrder.deliveryCoordinates.lng]}
+                      icon={destinationIcon}
+                    >
+                      <Popup>Customer delivery address</Popup>
+                    </Marker>
+                  </MapContainer>
+                </div>
+              ) : (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  This order has no saved map pin. Use the delivery address above.
+                </p>
+              )}
               
               {/* Payment Info */}
               <div className="flex justify-between items-center bg-gray-50 p-4 rounded-xl border border-gray-100">
@@ -469,6 +547,36 @@ const DriverDashboardPage: React.FC = () => {
                   </ul>
                 </div>
               )}
+
+              {selectedOrder.deliveryProofImageUrl ? (
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-green-800">
+                    <Clock size={16} /> Photo submitted; awaiting admin confirmation
+                  </div>
+                  <img
+                    src={selectedOrder.deliveryProofImageUrl}
+                    alt="Submitted delivery proof"
+                    className="max-h-64 w-full rounded-lg object-contain bg-white"
+                  />
+                </div>
+              ) : activeTab === 'active' ? (
+                <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 ${uploadingProof ? 'pointer-events-none opacity-60' : ''}`}>
+                  <Camera size={17} />
+                  {uploadingProof ? 'Uploading photo...' : 'Take or Upload Delivery Photo'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    capture="environment"
+                    className="sr-only"
+                    disabled={uploadingProof}
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0];
+                      if (file) void uploadDeliveryProof(file);
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+              ) : null}
             </div>
           </div>
         </div>

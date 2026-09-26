@@ -4,6 +4,8 @@ import AdminLayout from '../components/AdminLayout';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
 import { orderService } from '../../../services/orderService';
 import { formatCurrency } from '../../../utils/formatters';
+import { fetchWithAdminAuth } from '../../../services/adminAuthService';
+import { API_URL } from '../../../services/apiConfig';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -63,6 +65,25 @@ const AdminOrdersPage: React.FC = () => {
       await loadOrders();
     } catch {
       // Silently fail
+    }
+  };
+
+  const handleConfirmDeliveryProof = async (order: AdminOrder) => {
+    try {
+      const response = await fetchWithAdminAuth(`${API_URL}/admin/orders/${order.id}/delivery-proof/confirm`, {
+        method: 'PATCH',
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.message || 'Could not confirm this delivery.');
+      }
+
+      setOrders((current) => current.map((item) => item.id === order.id
+        ? { ...item, status: 'delivered', delivery_confirmed_at: result.order?.delivery_confirmed_at || new Date().toISOString() }
+        : item));
+      setSelectedOrder(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not confirm this delivery.');
     }
   };
 
@@ -253,13 +274,21 @@ const AdminOrdersPage: React.FC = () => {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        {!isDelivered && (
+                        {order.channel === 'onsite' && !isDelivered && (
                           <button
                             onClick={() => handleMarkDelivered(order.id)}
                             className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-600 transition hover:bg-green-100"
                           >
                             <CheckCircle size={13} />
                             Mark Delivered
+                          </button>
+                        )}
+                        {order.channel === 'online' && order.status === 'on_the_way' && order.delivery_proof_image_url && (
+                          <button
+                            onClick={() => setSelectedOrder(order)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-100"
+                          >
+                            <Eye size={13} /> Review Proof
                           </button>
                         )}
                         <button
@@ -352,6 +381,36 @@ const AdminOrdersPage: React.FC = () => {
                 <p className="text-xs text-[var(--oppa-text-muted)]">Delivery Address</p>
                 <p className="text-sm">{selectedOrder.deliveryAddress || 'Onsite / Walk-in'}</p>
               </div>
+
+              {selectedOrder.delivery_proof_image_url && (
+                <div className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-[var(--oppa-text)]">Driver delivery photo</p>
+                      <p className="text-xs text-[var(--oppa-text-muted)]">
+                        {selectedOrder.delivery_confirmed_at
+                          ? `Confirmed ${formatDate(selectedOrder.delivery_confirmed_at)}`
+                          : `Submitted ${formatDate(selectedOrder.delivery_proof_uploaded_at)}`}
+                      </p>
+                    </div>
+                    {selectedOrder.status === 'on_the_way' && (
+                      <button
+                        onClick={() => void handleConfirmDeliveryProof(selectedOrder)}
+                        className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-green-800"
+                      >
+                        <CheckCircle size={16} /> Confirm Delivery
+                      </button>
+                    )}
+                  </div>
+                  <a href={selectedOrder.delivery_proof_image_url} target="_blank" rel="noreferrer">
+                    <img
+                      src={selectedOrder.delivery_proof_image_url}
+                      alt="Driver submitted delivery proof"
+                      className="max-h-96 w-full rounded-lg bg-[var(--oppa-cream)] object-contain"
+                    />
+                  </a>
+                </div>
+              )}
 
               {selectedOrder.phone && (
                 <div>

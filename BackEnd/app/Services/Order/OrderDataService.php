@@ -43,6 +43,11 @@ class OrderDataService
             'delivery_coordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)
                 ? ['lat' => (float) $order->delivery_lat, 'lng' => (float) $order->delivery_lng]
                 : null,
+            'delivery_proof_image_url' => $order->delivery_proof_image
+                ? rtrim(config('app.url'), '/') . '/storage/' . ltrim($order->delivery_proof_image, '/')
+                : null,
+            'delivery_proof_uploaded_at' => $order->delivery_proof_uploaded_at?->toISOString(),
+            'delivery_confirmed_at' => $order->delivery_confirmed_at?->toISOString(),
             'phone' => $order->phone,
             'items' => $order->items,
             'order_items' => $order->orderItems,

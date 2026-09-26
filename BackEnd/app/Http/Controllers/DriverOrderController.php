@@ -74,6 +74,13 @@ class DriverOrderController extends Controller
                 'phone' => $order->phone,
                 'total' => $order->total,
                 'paymentMethod' => $order->payment_method,
+                'deliveryCoordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)
+                    ? ['lat' => (float) $order->delivery_lat, 'lng' => (float) $order->delivery_lng]
+                    : null,
+                'deliveryProofImageUrl' => $order->delivery_proof_image
+                    ? rtrim(config('app.url'), '/') . '/storage/' . ltrim($order->delivery_proof_image, '/')
+                    : null,
+                'deliveryProofUploadedAt' => $order->delivery_proof_uploaded_at?->toISOString(),
             ];
         });
 
@@ -88,8 +95,7 @@ class DriverOrderController extends Controller
         }
 
         $request->validate([
-            // Drivers can only accept order (on_the_way) or complete it (delivered)
-            'status' => 'required|string|in:on_the_way,delivered'
+            'status' => 'required|string|in:on_the_way'
         ]);
 
         $order = Order::findOrFail($id);
@@ -104,16 +110,6 @@ class DriverOrderController extends Controller
                 ], 409);
             }
             $order->driver_id = $driver->id;
-        } elseif ($targetStatus === 'delivered') {
-            // Ensure only the driver who accepted the order can mark it delivered
-            if ($order->driver_id && $order->driver_id !== $driver->id) {
-                return response()->json([
-                    'message' => 'Unauthorized. You did not accept this order.'
-                ], 403);
-            }
-            if (!$order->driver_id) {
-                $order->driver_id = $driver->id;
-            }
         }
 
         $order->status = $targetStatus;

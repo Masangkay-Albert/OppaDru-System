@@ -55,6 +55,9 @@ export type AdminOrder = Omit<Order, 'timestamp'> & {
   paymentMethod?: string;
   served?: boolean;
   order_number?: string;
+  delivery_proof_image_url?: string | null;
+  delivery_proof_uploaded_at?: string | null;
+  delivery_confirmed_at?: string | null;
   created_at?: string;
   timestamp?: string;
   diningOption?: 'dine_in' | 'takeout';

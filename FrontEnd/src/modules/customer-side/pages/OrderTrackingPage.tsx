@@ -5,7 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../contexts/Authcontext';
 import { useOrder } from '../../../contexts/OrderContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
-import { ORDER_STATUS, STATUS_COLORS, STATUS_MESSAGES } from '../../../utils/constants';
+import { ORDER_STATUS, STATUS_COLORS } from '../../../utils/constants';
 import { orderService } from '../../../services/orderService';
 import { OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
 import type { Order } from '../../../contexts/OrderContext';
@@ -26,7 +26,7 @@ const OrderTrackingPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { orders, currentOrder, getOrderById, updateOrderStatus, clearOrder } = useOrder();
+  const { orders, currentOrder, getOrderById, clearOrder } = useOrder();
 
   const locationState = location.state as TrackingLocationState | null;
   const requestedOrderId = locationState?.orderId;
@@ -227,24 +227,6 @@ const OrderTrackingPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [order, isSimulating]);
 
-  const handleDeliver = useCallback(() => {
-    if (order && order.status !== ORDER_STATUS.DELIVERED && simulatedProgress >= 95) {
-      updateOrderStatus(order.id, ORDER_STATUS.DELIVERED);
-      setOrder(prev => (prev ? { ...prev, status: ORDER_STATUS.DELIVERED } : prev));
-      setSimulatedProgress(100);
-    }
-  }, [order, simulatedProgress, updateOrderStatus]);
-
-  useEffect(() => {
-    if (simulatedProgress >= 95 && order && order.status === ORDER_STATUS.ON_THE_WAY && !isSimulating) {
-      const timer = setTimeout(() => {
-        handleDeliver();
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [simulatedProgress, order, isSimulating, handleDeliver]);
-
-
   const getBarProgress = () => {
     if (!order) return 0;
     switch (order.status) {
@@ -323,7 +305,6 @@ const OrderTrackingPage: React.FC = () => {
     (OPPA_DRU_STORE_COORDS.lng + order.deliveryAddressCoords.lng) / 2
   ] : [OPPA_DRU_STORE_COORDS.lat, OPPA_DRU_STORE_COORDS.lng];
 
-  const currentMessageInfo = STATUS_MESSAGES[order.status as keyof typeof STATUS_MESSAGES] || { icon: '🔄', message: 'Updating status...' };
   const graceRemaining = getGraceRemainingSeconds(order);
   const isPendingStatus = String(order.status ?? '').trim().toLowerCase() === ORDER_STATUS.PENDING;
   const canManageGracePeriod = isPendingStatus && graceRemaining > 0;
@@ -370,13 +351,6 @@ const OrderTrackingPage: React.FC = () => {
         </div>
 
         <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2 ml-1">
-            <span className="text-2xl">{currentMessageInfo.icon || '🔄'}</span>
-            <span className="font-semibold text-[#2d6a4f] tracking-wide">
-              {currentMessageInfo.message || 'Updating status...'}
-            </span>
-          </div>
-
           {order.status === ORDER_STATUS.PENDING && (() => {
             return (
               <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
@@ -465,15 +439,6 @@ const OrderTrackingPage: React.FC = () => {
               formatDate={formatDate} 
             />
             
-            {!isDelivered && simulatedProgress >= 95 && (
-              <button 
-                onClick={handleDeliver} 
-                className="w-full mt-4 py-3 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition shadow-md animate-pulse"
-              >
-                Confirm Delivery ✓
-              </button>
-            )}
-
             {isDelivered && (
               <button 
                 onClick={handleOrderComplete} 

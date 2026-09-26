@@ -26,6 +26,7 @@ class OrderController extends Controller
         $orders = Order::select([
             'id', 'order_number', 'email', 'user_id', 'total', 'status',
             'payment_method', 'delivery_address', 'delivery_lat', 'delivery_lng', 'delivery_coordinates', 'phone', 'items', 'created_at',
+            'delivery_proof_image', 'delivery_proof_uploaded_at', 'delivery_confirmed_at',
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',
             'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
         ])->with(['user:id,full_name', 'orderItems'])
@@ -513,7 +514,7 @@ class OrderController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'status' => 'required|string|in:pending,preparing,prepared,ready,scheduled,on_the_way,delivered,cancelled',
+            'status' => 'required|string|in:cancelled',
         ]);
 
         if ($validator->fails()) {
@@ -521,6 +522,10 @@ class OrderController extends Controller
         }
 
         $order = Order::findOrFail($id);
+
+        if ($order->email !== $request->user()->email) {
+            return response()->json(['message' => 'Unauthorized.'], 403);
+        }
 
         if ($request->status === 'cancelled') {
             $createdAt = $order->created_at;
@@ -530,15 +535,6 @@ class OrderController extends Controller
             if (!$createdAt || $createdAt->isFuture() || $elapsedSeconds > 20 || $order->status !== 'pending') {
                 return response()->json([
                     'message' => 'Order cancellation is only allowed within 20 seconds of creation.',
-                ], 422);
-            }
-        }
-
-        if (in_array($request->status, ['on_the_way', 'delivered'], true) && strtolower((string) ($order->delivery_type ?? 'standard')) === 'scheduled') {
-            $scheduledAt = $order->scheduled_at ? Carbon::parse($order->scheduled_at, 'Asia/Manila') : null;
-            if (!$scheduledAt || $scheduledAt->isFuture()) {
-                return response()->json([
-                    'message' => 'Scheduled orders cannot be marked as on the way or delivered before their scheduled time.',
                 ], 422);
             }
         }

@@ -17,6 +17,7 @@ use App\Http\Controllers\AddonController;
 use App\Http\Controllers\DriverAuthController;
 use App\Http\Controllers\KitchenOrderController;
 use App\Http\Controllers\DriverOrderController;
+use App\Http\Controllers\DeliveryProofController;
 use App\Http\Controllers\DiscountVerificationController;
 use App\Http\Controllers\DiscountApplicationController;
 use Illuminate\Http\Request;
@@ -73,6 +74,8 @@ Route::patch('/kitchen/orders/{id}/status', [KitchenOrderController::class, 'upd
 //drivers
 Route::get('/driver/orders', [DriverOrderController::class, 'index']);
 Route::patch('/driver/orders/{id}/status', [DriverOrderController::class, 'updateStatus']);
+Route::post('/driver/orders/{id}/delivery-proof', [DeliveryProofController::class, 'store']);
+Route::patch('/admin/orders/{id}/delivery-proof/confirm', [DeliveryProofController::class, 'confirm']);
 
 
 Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);
