@@ -139,13 +139,20 @@ const DriverDashboardPage: React.FC = () => {
         body: JSON.stringify({ status: newStatus })
       });
 
-      if (!response.ok) throw new Error('Failed to update status');
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        const validationMessages = result?.errors
+          ? Object.values(result.errors).flat().join(' ')
+          : '';
+        throw new Error(validationMessages || result?.message || `Could not update status (HTTP ${response.status}).`);
+      }
 
+      setSelectedOrder((current) => current && current.id === orderId ? { ...current, status: newStatus } : current);
       setActiveTab(nextTab);
       if (activeTab === nextTab) fetchOrders(); 
     } catch (error) {
       console.error("Error updating status:", error);
-      alert("Failed to update order status. Please try again.");
+      alert(error instanceof Error ? error.message : "Failed to update order status. Please try again.");
     }
   };
 
@@ -559,7 +566,21 @@ const DriverDashboardPage: React.FC = () => {
                     className="max-h-64 w-full rounded-lg object-contain bg-white"
                   />
                 </div>
-              ) : activeTab === 'active' ? (
+              ) : selectedOrder.status === 'on_the_way' ? (
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => void updateOrderStatus(selectedOrder.id, 'arrived', 'active')}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+                  >
+                    <MapPin size={17} />
+                    I have reached the delivery address
+                  </button>
+                  <p className="text-center text-xs text-[var(--oppa-text-muted)]">
+                    Proof upload is only available after the driver confirms arrival at the customer address.
+                  </p>
+                </div>
+              ) : selectedOrder.status === 'arrived' ? (
                 <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 ${uploadingProof ? 'pointer-events-none opacity-60' : ''}`}>
                   <Camera size={17} />
                   {uploadingProof ? 'Uploading photo...' : 'Take or Upload Delivery Photo'}

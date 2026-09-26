@@ -20,8 +20,8 @@ class KitchenOrderController extends Controller
         } elseif ($tab === 'preparing') {
             $query->whereIn('status', ['preparing']);
         } else {
-            // History tab
-            $query->whereIn('status', ['prepared', 'delivered', 'completed', 'cancelled']);
+            // History tab: preserve historical order records while accepting the ready/prepared naming used elsewhere.
+            $query->whereIn('status', ['prepared', 'ready', 'delivered', 'completed', 'cancelled']);
         }
 
         // Order by oldest first for pending (so first in, first out), or newest for history
@@ -58,7 +58,7 @@ class KitchenOrderController extends Controller
   public function updateStatus(Request $request, string $id)
     {
         $request->validate([
-            'status' => 'required|string|in:pending,preparing,prepared,completed,cancelled'
+            'status' => 'required|string|in:pending,preparing,prepared,ready,completed,cancelled'
         ]);
 
         $order = Order::findOrFail($id);

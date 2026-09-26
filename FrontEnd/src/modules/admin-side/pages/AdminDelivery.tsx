@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { PlusIcon, XIcon, PhoneIcon, MailIcon, Power, Trash2 } from "lucide-react";
+import { PlusIcon, XIcon, PhoneIcon, MailIcon, Power, Trash2, CheckCircle, Clock3, Truck, Eye, Camera, MapPin } from "lucide-react";
 import AdminLayout from '../components/AdminLayout';
 import { API_URL } from '../../../services/apiConfig';
+import { fetchWithAdminAuth } from '../../../services/adminAuthService';
 
-// Interface matching your Laravel Database
 export interface DeliveryPartner {
-  id: string; 
+  id: string;
   name: string;
   email: string;
   phone: string;
@@ -13,14 +13,31 @@ export interface DeliveryPartner {
   isActive: boolean;
 }
 
+interface DeliveryOrder {
+  id: string;
+  order_number?: string;
+  customerName?: string;
+  email?: string;
+  phone?: string;
+  delivery_address?: string;
+  total?: number;
+  status?: string;
+  delivery_proof_image?: string | null;
+  delivery_proof_uploaded_at?: string | null;
+  delivery_confirmed_at?: string | null;
+  created_at?: string;
+  driver_id?: string | null;
+}
+
 export default function AdminDelivery() {
   const [partners, setPartners] = useState<DeliveryPartner[]>([]);
+  const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrder[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [form, setForm] = useState({ name: "", email: "", password: "", phone: "", vehicleType: "" });
+  const [selectedProof, setSelectedProof] = useState<DeliveryOrder | null>(null);
 
-  // FETCH Drivers from Laravel (Supabase)
   const refresh = async () => {
     try {
       const res = await fetch(`${API_URL}/drivers`, {
@@ -35,8 +52,24 @@ export default function AdminDelivery() {
     }
   };
 
+  const refreshDeliveryOrders = async () => {
+    try {
+      const res = await fetchWithAdminAuth(`${API_URL}/orders`);
+      if (!res.ok) {
+        throw new Error('Failed to load delivery orders');
+      }
+      const data = await res.json();
+      const orders = Array.isArray(data) ? data : [];
+      setDeliveryOrders(orders.filter((order: any) => ['prepared', 'ready', 'on_the_way', 'delivered'].includes(String(order.status || '').trim())));
+    } catch (error) {
+      console.error('Failed to fetch delivery orders:', error);
+      setDeliveryOrders([]);
+    }
+  };
+
   useEffect(() => {
     refresh();
+    refreshDeliveryOrders();
   }, []);
 
   // ADD Driver
@@ -116,6 +149,40 @@ export default function AdminDelivery() {
     }
   };
 
+  const confirmDelivery = async (order: DeliveryOrder) => {
+    try {
+      if (!order.delivery_proof_image) {
+        alert('The delivery proof is missing.');
+        return;
+      }
+
+      const res = await fetchWithAdminAuth(`${API_URL}/admin/orders/${order.id}/delivery-proof/confirm`, { method: 'PATCH' });
+      const result = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(result?.message || 'Could not confirm this delivery.');
+      }
+
+      setSelectedProof(null);
+      await refreshDeliveryOrders();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not confirm this delivery.');
+    }
+  };
+
+  const statusLabel = (status?: string) => {
+    switch (status) {
+      case 'prepared':
+      case 'ready':
+        return 'Ready for Delivery';
+      case 'on_the_way':
+        return 'Out for Delivery';
+      case 'delivered':
+        return 'Delivered';
+      default:
+        return status || 'Unknown';
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="min-h-screen space-y-6 p-6">
@@ -154,6 +221,101 @@ export default function AdminDelivery() {
                 >
                   OK
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-[var(--oppa-text)]">Delivery Orders</h2>
+              <p className="text-sm text-[var(--oppa-text-muted)]">Review active deliveries and proof before final confirmation.</p>
+            </div>
+          </div>
+
+          {deliveryOrders.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/40 p-6 text-center text-sm text-[var(--oppa-text-muted)]">
+              No delivery orders are currently active.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {deliveryOrders.map((order) => (
+                <div key={order.id} className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/20 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--oppa-text-muted)]">
+                        <Truck className="h-3.5 w-3.5" /> Order {order.order_number || order.id.slice(-6)}
+                      </div>
+                      <p className="mt-1 text-lg font-semibold text-[var(--oppa-text)]">{order.customerName || order.email || 'Customer'}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : order.status === 'on_the_way' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>
+                        {order.status === 'on_the_way' ? <Clock3 className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
+                        {statusLabel(order.status)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
+                    <div className="space-y-2 text-sm text-[var(--oppa-text)]">
+                      <div className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 text-[var(--oppa-green)]" /><span>{order.delivery_address || 'Address unavailable'}</span></div>
+                      {order.phone && <div className="text-[var(--oppa-text-muted)]">Contact: {order.phone}</div>}
+                      <div className="font-medium text-[var(--oppa-text-muted)]">Total: ₱{Number(order.total || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}</div>
+                    </div>
+
+                    <div className="flex flex-col items-start gap-2 md:items-end">
+                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--oppa-text-muted)]">Proof status</div>
+                      {order.delivery_proof_image ? (
+                        <button onClick={() => setSelectedProof(order)} className="inline-flex items-center gap-2 rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-sm font-medium text-white">
+                          <Eye className="h-4 w-4" /> View Proof
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
+                          <Camera className="h-4 w-4" /> No proof yet
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {selectedProof && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-2xl rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-serif text-2xl font-bold text-[var(--oppa-text)]">Proof of Delivery</h3>
+                  <p className="text-sm text-[var(--oppa-text-muted)]">{selectedProof.order_number || selectedProof.id}</p>
+                </div>
+                <button onClick={() => setSelectedProof(null)} className="rounded-full p-2 hover:bg-[var(--oppa-cream)]">
+                  <XIcon className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/30 p-3 text-sm text-[var(--oppa-text)]">
+                  <div className="font-semibold">Customer</div>
+                  <div>{selectedProof.customerName || selectedProof.email || 'Customer'}</div>
+                  <div className="mt-1 text-[var(--oppa-text-muted)]">{selectedProof.delivery_address || 'Address unavailable'}</div>
+                </div>
+
+                {selectedProof.delivery_proof_image ? (
+                  <img src={selectedProof.delivery_proof_image} alt="Delivery proof" className="max-h-[420px] w-full rounded-xl border object-contain bg-white" />
+                ) : (
+                  <div className="rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/20 p-6 text-center text-sm text-[var(--oppa-text-muted)]">No photo was uploaded.</div>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setSelectedProof(null)} className="rounded-full border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--oppa-text)]">Close</button>
+                  <button onClick={() => confirmDelivery(selectedProof)} className="inline-flex items-center gap-2 rounded-full bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white">
+                    <CheckCircle className="h-4 w-4" /> Confirm Delivered
+                  </button>
+                </div>
               </div>
             </div>
           </div>

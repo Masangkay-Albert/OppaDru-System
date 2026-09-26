@@ -25,8 +25,8 @@ class DeliveryProofController extends Controller
         ]);
 
         $order = Order::findOrFail($id);
-        if ($order->driver_id !== $driver->id || $order->status !== 'on_the_way') {
-            return response()->json(['message' => 'This delivery is not assigned to you or is no longer active.'], 403);
+        if ($order->driver_id !== $driver->id || $order->status !== 'arrived') {
+            return response()->json(['message' => 'You must mark the delivery as arrived before uploading proof.'], 403);
         }
 
         $previousImage = $order->delivery_proof_image;
@@ -54,13 +54,18 @@ class DeliveryProofController extends Controller
         }
 
         $order = Order::findOrFail($id);
-        if (!$order->delivery_proof_image || $order->status !== 'on_the_way') {
+        if (!$order->delivery_proof_image) {
             return response()->json(['message' => 'This order has no pending delivery proof to confirm.'], 422);
+        }
+
+        if ($order->status !== 'arrived' && $order->status !== 'on_the_way') {
+            return response()->json(['message' => 'This delivery is not awaiting admin confirmation.'], 422);
         }
 
         $admin = Admin::where('api_token', hash('sha256', (string) $request->bearerToken()))->firstOrFail();
         $order->status = 'delivered';
         $order->delivery_confirmed_at = now();
+        $order->delivery_proof_uploaded_at = $order->delivery_proof_uploaded_at ?? now();
         $order->save();
 
         return response()->json([

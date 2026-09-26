@@ -32,15 +32,13 @@ class DriverOrderController extends Controller
 
         // Link the React tabs to the exact database statuses & driver ownership
         if ($tab === 'available') {
-            // Show orders the kitchen is DONE preparing, ready for a driver and not yet accepted
-            $query->whereIn('status', ['prepared'])
+            // Reuse the existing order statuses and treat both prepared/ready as "ready for delivery".
+            $query->whereIn('status', ['prepared', 'ready'])
                   ->whereNull('driver_id');
         } elseif ($tab === 'active') {
-            // Show orders currently being delivered by this driver
             $query->where('driver_id', $driver->id)
-                  ->whereIn('status', ['on_the_way']); 
+                  ->whereIn('status', ['on_the_way', 'arrived']);
         } else {
-            // History tab: show only orders that THIS driver accepted and delivered/cancelled
             $query->where('driver_id', $driver->id)
                   ->whereIn('status', ['delivered', 'cancelled']);
         }
@@ -94,8 +92,12 @@ class DriverOrderController extends Controller
             return response()->json(['message' => 'Unauthenticated driver.'], 401);
         }
 
+        $request->merge([
+            'status' => strtolower(trim((string) $request->input('status', ''))),
+        ]);
+
         $request->validate([
-            'status' => 'required|string|in:on_the_way'
+            'status' => 'required|string|in:on_the_way,arrived',
         ]);
 
         $order = Order::findOrFail($id);
@@ -103,12 +105,16 @@ class DriverOrderController extends Controller
         $targetStatus = $request->status;
 
         if ($targetStatus === 'on_the_way') {
-            // Check if order has already been accepted by another driver
             if ($order->driver_id && $order->driver_id !== $driver->id) {
                 return response()->json([
                     'message' => 'This order has already been accepted by another driver.'
                 ], 409);
             }
+            $order->driver_id = $driver->id;
+        }
+
+        // Only allow proof submission after the driver confirms they reached the destination.
+        if ($targetStatus === 'arrived') {
             $order->driver_id = $driver->id;
         }
 
