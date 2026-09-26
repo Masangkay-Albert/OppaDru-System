@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Trash2, UserPlus, KeyRound } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import AccountModal from '../components/AccountModal';
+import AccountCreationModal, { type AccountCreationValues } from '../components/AccountCreationModal';
+import { useToast } from '../../customer-side/components/ToastProvider';
 import { API_URL } from '../../../services/apiConfig';
 
-// 1. Interface matching your Laravel Database
 export interface EmployeeAccount {
   id: string;
   fullName: string;
@@ -16,22 +17,19 @@ const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text
 const chipInfo = `${chipBase} bg-blue-50 text-blue-600 hover:bg-blue-100`;
 const iconDangerBtn = 'inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-500 transition hover:bg-red-100 hover:text-red-700';
 
-// 2. Shared API base URL
 const AdminEmployeesPage: React.FC = () => {
   const [employees, setEmployees] = useState<EmployeeAccount[]>([]);
   const [selected, setSelected] = useState<EmployeeAccount | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; fullName: string } | null>(null);
-  
-  // State matches exactly what Laravel expects
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', position: 'cashier' });
+  const { showToast } = useToast();
 
-  // FETCH Employees
   const refresh = async () => {
     try {
       const response = await fetch(`${API_URL}/employees`, {
-        headers: { 'Accept': 'application/json' }
+        headers: { Accept: 'application/json' },
       });
       const data = await response.json();
       setEmployees(Array.isArray(data) ? data : []);
@@ -44,10 +42,10 @@ const AdminEmployeesPage: React.FC = () => {
     refresh();
   }, []);
 
-  // ADD Employee
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAdd = async (values: AccountCreationValues) => {
     setIsLoading(true);
+    setSubmitError('');
+
     try {
       const response = await fetch(`${API_URL}/employees`, {
         method: 'POST',
@@ -55,26 +53,30 @@ const AdminEmployeesPage: React.FC = () => {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          fullName: values.fullName,
+          email: values.email,
+          password: values.password,
+          position: values.position || 'cashier',
+        }),
       });
 
-      if (response.ok) {
-        setForm({ fullName: '', email: '', password: '', position: 'cashier' });
-        setShowForm(false);
-        refresh();
-      } else {
-        const errorData = await response.json();
-        alert('Error: ' + (errorData.message || 'Failed to add employee'));
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Unable to create the account. Please try again.');
       }
+
+      setShowModal(false);
+      await refresh();
+      showToast('Employee account created successfully.', 'success');
     } catch (error) {
-      console.error('Add employee error:', error);
-      alert('Network error. Is your Laravel server running?');
+      const message = error instanceof Error ? error.message : 'Unable to create the account. Please try again.';
+      setSubmitError(message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // DELETE Employee
   const handleDelete = (id: string, fullName: string) => {
     setDeleteTarget({ id, fullName });
   };
@@ -85,7 +87,7 @@ const AdminEmployeesPage: React.FC = () => {
     try {
       await fetch(`${API_URL}/employees/${deleteTarget.id}`, {
         method: 'DELETE',
-        headers: { 'Accept': 'application/json' }
+        headers: { Accept: 'application/json' },
       });
       await refresh();
     } catch (error) {
@@ -95,7 +97,6 @@ const AdminEmployeesPage: React.FC = () => {
     }
   };
 
-  // RESET Password
   const handleReset = async (id: string, newPassword: string) => {
     try {
       const response = await fetch(`${API_URL}/employees/${id}/reset-password`, {
@@ -106,16 +107,17 @@ const AdminEmployeesPage: React.FC = () => {
         },
         body: JSON.stringify({ password: newPassword }),
       });
-      
+
       if (response.ok) {
-        alert('Password updated successfully');
-        setSelected(null); // Close modal on success
+        showToast('Password updated successfully.', 'success');
+        setSelected(null);
       } else {
-        const errorData = await response.json();
-        alert('Error: ' + (errorData.message || 'Failed to reset password'));
+        const errorData = await response.json().catch(() => ({}));
+        showToast(errorData.message || 'Failed to reset password.', 'error');
       }
     } catch (error) {
       console.error('Reset password error:', error);
+      showToast('Failed to reset password. Please try again.', 'error');
     }
   };
 
@@ -124,11 +126,11 @@ const AdminEmployeesPage: React.FC = () => {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">Registered Employees</h1>
-          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage staff accounts and access.</p>
+          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage employee accounts and information.</p>
         </div>
         <button
-          onClick={() => setShowForm((v) => !v)}
-          className="bg-[var(--oppa-green)] flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+          onClick={() => setShowModal(true)}
+          className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
         >
           <UserPlus size={16} /> Add Employee
         </button>
@@ -158,51 +160,6 @@ const AdminEmployeesPage: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
-
-      {showForm && (
-        <form
-          onSubmit={handleAdd}
-          className="mb-6 grid grid-cols-1 gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-5 lg:items-end"
-        >
-          <input
-            required
-            placeholder="Full name"
-            value={form.fullName}
-            onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-            className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
-          />
-          <input
-            required
-            type="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
-          />
-          <input
-            required
-            placeholder="Password"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
-          />
-          <select
-            value={form.position}
-            onChange={(e) => setForm({ ...form, position: e.target.value })}
-            className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
-          >
-            <option value="cashier">Cashier</option>
-            <option value="kitchen staff">Kitchen Staff</option>
-          </select>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="bg-[var(--oppa-green)] rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 sm:col-span-2 lg:col-span-1 disabled:opacity-50"
-          >
-            {isLoading ? 'Saving...' : 'Save Employee'}
-          </button>
-        </form>
       )}
 
       {employees.length === 0 && (
@@ -273,12 +230,17 @@ const AdminEmployeesPage: React.FC = () => {
         </div>
       )}
 
+      <AccountCreationModal
+        mode="employee"
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleAdd}
+        isSubmitting={isLoading}
+        submitError={submitError}
+      />
+
       {selected && (
-        <AccountModal 
-          account={selected} 
-          onClose={() => setSelected(null)} 
-          onResetPassword={handleReset} 
-        />
+        <AccountModal account={selected} onClose={() => setSelected(null)} onResetPassword={handleReset} />
       )}
     </AdminLayout>
   );

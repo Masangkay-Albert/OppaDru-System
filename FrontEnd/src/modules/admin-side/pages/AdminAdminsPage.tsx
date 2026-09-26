@@ -2,12 +2,16 @@
 import React, { useEffect, useState } from 'react';
 import { UserPlus } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
+import AccountCreationModal, { type AccountCreationValues } from '../components/AccountCreationModal';
+import { useToast } from '../../customer-side/components/ToastProvider';
 import { apiGetAdmins, apiRegisterAdmin, type StoredAccount } from '../../../services/adminAuthService';
 
 const AdminAdminsPage: React.FC = () => {
   const [admins, setAdmins] = useState<StoredAccount[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', password_confirmation: '' });
+  const [showModal, setShowModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const { showToast } = useToast();
 
   const refresh = async () => {
     try {
@@ -22,15 +26,27 @@ const AdminAdminsPage: React.FC = () => {
     refresh();
   }, []);
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAdd = async (values: AccountCreationValues) => {
+    setIsSubmitting(true);
+    setSubmitError('');
+
     try {
-      await apiRegisterAdmin({ full_name: form.fullName, email: form.email, password: form.password, password_confirmation: form.password_confirmation });
-      setForm({ fullName: '', email: '', password: '', password_confirmation: '' });
-      setShowForm(false);
-      refresh();
+      await apiRegisterAdmin({
+        full_name: values.fullName,
+        email: values.email,
+        password: values.password,
+        password_confirmation: values.confirmPassword,
+      });
+
+      setShowModal(false);
+      setIsSubmitting(false);
+      await refresh();
+      showToast('Admin account created successfully.', 'success');
     } catch (err) {
-      alert((err as Error).message);
+      const message = err instanceof Error ? err.message : 'Unable to create the account. Please try again.';
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -42,22 +58,12 @@ const AdminAdminsPage: React.FC = () => {
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage administrator accounts for the admin panel.</p>
         </div>
         <button
-          onClick={() => setShowForm((v) => !v)}
-          className="bg-oppa-gradient flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+          onClick={() => setShowModal(true)}
+          className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
         >
           <UserPlus size={16} /> Add Admin
         </button>
       </div>
-
-      {showForm && (
-        <form onSubmit={handleAdd} className="mb-6 grid grid-cols-1 gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
-          <input required placeholder="Full name" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" />
-          <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" />
-          <input required placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" />
-          <input required placeholder="Confirm password" value={form.password_confirmation} onChange={(e) => setForm({ ...form, password_confirmation: e.target.value })} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" />
-          <button type="submit" className="bg-oppa-gradient rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 sm:col-span-2 lg:col-span-1">Save Admin</button>
-        </form>
-      )}
 
       {admins.length === 0 && (
         <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">No registered admins yet.</div>
@@ -85,6 +91,15 @@ const AdminAdminsPage: React.FC = () => {
           </table>
         </div>
       )}
+
+      <AccountCreationModal
+        mode="admin"
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleAdd}
+        isSubmitting={isSubmitting}
+        submitError={submitError}
+      />
     </AdminLayout>
   );
 };
