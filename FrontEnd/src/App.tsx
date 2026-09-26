@@ -107,6 +107,7 @@ function App() {
                       <Route path="/employee/login" element={<EmployeeLoginPage />} />
                       <Route path="/staff/login" element={<EmployeeLoginPage />} />
                       <Route path="/cashier/login" element={<EmployeeLoginPage />} />
+                      <Route path="/kitchen/login" element={<EmployeeLoginPage portal="kitchen" />} />
                       <Route path="/employee" element={<ProtectedEmployeeRoute><EmployeeMenuPage /></ProtectedEmployeeRoute>} />
                       <Route path="/employee/checkout" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />
                       <Route path="/employee/pos" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />

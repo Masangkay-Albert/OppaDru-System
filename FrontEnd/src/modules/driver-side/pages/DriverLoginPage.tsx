@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BikeIcon } from "lucide-react";
-import heroSectionImg from "../../../assets/herosection.png";
+import LoginBrandPanel from "../../../components/LoginBrandPanel";
 import { driverAuth } from "../../../services/driverAuth"; 
 
 const DriverLoginPage: React.FC = () => {
@@ -32,26 +32,13 @@ const DriverLoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[var(--oppa-green)] relative items-center justify-center overflow-hidden">
-        <img
-          src={heroSectionImg}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover opacity-10"
-        />
-        <div className="relative text-center px-12">
-          <h2 className="text-4xl font-semibold text-white mb-4">
-            Oppa Dru Delivery Partner 
-          </h2>
-          <p className="text-white/70 font-serif text-xl max-w-sm mx-auto">
-            Sauced, tossed, and straight-up obsessed.
-          </p>
-        </div>
-      </div>
+    <div className="min-h-screen bg-[var(--oppa-cream)] lg:grid lg:grid-cols-2">
+      <LoginBrandPanel
+        title="Oppa Dru Delivery Partner"
+        description="Sauced, tossed, and straight-up obsessed."
+      />
 
-      {/* Right Side Form */}
-      <div className="flex-1 flex items-center justify-center px-4 py-12 bg-[var(--oppa-cream)]">
+      <main className="flex min-h-screen items-center justify-center px-5 py-8 sm:px-10 lg:px-12">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-4">
@@ -122,7 +109,7 @@ const DriverLoginPage: React.FC = () => {
             ← Back to Home
           </button>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
