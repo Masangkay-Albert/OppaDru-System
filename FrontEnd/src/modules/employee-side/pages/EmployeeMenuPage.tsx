@@ -7,7 +7,6 @@ import ProductCard from '../components/product/ProductCard';
 import ProductModal from '../components/product/ProductModal';
 import CartSidebar from '../components/cart/CartSidebar';
 import NavbarEmployee from '../components/navigation/NavbarEmployee';
-import PromoBanner from '../components/common/PromoBanner';
 import NotificationToast from '../components/common/ProductNotification';
 import GreetingBanner from '../components/common/GreetingBanner';
 import { FiShoppingCart, FiMenu, FiX, FiSearch } from 'react-icons/fi';
@@ -116,7 +115,6 @@ const EmployeeMenuPage: React.FC = () => {
         }} 
       />
       <NavbarEmployee />
-      <PromoBanner />
 
       {totalItems > 0 && (
         <button 

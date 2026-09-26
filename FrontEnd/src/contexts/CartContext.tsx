@@ -30,16 +30,29 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const resolvedUser = user ?? authService.getUserFromStorage();
 
   const resolveCurrentKey = useCallback((): string => {
-    if (resolvedUser?.id) {
-      return `cart_user_${resolvedUser.id}`;
-    }
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const isEmployeeContext = /\/(employee|cashier|kitchen|staff)\b/.test(currentPath);
+
     try {
-      const raw = localStorage.getItem('employee_auth');
-      if (raw) {
-        const emp = JSON.parse(raw);
+      const rawEmployee = localStorage.getItem('employee_auth');
+      if (rawEmployee && isEmployeeContext) {
+        const emp = JSON.parse(rawEmployee);
         if (emp?.id) return `cart_employee_${emp.id}`;
       }
     } catch {}
+
+    if (resolvedUser?.id) {
+      return `cart_user_${resolvedUser.id}`;
+    }
+
+    try {
+      const rawEmployee = localStorage.getItem('employee_auth');
+      if (rawEmployee) {
+        const emp = JSON.parse(rawEmployee);
+        if (emp?.id) return `cart_employee_${emp.id}`;
+      }
+    } catch {}
+
     return 'cart_employee_register';
   }, [resolvedUser?.id]);
 
