@@ -23,6 +23,7 @@ interface DeliveryOrder {
   total?: number;
   status?: string;
   delivery_proof_image?: string | null;
+  delivery_proof_image_url?: string | null;
   delivery_proof_uploaded_at?: string | null;
   delivery_confirmed_at?: string | null;
   created_at?: string;
@@ -151,7 +152,7 @@ export default function AdminDelivery() {
 
   const confirmDelivery = async (order: DeliveryOrder) => {
     try {
-      if (!order.delivery_proof_image) {
+      if (!order.delivery_proof_image && !order.delivery_proof_image_url) {
         alert('The delivery proof is missing.');
         return;
       }
@@ -175,11 +176,12 @@ export default function AdminDelivery() {
       case 'ready':
         return 'Ready for Delivery';
       case 'on_the_way':
-        return 'Out for Delivery';
+        return 'On the Way';
+      case 'arrived':
       case 'delivered':
         return 'Delivered';
       default:
-        return status || 'Unknown';
+        return status ? status.replace('_', ' ').toUpperCase() : 'Unknown';
     }
   };
 
@@ -267,7 +269,7 @@ export default function AdminDelivery() {
 
                     <div className="flex flex-col items-start gap-2 md:items-end">
                       <div className="text-xs uppercase tracking-[0.08em] text-[var(--oppa-text-muted)]">Proof status</div>
-                      {order.delivery_proof_image ? (
+                      {order.delivery_proof_image || order.delivery_proof_image_url ? (
                         <button onClick={() => setSelectedProof(order)} className="inline-flex items-center gap-2 rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-sm font-medium text-white">
                           <Eye className="h-4 w-4" /> View Proof
                         </button>
@@ -304,8 +306,12 @@ export default function AdminDelivery() {
                   <div className="mt-1 text-[var(--oppa-text-muted)]">{selectedProof.delivery_address || 'Address unavailable'}</div>
                 </div>
 
-                {selectedProof.delivery_proof_image ? (
-                  <img src={selectedProof.delivery_proof_image} alt="Delivery proof" className="max-h-[420px] w-full rounded-xl border object-contain bg-white" />
+                {selectedProof.delivery_proof_image || selectedProof.delivery_proof_image_url ? (
+                  <img
+                    src={(selectedProof.delivery_proof_image_url || selectedProof.delivery_proof_image)!}
+                    alt="Delivery proof"
+                    className="max-h-[420px] w-full rounded-xl border object-contain bg-white"
+                  />
                 ) : (
                   <div className="rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/20 p-6 text-center text-sm text-[var(--oppa-text-muted)]">No photo was uploaded.</div>
                 )}

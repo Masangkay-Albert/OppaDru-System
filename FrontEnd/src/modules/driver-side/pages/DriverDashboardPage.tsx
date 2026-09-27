@@ -570,17 +570,17 @@ const DriverDashboardPage: React.FC = () => {
                 <div className="space-y-3">
                   <button
                     type="button"
-                    onClick={() => void updateOrderStatus(selectedOrder.id, 'arrived', 'active')}
+                    onClick={() => void updateOrderStatus(selectedOrder.id, 'delivered', 'active')}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
                   >
-                    <MapPin size={17} />
+                    <CheckCircle size={17} />
                     I have reached the delivery address
                   </button>
                   <p className="text-center text-xs text-[var(--oppa-text-muted)]">
-                    Proof upload is only available after the driver confirms arrival at the customer address.
+                    Click to mark this order as delivered. You can upload proof of delivery below once confirmed.
                   </p>
                 </div>
-              ) : selectedOrder.status === 'arrived' ? (
+              ) : (selectedOrder.status === 'delivered' || selectedOrder.status === 'arrived') ? (
                 <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 ${uploadingProof ? 'pointer-events-none opacity-60' : ''}`}>
                   <Camera size={17} />
                   {uploadingProof ? 'Uploading photo...' : 'Take or Upload Delivery Photo'}

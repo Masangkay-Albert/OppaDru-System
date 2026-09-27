@@ -197,7 +197,7 @@ const OrderTrackingPage: React.FC = () => {
     setOrder(resolvedOrder);
     setIsLoading(false);
 
-    if (resolvedOrder.status === ORDER_STATUS.DELIVERED) {
+    if (resolvedOrder.status === ORDER_STATUS.DELIVERED || (resolvedOrder.status as string) === 'arrived') {
       setIsSimulating(false);
       setSimulatedProgress(100);
     }
@@ -238,6 +238,7 @@ const OrderTrackingPage: React.FC = () => {
         return 60; 
       case ORDER_STATUS.ON_THE_WAY: 
         return 60 + (simulatedProgress * 0.35); 
+      case 'arrived':
       case ORDER_STATUS.DELIVERED: 
         return 100; 
       default: 
@@ -297,8 +298,8 @@ const OrderTrackingPage: React.FC = () => {
   }
 
   const barProgress = getBarProgress();
-  const statusColor = STATUS_COLORS[order.status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700';
-  const isDelivered = order.status === ORDER_STATUS.DELIVERED;
+  const isDelivered = order.status === ORDER_STATUS.DELIVERED || (order.status as string) === 'arrived';
+  const statusColor = isDelivered ? (STATUS_COLORS.delivered || 'bg-green-100 text-green-700') : (STATUS_COLORS[order.status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700');
 
   const mapCenter = order.deliveryAddressCoords ? [
     (OPPA_DRU_STORE_COORDS.lat + order.deliveryAddressCoords.lat) / 2,

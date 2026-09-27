@@ -283,7 +283,7 @@ const AdminOrdersPage: React.FC = () => {
                             Mark Delivered
                           </button>
                         )}
-                        {order.channel === 'online' && order.status === 'on_the_way' && order.delivery_proof_image_url && (
+                        {order.channel === 'online' && (order.status === 'on_the_way' || order.status === 'delivered' || (order.status as string) === 'arrived') && (order.delivery_proof_image_url || (order as any).delivery_proof_image) && (
                           <button
                             onClick={() => setSelectedOrder(order)}
                             className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-100"
@@ -382,7 +382,7 @@ const AdminOrdersPage: React.FC = () => {
                 <p className="text-sm">{selectedOrder.deliveryAddress || 'Onsite / Walk-in'}</p>
               </div>
 
-              {selectedOrder.delivery_proof_image_url && (
+              {(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image) && (
                 <div className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -390,10 +390,12 @@ const AdminOrdersPage: React.FC = () => {
                       <p className="text-xs text-[var(--oppa-text-muted)]">
                         {selectedOrder.delivery_confirmed_at
                           ? `Confirmed ${formatDate(selectedOrder.delivery_confirmed_at)}`
-                          : `Submitted ${formatDate(selectedOrder.delivery_proof_uploaded_at)}`}
+                          : selectedOrder.delivery_proof_uploaded_at
+                          ? `Submitted ${formatDate(selectedOrder.delivery_proof_uploaded_at)}`
+                          : 'Proof of delivery submitted'}
                       </p>
                     </div>
-                    {selectedOrder.status === 'on_the_way' && (
+                    {selectedOrder.status !== 'delivered' && (
                       <button
                         onClick={() => void handleConfirmDeliveryProof(selectedOrder)}
                         className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-green-800"
@@ -402,9 +404,9 @@ const AdminOrdersPage: React.FC = () => {
                       </button>
                     )}
                   </div>
-                  <a href={selectedOrder.delivery_proof_image_url} target="_blank" rel="noreferrer">
+                  <a href={(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image)!} target="_blank" rel="noreferrer">
                     <img
-                      src={selectedOrder.delivery_proof_image_url}
+                      src={(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image)!}
                       alt="Driver submitted delivery proof"
                       className="max-h-96 w-full rounded-lg bg-[var(--oppa-cream)] object-contain"
                     />
