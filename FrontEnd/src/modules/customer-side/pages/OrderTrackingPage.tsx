@@ -229,7 +229,7 @@ const OrderTrackingPage: React.FC = () => {
 
   const getBarProgress = () => {
     if (!order) return 0;
-    switch (order.status) {
+    switch (order.status as string) {
       case ORDER_STATUS.PENDING: 
         return 20; 
       case ORDER_STATUS.PREPARING: 
@@ -238,7 +238,6 @@ const OrderTrackingPage: React.FC = () => {
         return 60; 
       case ORDER_STATUS.ON_THE_WAY: 
         return 60 + (simulatedProgress * 0.35); 
-      case 'arrived':
       case ORDER_STATUS.DELIVERED: 
         return 100; 
       default: 

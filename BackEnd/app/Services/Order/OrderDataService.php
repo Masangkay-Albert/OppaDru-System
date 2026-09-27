@@ -26,6 +26,14 @@ class OrderDataService
     {
         $createdAt = $order->created_at ? $order->created_at->toISOString() : null;
 
+        $baseUrl = (function_exists('request') && request()?->hasHeader('host'))
+            ? rtrim(request()->root(), '/')
+            : rtrim(config('app.url'), '/');
+
+        $proofUrl = $order->delivery_proof_image
+            ? $baseUrl . '/storage/' . ltrim($order->delivery_proof_image, '/')
+            : null;
+
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -43,12 +51,8 @@ class OrderDataService
             'delivery_coordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)
                 ? ['lat' => (float) $order->delivery_lat, 'lng' => (float) $order->delivery_lng]
                 : null,
-            'delivery_proof_image' => $order->delivery_proof_image
-                ? rtrim(config('app.url'), '/') . '/storage/' . ltrim($order->delivery_proof_image, '/')
-                : null,
-            'delivery_proof_image_url' => $order->delivery_proof_image
-                ? rtrim(config('app.url'), '/') . '/storage/' . ltrim($order->delivery_proof_image, '/')
-                : null,
+            'delivery_proof_image' => $proofUrl,
+            'delivery_proof_image_url' => $proofUrl,
             'delivery_proof_uploaded_at' => $order->delivery_proof_uploaded_at?->toISOString(),
             'delivery_confirmed_at' => $order->delivery_confirmed_at?->toISOString(),
             'phone' => $order->phone,

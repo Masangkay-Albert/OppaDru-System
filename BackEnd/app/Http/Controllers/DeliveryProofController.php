@@ -25,8 +25,8 @@ class DeliveryProofController extends Controller
         ]);
 
         $order = Order::findOrFail($id);
-        if ($order->driver_id !== $driver->id || $order->status !== 'arrived') {
-            return response()->json(['message' => 'You must mark the delivery as arrived before uploading proof.'], 403);
+        if ($order->driver_id !== $driver->id || !in_array($order->status, ['arrived', 'delivered'], true)) {
+            return response()->json(['message' => 'You must mark the delivery as delivered before uploading proof.'], 403);
         }
 
         $previousImage = $order->delivery_proof_image;
@@ -40,9 +40,13 @@ class DeliveryProofController extends Controller
             Storage::disk('public')->delete($previousImage);
         }
 
+        $baseUrl = (function_exists('request') && request()?->hasHeader('host'))
+            ? rtrim(request()->root(), '/')
+            : rtrim(config('app.url'), '/');
+
         return response()->json([
             'message' => 'Delivery proof submitted for admin review.',
-            'delivery_proof_image_url' => rtrim(config('app.url'), '/') . '/storage/' . ltrim($path, '/'),
+            'delivery_proof_image_url' => $baseUrl . '/storage/' . ltrim($path, '/'),
             'delivery_proof_uploaded_at' => $order->delivery_proof_uploaded_at?->toISOString(),
         ]);
     }
@@ -58,7 +62,7 @@ class DeliveryProofController extends Controller
             return response()->json(['message' => 'This order has no pending delivery proof to confirm.'], 422);
         }
 
-        if ($order->status !== 'arrived' && $order->status !== 'on_the_way') {
+        if (!in_array($order->status, ['arrived', 'on_the_way', 'delivered'], true)) {
             return response()->json(['message' => 'This delivery is not awaiting admin confirmation.'], 422);
         }
 

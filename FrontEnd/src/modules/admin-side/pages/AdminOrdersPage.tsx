@@ -37,6 +37,32 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Cancelled',
 };
 
+const getProofImageUrl = (rawUrl?: string | null): string => {
+  if (!rawUrl) return '';
+  const trimmed = rawUrl.trim();
+  if (trimmed.startsWith('data:image')) return trimmed;
+
+  const baseServerUrl = API_URL.replace(/\/api\/?$/, '');
+
+  if (/^https?:\/\/localhost(?::80)?\//i.test(trimmed)) {
+    return trimmed.replace(/^https?:\/\/localhost(?::80)?/i, baseServerUrl);
+  }
+
+  if (trimmed.startsWith('/storage/')) {
+    return `${baseServerUrl}${trimmed}`;
+  }
+
+  if (trimmed.startsWith('storage/')) {
+    return `${baseServerUrl}/${trimmed}`;
+  }
+
+  if (trimmed.startsWith('delivery-proofs/')) {
+    return `${baseServerUrl}/storage/${trimmed}`;
+  }
+
+  return trimmed;
+};
+
 const AdminOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
@@ -78,10 +104,13 @@ const AdminOrdersPage: React.FC = () => {
         throw new Error(result?.message || 'Could not confirm this delivery.');
       }
 
+      const confirmedAt = result?.order?.delivery_confirmed_at || new Date().toISOString();
+
       setOrders((current) => current.map((item) => item.id === order.id
-        ? { ...item, status: 'delivered', delivery_confirmed_at: result.order?.delivery_confirmed_at || new Date().toISOString() }
+        ? { ...item, status: 'delivered', delivery_confirmed_at: confirmedAt }
         : item));
-      setSelectedOrder(null);
+      setSelectedOrder((prev) => prev && prev.id === order.id ? { ...prev, status: 'delivered', delivery_confirmed_at: confirmedAt } : prev);
+      alert('Order was confirmed.');
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Could not confirm this delivery.');
     }
@@ -395,22 +424,48 @@ const AdminOrdersPage: React.FC = () => {
                           : 'Proof of delivery submitted'}
                       </p>
                     </div>
-                    {selectedOrder.status !== 'delivered' && (
+                    {!selectedOrder.delivery_confirmed_at ? (
                       <button
                         onClick={() => void handleConfirmDeliveryProof(selectedOrder)}
                         className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-green-800"
                       >
                         <CheckCircle size={16} /> Confirm Delivery
                       </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
+                        <CheckCircle size={14} /> Order was confirmed
+                      </span>
                     )}
                   </div>
-                  <a href={(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image)!} target="_blank" rel="noreferrer">
-                    <img
-                      src={(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image)!}
-                      alt="Driver submitted delivery proof"
-                      className="max-h-96 w-full rounded-lg bg-[var(--oppa-cream)] object-contain"
-                    />
-                  </a>
+                  <div className="space-y-1">
+                    <a
+                      href={getProofImageUrl(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <img
+                        src={getProofImageUrl(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image)}
+                        alt="Driver submitted delivery proof"
+                        className="max-h-96 w-full rounded-lg bg-[var(--oppa-cream)] object-contain"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          if (!target.src.includes(':8000') && target.src.includes('localhost')) {
+                            target.src = target.src.replace(/^http:\/\/localhost(?::80)?/i, 'http://localhost:8000');
+                          }
+                        }}
+                      />
+                    </a>
+                    <div className="text-right">
+                      <a
+                        href={getProofImageUrl(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-[var(--oppa-green)] hover:underline"
+                      >
+                        Open full photo in new tab
+                      </a>
+                    </div>
+                  </div>
                 </div>
               )}
 

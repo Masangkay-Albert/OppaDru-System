@@ -30,14 +30,72 @@ interface DeliveryOrder {
   driver_id?: string | null;
 }
 
+const isOnsiteOrder = (order: any): boolean => {
+  if (order.channel === 'onsite') return true;
+  if (order.delivery_type === 'onsite') return true;
+  if (order.delivery_calculation_method === 'onsite') return true;
+  const address = String(order.delivery_address || order.address || '').trim().toLowerCase();
+  if (address.startsWith('onsite') || address.includes('walk-in') || address.includes('dine in') || address.includes('takeout')) return true;
+  const email = String(order.email || '').trim().toLowerCase();
+  if (email.startsWith('cashier') || email.startsWith('onsite')) return true;
+  return false;
+};
+
+const getProofImageUrl = (rawUrl?: string | null): string => {
+  if (!rawUrl) return '';
+  const trimmed = rawUrl.trim();
+  if (trimmed.startsWith('data:image')) return trimmed;
+
+  const baseServerUrl = API_URL.replace(/\/api\/?$/, '');
+
+  if (/^https?:\/\/localhost(?::80)?\//i.test(trimmed)) {
+    return trimmed.replace(/^https?:\/\/localhost(?::80)?/i, baseServerUrl);
+  }
+
+  if (trimmed.startsWith('/storage/')) {
+    return `${baseServerUrl}${trimmed}`;
+  }
+
+  if (trimmed.startsWith('storage/')) {
+    return `${baseServerUrl}/${trimmed}`;
+  }
+
+  if (trimmed.startsWith('delivery-proofs/')) {
+    return `${baseServerUrl}/storage/${trimmed}`;
+  }
+
+  return trimmed;
+};
+
+const getOrderTimestamp = (order: DeliveryOrder): number => {
+  const dateStr = order.created_at || (order as any).timestamp;
+  if (dateStr) {
+    const time = new Date(dateStr).getTime();
+    if (!isNaN(time)) return time;
+  }
+  const match = order.order_number?.match(/(\d{4})(\d{2})(\d{2})/);
+  if (match) {
+    const time = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00`).getTime();
+    if (!isNaN(time)) return time;
+  }
+  return 0;
+};
+
 export default function AdminDelivery() {
   const [partners, setPartners] = useState<DeliveryPartner[]>([]);
   const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrder[]>([]);
+  const [orderSort, setOrderSort] = useState<'latest' | 'oldest'>('latest');
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [form, setForm] = useState({ name: "", email: "", password: "", phone: "", vehicleType: "" });
   const [selectedProof, setSelectedProof] = useState<DeliveryOrder | null>(null);
+
+  const sortedOrders = [...deliveryOrders].sort((a, b) => {
+    const timeA = getOrderTimestamp(a);
+    const timeB = getOrderTimestamp(b);
+    return orderSort === 'latest' ? timeB - timeA : timeA - timeB;
+  });
 
   const refresh = async () => {
     try {
@@ -61,7 +119,13 @@ export default function AdminDelivery() {
       }
       const data = await res.json();
       const orders = Array.isArray(data) ? data : [];
-      setDeliveryOrders(orders.filter((order: any) => ['prepared', 'ready', 'on_the_way', 'delivered'].includes(String(order.status || '').trim())));
+      setDeliveryOrders(
+        orders.filter(
+          (order: any) =>
+            ['prepared', 'ready', 'on_the_way', 'arrived', 'delivered'].includes(String(order.status || '').trim()) &&
+            !isOnsiteOrder(order)
+        )
+      );
     } catch (error) {
       console.error('Failed to fetch delivery orders:', error);
       setDeliveryOrders([]);
@@ -163,7 +227,13 @@ export default function AdminDelivery() {
         throw new Error(result?.message || 'Could not confirm this delivery.');
       }
 
-      setSelectedProof(null);
+      const confirmedAt = result?.order?.delivery_confirmed_at || new Date().toISOString();
+
+      // Keep the modal open and update local state to clearly say order was confirmed
+      setSelectedProof((prev) => prev && prev.id === order.id ? { ...prev, delivery_confirmed_at: confirmedAt } : prev);
+      setDeliveryOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, delivery_confirmed_at: confirmedAt } : item));
+
+      
       await refreshDeliveryOrders();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Could not confirm this delivery.');
@@ -177,7 +247,6 @@ export default function AdminDelivery() {
         return 'Ready for Delivery';
       case 'on_the_way':
         return 'On the Way';
-      case 'arrived':
       case 'delivered':
         return 'Delivered';
       default:
@@ -229,20 +298,48 @@ export default function AdminDelivery() {
         )}
 
         <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-serif text-2xl font-bold text-[var(--oppa-text)]">Delivery Orders</h2>
               <p className="text-sm text-[var(--oppa-text-muted)]">Review active deliveries and proof before final confirmation.</p>
             </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--oppa-text-muted)]">Sort:</span>
+              <div className="inline-flex rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/30 p-1">
+                <button
+                  type="button"
+                  onClick={() => setOrderSort('latest')}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    orderSort === 'latest'
+                      ? 'bg-[var(--oppa-green)] text-white shadow-sm'
+                      : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'
+                  }`}
+                >
+                  Latest
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrderSort('oldest')}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    orderSort === 'oldest'
+                      ? 'bg-[var(--oppa-green)] text-white shadow-sm'
+                      : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'
+                  }`}
+                >
+                  Oldest
+                </button>
+              </div>
+            </div>
           </div>
 
-          {deliveryOrders.length === 0 ? (
+          {sortedOrders.length === 0 ? (
             <div className="rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/40 p-6 text-center text-sm text-[var(--oppa-text-muted)]">
               No delivery orders are currently active.
             </div>
           ) : (
             <div className="space-y-3">
-              {deliveryOrders.map((order) => (
+              {sortedOrders.map((order) => (
                 <div key={order.id} className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/20 p-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -250,6 +347,18 @@ export default function AdminDelivery() {
                         <Truck className="h-3.5 w-3.5" /> Order {order.order_number || order.id.slice(-6)}
                       </div>
                       <p className="mt-1 text-lg font-semibold text-[var(--oppa-text)]">{order.customerName || order.email || 'Customer'}</p>
+                      {order.created_at && (
+                        <p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">
+                          {new Date(order.created_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZone: 'Asia/Manila',
+                          })}
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -270,9 +379,14 @@ export default function AdminDelivery() {
                     <div className="flex flex-col items-start gap-2 md:items-end">
                       <div className="text-xs uppercase tracking-[0.08em] text-[var(--oppa-text-muted)]">Proof status</div>
                       {order.delivery_proof_image || order.delivery_proof_image_url ? (
-                        <button onClick={() => setSelectedProof(order)} className="inline-flex items-center gap-2 rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-sm font-medium text-white">
-                          <Eye className="h-4 w-4" /> View Proof
-                        </button>
+                        <div className="flex flex-col items-start gap-1 md:items-end">
+                          <button onClick={() => setSelectedProof(order)} className="inline-flex items-center gap-2 rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-sm font-medium text-white transition hover:opacity-90">
+                            <Eye className="h-4 w-4" /> View Proof
+                          </button>
+                          {order.delivery_confirmed_at && (
+                            <span className="text-[11px] font-medium text-emerald-700">✓ Order was confirmed</span>
+                          )}
+                        </div>
                       ) : (
                         <span className="inline-flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
                           <Camera className="h-4 w-4" /> No proof yet
@@ -301,26 +415,69 @@ export default function AdminDelivery() {
 
               <div className="space-y-4">
                 <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/30 p-3 text-sm text-[var(--oppa-text)]">
-                  <div className="font-semibold">Customer</div>
-                  <div>{selectedProof.customerName || selectedProof.email || 'Customer'}</div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold">Customer</div>
+                      <div>{selectedProof.customerName || selectedProof.email || 'Customer'}</div>
+                    </div>
+                    {selectedProof.delivery_confirmed_at && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
+                        <CheckCircle className="h-3.5 w-3.5" /> Order was confirmed
+                      </span>
+                    )}
+                  </div>
                   <div className="mt-1 text-[var(--oppa-text-muted)]">{selectedProof.delivery_address || 'Address unavailable'}</div>
                 </div>
 
+                {selectedProof.delivery_confirmed_at && (
+                  <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800 flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+                    <div>
+                      <p className="font-semibold">Delivery is confirmed</p>
+                      <p className="text-xs text-green-700">Order delivery has been confirmed by admin.</p>
+                    </div>
+                  </div>
+                )}
+
                 {selectedProof.delivery_proof_image || selectedProof.delivery_proof_image_url ? (
-                  <img
-                    src={(selectedProof.delivery_proof_image_url || selectedProof.delivery_proof_image)!}
-                    alt="Delivery proof"
-                    className="max-h-[420px] w-full rounded-xl border object-contain bg-white"
-                  />
+                  <div className="space-y-2">
+                    <img
+                      src={getProofImageUrl(selectedProof.delivery_proof_image_url || selectedProof.delivery_proof_image)}
+                      alt="Delivery proof"
+                      className="max-h-[420px] w-full rounded-xl border object-contain bg-white"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.src.includes(':8000') && target.src.includes('localhost')) {
+                          target.src = target.src.replace(/^http:\/\/localhost(?::80)?/i, 'http://localhost:8000');
+                        }
+                      }}
+                    />
+                    <div className="text-right">
+                      <a
+                        href={getProofImageUrl(selectedProof.delivery_proof_image_url || selectedProof.delivery_proof_image)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-[var(--oppa-green)] hover:underline"
+                      >
+                        Open full photo in new tab
+                      </a>
+                    </div>
+                  </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/20 p-6 text-center text-sm text-[var(--oppa-text-muted)]">No photo was uploaded.</div>
                 )}
 
                 <div className="flex justify-end gap-2">
                   <button onClick={() => setSelectedProof(null)} className="rounded-full border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--oppa-text)]">Close</button>
-                  <button onClick={() => confirmDelivery(selectedProof)} className="inline-flex items-center gap-2 rounded-full bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white">
-                    <CheckCircle className="h-4 w-4" /> Confirm Delivered
-                  </button>
+                  {selectedProof.delivery_confirmed_at ? (
+                    <span className="inline-flex items-center gap-2 rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-800">
+                      <CheckCircle className="h-4 w-4" /> Order was confirmed
+                    </span>
+                  ) : (
+                    <button onClick={() => confirmDelivery(selectedProof)} className="inline-flex items-center gap-2 rounded-full bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90">
+                      <CheckCircle className="h-4 w-4" /> Confirm Delivered
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

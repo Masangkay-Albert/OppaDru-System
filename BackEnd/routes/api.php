@@ -31,6 +31,15 @@ Route::get('/health', function () {
     return response()->json(['status' => 'ok']);
 });
 
+Route::get('/storage/{path}', function (string $path) {
+    $filePath = storage_path('app/public/' . $path);
+    if (!file_exists($filePath)) {
+        abort(404);
+    }
+    $mimeType = mime_content_type($filePath) ?: 'image/png';
+    return response()->file($filePath, ['Content-Type' => $mimeType]);
+})->where('path', '.*');
+
 Route::get('/settings/pricing', [SettingController::class, 'index']);
 
 Route::get('/employees', [EmployeeController::class, 'index']);
