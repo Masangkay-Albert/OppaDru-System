@@ -379,7 +379,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (error) {
       console.error('Failed to place order:', error);
       setIsLoading(false);
-      return false;
+      throw error;
     }
   };
 

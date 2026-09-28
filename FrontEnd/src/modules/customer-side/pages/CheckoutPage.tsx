@@ -197,8 +197,8 @@ const CheckoutPage: React.FC = () => {
         showToast('Failed to place order. Please try again.', 'error');
       }
 
-    } catch {
-      showToast('Failed to place order. Please try again.', 'error');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to place order. Please try again.', 'error');
     } finally {
       setIsPlacingOrder(false);
     }
