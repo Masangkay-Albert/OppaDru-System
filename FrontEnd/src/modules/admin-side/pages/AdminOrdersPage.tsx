@@ -4,8 +4,6 @@ import AdminLayout from '../components/AdminLayout';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
 import { orderService } from '../../../services/orderService';
 import { formatCurrency } from '../../../utils/formatters';
-import { fetchWithAdminAuth } from '../../../services/adminAuthService';
-import { API_URL } from '../../../services/apiConfig';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -37,32 +35,6 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Cancelled',
 };
 
-const getProofImageUrl = (rawUrl?: string | null): string => {
-  if (!rawUrl) return '';
-  const trimmed = rawUrl.trim();
-  if (trimmed.startsWith('data:image')) return trimmed;
-
-  const baseServerUrl = API_URL.replace(/\/api\/?$/, '');
-
-  if (/^https?:\/\/localhost(?::80)?\//i.test(trimmed)) {
-    return trimmed.replace(/^https?:\/\/localhost(?::80)?/i, baseServerUrl);
-  }
-
-  if (trimmed.startsWith('/storage/')) {
-    return `${baseServerUrl}${trimmed}`;
-  }
-
-  if (trimmed.startsWith('storage/')) {
-    return `${baseServerUrl}/${trimmed}`;
-  }
-
-  if (trimmed.startsWith('delivery-proofs/')) {
-    return `${baseServerUrl}/storage/${trimmed}`;
-  }
-
-  return trimmed;
-};
-
 const AdminOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
@@ -91,28 +63,6 @@ const AdminOrdersPage: React.FC = () => {
       await loadOrders();
     } catch {
       // Silently fail
-    }
-  };
-
-  const handleConfirmDeliveryProof = async (order: AdminOrder) => {
-    try {
-      const response = await fetchWithAdminAuth(`${API_URL}/admin/orders/${order.id}/delivery-proof/confirm`, {
-        method: 'PATCH',
-      });
-      const result = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(result?.message || 'Could not confirm this delivery.');
-      }
-
-      const confirmedAt = result?.order?.delivery_confirmed_at || new Date().toISOString();
-
-      setOrders((current) => current.map((item) => item.id === order.id
-        ? { ...item, status: 'delivered', delivery_confirmed_at: confirmedAt }
-        : item));
-      setSelectedOrder((prev) => prev && prev.id === order.id ? { ...prev, status: 'delivered', delivery_confirmed_at: confirmedAt } : prev);
-      alert('Order was confirmed.');
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Could not confirm this delivery.');
     }
   };
 
@@ -312,14 +262,6 @@ const AdminOrdersPage: React.FC = () => {
                             Mark Delivered
                           </button>
                         )}
-                        {order.channel === 'online' && (order.status === 'on_the_way' || order.status === 'delivered' || (order.status as string) === 'arrived') && (order.delivery_proof_image_url || (order as any).delivery_proof_image) && (
-                          <button
-                            onClick={() => setSelectedOrder(order)}
-                            className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-100"
-                          >
-                            <Eye size={13} /> Review Proof
-                          </button>
-                        )}
                         <button
                           onClick={() => setSelectedOrder(order)}
                           className="inline-flex items-center gap-1 rounded-lg bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100"
@@ -411,61 +353,12 @@ const AdminOrdersPage: React.FC = () => {
                 <p className="text-sm">{selectedOrder.deliveryAddress || 'Onsite / Walk-in'}</p>
               </div>
 
-              {(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image) && (
-                <div className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="font-medium text-[var(--oppa-text)]">Driver delivery photo</p>
-                      <p className="text-xs text-[var(--oppa-text-muted)]">
-                        {selectedOrder.delivery_confirmed_at
-                          ? `Confirmed ${formatDate(selectedOrder.delivery_confirmed_at)}`
-                          : selectedOrder.delivery_proof_uploaded_at
-                          ? `Submitted ${formatDate(selectedOrder.delivery_proof_uploaded_at)}`
-                          : 'Proof of delivery submitted'}
-                      </p>
-                    </div>
-                    {!selectedOrder.delivery_confirmed_at ? (
-                      <button
-                        onClick={() => void handleConfirmDeliveryProof(selectedOrder)}
-                        className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-green-800"
-                      >
-                        <CheckCircle size={16} /> Confirm Delivery
-                      </button>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                        <CheckCircle size={14} /> Order was confirmed
-                      </span>
-                    )}
+              {selectedOrder.status === 'delivered' && (
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <CheckCircle size={16} /> Delivered
                   </div>
-                  <div className="space-y-1">
-                    <a
-                      href={getProofImageUrl(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <img
-                        src={getProofImageUrl(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image)}
-                        alt="Driver submitted delivery proof"
-                        className="max-h-96 w-full rounded-lg bg-[var(--oppa-cream)] object-contain"
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          if (!target.src.includes(':8000') && target.src.includes('localhost')) {
-                            target.src = target.src.replace(/^http:\/\/localhost(?::80)?/i, 'http://localhost:8000');
-                          }
-                        }}
-                      />
-                    </a>
-                    <div className="text-right">
-                      <a
-                        href={getProofImageUrl(selectedOrder.delivery_proof_image_url || (selectedOrder as any).delivery_proof_image)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-[var(--oppa-green)] hover:underline"
-                      >
-                        Open full photo in new tab
-                      </a>
-                    </div>
-                  </div>
+                  <p className="mt-1 text-green-700">This order has been marked delivered by the assigned driver.</p>
                 </div>
               )}
 

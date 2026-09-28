@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { PlusIcon, XIcon, PhoneIcon, MailIcon, Power, Trash2, CheckCircle, Clock3, Truck, Eye, Camera, MapPin } from "lucide-react";
+import { PlusIcon, XIcon, PhoneIcon, MailIcon, Power, Trash2, CheckCircle, Clock3, Truck, Eye, MapPin } from "lucide-react";
 import AdminLayout from '../components/AdminLayout';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithAdminAuth } from '../../../services/adminAuthService';
@@ -39,32 +39,6 @@ const isOnsiteOrder = (order: any): boolean => {
   const email = String(order.email || '').trim().toLowerCase();
   if (email.startsWith('cashier') || email.startsWith('onsite')) return true;
   return false;
-};
-
-const getProofImageUrl = (rawUrl?: string | null): string => {
-  if (!rawUrl) return '';
-  const trimmed = rawUrl.trim();
-  if (trimmed.startsWith('data:image')) return trimmed;
-
-  const baseServerUrl = API_URL.replace(/\/api\/?$/, '');
-
-  if (/^https?:\/\/localhost(?::80)?\//i.test(trimmed)) {
-    return trimmed.replace(/^https?:\/\/localhost(?::80)?/i, baseServerUrl);
-  }
-
-  if (trimmed.startsWith('/storage/')) {
-    return `${baseServerUrl}${trimmed}`;
-  }
-
-  if (trimmed.startsWith('storage/')) {
-    return `${baseServerUrl}/${trimmed}`;
-  }
-
-  if (trimmed.startsWith('delivery-proofs/')) {
-    return `${baseServerUrl}/storage/${trimmed}`;
-  }
-
-  return trimmed;
 };
 
 const getOrderTimestamp = (order: DeliveryOrder): number => {
@@ -214,32 +188,6 @@ export default function AdminDelivery() {
     }
   };
 
-  const confirmDelivery = async (order: DeliveryOrder) => {
-    try {
-      if (!order.delivery_proof_image && !order.delivery_proof_image_url) {
-        alert('The delivery proof is missing.');
-        return;
-      }
-
-      const res = await fetchWithAdminAuth(`${API_URL}/admin/orders/${order.id}/delivery-proof/confirm`, { method: 'PATCH' });
-      const result = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(result?.message || 'Could not confirm this delivery.');
-      }
-
-      const confirmedAt = result?.order?.delivery_confirmed_at || new Date().toISOString();
-
-      // Keep the modal open and update local state to clearly say order was confirmed
-      setSelectedProof((prev) => prev && prev.id === order.id ? { ...prev, delivery_confirmed_at: confirmedAt } : prev);
-      setDeliveryOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, delivery_confirmed_at: confirmedAt } : item));
-
-      
-      await refreshDeliveryOrders();
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Could not confirm this delivery.');
-    }
-  };
-
   const statusLabel = (status?: string) => {
     switch (status) {
       case 'prepared':
@@ -301,7 +249,7 @@ export default function AdminDelivery() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-serif text-2xl font-bold text-[var(--oppa-text)]">Delivery Orders</h2>
-              <p className="text-sm text-[var(--oppa-text-muted)]">Review active deliveries and proof before final confirmation.</p>
+              <p className="text-sm text-[var(--oppa-text-muted)]">Monitor active delivery progress and final delivery status.</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -381,15 +329,15 @@ export default function AdminDelivery() {
                       {order.delivery_proof_image || order.delivery_proof_image_url ? (
                         <div className="flex flex-col items-start gap-1 md:items-end">
                           <button onClick={() => setSelectedProof(order)} className="inline-flex items-center gap-2 rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-sm font-medium text-white transition hover:opacity-90">
-                            <Eye className="h-4 w-4" /> View Proof
+                            <Eye className="h-4 w-4" /> View Details
                           </button>
                           {order.delivery_confirmed_at && (
-                            <span className="text-[11px] font-medium text-emerald-700">✓ Order was confirmed</span>
+                            <span className="text-[11px] font-medium text-emerald-700">✓ Delivered</span>
                           )}
                         </div>
                       ) : (
                         <span className="inline-flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
-                          <Camera className="h-4 w-4" /> No proof yet
+                          <Truck className="h-4 w-4" /> Active delivery
                         </span>
                       )}
                     </div>
@@ -405,7 +353,7 @@ export default function AdminDelivery() {
             <div className="w-full max-w-2xl rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="font-serif text-2xl font-bold text-[var(--oppa-text)]">Proof of Delivery</h3>
+                  <h3 className="font-serif text-2xl font-bold text-[var(--oppa-text)]">Delivery Details</h3>
                   <p className="text-sm text-[var(--oppa-text-muted)]">{selectedProof.order_number || selectedProof.id}</p>
                 </div>
                 <button onClick={() => setSelectedProof(null)} className="rounded-full p-2 hover:bg-[var(--oppa-cream)]">
@@ -415,14 +363,14 @@ export default function AdminDelivery() {
 
               <div className="space-y-4">
                 <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/30 p-3 text-sm text-[var(--oppa-text)]">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="font-semibold">Customer</div>
                       <div>{selectedProof.customerName || selectedProof.email || 'Customer'}</div>
                     </div>
                     {selectedProof.delivery_confirmed_at && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                        <CheckCircle className="h-3.5 w-3.5" /> Order was confirmed
+                        <CheckCircle className="h-3.5 w-3.5" /> Delivered
                       </span>
                     )}
                   </div>
@@ -433,51 +381,20 @@ export default function AdminDelivery() {
                   <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800 flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
                     <div>
-                      <p className="font-semibold">Delivery is confirmed</p>
-                      <p className="text-xs text-green-700">Order delivery has been confirmed by admin.</p>
+                      <p className="font-semibold">Delivery completed</p>
+                      <p className="text-xs text-green-700">The driver marked this order as Delivered.</p>
                     </div>
                   </div>
                 )}
 
-                {selectedProof.delivery_proof_image || selectedProof.delivery_proof_image_url ? (
-                  <div className="space-y-2">
-                    <img
-                      src={getProofImageUrl(selectedProof.delivery_proof_image_url || selectedProof.delivery_proof_image)}
-                      alt="Delivery proof"
-                      className="max-h-[420px] w-full rounded-xl border object-contain bg-white"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        if (!target.src.includes(':8000') && target.src.includes('localhost')) {
-                          target.src = target.src.replace(/^http:\/\/localhost(?::80)?/i, 'http://localhost:8000');
-                        }
-                      }}
-                    />
-                    <div className="text-right">
-                      <a
-                        href={getProofImageUrl(selectedProof.delivery_proof_image_url || selectedProof.delivery_proof_image)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-[var(--oppa-green)] hover:underline"
-                      >
-                        Open full photo in new tab
-                      </a>
-                    </div>
+                {!selectedProof.delivery_confirmed_at && (
+                  <div className="rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/20 p-6 text-center text-sm text-[var(--oppa-text-muted)]">
+                    Delivery status is currently in progress. The customer and admin will see the final Delivered state once the driver completes it.
                   </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/20 p-6 text-center text-sm text-[var(--oppa-text-muted)]">No photo was uploaded.</div>
                 )}
 
                 <div className="flex justify-end gap-2">
                   <button onClick={() => setSelectedProof(null)} className="rounded-full border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--oppa-text)]">Close</button>
-                  {selectedProof.delivery_confirmed_at ? (
-                    <span className="inline-flex items-center gap-2 rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-800">
-                      <CheckCircle className="h-4 w-4" /> Order was confirmed
-                    </span>
-                  ) : (
-                    <button onClick={() => confirmDelivery(selectedProof)} className="inline-flex items-center gap-2 rounded-full bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90">
-                      <CheckCircle className="h-4 w-4" /> Confirm Delivered
-                    </button>
-                  )}
                 </div>
               </div>
             </div>

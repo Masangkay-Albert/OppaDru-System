@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Truck, MapPin, CheckCircle, Phone, Clock, CreditCard, User, Eye, X, ArrowDownUp, Camera } from 'lucide-react';
+import { Truck, MapPin, CheckCircle, Phone, Clock, CreditCard, User, Eye, X, ArrowDownUp } from 'lucide-react';
 import DriverLayout from '../components/DriverLayout';
 import RouteLayer from '../../customer-side/components/tracking/RouteLayer';
 import { destinationIcon, storeIcon } from '../../customer-side/components/tracking/MapIcons';
@@ -72,7 +72,6 @@ const DriverDashboardPage: React.FC = () => {
   const [driverId, setDriverId] = useState<string>("");
   
   const [selectedOrder, setSelectedOrder] = useState<DriverOrder | null>(null);
-  const [uploadingProof, setUploadingProof] = useState(false);
 
   
   useEffect(() => {
@@ -153,41 +152,6 @@ const DriverDashboardPage: React.FC = () => {
     } catch (error) {
       console.error("Error updating status:", error);
       alert(error instanceof Error ? error.message : "Failed to update order status. Please try again.");
-    }
-  };
-
-  const uploadDeliveryProof = async (file: File) => {
-    if (!selectedOrder) return;
-
-    setUploadingProof(true);
-    try {
-      const token = localStorage.getItem('driver_token');
-      const formData = new FormData();
-      formData.append('proof_image', file);
-      const response = await fetch(`${API_URL}/driver/orders/${selectedOrder.id}/delivery-proof`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-        body: formData,
-      });
-      const result = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(result?.message || 'Could not submit the delivery photo.');
-      }
-
-      const updatedOrder = {
-        ...selectedOrder,
-        deliveryProofImageUrl: result.delivery_proof_image_url,
-        deliveryProofUploadedAt: result.delivery_proof_uploaded_at,
-      };
-      setSelectedOrder(updatedOrder);
-      setOrders((current) => current.map((order) => order.id === updatedOrder.id ? updatedOrder : order));
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Could not submit the delivery photo.');
-    } finally {
-      setUploadingProof(false);
     }
   };
 
@@ -347,7 +311,7 @@ const DriverDashboardPage: React.FC = () => {
                     </button>
                   ) : activeTab === 'active' ? (
                     <button onClick={() => setSelectedOrder(order)} className={chipSuccess + " w-full justify-center"}>
-                      <Camera size={14} /> {order.deliveryProofImageUrl ? 'Proof Submitted' : 'Delivery Details'}
+                      <CheckCircle size={14} /> View Details
                     </button>
                   ) : (
                     <span className={chipDisabled + " w-full justify-center"}>
@@ -425,7 +389,7 @@ const DriverDashboardPage: React.FC = () => {
                           </button>
                         ) : activeTab === 'active' ? (
                           <button onClick={() => setSelectedOrder(order)} className={`${chipSuccess} w-[120px] justify-center`}>
-                            <Camera size={14} /> {order.deliveryProofImageUrl ? 'Proof Sent' : 'Details / Proof'}
+                            <CheckCircle size={14} /> View Details
                           </button>
                         ) : (
                           <span className={`${chipDisabled} w-[120px] justify-center`}>
@@ -555,48 +519,20 @@ const DriverDashboardPage: React.FC = () => {
                 </div>
               )}
 
-              {selectedOrder.deliveryProofImageUrl ? (
-                <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-green-800">
-                    <Clock size={16} /> Photo submitted; awaiting admin confirmation
-                  </div>
-                  <img
-                    src={selectedOrder.deliveryProofImageUrl}
-                    alt="Submitted delivery proof"
-                    className="max-h-64 w-full rounded-lg object-contain bg-white"
-                  />
-                </div>
-              ) : selectedOrder.status === 'on_the_way' ? (
+              {selectedOrder.status === 'on_the_way' ? (
                 <div className="space-y-3">
                   <button
                     type="button"
-                    onClick={() => void updateOrderStatus(selectedOrder.id, 'delivered', 'active')}
+                    onClick={() => void updateOrderStatus(selectedOrder.id, 'delivered', 'history')}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
                   >
                     <CheckCircle size={17} />
-                    I have reached the delivery address
+                    Delivered
                   </button>
                   <p className="text-center text-xs text-[var(--oppa-text-muted)]">
-                    Click to mark this order as delivered. You can upload proof of delivery below once confirmed.
+                    This updates the order to Delivered for the customer and admin immediately.
                   </p>
                 </div>
-              ) : (selectedOrder.status === 'delivered' || selectedOrder.status === 'arrived') ? (
-                <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 ${uploadingProof ? 'pointer-events-none opacity-60' : ''}`}>
-                  <Camera size={17} />
-                  {uploadingProof ? 'Uploading photo...' : 'Take or Upload Delivery Photo'}
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    capture="environment"
-                    className="sr-only"
-                    disabled={uploadingProof}
-                    onChange={(event) => {
-                      const file = event.currentTarget.files?.[0];
-                      if (file) void uploadDeliveryProof(file);
-                      event.currentTarget.value = '';
-                    }}
-                  />
-                </label>
               ) : null}
             </div>
           </div>
