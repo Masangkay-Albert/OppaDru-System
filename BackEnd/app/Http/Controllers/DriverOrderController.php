@@ -37,13 +37,7 @@ class DriverOrderController extends Controller
                   ->whereNull('driver_id');
         } elseif ($tab === 'active') {
             $query->where('driver_id', $driver->id)
-                  ->where(function ($q) {
-                      $q->whereIn('status', ['on_the_way', 'arrived'])
-                        ->orWhere(function ($sub) {
-                            $sub->where('status', 'delivered')
-                                ->whereNull('delivery_proof_image');
-                        });
-                  });
+                  ->whereIn('status', ['on_the_way', 'arrived']);
         } else {
             $query->where('driver_id', $driver->id)
                   ->whereIn('status', ['delivered', 'cancelled']);
@@ -122,6 +116,10 @@ class DriverOrderController extends Controller
         // Allow proof submission after the driver confirms arrival or delivered.
         if ($targetStatus === 'arrived' || $targetStatus === 'delivered') {
             $order->driver_id = $driver->id;
+        }
+
+        if ($targetStatus === 'delivered') {
+            $order->delivery_confirmed_at = $order->delivery_confirmed_at ?? now();
         }
 
         $order->status = $targetStatus;

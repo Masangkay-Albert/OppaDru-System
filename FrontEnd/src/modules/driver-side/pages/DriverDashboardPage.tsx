@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Truck, MapPin, CheckCircle, Phone, Clock, CreditCard, User, Eye, X, ArrowDownUp } from 'lucide-react';
+import { Truck, MapPin, CheckCircle, Phone, Clock, CreditCard, User, Eye, X, ArrowDownUp, ImagePlus } from 'lucide-react';
 import DriverLayout from '../components/DriverLayout';
 import RouteLayer from '../../customer-side/components/tracking/RouteLayer';
 import { destinationIcon, storeIcon } from '../../customer-side/components/tracking/MapIcons';
@@ -72,6 +72,8 @@ const DriverDashboardPage: React.FC = () => {
   const [driverId, setDriverId] = useState<string>("");
   
   const [selectedOrder, setSelectedOrder] = useState<DriverOrder | null>(null);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofUploading, setProofUploading] = useState(false);
 
   
   useEffect(() => {
@@ -152,6 +154,48 @@ const DriverDashboardPage: React.FC = () => {
     } catch (error) {
       console.error("Error updating status:", error);
       alert(error instanceof Error ? error.message : "Failed to update order status. Please try again.");
+    }
+  };
+
+  const uploadDeliveryProof = async () => {
+    if (!selectedOrder || !proofFile) return;
+
+    setProofUploading(true);
+    try {
+      const token = localStorage.getItem('driver_token');
+      const formData = new FormData();
+      formData.append('proof_image', proofFile);
+
+      const response = await fetch(`${API_URL}/driver/orders/${selectedOrder.id}/delivery-proof`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+        body: formData,
+      });
+
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        const validationMessages = result?.errors
+          ? Object.values(result.errors).flat().join(' ')
+          : '';
+        throw new Error(validationMessages || result?.message || 'Could not upload delivery proof.');
+      }
+
+      const proofUpdates = {
+        deliveryProofImageUrl: result.delivery_proof_image_url,
+        deliveryProofUploadedAt: result.delivery_proof_uploaded_at,
+      };
+      setSelectedOrder((current) => current ? { ...current, ...proofUpdates } : current);
+      setOrders((current) => current.map((order) =>
+        order.id === selectedOrder.id ? { ...order, ...proofUpdates } : order
+      ));
+      setProofFile(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to upload delivery proof. Please try again.');
+    } finally {
+      setProofUploading(false);
     }
   };
 
@@ -534,6 +578,39 @@ const DriverDashboardPage: React.FC = () => {
                   </p>
                 </div>
               ) : null}
+
+              {(selectedOrder.status === 'on_the_way' || selectedOrder.status === 'delivered') && (
+                <div className="space-y-3 border-t border-[var(--oppa-border)] pt-4">
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--oppa-text)]">Delivery Proof</p>
+                    <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Send a delivery photo for the admin to view in Orders.</p>
+                  </div>
+                  {selectedOrder.deliveryProofImageUrl && (
+                    <a href={selectedOrder.deliveryProofImageUrl} target="_blank" rel="noreferrer" className="block w-fit">
+                      <img src={selectedOrder.deliveryProofImageUrl} alt="Uploaded delivery proof" className="h-28 w-40 rounded-lg border border-[var(--oppa-border)] object-cover" />
+                    </a>
+                  )}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      capture="environment"
+                      onChange={(event) => setProofFile(event.target.files?.[0] ?? null)}
+                      className="min-w-0 flex-1 text-xs text-[var(--oppa-text-muted)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--oppa-green-soft)] file:px-3 file:py-2 file:text-xs file:font-medium file:text-[var(--oppa-green)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void uploadDeliveryProof()}
+                      disabled={!proofFile || proofUploading}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <ImagePlus size={16} />
+                      {proofUploading ? 'Sending...' : selectedOrder.deliveryProofImageUrl ? 'Replace Photo' : 'Send Photo'}
+                    </button>
+                  </div>
+                  {proofFile && <p className="text-xs text-[var(--oppa-text-muted)]">Selected: {proofFile.name}</p>}
+                </div>
+              )}
             </div>
           </div>
         </div>

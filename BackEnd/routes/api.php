@@ -84,7 +84,6 @@ Route::patch('/kitchen/orders/{id}/status', [KitchenOrderController::class, 'upd
 Route::get('/driver/orders', [DriverOrderController::class, 'index']);
 Route::patch('/driver/orders/{id}/status', [DriverOrderController::class, 'updateStatus']);
 Route::post('/driver/orders/{id}/delivery-proof', [DeliveryProofController::class, 'store']);
-Route::patch('/admin/orders/{id}/delivery-proof/confirm', [DeliveryProofController::class, 'confirm']);
 
 
 Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);

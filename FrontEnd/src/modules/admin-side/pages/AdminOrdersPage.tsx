@@ -362,6 +362,28 @@ const AdminOrdersPage: React.FC = () => {
                 </div>
               )}
 
+              {(selectedOrder.delivery_proof_image_url || selectedOrder.status === 'delivered') && (
+                <div className="rounded-xl border border-[var(--oppa-border)] p-4">
+                  <p className="mb-2 text-sm font-semibold text-[var(--oppa-text)]">Delivery Proof</p>
+                  {selectedOrder.delivery_proof_image_url ? (
+                    <a href={selectedOrder.delivery_proof_image_url} target="_blank" rel="noreferrer" className="inline-block">
+                      <img
+                        src={selectedOrder.delivery_proof_image_url}
+                        alt="Driver's delivery proof"
+                        className="max-h-72 max-w-full rounded-lg border border-[var(--oppa-border)] object-contain"
+                      />
+                    </a>
+                  ) : (
+                    <p className="text-sm text-[var(--oppa-text-muted)]">No delivery photo has been uploaded.</p>
+                  )}
+                  {selectedOrder.delivery_proof_uploaded_at && (
+                    <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">
+                      Sent {formatDate(selectedOrder.delivery_proof_uploaded_at)}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {selectedOrder.phone && (
                 <div>
                   <p className="text-xs text-[var(--oppa-text-muted)]">Phone</p>
