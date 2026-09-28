@@ -40,20 +40,30 @@ const AdminOrdersPage: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'online' | 'onsite'>('all');
   const [loading, setLoading] = useState(false);
 
-  const loadOrders = async () => {
-    setLoading(true);
+  const loadOrders = async (forceRefresh = false, showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
-      const allOrders = await getAllOrders();
-      setOrders(Array.isArray(allOrders) ? allOrders : []);
+      const allOrders = await getAllOrders(forceRefresh);
+      const freshOrders = Array.isArray(allOrders) ? allOrders : [];
+      setOrders(freshOrders);
+      setSelectedOrder((current) => current
+        ? freshOrders.find((order) => order.id === current.id) || current
+        : null
+      );
     } catch {
-      setOrders([]);
+      if (showLoading) setOrders([]);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    void loadOrders();
+    void loadOrders(true);
+    const interval = window.setInterval(() => {
+      void loadOrders(true, false);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
   }, []);
 
   const handleMarkDelivered = async (order: AdminOrder) => {
@@ -150,7 +160,7 @@ const AdminOrdersPage: React.FC = () => {
             <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Track online and onsite orders in real time.</p>
           </div>
           <button
-            onClick={loadOrders}
+            onClick={() => void loadOrders(true)}
             disabled={loading}
             className="inline-flex items-center gap-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
           >

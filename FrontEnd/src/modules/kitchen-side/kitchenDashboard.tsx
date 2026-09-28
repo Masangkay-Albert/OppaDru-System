@@ -68,8 +68,8 @@ const KitchenDashboardPage: React.FC = () => {
   }, [navigate]);
 
   
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const token = localStorage.getItem("employee_token");
       const response = await fetch(`${API_URL}/kitchen/orders?tab=${activeTab}`, {
@@ -86,12 +86,17 @@ const KitchenDashboardPage: React.FC = () => {
     } catch (error) {
       console.error("Error fetching orders:", error);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchOrders();
+    void fetchOrders();
+    const interval = window.setInterval(() => {
+      void fetchOrders(false);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 

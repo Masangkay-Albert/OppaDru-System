@@ -146,8 +146,8 @@ export const getOnsiteOrders = (): AdminOrder[] => {
   }
 };
 
-export const getAllOrders = async (): Promise<AdminOrder[]> => {
-  if (ordersCache && ordersCache.expiresAt > Date.now()) return ordersCache.promise;
+export const getAllOrders = async (forceRefresh = false): Promise<AdminOrder[]> => {
+  if (!forceRefresh && ordersCache && ordersCache.expiresAt > Date.now()) return ordersCache.promise;
 
   const request = (async () => {
    try {
