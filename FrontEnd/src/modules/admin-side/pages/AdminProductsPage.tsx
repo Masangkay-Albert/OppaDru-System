@@ -150,8 +150,7 @@ const AdminProductsPage: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) {
       setSelectedFile(null);
-      setImagePreview('');
-      setForm((prev) => ({ ...prev, image: '' }));
+      setImagePreview(form.image);
       return;
     }
 
@@ -169,26 +168,25 @@ const AdminProductsPage: React.FC = () => {
     setSaveError('');
 
     try {
-      let imageUrl = form.image || '/oppadrulogo.jpg';
-
-      if (selectedFile) {
-        imageUrl = await productService.uploadImage(selectedFile, form.category);
-      }
-
       const payload = {
         name: form.name,
         description: form.description,
         price: Number(form.price) || 0,
         category: form.category,
-        image: imageUrl,
         is_available: form.isAvailable,
         isAvailable: form.isAvailable,
       };
 
       if (modalMode === 'edit' && selectedProductId) {
-        await updateProduct(selectedProductId, payload);
+        const image = selectedFile
+          ? await productService.uploadImage(selectedFile, form.category)
+          : undefined;
+        await updateProduct(selectedProductId, { ...payload, ...(image ? { image } : {}) });
       } else {
-        await addProduct(payload);
+        const image = selectedFile
+          ? await productService.uploadImage(selectedFile, form.category)
+          : form.image || '/oppadrulogo.jpg';
+        await addProduct({ ...payload, image });
       }
 
       closeModal();

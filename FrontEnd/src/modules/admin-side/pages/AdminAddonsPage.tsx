@@ -134,15 +134,13 @@ const AdminAddonsPage: React.FC = () => {
     if (!draft) return;
 
     try {
-      let imageUrl = draft.image || '';
-      if (draft.imageFile) {
-        imageUrl = await productService.uploadImage(draft.imageFile, 'addons');
-      }
-
+      const image = draft.imageFile
+        ? await productService.uploadImage(draft.imageFile, 'addons')
+        : undefined;
       await productService.updateAddon(addonId, {
         name: draft.name,
         price: Number(draft.price) || 0,
-        image: imageUrl || undefined,
+        ...(image ? { image } : {}),
       });
 
       setEditingAddon((current) => { const next = { ...current }; delete next[addonId]; return next; });

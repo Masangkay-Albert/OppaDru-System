@@ -13,7 +13,6 @@ import {
   Menu,
   X,
   Car,
-  ForkKnifeCrossed,
   SlidersHorizontal,
   BadgeCheck
 } from 'lucide-react';
@@ -66,7 +65,6 @@ const navItems = [
   { to: '/admin/admins', label: 'Admins', icon: Users },
   { to: '/admin/employees', label: 'Employees', icon: Briefcase },
   { to: '/admin/reports', label: 'Reports', icon: FileBarChart },
-  {to: '/admin/kitchen', label: 'Kitchen', icon: ForkKnifeCrossed},
   { to: '/admin/delivery', label: 'Delivery', icon: Car }
   
 

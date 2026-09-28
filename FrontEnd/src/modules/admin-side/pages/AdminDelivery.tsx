@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { PlusIcon, XIcon, PhoneIcon, MailIcon, Power, Trash2, CheckCircle, Clock3, Truck, Eye, MapPin } from "lucide-react";
+import { PlusIcon, XIcon, PhoneIcon, MailIcon, Power, Trash2 } from "lucide-react";
 import AdminLayout from '../components/AdminLayout';
 import { API_URL } from '../../../services/apiConfig';
-import { fetchWithAdminAuth } from '../../../services/adminAuthService';
 
 export interface DeliveryPartner {
   id: string;
@@ -13,63 +12,12 @@ export interface DeliveryPartner {
   isActive: boolean;
 }
 
-interface DeliveryOrder {
-  id: string;
-  order_number?: string;
-  customerName?: string;
-  email?: string;
-  phone?: string;
-  delivery_address?: string;
-  total?: number;
-  status?: string;
-  delivery_proof_image?: string | null;
-  delivery_proof_image_url?: string | null;
-  delivery_proof_uploaded_at?: string | null;
-  delivery_confirmed_at?: string | null;
-  created_at?: string;
-  driver_id?: string | null;
-}
-
-const isOnsiteOrder = (order: any): boolean => {
-  if (order.channel === 'onsite') return true;
-  if (order.delivery_type === 'onsite') return true;
-  if (order.delivery_calculation_method === 'onsite') return true;
-  const address = String(order.delivery_address || order.address || '').trim().toLowerCase();
-  if (address.startsWith('onsite') || address.includes('walk-in') || address.includes('dine in') || address.includes('takeout')) return true;
-  const email = String(order.email || '').trim().toLowerCase();
-  if (email.startsWith('cashier') || email.startsWith('onsite')) return true;
-  return false;
-};
-
-const getOrderTimestamp = (order: DeliveryOrder): number => {
-  const dateStr = order.created_at || (order as any).timestamp;
-  if (dateStr) {
-    const time = new Date(dateStr).getTime();
-    if (!isNaN(time)) return time;
-  }
-  const match = order.order_number?.match(/(\d{4})(\d{2})(\d{2})/);
-  if (match) {
-    const time = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00`).getTime();
-    if (!isNaN(time)) return time;
-  }
-  return 0;
-};
-
 export default function AdminDelivery() {
   const [partners, setPartners] = useState<DeliveryPartner[]>([]);
-  const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrder[]>([]);
-  const [orderSort, setOrderSort] = useState<'latest' | 'oldest'>('latest');
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [form, setForm] = useState({ name: "", email: "", password: "", phone: "", vehicleType: "" });
-  const [selectedProof, setSelectedProof] = useState<DeliveryOrder | null>(null);
-
-  const sortedOrders = [...deliveryOrders].sort((a, b) => {
-    const timeA = getOrderTimestamp(a);
-    const timeB = getOrderTimestamp(b);
-    return orderSort === 'latest' ? timeB - timeA : timeA - timeB;
-  });
 
   const refresh = async () => {
     try {
@@ -85,30 +33,8 @@ export default function AdminDelivery() {
     }
   };
 
-  const refreshDeliveryOrders = async () => {
-    try {
-      const res = await fetchWithAdminAuth(`${API_URL}/orders`);
-      if (!res.ok) {
-        throw new Error('Failed to load delivery orders');
-      }
-      const data = await res.json();
-      const orders = Array.isArray(data) ? data : [];
-      setDeliveryOrders(
-        orders.filter(
-          (order: any) =>
-            ['prepared', 'ready', 'on_the_way', 'arrived', 'delivered'].includes(String(order.status || '').trim()) &&
-            !isOnsiteOrder(order)
-        )
-      );
-    } catch (error) {
-      console.error('Failed to fetch delivery orders:', error);
-      setDeliveryOrders([]);
-    }
-  };
-
   useEffect(() => {
     refresh();
-    refreshDeliveryOrders();
   }, []);
 
   // ADD Driver
@@ -188,20 +114,6 @@ export default function AdminDelivery() {
     }
   };
 
-  const statusLabel = (status?: string) => {
-    switch (status) {
-      case 'prepared':
-      case 'ready':
-        return 'Ready for Delivery';
-      case 'on_the_way':
-        return 'On the Way';
-      case 'delivered':
-        return 'Delivered';
-      default:
-        return status ? status.replace('_', ' ').toUpperCase() : 'Unknown';
-    }
-  };
-
   return (
     <AdminLayout>
       <div className="min-h-screen space-y-6 p-6">
@@ -240,162 +152,6 @@ export default function AdminDelivery() {
                 >
                   OK
                 </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="font-serif text-2xl font-bold text-[var(--oppa-text)]">Delivery Orders</h2>
-              <p className="text-sm text-[var(--oppa-text-muted)]">Monitor active delivery progress and final delivery status.</p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--oppa-text-muted)]">Sort:</span>
-              <div className="inline-flex rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/30 p-1">
-                <button
-                  type="button"
-                  onClick={() => setOrderSort('latest')}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    orderSort === 'latest'
-                      ? 'bg-[var(--oppa-green)] text-white shadow-sm'
-                      : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'
-                  }`}
-                >
-                  Latest
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOrderSort('oldest')}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    orderSort === 'oldest'
-                      ? 'bg-[var(--oppa-green)] text-white shadow-sm'
-                      : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'
-                  }`}
-                >
-                  Oldest
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {sortedOrders.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/40 p-6 text-center text-sm text-[var(--oppa-text-muted)]">
-              No delivery orders are currently active.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {sortedOrders.map((order) => (
-                <div key={order.id} className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/20 p-4">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--oppa-text-muted)]">
-                        <Truck className="h-3.5 w-3.5" /> Order {order.order_number || order.id.slice(-6)}
-                      </div>
-                      <p className="mt-1 text-lg font-semibold text-[var(--oppa-text)]">{order.customerName || order.email || 'Customer'}</p>
-                      {order.created_at && (
-                        <p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">
-                          {new Date(order.created_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: 'Asia/Manila',
-                          })}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : order.status === 'on_the_way' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>
-                        {order.status === 'on_the_way' ? <Clock3 className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
-                        {statusLabel(order.status)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
-                    <div className="space-y-2 text-sm text-[var(--oppa-text)]">
-                      <div className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 text-[var(--oppa-green)]" /><span>{order.delivery_address || 'Address unavailable'}</span></div>
-                      {order.phone && <div className="text-[var(--oppa-text-muted)]">Contact: {order.phone}</div>}
-                      <div className="font-medium text-[var(--oppa-text-muted)]">Total: ₱{Number(order.total || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}</div>
-                    </div>
-
-                    <div className="flex flex-col items-start gap-2 md:items-end">
-                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--oppa-text-muted)]">Proof status</div>
-                      {order.delivery_proof_image || order.delivery_proof_image_url ? (
-                        <div className="flex flex-col items-start gap-1 md:items-end">
-                          <button onClick={() => setSelectedProof(order)} className="inline-flex items-center gap-2 rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-sm font-medium text-white transition hover:opacity-90">
-                            <Eye className="h-4 w-4" /> View Details
-                          </button>
-                          {order.delivery_confirmed_at && (
-                            <span className="text-[11px] font-medium text-emerald-700">✓ Delivered</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="inline-flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
-                          <Truck className="h-4 w-4" /> Active delivery
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {selectedProof && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-2xl rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl">
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="font-serif text-2xl font-bold text-[var(--oppa-text)]">Delivery Details</h3>
-                  <p className="text-sm text-[var(--oppa-text-muted)]">{selectedProof.order_number || selectedProof.id}</p>
-                </div>
-                <button onClick={() => setSelectedProof(null)} className="rounded-full p-2 hover:bg-[var(--oppa-cream)]">
-                  <XIcon className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/30 p-3 text-sm text-[var(--oppa-text)]">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-semibold">Customer</div>
-                      <div>{selectedProof.customerName || selectedProof.email || 'Customer'}</div>
-                    </div>
-                    {selectedProof.delivery_confirmed_at && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                        <CheckCircle className="h-3.5 w-3.5" /> Delivered
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1 text-[var(--oppa-text-muted)]">{selectedProof.delivery_address || 'Address unavailable'}</div>
-                </div>
-
-                {selectedProof.delivery_confirmed_at && (
-                  <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800 flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                    <div>
-                      <p className="font-semibold">Delivery completed</p>
-                      <p className="text-xs text-green-700">The driver marked this order as Delivered.</p>
-                    </div>
-                  </div>
-                )}
-
-                {!selectedProof.delivery_confirmed_at && (
-                  <div className="rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/20 p-6 text-center text-sm text-[var(--oppa-text-muted)]">
-                    Delivery status is currently in progress. The customer and admin will see the final Delivered state once the driver completes it.
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2">
-                  <button onClick={() => setSelectedProof(null)} className="rounded-full border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--oppa-text)]">Close</button>
-                </div>
               </div>
             </div>
           </div>
