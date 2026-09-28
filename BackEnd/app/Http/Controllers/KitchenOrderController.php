@@ -43,6 +43,10 @@ class KitchenOrderController extends Controller
             return [
                 'id' => $order->id,
                 'customerName' => $customerName,
+                'channel' => $order->delivery_type === 'onsite' || $order->delivery_calculation_method === 'onsite'
+                    || str_starts_with(strtolower((string) $order->delivery_address), 'onsite')
+                    ? 'onsite'
+                    : 'online',
                 'status' => $order->status,
                 'items' => $order->items, // Your model already casts this to an array
                 'scheduleDisplay' => $order->schedule_display,
@@ -62,7 +66,12 @@ class KitchenOrderController extends Controller
         ]);
 
         $order = Order::findOrFail($id);
-        $order->status = $request->status;
+        $isOnsiteOrder = $order->delivery_type === 'onsite'
+            || $order->delivery_calculation_method === 'onsite'
+            || str_starts_with(strtolower((string) $order->delivery_address), 'onsite');
+        $order->status = $request->status === 'prepared' && $isOnsiteOrder
+            ? 'delivered'
+            : $request->status;
         $order->save();
 
         return response()->json([

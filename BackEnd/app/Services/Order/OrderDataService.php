@@ -46,6 +46,10 @@ class OrderDataService
             'user_id' => $order->user_id,
             'total' => $order->total,
             'status' => $order->status,
+            'channel' => $order->delivery_type === 'onsite' || $order->delivery_calculation_method === 'onsite'
+                || str_starts_with(strtolower((string) $order->delivery_address), 'onsite')
+                ? 'onsite'
+                : 'online',
             'payment_method' => $order->payment_method,
             'delivery_address' => $order->delivery_address,
             'delivery_coordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)

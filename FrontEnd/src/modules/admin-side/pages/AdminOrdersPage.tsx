@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle, XCircle, Eye, RefreshCw, Clock, Truck, Package, Coffee, CalendarDays } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
-import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
-import { orderService } from '../../../services/orderService';
+import { getAllOrders, markOrderServed, type AdminOrder } from '../../../services/adminOrderService';
 import { formatCurrency } from '../../../utils/formatters';
 
 const statusColors: Record<string, string> = {
@@ -57,9 +56,9 @@ const AdminOrdersPage: React.FC = () => {
     void loadOrders();
   }, []);
 
-  const handleMarkDelivered = async (orderId: string) => {
+  const handleMarkDelivered = async (order: AdminOrder) => {
     try {
-      await orderService.updateOrderStatus(orderId, 'delivered');
+      await markOrderServed(order.id, order.channel);
       await loadOrders();
     } catch {
       // Silently fail
@@ -255,7 +254,7 @@ const AdminOrdersPage: React.FC = () => {
                       <div className="flex items-center gap-2">
                         {order.channel === 'onsite' && !isDelivered && (
                           <button
-                            onClick={() => handleMarkDelivered(order.id)}
+                            onClick={() => void handleMarkDelivered(order)}
                             className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-600 transition hover:bg-green-100"
                           >
                             <CheckCircle size={13} />

@@ -66,6 +66,24 @@ export type AdminOrder = Omit<Order, 'timestamp'> & {
   changeDue?: number;
 };
 
+const getOrderChannel = (order: any): OrderChannel => {
+  const channel = String(order?.channel || '').trim().toLowerCase();
+  if (channel === 'onsite' || channel === 'online') return channel;
+
+  const deliveryType = String(order?.delivery_type || order?.deliveryType || '').trim().toLowerCase();
+  const calculationMethod = String(order?.delivery_calculation_method || '').trim().toLowerCase();
+  const address = String(order?.delivery_address || order?.deliveryAddress || order?.address || '').trim().toLowerCase();
+  const email = String(order?.email || '').trim().toLowerCase();
+
+  return deliveryType === 'onsite'
+    || calculationMethod === 'onsite'
+    || address.startsWith('onsite')
+    || email.startsWith('cashier')
+    || email.startsWith('onsite')
+    ? 'onsite'
+    : 'online';
+};
+
 const isPendingGracePeriodOrder = (order: any): boolean => {
   const status = String(order?.status ?? '').trim().toLowerCase();
   if (status !== 'pending') return false;
@@ -112,7 +130,7 @@ const getStoredOnlineOrders = (): Order[] => {
 export const getOnlineOrders = (): AdminOrder[] => {
   return getStoredOnlineOrders().map((o) => ({
     ...o,
-    channel: 'online' as const,
+    channel: getOrderChannel(o),
     served: o.status === 'delivered',
     customerName: getAccountDisplayName(o.userId) || 'Customer',
   }));
@@ -147,7 +165,7 @@ export const getAllOrders = async (): Promise<AdminOrder[]> => {
 
       return {
         ...order,
-        channel: order.channel === 'onsite' ? 'onsite' : 'online',
+        channel: getOrderChannel(order),
         served: order.status === 'delivered',
         customer_name: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
         customerName: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
@@ -170,7 +188,8 @@ export const getAllOrders = async (): Promise<AdminOrder[]> => {
       return new Date(value).getTime();
     };
 
-    return [...onlineOrders, ...getOnsiteOrders()].sort(
+    const apiOrderIds = new Set(onlineOrders.map((order) => order.id));
+    return [...onlineOrders, ...getOnsiteOrders().filter((order) => !apiOrderIds.has(order.id))].sort(
       (a, b) => getSortTimestamp(b) - getSortTimestamp(a)
     );
     } catch {
@@ -179,7 +198,9 @@ export const getAllOrders = async (): Promise<AdminOrder[]> => {
       return new Date(value).getTime();
     };
 
-    return [...getOnlineOrders(), ...getOnsiteOrders()].sort(
+    const deduplicatedOrders = new Map<string, AdminOrder>();
+    [...getOnlineOrders(), ...getOnsiteOrders()].forEach((order) => deduplicatedOrders.set(order.id, order));
+    return [...deduplicatedOrders.values()].sort(
       (a, b) => getSortTimestamp(b) - getSortTimestamp(a)
     );
    }

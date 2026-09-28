@@ -14,6 +14,7 @@ const chipDisabled = `${chipBase} bg-gray-100 text-gray-500 cursor-default`;
 export interface KitchenOrder {
   id: string;
   customerName: string; 
+  channel?: 'online' | 'onsite';
   status: string;
   items: any[]; 
   scheduleDisplay?: string;
@@ -196,6 +197,9 @@ const KitchenDashboardPage: React.FC = () => {
                   <div>
                     <p className="font-medium text-[var(--oppa-text)]">{order.customerName}</p>
                     <p className="text-xs text-[var(--oppa-text-muted)]">#{order.id.slice(-6)}</p>
+                    <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                      {order.channel === 'onsite' ? 'Onsite' : 'Online'}
+                    </span>
                     <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(order.created_at)}</p>
                   </div>
                   <button 
@@ -218,7 +222,7 @@ const KitchenDashboardPage: React.FC = () => {
                     </button>
                   ) : (
                     <span className={chipDisabled + " w-full justify-center"}>
-                      <CheckCircle size={14} /> Ready
+                      <CheckCircle size={14} /> {order.status === 'delivered' ? 'Delivered' : 'Ready'}
                     </span>
                   )}
                 </div>
@@ -244,6 +248,9 @@ const KitchenDashboardPage: React.FC = () => {
                   <tr key={order.id} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]">
                     <td className="px-5 py-3 font-mono text-xs align-middle">
                       #{order.id.slice(-6)}
+                      <span className={`mt-1 block w-fit rounded-full px-2 py-0.5 font-sans text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                        {order.channel === 'onsite' ? 'Onsite' : 'Online'}
+                      </span>
                       {order.deliveryType === 'priority' && (
                         <span className="block mt-1 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded w-max uppercase">Priority</span>
                       )}
