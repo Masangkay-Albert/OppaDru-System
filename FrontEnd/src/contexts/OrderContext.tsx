@@ -44,7 +44,7 @@ interface OrderContextType {
   orders: Order[];
   currentOrder: Order | null;
   isLoading: boolean;
-  refreshOrders: () => Promise<void>;
+  refreshOrders: (showLoading?: boolean) => Promise<void>;
   placeOrder: (
     items: CartItem[],
     total: number,
@@ -67,7 +67,7 @@ interface OrderContextType {
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   clearOrder: () => void;
   getOrderById: (orderId: string) => Order | undefined;
-  fetchUserOrders: () => Promise<void>;
+  fetchUserOrders: (showLoading?: boolean) => Promise<void>;
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
@@ -99,13 +99,13 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return 'active_order_tracking';
   }, []);
 
-  const fetchUserOrders = useCallback(async () => {
+  const fetchUserOrders = useCallback(async (showLoading = true) => {
     if (!resolvedUser) {
       setOrders([]);
       return;
     }
 
-    setIsLoading(true);
+    if (showLoading) setIsLoading(true);
     try {
       const apiOrders = await orderService.getUserOrders();
       const mappedOrders: Order[] = apiOrders.map(apiOrder => {
@@ -169,13 +169,21 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
       setOrders(mappedOrders);
       localStorage.setItem(getOrdersKey(), JSON.stringify(mappedOrders));
+      setCurrentOrder((current) => {
+        if (!current) return current;
+        const latestCurrentOrder = mappedOrders.find((order) => order.id === current.id);
+        if (!latestCurrentOrder) return current;
+        localStorage.setItem(getCurrentOrderKey(), JSON.stringify(latestCurrentOrder));
+        localStorage.setItem(getTrackingOrderKey(), JSON.stringify(latestCurrentOrder));
+        return latestCurrentOrder;
+      });
       return;
     } catch (error) {
       console.error('Failed to fetch orders:', error);
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
-  }, [resolvedUser, getOrdersKey]);
+  }, [resolvedUser, getOrdersKey, getCurrentOrderKey, getTrackingOrderKey]);
 
   const loadOrders = useCallback(() => {
     const fallbackTrackingOrder = (() => {

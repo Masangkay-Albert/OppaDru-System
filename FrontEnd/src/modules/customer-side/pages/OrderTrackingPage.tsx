@@ -26,7 +26,7 @@ const OrderTrackingPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { orders, currentOrder, getOrderById, clearOrder } = useOrder();
+  const { orders, currentOrder, getOrderById, clearOrder, fetchUserOrders } = useOrder();
 
   const locationState = location.state as TrackingLocationState | null;
   const requestedOrderId = locationState?.orderId;
@@ -64,6 +64,16 @@ const OrderTrackingPage: React.FC = () => {
     const fallbackStartedAt = getOrderCreatedAtMs(order) || Date.now();
     setGraceStartedAt(prev => prev ?? fallbackStartedAt);
   }, [order?.id, order?.status, orders]);
+
+  useEffect(() => {
+    if (!user || !order?.id || ['delivered', 'cancelled'].includes(normalizeOrderStatus(order.status))) return;
+
+    const interval = window.setInterval(() => {
+      void fetchUserOrders(false);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [user?.id, order?.id, order?.status, fetchUserOrders]);
 
   const handleRouteLoaded = useCallback((points: [number, number][]) => {
     setRoutePoints(points);
