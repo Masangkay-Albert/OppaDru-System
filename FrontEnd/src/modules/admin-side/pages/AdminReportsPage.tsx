@@ -146,9 +146,8 @@ const AdminReportsPage: React.FC = () => {
   const { admin } = useAdminAuth();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [filters, setFilters] = useState<ReportFilters>({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
-  const [goal, setGoal] = useState(0);
-  const [goalBeforeEdit, setGoalBeforeEdit] = useState(0);
-  const [goalDirty, setGoalDirty] = useState(false);
+  const [savedGoal, setSavedGoal] = useState(0);
+  const [goalInput, setGoalInput] = useState('');
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalSaving, setGoalSaving] = useState(false);
   const [goalError, setGoalError] = useState('');
@@ -181,11 +180,11 @@ const AdminReportsPage: React.FC = () => {
       });
 
     getTargetProfitSale()
-      .then((savedGoal) => {
+      .then((savedValue) => {
         if (isMounted) {
-          setGoal(savedGoal);
-          setGoalBeforeEdit(savedGoal);
-          setGoalDirty(false);
+          const num = Number(savedValue) || 0;
+          setSavedGoal(num);
+          setGoalInput(num > 0 ? String(num) : '');
           setEditingGoal(false);
         }
       })
@@ -254,8 +253,8 @@ const AdminReportsPage: React.FC = () => {
     return { value: String(week), label: range ? `Week ${week} (${formatDateRange(range).replace(`, ${filters.year}`, '')})` : `Week ${week}` };
   });
   const highestTrendSales = Math.max(...trendBuckets.map((bucket) => bucket.sales), 1);
-  const goalReached = goal > 0 && metrics.totalSales >= goal;
-  const goalSet = goal > 0;
+  const goalSet = savedGoal > 0;
+  const goalReached = goalSet && metrics.totalSales >= savedGoal;
 
   const updateFilter = (key: keyof ReportFilters, value: string) => setFilters((current) => {
     if (key === 'date' && value !== '') {
@@ -289,13 +288,18 @@ const AdminReportsPage: React.FC = () => {
     filters.channel === ALL_CHANNELS ? 'All channels' : filters.channel === 'online' ? 'Online' : 'Onsite',
   ].filter(Boolean).join(' · ');
 
-  const saveGoal = async () => {
+  const handleSaveGoal = async () => {
+    const targetAmount = Number(goalInput);
+    if (isNaN(targetAmount) || targetAmount <= 0) {
+      setGoalError('Please enter a valid target amount greater than 0.');
+      return;
+    }
     setGoalSaving(true);
     setGoalError('');
     try {
-      setGoal(await updateTargetProfitSale(goal));
-      setGoalBeforeEdit(goal);
-      setGoalDirty(false);
+      const updated = await updateTargetProfitSale(targetAmount);
+      setSavedGoal(updated);
+      setGoalInput(String(updated));
       setEditingGoal(false);
     } catch {
       setGoalError('Sales target could not be saved.');
@@ -304,14 +308,13 @@ const AdminReportsPage: React.FC = () => {
     }
   };
 
-  const clearGoal = async () => {
+  const handleClearGoal = async () => {
     setGoalSaving(true);
     setGoalError('');
     try {
       await deleteTargetProfitSale();
-      setGoal(0);
-      setGoalBeforeEdit(0);
-      setGoalDirty(false);
+      setSavedGoal(0);
+      setGoalInput('');
       setEditingGoal(false);
     } catch {
       setGoalError('Sales target could not be removed.');
@@ -320,23 +323,16 @@ const AdminReportsPage: React.FC = () => {
     }
   };
 
-  const handleGoalAction = () => {
-    if (goalSet && !editingGoal) {
-      setGoalBeforeEdit(goal);
-      setGoalDirty(false);
-      setEditingGoal(true);
-      return;
-    }
-    if (editingGoal && goalDirty) void saveGoal();
+  const handleStartEdit = () => {
+    setGoalInput(savedGoal > 0 ? String(savedGoal) : '');
+    setEditingGoal(true);
+    setGoalError('');
   };
 
-  const handleGoalChange = (value: number) => {
-    setGoal(value);
-    setGoalDirty(value !== goalBeforeEdit);
-  };
-
-  const handleGoalBlur = () => {
-    if (editingGoal && !goalDirty) void saveGoal();
+  const handleCancelEdit = () => {
+    setGoalInput(savedGoal > 0 ? String(savedGoal) : '');
+    setEditingGoal(false);
+    setGoalError('');
   };
 
   const handleExportPDF = async () => {
@@ -350,7 +346,7 @@ const AdminReportsPage: React.FC = () => {
       await generateSalesReportPdf({
         orders: salesOrders,
         metrics,
-        goal,
+        goal: savedGoal,
         goalReached,
         goalSet,
         timelineRange,
@@ -426,7 +422,21 @@ const AdminReportsPage: React.FC = () => {
       </div>
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <GoalCard goal={goal} sales={metrics.totalSales} goalReached={goalReached} goalSet={goalSet} editing={editingGoal} dirty={goalDirty} saving={goalSaving} error={goalError} onGoalChange={handleGoalChange} onBlur={handleGoalBlur} onAction={handleGoalAction} onClear={clearGoal} />
+        <GoalCard
+          savedGoal={savedGoal}
+          goalInput={goalInput}
+          sales={metrics.totalSales}
+          goalReached={goalReached}
+          goalSet={goalSet}
+          editing={editingGoal}
+          saving={goalSaving}
+          error={goalError}
+          onGoalChange={setGoalInput}
+          onSave={handleSaveGoal}
+          onStartEdit={handleStartEdit}
+          onCancelEdit={handleCancelEdit}
+          onClear={handleClearGoal}
+        />
         <TopProductCard channel="Online" products={topProductsByChannel.online} />
         <TopProductCard channel="Onsite" products={topProductsByChannel.onsite} />
       </div>
@@ -484,18 +494,173 @@ const FilterSelect = ({ label, value, onChange, options }: { label: string; valu
   </label>
 );
 
-const GoalCard = ({ goal, sales, goalReached, goalSet, editing, dirty, saving, error, onGoalChange, onBlur, onAction, onClear }: { goal: number; sales: number; goalReached: boolean; goalSet: boolean; editing: boolean; dirty: boolean; saving: boolean; error: string; onGoalChange: (value: number) => void; onBlur: () => void; onAction: () => void; onClear: () => void }) => {
+interface GoalCardProps {
+  savedGoal: number;
+  goalInput: string;
+  sales: number;
+  goalReached: boolean;
+  goalSet: boolean;
+  editing: boolean;
+  saving: boolean;
+  error: string;
+  onGoalChange: (value: string) => void;
+  onSave: () => void;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onClear: () => void;
+}
+
+const GoalCard: React.FC<GoalCardProps> = ({
+  savedGoal,
+  goalInput,
+  sales,
+  goalReached,
+  goalSet,
+  editing,
+  saving,
+  error,
+  onGoalChange,
+  onSave,
+  onStartEdit,
+  onCancelEdit,
+  onClear,
+}) => {
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (editing) inputRef.current?.focus();
+    if (editing) {
+      inputRef.current?.focus();
+    }
   }, [editing]);
 
+  const numericInput = Number(goalInput);
+  const isInputValid = !isNaN(numericInput) && numericInput > 0;
+  const isDirty = goalSet ? isInputValid && numericInput !== savedGoal : isInputValid;
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!goalSet) {
+        if (isInputValid) onSave();
+      } else if (editing) {
+        if (isInputValid && isDirty) onSave();
+      }
+    } else if (e.key === 'Escape' && editing) {
+      onCancelEdit();
+    }
+  };
+
   return (
-    <div className={`rounded-2xl border p-5 shadow-sm ${!goalSet ? 'border-[var(--oppa-border)] bg-white' : goalReached ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-      <div className="flex items-center justify-between"><div><p className="text-sm font-semibold text-[var(--oppa-text)]">Sales target</p><p className={`mt-1 text-xs font-medium ${!goalSet ? 'text-[var(--oppa-text-muted)]' : goalReached ? 'text-green-700' : 'text-red-700'}`}>{!goalSet ? 'No target set' : goalReached ? 'Profit target reached' : 'Below profit target'}</p></div><TrendingUp size={19} className={!goalSet ? 'text-[var(--oppa-text-muted)]' : goalReached ? 'text-green-600' : 'text-red-600'} /></div>
-      <div className="mt-4 flex gap-2"><input ref={inputRef} type="number" min="0" value={goal || ''} onChange={(event) => onGoalChange(Number(event.target.value))} onBlur={onBlur} disabled={goalSet && !editing} placeholder="Set target" className="min-w-0 flex-1 rounded-lg border border-white bg-white px-3 py-2 text-sm text-[var(--oppa-text)] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500" /><button onClick={onAction} disabled={saving || (editing && !dirty)} className="rounded-lg bg-[var(--oppa-text)] px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">{saving ? 'Saving' : goalSet ? editing ? dirty ? 'Update' : 'No changes' : 'Edit' : 'Save'}</button></div>
-      <div className="mt-3 flex items-center justify-between"><p className="text-xs text-[var(--oppa-text-muted)]">Sales: {formatCurrency(sales)} / Target: {formatCurrency(goal)}</p>{goalSet && <button onClick={onClear} disabled={saving} className="text-xs font-medium text-[var(--oppa-text-muted)] underline hover:text-[var(--oppa-text)] disabled:opacity-50">Remove</button>}</div>
+    <div
+      className={`rounded-2xl border p-5 shadow-sm ${
+        !goalSet
+          ? 'border-[var(--oppa-border)] bg-white'
+          : goalReached
+            ? 'border-green-200 bg-green-50'
+            : 'border-red-200 bg-red-50'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[var(--oppa-text)]">Sales target</p>
+          <p
+            className={`mt-1 text-xs font-medium ${
+              !goalSet
+                ? 'text-[var(--oppa-text-muted)]'
+                : goalReached
+                  ? 'text-green-700'
+                  : 'text-red-700'
+            }`}
+          >
+            {!goalSet
+              ? 'No target set'
+              : goalReached
+                ? 'Profit target reached'
+                : 'Below profit target'}
+          </p>
+        </div>
+        <TrendingUp
+          size={19}
+          className={
+            !goalSet
+              ? 'text-[var(--oppa-text-muted)]'
+              : goalReached
+                ? 'text-green-600'
+                : 'text-red-600'
+          }
+        />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <input
+          ref={inputRef}
+          type="number"
+          min="1"
+          step="any"
+          value={goalSet && !editing ? savedGoal : goalInput}
+          onChange={(event) => onGoalChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={goalSet && !editing}
+          placeholder="Set target"
+          className="min-w-0 flex-1 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+        />
+
+        {!goalSet ? (
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || !isInputValid}
+            className="rounded-lg bg-[var(--oppa-text)] px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        ) : !editing ? (
+          <button
+            type="button"
+            onClick={onStartEdit}
+            disabled={saving}
+            className="rounded-lg bg-[var(--oppa-text)] px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+          >
+            Edit
+          </button>
+        ) : (
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving || !isInputValid || !isDirty}
+              className="rounded-lg bg-[var(--oppa-text)] px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Update'}
+            </button>
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              disabled={saving}
+              className="rounded-lg border border-[var(--oppa-border)] bg-white px-2.5 py-2 text-xs font-medium text-[var(--oppa-text-muted)] transition hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-xs text-[var(--oppa-text-muted)]">
+          Sales: {formatCurrency(sales)} / Target: {formatCurrency(savedGoal)}
+        </p>
+        {goalSet && (
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={saving}
+            className="text-xs font-medium text-[var(--oppa-text-muted)] underline transition hover:text-[var(--oppa-text)] disabled:opacity-50"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+
       {error && <p className="mt-2 text-xs font-medium text-red-700">{error}</p>}
     </div>
   );
