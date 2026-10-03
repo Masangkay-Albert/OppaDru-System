@@ -19,6 +19,7 @@ class Driver extends Authenticatable
     // Fields that can be mass assigned
     protected $fillable = [
         'id',             // Maps to your frontend '_id'
+        'franchise_id',
         'name',
         'email',
         'password',

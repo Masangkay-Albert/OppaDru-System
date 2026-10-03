@@ -20,6 +20,9 @@ use App\Http\Controllers\DriverOrderController;
 use App\Http\Controllers\DeliveryProofController;
 use App\Http\Controllers\DiscountVerificationController;
 use App\Http\Controllers\DiscountApplicationController;
+use App\Http\Controllers\FranchiseApplicationController;
+use App\Http\Controllers\FranchiseAuthController;
+use App\Http\Controllers\FranchiseController;
 use Illuminate\Http\Request;
 
 
@@ -41,6 +44,28 @@ Route::get('/storage/{path}', function (string $path) {
 })->where('path', '.*');
 
 Route::get('/settings/pricing', [SettingController::class, 'index']);
+Route::post('/franchise-applications', [FranchiseApplicationController::class, 'store']);
+
+Route::prefix('franchise')->group(function () {
+    Route::post('/login', [FranchiseAuthController::class, 'login']);
+    Route::post('/logout', [FranchiseAuthController::class, 'logout']);
+
+    Route::middleware(['franchise.access'])->group(function () {
+        Route::get('/me', [FranchiseAuthController::class, 'me']);
+        Route::get('/dashboard', [FranchiseController::class, 'dashboard']);
+        Route::get('/summary', [FranchiseController::class, 'branchSummary']);
+        Route::get('/inventory', [FranchiseController::class, 'inventorySummary']);
+        Route::get('/fulfillment', [FranchiseController::class, 'fulfillmentSummary']);
+        Route::get('/products', [FranchiseController::class, 'products']);
+        Route::post('/products', [ProductController::class, 'franchiseStore']);
+        Route::put('/products/{id}', [ProductController::class, 'franchiseUpdate']);
+        Route::delete('/products/{id}', [ProductController::class, 'franchiseDestroy']);
+        Route::patch('/products/{id}/toggle', [ProductController::class, 'franchiseToggleAvailability']);
+        Route::get('/orders', [FranchiseController::class, 'orders']);
+        Route::get('/orders/{id}', [FranchiseController::class, 'showOrder']);
+        Route::patch('/orders/{id}/status', [FranchiseController::class, 'updateOrderStatus']);
+    });
+});
 
 Route::get('/employees', [EmployeeController::class, 'index']);
 Route::post('/employees', [EmployeeController::class, 'store']);
@@ -148,4 +173,21 @@ Route::prefix('admin')->group(function () {
     Route::get('/target-profit-sales', [TargetProfitSaleController::class, 'show']);
     Route::put('/target-profit-sales', [TargetProfitSaleController::class, 'update']);
     Route::delete('/target-profit-sales', [TargetProfitSaleController::class, 'destroy']);
+
+    Route::get('/franchises', [FranchiseController::class, 'index']);
+    Route::get('/franchises/stats', [FranchiseController::class, 'stats']);
+    Route::get('/franchises/{id}', [FranchiseController::class, 'show']);
+    Route::get('/franchises/{id}/summary', [FranchiseController::class, 'summary']);
+    Route::get('/franchises/{id}/inventory', [FranchiseController::class, 'inventoryOverview']);
+    Route::get('/franchises/{id}/fulfillment', [FranchiseController::class, 'fulfillmentOverview']);
+    Route::get('/franchises/{id}/users', [FranchiseController::class, 'users']);
+    Route::post('/franchises/{id}/users', [FranchiseController::class, 'storeUser']);
+    Route::put('/franchises/{id}/users/{userId}', [FranchiseController::class, 'updateUser']);
+    Route::patch('/franchises/{id}/users/{userId}/toggle-status', [FranchiseController::class, 'toggleUserStatus']);
+    Route::post('/franchises', [FranchiseController::class, 'store']);
+    Route::put('/franchises/{id}', [FranchiseController::class, 'update']);
+    Route::delete('/franchises/{id}', [FranchiseController::class, 'destroy']);
+    Route::get('/franchise-applications', [FranchiseApplicationController::class, 'index']);
+    Route::get('/franchise-applications/stats', [FranchiseApplicationController::class, 'stats']);
+    Route::patch('/franchise-applications/{id}', [FranchiseApplicationController::class, 'review']);
 });

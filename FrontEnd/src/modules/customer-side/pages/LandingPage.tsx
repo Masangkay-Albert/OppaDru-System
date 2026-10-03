@@ -57,6 +57,12 @@ const LandingPage: React.FC = () => {
             >
               View Menu
             </button>
+            <button
+              onClick={() => navigate('/franchise/apply')}
+              className="bg-white text-lime-800 px-10 py-4 rounded-2xl font-bold text-base shadow-xl shadow-white/20 hover:bg-lime-50 transition-all duration-300 transform hover:-translate-y-1"
+            >
+              Franchise
+            </button>
           </div>
         </div>
       </section>

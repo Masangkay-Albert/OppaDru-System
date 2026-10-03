@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class AddonGroup extends Model
 {
     protected $fillable = [
-        'name', 'selection_type', 'supports_quantity', 'max_selections',
+        'franchise_id', 'name', 'selection_type', 'supports_quantity', 'max_selections',
         'applicable_categories', 'is_active', 'sort_order',
     ];
 

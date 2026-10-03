@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
 import { authService } from "../../../services/authService";
-import { LogIn, Mail, Lock, Eye, EyeOff, ChevronDown, ArrowLeft, Shield, Truck, BriefcaseBusiness, ChefHat } from "lucide-react";
+import { LogIn, Mail, Lock, Eye, EyeOff, ChevronDown, ArrowLeft, Shield, Truck, BriefcaseBusiness, ChefHat, Store } from "lucide-react";
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
 
 const LoginPage: React.FC = () => {
@@ -235,6 +235,14 @@ const LoginPage: React.FC = () => {
                 >
                   <ChefHat size={16} aria-hidden="true" className="shrink-0 text-[var(--oppa-green)]/75 transition-colors group-hover:text-[var(--oppa-green)]" />
                   Kitchen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/franchise/login")}
+                  className="group col-span-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] px-3 text-sm font-medium text-[var(--oppa-green)] shadow-[0_1px_2px_rgba(30,43,34,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--oppa-green)]/50 hover:bg-[var(--oppa-green-soft)]/80 hover:text-[var(--oppa-green)] hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] active:translate-y-0"
+                >
+                  <Store size={16} aria-hidden="true" className="shrink-0 text-[var(--oppa-green)]" />
+                  Franchise
                 </button>
               </div>
             </div>

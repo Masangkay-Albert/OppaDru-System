@@ -60,15 +60,19 @@ return new class extends Migration
             }
         }
 
-        Schema::table('products', function (Blueprint $table) {
-            DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS products_name_unique_ci ON products (LOWER(TRIM(name)));');
-        });
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            Schema::table('products', function (Blueprint $table) {
+                DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS products_name_unique_ci ON products (LOWER(TRIM(name)));');
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('products', function (Blueprint $table) {
-            DB::statement('DROP INDEX IF EXISTS products_name_unique_ci');
-        });
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            Schema::table('products', function (Blueprint $table) {
+                DB::statement('DROP INDEX IF EXISTS products_name_unique_ci');
+            });
+        }
     }
 };

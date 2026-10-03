@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/Authcontext"; 
 import { AdminAuthProvider } from "./contexts/AdminAuthContext";
+import { FranchiseAuthProvider } from "./contexts/FranchiseAuthContext";
 import { CartProvider } from "./contexts/CartContext";
 import { FavoritesProvider } from "./contexts/FavoritesContext";
 import { OrderProvider } from "./contexts/OrderContext";
@@ -37,6 +38,14 @@ const AdminReportsPage = lazy(() => import("./modules/admin-side/pages/AdminRepo
 const AdminDelivery = lazy(() => import("./modules/admin-side/pages/AdminDelivery"));
 const AdminKitchenPage = lazy(() => import("./modules/admin-side/pages/AdminKitchenPage"));
 const AdminPricingSettingsPage = lazy(() => import("./modules/admin-side/pages/AdminPricingSettingsPage"));
+const AdminFranchisesPage = lazy(() => import("./modules/admin-side/pages/AdminFranchisesPage"));
+const AdminFranchiseApplicationsPage = lazy(() => import("./modules/admin-side/pages/AdminFranchiseApplicationsPage"));
+
+// ============ FRANCHISE PAGES ============
+const FranchiseLoginPage = lazy(() => import("./modules/franchise-side/pages/FranchiseLoginPage"));
+const FranchiseDashboardPage = lazy(() => import("./modules/franchise-side/pages/FranchiseDashboardPage"));
+const FranchiseApplicationPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicationPage"));
+import ProtectedFranchiseRoute from "./modules/franchise-side/components/ProtectedFranchiseRoute";
 
 // ============ DRIVER PAGES ============
 import DriverLoginPage from "./modules/driver-side/pages/DriverLoginPage";
@@ -64,14 +73,17 @@ function App() {
           <OrderProvider>
             <SettingsProvider>
               <AdminAuthProvider>
-                <BrowserRouter>
-                  <ToastProvider>
+                <FranchiseAuthProvider>
+                  <BrowserRouter>
+                    <ToastProvider>
                     <Suspense fallback={<div className="min-h-screen bg-[var(--oppa-cream)] p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading page...</div>}>
                     <Routes>
                       {/* ===== PUBLIC ROUTES ===== */}
                       <Route path="/" element={<LandingPage />} />
                       <Route path="/login" element={<LoginPage />} />
                       <Route path="/register" element={<RegistrationPage />} />
+                      <Route path="/franchise/apply" element={<FranchiseApplicationPage />} />
+                      <Route path="/franchise/login" element={<FranchiseLoginPage />} />
 
                       {/* ===== CUSTOMER ROUTES ===== */}
                       <Route path="/customer" element={<ProtectedRoute><MenuPage /></ProtectedRoute>} />
@@ -96,8 +108,14 @@ function App() {
                       <Route path="/admin/employees" element={<ProtectedAdminRoute><AdminEmployeesPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/reports" element={<ProtectedAdminRoute><AdminReportsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/admins" element={<ProtectedAdminRoute><AdminAdminsPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/franchises" element={<ProtectedAdminRoute><AdminFranchisesPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/franchise-applications" element={<ProtectedAdminRoute><AdminFranchiseApplicationsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/kitchen" element={<ProtectedAdminRoute><AdminKitchenPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/settings/pricing" element={<ProtectedAdminRoute><AdminPricingSettingsPage /></ProtectedAdminRoute>} />
+
+                      {/* ===== FRANCHISE ROUTES ===== */}
+                      <Route path="/franchise" element={<ProtectedFranchiseRoute><FranchiseDashboardPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/dashboard" element={<ProtectedFranchiseRoute><FranchiseDashboardPage /></ProtectedFranchiseRoute>} />
 
                       {/* ===== DRIVER ROUTES ===== */}
                       <Route path="/delivery/login" element={<DriverLoginPage />} />
@@ -126,8 +144,9 @@ function App() {
 
                     </Routes>
                     </Suspense>
-                  </ToastProvider>
-                </BrowserRouter>
+                    </ToastProvider>
+                  </BrowserRouter>
+                </FranchiseAuthProvider>
               </AdminAuthProvider>
             </SettingsProvider>
           </OrderProvider>

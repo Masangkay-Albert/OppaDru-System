@@ -14,7 +14,8 @@ import {
   X,
   Car,
   SlidersHorizontal,
-  BadgeCheck
+  BadgeCheck,
+  Store
 } from 'lucide-react';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
@@ -61,6 +62,8 @@ const navItems = [
   { to: '/admin/addons', label: 'Add-ons', icon: SlidersHorizontal },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingBag },
   { to: '/admin/discount-approvals', label: 'Discount Approvals', icon: BadgeCheck },
+  { to: '/admin/franchises', label: 'Franchises', icon: Store },
+  { to: '/admin/franchise-applications', label: 'Franchise Apps', icon: BadgeCheck },
   { to: '/admin/customers', label: 'Customers', icon: Users },
   { to: '/admin/admins', label: 'Admins', icon: Users },
   { to: '/admin/employees', label: 'Employees', icon: Briefcase },

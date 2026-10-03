@@ -17,11 +17,20 @@ return [
             'provider' => 'users',
             'hash' => true,
         ],
+        'franchise' => [
+            'driver' => 'token',
+            'provider' => 'franchise_users',
+            'hash' => true,
+        ],
     ],
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
             'model' => User::class,
+        ],
+        'franchise_users' => [
+            'driver' => 'eloquent',
+            'model' => \App\Models\FranchiseUser::class,
         ],
     ],
     'passwords' => [

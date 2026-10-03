@@ -15,6 +15,7 @@ class DiscountApplication extends Model
 
     protected $fillable = [
         'id',
+        'franchise_id',
         'user_id',
         'discount_type',
         'full_name',
