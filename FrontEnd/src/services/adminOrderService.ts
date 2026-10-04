@@ -47,7 +47,17 @@ const updateOnlineOrdersInStorage = (updater: (orders: Order[]) => Order[]): voi
 
 export type OrderChannel = 'online' | 'onsite';
 
-export type AdminOrder = Omit<Order, 'timestamp'> & {
+export type AdminOrderItem = Partial<CartItem> & {
+  name?: string;
+  product_name?: string;
+  price?: number;
+  product_price?: number;
+  quantity?: number;
+  selected_addons?: Array<{ id: string; name: string; price: number; quantity?: number }>;
+};
+
+export type AdminOrder = Omit<Order, 'timestamp' | 'items'> & {
+  items: AdminOrderItem[];
   channel: OrderChannel;
   customerName?: string;
   customer_name?: string;
@@ -64,6 +74,11 @@ export type AdminOrder = Omit<Order, 'timestamp'> & {
   notes?: string;
   cashTendered?: number;
   changeDue?: number;
+  delivery_type?: string;
+  scheduled_at?: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  schedule_display?: string | null;
 };
 
 const getOrderChannel = (order: any): OrderChannel => {

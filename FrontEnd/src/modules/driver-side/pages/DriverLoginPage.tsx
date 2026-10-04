@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BikeIcon } from "lucide-react";
+import { ArrowLeft, BikeIcon } from "lucide-react";
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
 import { driverAuth } from "../../../services/driverAuth"; 
 
@@ -103,10 +103,10 @@ const DriverLoginPage: React.FC = () => {
           </form>
 
           <button
-            onClick={() => navigate("/")}
-            className="w-full mt-6 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)] transition-colors"
+            onClick={() => navigate("/login")}
+            className="mt-6 flex w-full items-center justify-center gap-1 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)] transition-colors"
           >
-            ← Back to Home
+            <ArrowLeft size={16} /> Back to login options
           </button>
         </div>
       </main>

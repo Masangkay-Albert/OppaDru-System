@@ -100,8 +100,8 @@ const FranchiseLoginPage: React.FC = () => {
             <Link to="/franchise/apply" className="font-medium text-[var(--oppa-green)] hover:underline">
               Apply for a franchise
             </Link>
-            <button onClick={() => navigate('/')} className="inline-flex items-center gap-1 hover:text-[var(--oppa-green)]">
-              <ArrowLeft size={16} /> Back to Home
+            <button onClick={() => navigate('/login')} className="inline-flex items-center gap-1 hover:text-[var(--oppa-green)]">
+              <ArrowLeft size={16} /> Back to login options
             </button>
           </div>
         </div>

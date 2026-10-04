@@ -1,17 +1,20 @@
-// src/modules/admin-side/pages/AdminAdminsPage.tsx
-import React, { useEffect, useState } from 'react';
-import { UserPlus } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Search, UserPlus } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import AccountCreationModal, { type AccountCreationValues } from '../components/AccountCreationModal';
 import { useToast } from '../../customer-side/components/ToastProvider';
+import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import { apiGetAdmins, apiRegisterAdmin, type StoredAccount } from '../../../services/adminAuthService';
+import { AdminDate, Avatar, EmptyState, PageHeader, RowActionsMenu } from '../components/AdminUI';
 
 const AdminAdminsPage: React.FC = () => {
   const [admins, setAdmins] = useState<StoredAccount[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [search, setSearch] = useState('');
   const { showToast } = useToast();
+  const { admin } = useAdminAuth();
 
   const refresh = async () => {
     try {
@@ -23,13 +26,13 @@ const AdminAdminsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    refresh();
+    const timeout = window.setTimeout(() => { void refresh(); }, 0);
+    return () => window.clearTimeout(timeout);
   }, []);
 
   const handleAdd = async (values: AccountCreationValues) => {
     setIsSubmitting(true);
     setSubmitError('');
-
     try {
       await apiRegisterAdmin({
         full_name: values.fullName,
@@ -37,9 +40,7 @@ const AdminAdminsPage: React.FC = () => {
         password: values.password,
         password_confirmation: values.confirmPassword,
       });
-
       setShowModal(false);
-      setIsSubmitting(false);
       await refresh();
       showToast('Admin account created successfully.', 'success');
     } catch (err) {
@@ -50,56 +51,31 @@ const AdminAdminsPage: React.FC = () => {
     }
   };
 
+  const filteredAdmins = useMemo(() => admins.filter((item) => `${item.fullName} ${item.email}`.toLowerCase().includes(search.trim().toLowerCase())), [admins, search]);
+
   return (
     <AdminLayout>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">Registered Admins</h1>
-          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage administrator accounts for the admin panel.</p>
-        </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
-        >
-          <UserPlus size={16} /> Add Admin
-        </button>
-      </div>
-
-      {admins.length === 0 && (
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">No registered admins yet.</div>
-      )}
-
-      {admins.length > 0 && (
-        <div className="hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/40 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
-                <th className="px-5 py-3">Full Name</th>
-                <th className="px-5 py-3">Email</th>
-                <th className="px-5 py-3">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {admins.map((a) => (
-                <tr key={a.id} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]">
-                  <td className="px-5 py-3 font-medium text-[var(--oppa-text)]">{a.fullName}</td>
-                  <td className="px-5 py-3 text-[var(--oppa-text-muted)]">{a.email}</td>
-                  <td className="px-5 py-3 text-[var(--oppa-text-muted)]">{new Date(a.dateRegistered || a.created_at || '').toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
+      <PageHeader title="Registered Admins" subtitle="Manage administrator accounts for the admin panel." actions={<button onClick={() => setShowModal(true)} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><UserPlus size={16} />Add Admin</button>} />
+      <label className="mb-3 flex h-11 w-full items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={17} aria-hidden="true" /><input aria-label="Search administrators" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email…" className="admin-embedded-input w-full text-sm" /></label>
+      {filteredAdmins.length === 0 ? <div className="admin-card"><EmptyState title={search ? 'No administrators match your search' : 'No registered admins yet'} description={search ? 'Try a different name or email.' : 'New administrator accounts will appear here.'} /></div> :
+        <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-[var(--shadow-card)]">
+          <table className="admin-table w-full text-sm">
+            <thead><tr className="sticky top-0 border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-left text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]"><th className="px-5 py-3">Administrator</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Joined</th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
+            <tbody>{filteredAdmins.map((item) => {
+              const isCurrent = item.id === admin?.id || item.email.toLowerCase() === admin?.email.toLowerCase();
+              return <tr key={item.id} className="border-b border-[var(--oppa-border)]/70 last:border-0 hover:bg-[var(--oppa-cream)]">
+                <td data-label="Administrator" className="px-5 py-3"><div className="flex min-w-0 items-center gap-3"><Avatar name={item.fullName} /><div className="min-w-0"><p className="truncate font-semibold text-[var(--oppa-text)]">{item.fullName}{isCurrent && <span className="ml-2 rounded-full bg-[var(--oppa-green-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--oppa-green-dark)]">You</span>}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{item.email}</p></div></div></td>
+                <td data-label="Role" className="px-5 py-3"><span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold capitalize text-violet-900">{item.role || 'Admin'}</span></td>
+                <td data-label="Joined" className="px-5 py-3 text-[var(--oppa-text-muted)]"><AdminDate value={item.dateRegistered || item.created_at} /></td>
+                <td data-label="Actions" className="px-5 py-3"><div className="flex justify-end"><RowActionsMenu label={item.fullName} items={[
+                  { label: 'Edit admin', disabled: true, title: 'Admin editing is not available in the current service.', onSelect: () => undefined },
+                  { label: 'Delete admin', destructive: true, disabled: true, title: isCurrent ? 'You cannot delete your own account.' : 'Admin deletion is not available in the current service.', onSelect: () => undefined },
+                ]} /></div></td>
+              </tr>;
+            })}</tbody>
           </table>
-        </div>
-      )}
-
-      <AccountCreationModal
-        mode="admin"
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        onSubmit={handleAdd}
-        isSubmitting={isSubmitting}
-        submitError={submitError}
-      />
+        </div>}
+      <AccountCreationModal mode="admin" isOpen={showModal} onClose={() => setShowModal(false)} onSubmit={handleAdd} isSubmitting={isSubmitting} submitError={submitError} />
     </AdminLayout>
   );
 };

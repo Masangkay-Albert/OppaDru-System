@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, FileText, Globe2, Loader2, RefreshCw, Shield, Store, TrendingUp } from 'lucide-react';
+import { BarChart3, FileText, Globe2, Loader2, Shield, Store, TrendingUp } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
@@ -7,8 +7,10 @@ import { getCurrentAdmin } from '../../../services/adminAuthService';
 import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
 import { formatCurrency } from '../../../utils/formatters';
 import { generateSalesReportPdf } from '../../../utils/reportPdfGenerator';
+import { EmptyState, PageHeader, Toast } from '../components/AdminUI';
 
 type ReportRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
+type QuickRange = 'custom' | 'today' | '7days' | '30days' | 'month' | 'year';
 
 const ALL_YEARS = 'all';
 const ALL_FILTER = 'all';
@@ -146,6 +148,9 @@ const AdminReportsPage: React.FC = () => {
   const { admin } = useAdminAuth();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [filters, setFilters] = useState<ReportFilters>({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
+  const [quickRange, setQuickRange] = useState<QuickRange>('custom');
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const [timelineStyle, setTimelineStyle] = useState<'line' | 'bar'>('line');
   const [savedGoal, setSavedGoal] = useState(0);
   const [goalInput, setGoalInput] = useState('');
   const [editingGoal, setEditingGoal] = useState(false);
@@ -153,18 +158,8 @@ const AdminReportsPage: React.FC = () => {
   const [goalError, setGoalError] = useState('');
   const [loading, setLoading] = useState(true);
   const [exportingPdf, setExportingPdf] = useState(false);
-
-  const loadOrders = async () => {
-    setLoading(true);
-    try {
-      const allOrders = await getAllOrders();
-      setOrders(Array.isArray(allOrders) ? allOrders : []);
-    } catch {
-      setOrders([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [notice, setNotice] = useState('');
+  const [noticeTone, setNoticeTone] = useState<'success' | 'error'>('success');
 
   useEffect(() => {
     let isMounted = true;
@@ -197,10 +192,21 @@ const AdminReportsPage: React.FC = () => {
     };
   }, []);
 
-  const filteredOrders = useMemo(
-    () => orders.filter((order) => isWithinRange(order, filters)),
-    [orders, filters]
-  );
+  const filteredOrders = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    if (quickRange === '7days') start.setDate(start.getDate() - 6);
+    else if (quickRange === '30days') start.setDate(start.getDate() - 29);
+    else if (quickRange === 'month') start.setDate(1);
+    else if (quickRange === 'year') start.setMonth(0, 1);
+    return orders.filter((order) => {
+      if (!isWithinRange(order, filters)) return false;
+      if (quickRange === 'custom') return true;
+      const date = getOrderDate(order);
+      return date !== null && date >= start && date <= now;
+    });
+  }, [orders, filters, quickRange]);
 
   const isCancelledOrder = (order: AdminOrder) => String(order.status || '').trim().toLowerCase() === 'cancelled';
   const salesOrders = useMemo(
@@ -208,8 +214,11 @@ const AdminReportsPage: React.FC = () => {
     [filteredOrders]
   );
 
-  const timelineRange: ReportRange = filters.date !== '' || filters.day !== ALL_FILTER
+  const timelineRange: ReportRange = quickRange === 'today' || filters.date !== '' || filters.day !== ALL_FILTER
     ? 'daily'
+    : quickRange === '7days' ? 'weekly'
+    : quickRange === '30days' || quickRange === 'month' ? 'monthly'
+    : quickRange === 'year' ? 'yearly'
     : filters.week !== ALL_FILTER
       ? 'weekly'
       : filters.month !== ALL_FILTER
@@ -256,7 +265,9 @@ const AdminReportsPage: React.FC = () => {
   const goalSet = savedGoal > 0;
   const goalReached = goalSet && metrics.totalSales >= savedGoal;
 
-  const updateFilter = (key: keyof ReportFilters, value: string) => setFilters((current) => {
+  const updateFilter = (key: keyof ReportFilters, value: string) => {
+    setQuickRange('custom');
+    setFilters((current) => {
     if (key === 'date' && value !== '') {
       const selectedDate = new Date(`${value}T00:00:00+08:00`);
       if (selectedDate.getFullYear() < MIN_REPORT_YEAR) return current;
@@ -276,9 +287,18 @@ const AdminReportsPage: React.FC = () => {
       ...(['year', 'month', 'week', 'day'].includes(key) ? { date: '' } : {}),
       ...(key === 'year' || key === 'month' ? { week: ALL_FILTER } : {}),
     };
-  });
+    });
+  };
 
-  const clearFilters = () => setFilters({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
+  const clearFilters = () => {
+    setQuickRange('custom');
+    setFilters({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
+  };
+
+  const applyQuickRange = (range: QuickRange) => {
+    setQuickRange(range);
+    setFilters({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
+  };
 
   const activeFilterSummary = [
     filters.date ? new Date(`${filters.date}T00:00:00+08:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : filters.year !== ALL_YEARS ? filters.year : 'All years',
@@ -289,7 +309,7 @@ const AdminReportsPage: React.FC = () => {
   ].filter(Boolean).join(' · ');
 
   const handleSaveGoal = async () => {
-    const targetAmount = Number(goalInput);
+    const targetAmount = Number(goalInput.replaceAll(',', ''));
     if (isNaN(targetAmount) || targetAmount <= 0) {
       setGoalError('Please enter a valid target amount greater than 0.');
       return;
@@ -301,6 +321,8 @@ const AdminReportsPage: React.FC = () => {
       setSavedGoal(updated);
       setGoalInput(String(updated));
       setEditingGoal(false);
+      setNoticeTone('success');
+      setNotice('Sales target saved.');
     } catch {
       setGoalError('Sales target could not be saved.');
     } finally {
@@ -316,6 +338,8 @@ const AdminReportsPage: React.FC = () => {
       setSavedGoal(0);
       setGoalInput('');
       setEditingGoal(false);
+      setNoticeTone('success');
+      setNotice('Sales target removed.');
     } catch {
       setGoalError('Sales target could not be removed.');
     } finally {
@@ -362,8 +386,12 @@ const AdminReportsPage: React.FC = () => {
           role: currentAdmin?.role || 'admin',
         },
       });
+      setNoticeTone('success');
+      setNotice('Sales report exported successfully.');
     } catch (error) {
       console.error('Failed to generate sales report PDF:', error);
+      setNoticeTone('error');
+      setNotice('The PDF could not be generated. Please try again.');
     } finally {
       setExportingPdf(false);
     }
@@ -373,17 +401,11 @@ const AdminReportsPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="font-serif text-3xl font-bold leading-tight text-[var(--oppa-text)]">Sales report</h1>
-          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">A clear view of revenue and order performance across every channel.</p>
-        </div>
+      {notice && <Toast message={notice} tone={noticeTone} onDismiss={() => setNotice('')} />}
+      <PageHeader title="Sales report" subtitle="A clear view of revenue and order performance across every channel." actions={
         <div className="flex flex-col items-start gap-1.5 sm:items-end">
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={loadOrders} disabled={loading || exportingPdf} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-50">
-              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
-            </button>
-            <button onClick={handleExportPDF} disabled={loading || exportingPdf} className="bg-oppa-gradient inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50 shadow-sm">
+            <button onClick={handleExportPDF} disabled={loading || exportingPdf} className="bg-oppa-gradient inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-50">
               {exportingPdf ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
               {exportingPdf ? 'Generating PDF...' : 'Export PDF'}
             </button>
@@ -398,28 +420,50 @@ const AdminReportsPage: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
+      } />
 
-      <div className="mb-3 grid gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <section aria-label="Report filters" className="admin-reports-filters admin-card mb-3 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2" aria-label="Quick date ranges">
+          {([
+            ['today', 'Today'], ['7days', '7 days'], ['30days', '30 days'],
+            ['month', 'This month'], ['year', 'This year'], ['custom', 'Custom'],
+          ] as const).map(([range, label]) => <button key={range} type="button" aria-pressed={quickRange === range} onClick={() => applyQuickRange(range)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${quickRange === range ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:border-[var(--oppa-green)] hover:text-[var(--oppa-green-dark)]'}`}>{label}</button>)}
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" aria-expanded={moreFiltersOpen} onClick={() => setMoreFiltersOpen((open) => !open)} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">{moreFiltersOpen ? 'Hide filters' : 'More filters'}</button>
+          <button onClick={clearFilters} className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">Clear filters</button>
+        </div>
+      </div>
+      {moreFiltersOpen && <div className="mt-3 grid gap-3 border-t border-[var(--oppa-border)] pt-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <FilterSelect label="Year" value={filters.year} onChange={(value) => updateFilter('year', value)} options={[{ value: ALL_YEARS, label: 'All years' }, ...years.map((year) => ({ value: String(year), label: String(year) }))]} />
         <FilterSelect label="Month" value={filters.month} onChange={(value) => updateFilter('month', value)} options={[{ value: ALL_FILTER, label: 'All months' }, ...['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((label, index) => ({ value: String(index), label }))]} />
         <FilterSelect label="Week of month" value={filters.week} onChange={(value) => updateFilter('week', value)} options={[{ value: ALL_FILTER, label: 'All weeks' }, ...weekOptions]} />
         <FilterSelect label="Day of week" value={filters.day} onChange={(value) => updateFilter('day', value)} options={[{ value: ALL_FILTER, label: 'All days' }, ...['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((label, index) => ({ value: String(index), label }))]} />
-        <label className="text-xs font-medium text-[var(--oppa-text-muted)]">Exact date<input type="date" min={`${MIN_REPORT_YEAR}-01-01`} value={filters.date} onChange={(event) => updateFilter('date', event.target.value)} className="mt-1 block w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-normal text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)]" /></label>
+        <label className="text-xs font-medium text-[var(--oppa-text-muted)]">Exact date<input type="date" min={`${MIN_REPORT_YEAR}-01-01`} value={filters.date} onChange={(event) => updateFilter('date', event.target.value)} className="mt-1 block h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2 text-sm font-normal text-[var(--oppa-text)]" /></label>
         <FilterSelect label="Channel" value={filters.channel} onChange={(value) => updateFilter('channel', value)} options={[{ value: ALL_CHANNELS, label: 'All channels' }, { value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} />
+      </div>}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--oppa-border)] pt-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--oppa-text-muted)]">
+          <span>Showing:</span>
+          {quickRange !== 'custom' && <button type="button" onClick={() => applyQuickRange('custom')} className="rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 font-medium text-[var(--oppa-green-dark)]">{({ today: 'Today', '7days': 'Last 7 days', '30days': 'Last 30 days', month: 'This month', year: 'This year' } as const)[quickRange]} ×</button>}
+          {[filters.date && `Date: ${filters.date}`, !filters.date && filters.year !== ALL_YEARS && `Year: ${filters.year}`, !filters.date && filters.month !== ALL_FILTER && `Month: ${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][Number(filters.month)]}`, !filters.date && filters.week !== ALL_FILTER && `Week ${filters.week}`, !filters.date && filters.day !== ALL_FILTER && `Day: ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][Number(filters.day)]}`, filters.channel !== ALL_CHANNELS && `Channel: ${filters.channel}`].filter((chip): chip is string => Boolean(chip)).map((chip) => <span key={chip} className="rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 font-medium text-[var(--oppa-green-dark)]">{chip}</span>)}
+          {!filters.date && filters.year === ALL_YEARS && filters.month === ALL_FILTER && filters.week === ALL_FILTER && filters.day === ALL_FILTER && filters.channel === ALL_CHANNELS && <strong className="font-semibold text-[var(--oppa-text)]">{activeFilterSummary}</strong>}
+        </div>
       </div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[var(--oppa-text-muted)]"><span>Showing: <strong className="font-semibold text-[var(--oppa-text)]">{activeFilterSummary}</strong></span><button onClick={clearFilters} className="font-semibold text-[var(--oppa-green-dark)] underline hover:text-[var(--oppa-text)]">Clear filters</button></div>
+      </section>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl bg-[var(--oppa-green)] p-5 text-white shadow-sm sm:col-span-2 xl:col-span-1">
-          <div className="flex items-center justify-between"><p className="text-sm text-white/75">Total sales</p><TrendingUp size={19} /></div>
-          <p className="mt-5 text-3xl font-bold">{formatCurrency(metrics.totalSales)}</p>
-          <p className="mt-1 text-xs text-white/70">Based on selected filters</p>
+      {loading ? <div aria-label="Loading sales report" aria-busy="true" className="mb-6 grid animate-pulse gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((item) => <div key={item} className="admin-card admin-skeleton h-36" />)}</div> : <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="admin-card admin-card--brand relative overflow-hidden p-5 text-white sm:col-span-2 xl:col-span-1">
+          <div className="flex items-center justify-between"><p className="text-sm font-medium text-white/80">Total sales</p><TrendingUp size={19} /></div>
+          <p className="tabular-nums mt-4 text-3xl font-bold tracking-tight sm:text-4xl">{formatCurrency(metrics.totalSales)}</p>
+          <p className="mt-1 text-xs text-white/75">Based on selected filters</p>
+          <div className="mt-3 flex items-center gap-2"><span className="rounded-full bg-white/15 px-2 py-1 text-[10px] font-semibold">Current selection</span><svg aria-label="Sales trend for selected period" role="img" viewBox="0 0 100 25" className="h-6 w-20 text-white/90"><polyline points={trendBuckets.map((bucket, index) => `${(index / (trendBuckets.length - 1 || 1)) * 100},${23 - (bucket.sales / highestTrendSales) * 20}`).join(' ')} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg></div>
         </div>
         <MetricCard icon={<BarChart3 size={18} />} label="Total orders" value={metrics.totalOrders} detail="All channels" />
         <MetricCard icon={<Globe2 size={18} />} label="Online orders" value={metrics.onlineOrders.length} detail={formatCurrency(metrics.onlineSales)} />
         <MetricCard icon={<Store size={18} />} label="Onsite orders" value={metrics.onsiteOrders.length} detail={formatCurrency(metrics.onsiteSales)} />
-      </div>
+      </div>}
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         <GoalCard
@@ -441,15 +485,27 @@ const AdminReportsPage: React.FC = () => {
         <TopProductCard channel="Onsite" products={topProductsByChannel.onsite} />
       </div>
 
-      <section className="mb-6 rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
+      <section className="admin-card mb-6">
         <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4"><div><h2 className="font-serif font-semibold text-[var(--oppa-text)]">Channel performance</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Revenue contribution for the selected filters.</p></div><BarChart3 size={19} className="text-[var(--oppa-green-dark)]" /></div>
-        <div className="space-y-5 p-5">
-          {(filters.channel === ALL_CHANNELS || filters.channel === 'online') && <ChannelRow label="Online" count={metrics.onlineOrders.length} sales={metrics.onlineSales} total={metrics.totalSales} color="bg-[var(--oppa-green)]" />}
-          {(filters.channel === ALL_CHANNELS || filters.channel === 'onsite') && <ChannelRow label="Onsite" count={metrics.onsiteOrders.length} sales={metrics.onsiteSales} total={metrics.totalSales} color="bg-amber-400" />}
+        <div className="space-y-4 p-5">
+          {(() => {
+            const onlineShare = metrics.totalSales > 0 ? Math.round(metrics.onlineSales / metrics.totalSales * 100) : 0;
+            const onsiteShare = Math.max(0, 100 - onlineShare);
+            return <>
+              <div role="img" aria-label={`Online ${onlineShare} percent, Onsite ${onsiteShare} percent`} className="flex h-5 overflow-hidden rounded-full bg-[var(--oppa-green-soft)]">
+                <div className="h-full rounded-l-full bg-[var(--oppa-green)] transition-[width] duration-500" style={{ width: `${onlineShare}%` }} />
+                <div className="h-full rounded-r-full bg-amber-500 transition-[width] duration-500" style={{ width: `${onsiteShare}%` }} />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex items-center justify-between gap-2 text-sm"><span className="flex items-center gap-2 font-medium text-[var(--oppa-text)]"><span className="size-2.5 rounded-full bg-[var(--oppa-green)]" />Online</span><span className="tabular-nums text-right text-xs text-[var(--oppa-text-muted)]">{metrics.onlineOrders.length} orders · {formatCurrency(metrics.onlineSales)} · {onlineShare}%</span></div>
+                <div className="flex items-center justify-between gap-2 text-sm"><span className="flex items-center gap-2 font-medium text-[var(--oppa-text)]"><span className="size-2.5 rounded-full bg-amber-500" />Onsite</span><span className="tabular-nums text-right text-xs text-[var(--oppa-text-muted)]">{metrics.onsiteOrders.length} orders · {formatCurrency(metrics.onsiteSales)} · {onsiteShare}%</span></div>
+              </div>
+            </>;
+          })()}
         </div>
       </section>
 
-      <section className="mb-6 rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
+      <section className="admin-card mb-6">
         <div className="flex flex-col gap-1 border-b border-[var(--oppa-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-serif font-semibold text-[var(--oppa-text)]">Sales timeline</h2>
@@ -457,20 +513,41 @@ const AdminReportsPage: React.FC = () => {
               {timelineRange === 'daily' ? 'Hourly activity from 11:00 AM to 11:00 PM.' : timelineRange === 'weekly' ? weekDateRange ? `Daily activity for ${formatDateRange(weekDateRange)}.` : 'Daily activity grouped by weekday.' : timelineRange === 'monthly' ? 'Daily activity grouped by calendar date.' : 'Monthly activity grouped from January to December.'}
             </p>
           </div>
-          <span className="text-xs text-[var(--oppa-text-muted)]">{filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}</span>
+          <div className="flex items-center gap-3"><span className="text-xs font-semibold text-[var(--oppa-green-dark)]">Peak: {formatCompactPeso(Math.max(...trendBuckets.map((bucket) => bucket.sales), 0))}</span><div className="flex rounded-lg border border-[var(--oppa-border)] p-0.5" aria-label="Timeline chart style">{(['line', 'bar'] as const).map((style) => <button key={style} type="button" aria-pressed={timelineStyle === style} onClick={() => setTimelineStyle(style)} className={`rounded-md px-2 py-1 text-[10px] font-semibold capitalize ${timelineStyle === style ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text-muted)]'}`}>{style}</button>)}</div><span className="text-xs text-[var(--oppa-text-muted)]">{filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}</span></div>
         </div>
-        <div className="overflow-x-auto p-5">
-          {trendBuckets.some((bucket) => bucket.orders > 0) ? <div className="flex min-w-[620px] items-end gap-2" style={{ height: 190 }}>
-            {trendBuckets.map((bucket) => (
-              <div key={bucket.label} className="group flex min-w-[22px] flex-1 flex-col items-center justify-end gap-2">
-                <div className="invisible rounded-md bg-[var(--oppa-text)] px-2 py-1 text-center text-[10px] text-white opacity-0 transition group-hover:visible group-hover:opacity-100">
-                  {formatCurrency(bucket.sales)}<br />{bucket.orders} {bucket.orders === 1 ? 'order' : 'orders'}
-                </div>
-                <div className="w-full rounded-t-md bg-[var(--oppa-green)] transition-all group-hover:bg-[var(--oppa-green-dark)]" style={{ height: `${Math.max(bucket.sales > 0 ? (bucket.sales / highestTrendSales) * 125 : 3, 3)}px` }} />
-                <span className="whitespace-pre-line text-center text-[10px] text-[var(--oppa-text-muted)]">{bucket.label}</span>
-              </div>
-            ))}
-          </div> : <div className="flex h-[190px] items-center justify-center text-sm text-[var(--oppa-text-muted)]">No sales found for these filters.</div>}
+        <div className="w-full p-5">
+          {trendBuckets.length ? <div className="w-full">
+            {trendBuckets.some((bucket) => bucket.orders > 0) ? (() => {
+              const width = Math.max(760, trendBuckets.length * 58);
+              const left = 68;
+              const right = width - 18;
+              const top = 24;
+              const bottom = 176;
+              const xAt = (index: number) => left + (index * (right - left)) / Math.max(trendBuckets.length - 1, 1);
+              const yAt = (sales: number) => bottom - (sales / highestTrendSales) * (bottom - top);
+              const line = trendBuckets.map((bucket, index) => `${xAt(index)},${yAt(bucket.sales)}`).join(' ');
+              const peak = Math.max(...trendBuckets.map((bucket) => bucket.sales));
+              return <svg role="img" aria-label="Sales and order timeline" viewBox={`0 0 ${width} 230`} className="h-[250px] w-full">
+                {[0, .25, .5, .75, 1].map((fraction) => {
+                  const y = bottom - fraction * (bottom - top);
+                  return <g key={fraction}><line x1={left} x2={right} y1={y} y2={y} stroke="var(--oppa-border)" strokeDasharray="4 5" /><text x={left - 8} y={y + 4} textAnchor="end" fill="var(--oppa-text-muted)" fontSize="10">{formatCompactPeso(highestTrendSales * fraction)}</text></g>;
+                })}
+                <line x1={left} x2={left} y1={top} y2={bottom} stroke="var(--oppa-border)" /><line x1={left} x2={right} y1={bottom} y2={bottom} stroke="var(--oppa-border)" />
+                {timelineStyle === 'line' && <><polygon points={`${left},${bottom} ${line} ${right},${bottom}`} fill="rgba(38,122,67,.10)" /><polyline points={line} fill="none" stroke="#267a43" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" /></>}
+                {timelineStyle === 'bar' && trendBuckets.map((bucket, index) => {
+                  const step = (right - left) / Math.max(trendBuckets.length, 1);
+                  const barHeight = (bucket.sales / highestTrendSales) * (bottom - top);
+                  return <rect key={`bar-${bucket.label}`} x={left + index * step + step * .2} y={bottom - barHeight} width={Math.max(2, step * .6)} height={barHeight} rx="4" fill="#267a43"><title>{`${bucket.label.replace('\n', ' ')} · ${formatCurrency(bucket.sales)} · ${bucket.orders} ${bucket.orders === 1 ? 'order' : 'orders'}`}</title></rect>;
+                })}
+                {trendBuckets.map((bucket, index) => <g key={bucket.label}>
+                  {timelineStyle === 'line' && <circle cx={xAt(index)} cy={yAt(bucket.sales)} r={bucket.sales === peak && peak > 0 ? 5 : 3.5} fill={bucket.sales === peak && peak > 0 ? '#e0a800' : '#267a43'} stroke="var(--oppa-surface)" strokeWidth="2">
+                    <title>{`${bucket.label.replace('\n', ' ')} · ${formatCurrency(bucket.sales)} · ${bucket.orders} ${bucket.orders === 1 ? 'order' : 'orders'}`}</title>
+                  </circle>}
+                  <text x={xAt(index)} y="199" textAnchor="middle" fill="var(--oppa-text-muted)" fontSize="10">{bucket.label.split('\n')[0]}</text>
+                </g>)}
+              </svg>;
+            })() : <EmptyState title="No sales for these filters" description="The timeline will show revenue and order activity when sales are available." />}
+          </div> : <EmptyState title="No timeline data" description="There is no activity to chart for this selection." />}
         </div>
       </section>
 
@@ -478,17 +555,14 @@ const AdminReportsPage: React.FC = () => {
   );
 };
 
-const MetricCard = ({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: number; detail: string }) => <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm"><div className="flex items-center gap-2 text-[var(--oppa-green-dark)]">{icon}<span className="text-sm font-medium text-[var(--oppa-text-muted)]">{label}</span></div><p className="mt-5 text-3xl font-bold text-[var(--oppa-text)]">{value}</p><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{detail}</p></div>;
+const MetricCard = ({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: number; detail: string }) => <div className="admin-card p-5"><div className="flex items-center gap-2 text-[var(--oppa-green-dark)]">{icon}<span className="text-sm font-medium text-[var(--oppa-text-muted)]">{label}</span></div><p className="tabular-nums mt-5 text-3xl font-bold text-[var(--oppa-text)]">{value}</p><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{detail}</p></div>;
 
-const ChannelRow = ({ label, count, sales, total, color }: { label: string; count: number; sales: number; total: number; color: string }) => {
-  const percentage = total > 0 ? Math.round((sales / total) * 100) : 0;
-  return <div><div className="mb-2 flex items-center justify-between text-sm"><span className="font-medium text-[var(--oppa-text)]">{label}</span><span className="text-[var(--oppa-text-muted)]">{count} orders · {formatCurrency(sales)}</span></div><div className="h-2 overflow-hidden rounded-full bg-[var(--oppa-green-soft)]"><div className={`h-full rounded-full ${color}`} style={{ width: `${percentage}%` }} /></div><p className="mt-1 text-right text-xs text-[var(--oppa-text-muted)]">{percentage}% of sales</p></div>;
-};
+const formatCompactPeso = (amount: number) => amount >= 1000 ? `₱${(amount / 1000).toFixed(1)}k` : `₱${Math.round(amount)}`;
 
 const FilterSelect = ({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) => (
   <label className="text-xs font-medium text-[var(--oppa-text-muted)]">
     {label}
-    <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 block w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-normal text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)]">
+    <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 block h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2 text-sm font-normal text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)]">
       {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
   </label>
@@ -536,6 +610,7 @@ const GoalCard: React.FC<GoalCardProps> = ({
   const numericInput = Number(goalInput);
   const isInputValid = !isNaN(numericInput) && numericInput > 0;
   const isDirty = goalSet ? isInputValid && numericInput !== savedGoal : isInputValid;
+  const progress = goalSet ? Math.min(Math.round((sales / savedGoal) * 100), 100) : 0;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -554,7 +629,7 @@ const GoalCard: React.FC<GoalCardProps> = ({
     <div
       className={`rounded-2xl border p-5 shadow-sm ${
         !goalSet
-          ? 'border-[var(--oppa-border)] bg-white'
+          ? 'admin-card'
           : goalReached
             ? 'border-green-200 bg-green-50'
             : 'border-red-200 bg-red-50'
@@ -592,18 +667,20 @@ const GoalCard: React.FC<GoalCardProps> = ({
       </div>
 
       <div className="mt-4 flex gap-2">
-        <input
-          ref={inputRef}
-          type="number"
-          min="1"
-          step="any"
-          value={goalSet && !editing ? savedGoal : goalInput}
-          onChange={(event) => onGoalChange(event.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={goalSet && !editing}
-          placeholder="Set target"
-          className="min-w-0 flex-1 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-        />
+        <label className="flex h-11 min-w-0 flex-1 items-center gap-1 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)] focus-within:border-[var(--oppa-green)]">
+          ₱<input
+            ref={inputRef}
+            type="text"
+            inputMode="decimal"
+            value={goalSet && !editing ? savedGoal.toLocaleString('en-PH') : goalInput}
+            onChange={(event) => onGoalChange(event.target.value.replace(/[^\d.]/g, ''))}
+            onKeyDown={handleKeyDown}
+            disabled={goalSet && !editing}
+            placeholder="Set target"
+            aria-label="Sales target in Philippine pesos"
+            className="admin-embedded-input min-w-0 w-full px-1 py-2 text-sm text-[var(--oppa-text)] disabled:cursor-not-allowed"
+          />
+        </label>
 
         {!goalSet ? (
           <button
@@ -637,7 +714,7 @@ const GoalCard: React.FC<GoalCardProps> = ({
               type="button"
               onClick={onCancelEdit}
               disabled={saving}
-              className="rounded-lg border border-[var(--oppa-border)] bg-white px-2.5 py-2 text-xs font-medium text-[var(--oppa-text-muted)] transition hover:bg-slate-50"
+              className="rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2.5 py-2 text-xs font-medium text-[var(--oppa-text-muted)] transition hover:bg-slate-50"
             >
               Cancel
             </button>
@@ -661,16 +738,26 @@ const GoalCard: React.FC<GoalCardProps> = ({
         )}
       </div>
 
+      {goalSet && <div className="mt-4">
+        <div className="mb-1.5 flex items-center justify-between text-xs"><span className="font-medium text-[var(--oppa-text-muted)]">Target progress</span><span className="tabular-nums font-bold text-[var(--oppa-text)]">{Math.round((sales / savedGoal) * 100)}%</span></div>
+        <div role="progressbar" aria-label="Sales target reached" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(Math.round((sales / savedGoal) * 100), 100)} className="h-2.5 overflow-hidden rounded-full bg-[var(--oppa-green-soft)]"><div className={`h-full rounded-full transition-[width] duration-700 ${goalReached ? 'bg-emerald-600' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} /></div>
+        <p className="mt-1.5 text-right text-xs text-[var(--oppa-text-muted)]">Remaining <strong className="tabular-nums text-[var(--oppa-text)]">{formatCurrency(Math.max(savedGoal - sales, 0))}</strong></p>
+      </div>}
       {error && <p className="mt-2 text-xs font-medium text-red-700">{error}</p>}
     </div>
   );
 };
 
-const TopProductCard = ({ channel, products }: { channel: string; products: [string, number][] }) => (
-  <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+const TopProductCard = ({ channel, products }: { channel: string; products: [string, number][] }) => {
+  const max = Math.max(...products.map(([, quantity]) => quantity), 1);
+  const ranks = ['bg-amber-300 text-amber-950', 'bg-slate-300 text-slate-900', 'bg-orange-300 text-orange-950'];
+  return <div className="admin-card p-5">
     <p className="text-sm font-semibold text-[var(--oppa-text)]">Top 5 {channel} products</p>
-    {products.length === 0 ? <p className="mt-5 text-sm text-[var(--oppa-text-muted)]">No product sales in this filter.</p> : <div className="mt-4 space-y-3">{products.map(([name, quantity], index) => <div key={name} className="flex items-center gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-xs font-bold text-[var(--oppa-green-dark)]">{index + 1}</span><span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--oppa-text)]">{name}</span><span className="shrink-0 text-xs font-semibold text-[var(--oppa-text-muted)]">{quantity} sold</span></div>)}</div>}
-  </div>
-);
+    {products.length === 0 ? <EmptyState title="No product sales" description="No product sales in this filter." /> : <ol className="mt-4 space-y-3">{products.map(([name, quantity], index) => <li key={name} className="flex items-center gap-3">
+      <span className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${ranks[index] || 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]'}`}>{index + 1}</span>
+      <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span title={name} className="min-w-0 truncate text-sm font-medium text-[var(--oppa-text)]">{name}</span><span className="tabular-nums shrink-0 text-xs font-semibold text-[var(--oppa-text-muted)]">{quantity} sold</span></div><div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--oppa-green-soft)]"><div className="h-full rounded-full bg-[var(--oppa-green)] transition-[width] duration-500" style={{ width: `${(quantity / max) * 100}%` }} /></div></div>
+    </li>)}</ol>}
+  </div>;
+};
 
 export default AdminReportsPage;

@@ -1,19 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { PlusSquare, Search, Trash2, X, Pencil, RefreshCcw } from 'lucide-react';
+import { ChevronDown, ChevronUp, Drumstick, PackageOpen, PlusSquare, Search, Trash2, X } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllProducts, toggleAvailability, deleteProduct, updateProduct, addProduct } from '../../../services/adminProductService';
 import { productService } from '../../../services/productService';
 import type { Product, ProductCategory } from '../../../types/product.types';
 import { formatCurrency } from '../../../utils/formatters';
 import { categories } from '../../../data/mockData';
-import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
+import { AvailabilitySwitch, ConfirmDialog, EmptyState, PageHeader, RowActionsMenu } from '../components/AdminUI';
 
 const categoryOptions: Array<{ value: ProductCategory | 'all'; label: string }> = [
   { value: 'all', label: 'All' },
   ...categories.filter((c) => c.id !== 'all').map((c) => ({ value: c.id, label: c.name })),
 ];
-const DEFAULT_PRODUCT_IMAGE = oppaDruLogo;
-
 type ProductFormState = {
   name: string;
   description: string;
@@ -21,6 +19,14 @@ type ProductFormState = {
   category: ProductCategory;
   image: string;
   isAvailable: boolean;
+};
+
+const ProductImage: React.FC<{ src?: string; name: string; className?: string }> = ({ src, name, className = '' }) => {
+  const [failed, setFailed] = useState(false);
+  const image = src && src !== '/oppadrulogo.jpg' && !failed;
+  return image
+    ? <img src={src} alt={name} onError={() => setFailed(true)} className={`size-14 shrink-0 rounded-xl object-cover transition-transform duration-200 group-hover:scale-[1.04] ${className}`} />
+    : <span aria-label={`${name} placeholder image`} className={`inline-flex size-14 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-700 ${className}`}><Drumstick size={24} aria-hidden="true" /></span>;
 };
 
 const createEmptyForm = (): ProductFormState => ({
@@ -31,11 +37,6 @@ const createEmptyForm = (): ProductFormState => ({
   image: '',
   isAvailable: true,
 });
-
-const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap';
-const chipNeutral = `${chipBase} bg-[var(--oppa-cream)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]`;
-const chipInfo = `${chipBase} bg-blue-50 text-blue-600 hover:bg-blue-100`;
-const iconDangerBtn = 'inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-500 transition hover:bg-red-100 hover:text-red-700';
 
 const AdminProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -49,18 +50,32 @@ const AdminProductsPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [saveError, setSaveError] = useState('');
   const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [sortBy, setSortBy] = useState<'category' | 'name' | 'price' | 'newest'>('category');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [actionError, setActionError] = useState('');
+
+  const isAvailable = (product: Product) => product.isAvailable ?? product.is_available;
 
   const refresh = async () => {
     try {
       const result = await getAllProducts();
       setProducts(Array.isArray(result) ? result : []);
-    } catch {
+    } catch (error) {
+      console.error('Failed to load products:', error);
       setProducts([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    refresh();
+    const timeout = window.setTimeout(() => { void refresh(); }, 0);
+    return () => window.clearTimeout(timeout);
   }, []);
 
   const getCategoryLabel = (category: string) => {
@@ -81,14 +96,44 @@ const AdminProductsPage: React.FC = () => {
       return matchesCategory && matchesSearch;
     })
     .sort((a, b) => {
-      if (a.category < b.category) return -1;
-      if (a.category > b.category) return 1;
-      return a.name.localeCompare(b.name);
+      const result = sortBy === 'price'
+        ? Number(a.price) - Number(b.price)
+        : sortBy === 'name'
+          ? a.name.localeCompare(b.name)
+          : sortBy === 'newest'
+            ? new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+            : a.category.localeCompare(b.category) || a.name.localeCompare(b.name);
+      return result * (sortDirection === 'asc' ? 1 : -1);
     });
+  const pageCount = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const visibleProducts = filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const allVisibleSelected = visibleProducts.length > 0 && visibleProducts.every((product) => selectedIds.includes(product.id));
 
   const handleToggle = async (id: string) => {
-    await toggleAvailability(id);
-    await refresh();
+    try {
+      await toggleAvailability(id);
+      await refresh();
+      setActionError('');
+    } catch (error) {
+      console.error('Failed to update product availability:', error);
+      setActionError('Could not update product availability.');
+    }
+  };
+
+  const toggleSelected = (id: string) => setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+
+  const handleBulkAvailability = async () => {
+    const availableSelected = products.filter((product) => selectedIds.includes(product.id) && isAvailable(product));
+    try {
+      for (const product of availableSelected) await toggleAvailability(product.id);
+      await refresh();
+      setSelectedIds([]);
+      setActionError('');
+    } catch (error) {
+      console.error('Failed to update selected product availability:', error);
+      setActionError('Could not update availability for the selected products.');
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -98,15 +143,21 @@ const AdminProductsPage: React.FC = () => {
   };
 
   const confirmDeleteProduct = async () => {
-    if (!productToDelete) return;
-
     try {
-      await deleteProduct(productToDelete.id);
+      if (productToDelete) await deleteProduct(productToDelete.id);
+      else if (confirmBulkDelete) {
+        for (const id of selectedIds) await deleteProduct(id);
+      } else return;
       await refresh();
+      setSelectedIds([]);
+      setPage(1);
+      setActionError('');
     } catch (error) {
       console.error('Failed to delete product:', error);
+      setActionError('Could not delete the selected product(s).');
     } finally {
       setProductToDelete(null);
+      setConfirmBulkDelete(false);
     }
   };
 
@@ -199,194 +250,162 @@ const AdminProductsPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="sticky top-0 z-20 -mx-4 border-b border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-4 pb-4 pt-1 sm:-mx-6 sm:px-6">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">Products</h1>
-            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage your menu items and availability.</p>
-          </div>
+      <div className="sticky top-0 z-20 -mx-4 border-b border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-4 pb-2 pt-1 sm:-mx-6 sm:px-6">
+        <PageHeader title="Products" subtitle="Manage your menu items and availability." actions={
           <button
             onClick={openAddModal}
             className="bg-oppa-gradient flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
           >
             <PlusSquare size={16} /> Add Product
           </button>
-        </div>
+        } />
 
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="relative w-full xl:max-w-sm">
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+          <div className="relative w-full xl:max-w-sm xl:flex-1">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
             <input
+              aria-label="Search products"
               type="text"
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              onChange={(event) => { setSearchTerm(event.target.value); setPage(1); }}
               placeholder="Search products..."
-              className="w-full rounded-lg border border-[var(--oppa-border)] bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
+              className="h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] py-2 pl-9 pr-3 text-sm text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
             />
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {categoryOptions.map((option) => (
+          <div className="flex min-w-0 flex-col gap-2 xl:flex-1 xl:flex-row xl:items-center xl:justify-between">
+            <div className="admin-scrollbar flex gap-2 overflow-x-auto py-1 [mask-image:linear-gradient(to_right,transparent,black_16px,black_calc(100%-24px),transparent)] md:[mask-image:none]">
+              {categoryOptions.map((option) => {
+                const count = option.value === 'all' ? products.length : products.filter((product) => product.category === option.value).length;
+                return (
               <button
+                type="button"
+                aria-pressed={activeCategory === option.value}
                 key={option.value}
-                onClick={() => setActiveCategory(option.value)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                onClick={() => { setActiveCategory(option.value); setPage(1); }}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition ${
                   activeCategory === option.value
-                    ? 'bg-oppa-gradient text-white shadow-sm'
-                    : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]/70'
+                    ? 'border-green-700 bg-green-700 text-white shadow-sm'
+                    : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]'
                 }`}
               >
-                {option.label}
+                {option.label}<span className={`rounded-full px-1.5 py-0.5 text-[10px] ${activeCategory === option.value ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-600'}`}>{count}</span>
               </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {productToDelete && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl">
-            <p className="text-base font-semibold text-[var(--oppa-text)]">Delete "{productToDelete.name}"?</p>
-            <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">This action cannot be undone.</p>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setProductToDelete(null)}
-                className="rounded-full border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDeleteProduct}
-                className="rounded-full bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-              >
-                OK
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2 self-end">
+              <label htmlFor="product-sort" className="text-xs font-medium text-[var(--oppa-text-muted)]">Sort by</label>
+              <select id="product-sort" value={sortBy} onChange={(event) => { const value = event.target.value as typeof sortBy; setSortBy(value); setSortDirection(value === 'newest' ? 'desc' : 'asc'); setPage(1); }} className="h-10 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]">
+                <option value="name">Name</option><option value="price">Price</option><option value="category">Category</option><option value="newest">Newest</option>
+              </select>
+              <button type="button" aria-label={sortDirection === 'asc' ? 'Sort ascending' : 'Sort descending'} title={sortDirection === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc')} className="inline-flex size-10 items-center justify-center rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]">
+                {sortDirection === 'asc' ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
               </button>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {filteredProducts.length === 0 && (
-        <div className="mt-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">
-          No products found.
+      {(productToDelete || confirmBulkDelete) && <ConfirmDialog title={productToDelete ? `Delete "${productToDelete.name}"?` : `Delete ${selectedIds.length} selected products?`} description="This action cannot be undone." confirmLabel="Delete" onCancel={() => { setProductToDelete(null); setConfirmBulkDelete(false); }} onConfirm={() => void confirmDeleteProduct()} />}
+      {actionError && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
+
+      {isLoading && <div aria-label="Loading products" aria-busy="true" className="admin-card mt-4 animate-pulse space-y-3 p-5">{[0, 1, 2, 3].map((row) => <div key={row} className="admin-skeleton h-16 rounded-xl" />)}</div>}
+      {!isLoading && filteredProducts.length === 0 && (
+        <div className="admin-card mt-4">
+          <EmptyState icon={<PackageOpen size={23} />} title={searchTerm ? 'No products match your search' : 'No products in this category'} description={searchTerm ? 'Try another product name or clear your search.' : 'Add a product to start building your menu.'} action={<button type="button" onClick={openAddModal} className="mt-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Add product</button>} />
         </div>
       )}
 
-      {filteredProducts.length > 0 && (
+      {!isLoading && filteredProducts.length > 0 && (
         <div className="mt-4 space-y-3 md:hidden">
-          {filteredProducts.map((product) => (
-            <div key={product.id} className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
+          {visibleProducts.map((product) => (
+            <div key={product.id} className={`admin-card p-4 ${isAvailable(product) ? '' : 'opacity-60'}`}>
               <div className="flex items-start gap-3">
-                <img
-                  src={product.image || DEFAULT_PRODUCT_IMAGE}
-                  alt={product.name}
-                  onError={(event) => {
-                    event.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
-                  }}
-                  className="h-16 w-16 flex-shrink-0 rounded-lg border border-[var(--oppa-border)] object-cover"
-                />
+                <input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} className="mt-4 size-4 accent-green-700" />
+                <ProductImage src={product.image} name={product.name} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <p className="truncate font-medium text-[var(--oppa-text)]">{product.name}</p>
-                    <span
-                      className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                        product.isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}
-                    >
-                      {product.isAvailable ? 'Available' : 'Out of Stock'}
-                    </span>
                   </div>
                   <p className="mt-0.5 line-clamp-2 text-xs text-[var(--oppa-text-muted)]">{product.description}</p>
                   <div className="mt-2 flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]">
-                    <span className="capitalize">{getCategoryLabel(product.category)}</span>
+                    <span className="rounded-full bg-stone-100 px-2 py-1 capitalize text-stone-600">{getCategoryLabel(product.category)}</span>
                     <span>•</span>
-                    <span className="font-semibold text-[var(--oppa-text)]">{formatCurrency(product.price)}</span>
+                    <span className="tabular-nums ml-auto text-right font-semibold text-[var(--oppa-text)]">{formatCurrency(product.price)}</span>
                   </div>
                 </div>
               </div>
 
               <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--oppa-border)] pt-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <button onClick={() => handleToggle(product.id)} className={chipInfo}>
-                    <RefreshCcw size={13} /> Toggle Stock
-                  </button>
-                  <button onClick={() => openEditModal(product)} className={chipNeutral}>
-                    <Pencil size={13} /> Edit
-                  </button>
-                </div>
-                <button onClick={() => handleDelete(product.id)} className={iconDangerBtn} title="Delete product">
-                  <Trash2 size={16} />
-                </button>
+                <div className="inline-flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]"><AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Out of stock" onChange={() => void handleToggle(product.id)} /><span>{isAvailable(product) ? 'Available' : 'Out of stock'}</span></div>
+                <RowActionsMenu label={product.name} items={[{ label: 'Edit product', onSelect: () => openEditModal(product) }, { label: 'Delete product', destructive: true, onSelect: () => void handleDelete(product.id) }]} />
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {filteredProducts.length > 0 && (
-        <div className="mt-4 hidden max-h-[calc(100vh-270px)] overflow-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
-          <table className="w-full min-w-[720px] text-sm">
+      {!isLoading && filteredProducts.length > 0 && (
+        <div className="admin-scrollbar mt-4 hidden max-h-[calc(100vh-270px)] overflow-auto rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm md:block">
+          <table className="admin-table products-table w-full min-w-[980px] table-fixed text-sm">
+            <colgroup><col style={{ width: '3%' }} /><col style={{ width: '33%' }} /><col style={{ width: '15%' }} /><col style={{ width: '10%' }} /><col style={{ width: '23%' }} /><col style={{ width: '16%' }} /></colgroup>
             <thead>
-              <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/40 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
-                <th className="px-5 py-3">Item</th>
-                <th className="px-5 py-3">Category</th>
-                <th className="px-5 py-3">Price</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3">Actions</th>
+              <tr className="sticky top-0 border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-left text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                <th className="col-center"><input type="checkbox" aria-label="Select all visible products" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? current.filter((id) => !visibleProducts.some((product) => product.id === id)) : [...new Set([...current, ...visibleProducts.map((product) => product.id)])])} className="size-4 accent-green-700" /></th>
+                <th className="col-left">Item</th>
+                <th className="col-left">Category</th>
+                <th className="col-right">Price</th>
+                <th className="col-left">Availability</th>
+                <th className="col-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map((product) => (
-                <tr key={product.id} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]">
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={product.image || DEFAULT_PRODUCT_IMAGE}
-                        alt={product.name}
-                        onError={(event) => {
-                          event.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
-                        }}
-                        className="h-14 w-14 rounded-lg border border-[var(--oppa-border)] object-cover"
-                      />
-                      <div>
-                        <p className="font-medium text-[var(--oppa-text)]">{product.name}</p>
-                        <p className="text-xs text-[var(--oppa-text-muted)]">{product.description}</p>
+              {visibleProducts.map((product) => (
+                <tr key={product.id} className={`group border-b border-[var(--oppa-border)]/60 last:border-0 transition-colors hover:bg-[var(--oppa-green-soft)]/45 ${isAvailable(product) ? '' : 'opacity-60'}`}>
+                  <td data-label="Select" className="col-center"><input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} className="size-4 accent-green-700" /></td>
+                  <td data-label="Item" className="col-left">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <ProductImage src={product.image} name={product.name} />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-[var(--oppa-text)]">{product.name}</p>
+                        <p className="truncate text-xs text-[var(--oppa-text-muted)]">{product.description}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3 capitalize text-[var(--oppa-text-muted)]">{getCategoryLabel(product.category)}</td>
-                  <td className="px-5 py-3 font-medium text-[var(--oppa-text)]">{formatCurrency(product.price)}</td>
-                  <td className="px-5 py-3">
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${
-                        product.isAvailable ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}
-                    >
-                      {product.isAvailable ? 'Available' : 'Out of Stock'}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button onClick={() => handleToggle(product.id)} className={chipInfo}>
-                        <RefreshCcw size={13} /> Toggle Stock
-                      </button>
-                      <button onClick={() => openEditModal(product)} className={chipNeutral}>
-                        <Pencil size={13} /> Edit
-                      </button>
-                      <button onClick={() => handleDelete(product.id)} className={iconDangerBtn} title="Delete product">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+                  <td data-label="Category" className="col-left"><span title={getCategoryLabel(product.category)} className="inline-block max-w-full truncate rounded-full bg-stone-100 px-2.5 py-1 align-middle text-xs font-medium capitalize text-stone-600">{getCategoryLabel(product.category)}</span></td>
+                  <td data-label="Price" className="col-right tabular-nums font-semibold text-[var(--oppa-text)]">{formatCurrency(product.price)}</td>
+                  <td data-label="Availability" className="col-left"><div className="inline-flex items-center gap-2 whitespace-nowrap text-xs text-[var(--oppa-text-muted)]"><AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Out of stock" onChange={() => void handleToggle(product.id)} /><span>{isAvailable(product) ? 'Available' : 'Out of stock'}</span></div></td>
+                  <td data-label="Actions" className="col-right"><div className="flex justify-end"><RowActionsMenu label={product.name} items={[{ label: 'Edit product', onSelect: () => openEditModal(product) }, { label: 'Delete product', destructive: true, onSelect: () => void handleDelete(product.id) }]} /></div></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {!isLoading && filteredProducts.length > 0 && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--oppa-text-muted)]">
+        <div className="flex items-center gap-3">
+          <span>Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredProducts.length)} of {filteredProducts.length}</span>
+          <label className="flex items-center gap-2 text-xs">Rows
+            <select aria-label="Rows per page" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="h-9 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2 text-sm">
+              <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option>
+            </select>
+          </label>
+        </div>
+        <nav aria-label="Product pages" className="flex items-center gap-1">
+          <button type="button" disabled={currentPage === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 disabled:opacity-50">Prev</button>
+          {Array.from({ length: pageCount }, (_, index) => index + 1).slice(Math.max(0, Math.min(currentPage - 2, pageCount - 3)), Math.max(0, Math.min(currentPage - 2, pageCount - 3)) + 3).map((pageNumber) => <button key={pageNumber} type="button" aria-current={currentPage === pageNumber ? 'page' : undefined} onClick={() => setPage(pageNumber)} className={`size-9 rounded-lg border text-sm ${currentPage === pageNumber ? 'border-green-700 bg-green-700 text-white' : 'border-[var(--oppa-border)] hover:bg-[var(--oppa-green-soft)]'}`}>{pageNumber}</button>)}
+          <button type="button" disabled={currentPage >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 disabled:opacity-50">Next</button>
+        </nav>
+      </div>}
+
+      <div className={`fixed bottom-5 left-1/2 z-[90] flex max-w-[calc(100vw-24px)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-4 py-3 shadow-2xl transition-all duration-200 ${selectedIds.length ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-6 opacity-0'}`}>
+        <span className="whitespace-nowrap text-sm font-semibold text-[var(--oppa-text)]">{selectedIds.length} selected</span>
+        <button type="button" disabled={!products.some((product) => selectedIds.includes(product.id) && isAvailable(product))} onClick={() => void handleBulkAvailability()} className="whitespace-nowrap rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-50">Mark out of stock</button>
+        <button type="button" onClick={() => setConfirmBulkDelete(true)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"><Trash2 size={14} />Delete</button>
+        <button type="button" aria-label="Clear product selection" onClick={() => setSelectedIds([])} className="rounded-lg p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]"><X size={16} /></button>
+      </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={closeModal}>
@@ -463,14 +482,7 @@ const AdminProductsPage: React.FC = () => {
               <div>
                 <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Food Image</label>
                 <input type="file" accept="image/*" onChange={handleImageChange} className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" />
-                <img
-                  src={imagePreview || form.image || DEFAULT_PRODUCT_IMAGE}
-                  alt="Preview"
-                  onError={(event) => {
-                    event.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
-                  }}
-                  className="mt-3 h-28 w-full rounded-lg border border-[var(--oppa-border)] object-cover"
-                />
+                  {(imagePreview || (form.image && form.image !== '/oppadrulogo.jpg')) ? <img src={imagePreview || form.image} alt="Product preview" className="mt-3 h-28 w-full rounded-xl object-cover" /> : <div className="mt-3 flex h-28 items-center justify-center rounded-xl bg-green-50 text-green-700"><Drumstick size={32} aria-hidden="true" /></div>}
               </div>
 
               <label className="flex items-center gap-2 text-sm text-[var(--oppa-text-muted)]">

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BadgeCheck, CheckCircle, RefreshCw, X, XCircle } from 'lucide-react';
+import { BadgeCheck, CheckCircle, X, XCircle } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { listDiscountApplications, updateDiscountApplicationStatus, type DiscountApplicationRequest } from '../../../services/discountApplicationService';
 
@@ -27,7 +27,8 @@ const AdminDiscountApprovalsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    void loadApplications();
+    const timer = window.setTimeout(() => { void loadApplications(); }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const handleAction = async (id: string, action: 'approve' | 'reject') => {
@@ -52,20 +53,11 @@ const AdminDiscountApprovalsPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="mb-6 flex items-center justify-between gap-3">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--oppa-text-muted)]">Admin</p>
           <h1 className="mt-1 font-serif text-3xl font-bold text-[var(--oppa-text)]">Discount Approvals</h1>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadApplications()}
-          disabled={loading}
-          className="inline-flex items-center gap-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
       </div>
 
       <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">

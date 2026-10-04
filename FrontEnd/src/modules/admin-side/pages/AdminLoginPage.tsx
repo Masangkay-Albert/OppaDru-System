@@ -58,40 +58,45 @@ const AdminLoginPage: React.FC = () => {
             className="bg-white rounded-2xl p-8 space-y-5 shadow-lg border border-[var(--oppa-border)]"
           >
             <div>
-              <label className="block text-sm font-medium text-[var(--oppa-green)] mb-1.5">
+              <label htmlFor="admin-email" className="block text-sm font-medium text-[var(--oppa-green)] mb-1.5">
                 Admin Email
               </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4" />
+              <div className="admin-login-field relative flex h-12 items-center">
+                <Mail aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4 transition-colors" />
                 <input
+                  id="admin-email"
                   type="email"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)] focus:border-transparent"
+                  className="h-full w-full rounded-[11px] border-0 bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none focus:border-0 focus:outline-none focus:ring-0"
                   placeholder="admin@oppadru.com"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[var(--oppa-green)] mb-1.5">
+              <label htmlFor="admin-password" className="block text-sm font-medium text-[var(--oppa-green)] mb-1.5">
                 Password
               </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4" />
+              <div className="admin-login-field relative flex h-12 items-center">
+                <Lock aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4 transition-colors" />
                 <input
+                  id="admin-password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full pl-10 pr-12 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)] focus:border-transparent"
+                  className="h-full w-full rounded-[11px] border-0 bg-transparent py-2.5 pl-10 pr-12 text-sm outline-none focus:border-0 focus:outline-none focus:ring-0"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-gray-500 hover:text-gray-800"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -108,11 +113,11 @@ const AdminLoginPage: React.FC = () => {
           </form>
 
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/login")}
             className="w-full mt-4 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)] transition-colors flex items-center justify-center gap-1"
           >
             <ArrowLeft size={16} />
-            Back to Home
+            Back to login options
           </button>
         </div>
       </main>

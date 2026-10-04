@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { PlusIcon, XIcon, PhoneIcon, MailIcon, Power, Trash2 } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Bike, Car, Mail, Phone, Plus, Search, Trash2, X } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
+import { AvailabilitySwitch, ConfirmDialog, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithAdminAuth } from '../../../services/adminAuthService';
 
@@ -13,296 +14,202 @@ export interface DeliveryPartner {
   isActive: boolean;
 }
 
+const displayName = (name: string) => name.trim().toLocaleLowerCase().replace(/\b\p{L}/gu, (character) => character.toLocaleUpperCase());
+const avatarColor = (name: string) => {
+  const colors = ['bg-emerald-700', 'bg-sky-700', 'bg-violet-700', 'bg-amber-700', 'bg-rose-700'];
+  const hash = [...name].reduce((sum, character) => sum + character.charCodeAt(0), 0);
+  return colors[hash % colors.length];
+};
+
 export default function AdminDelivery() {
   const [partners, setPartners] = useState<DeliveryPartner[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [loadingPartners, setLoadingPartners] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "", vehicleType: "" });
+  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', vehicleType: '' });
+  const [formError, setFormError] = useState('');
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [feedback, setFeedback] = useState('');
+  const [error, setError] = useState('');
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
-      const res = await fetchWithAdminAuth(`${API_URL}/drivers`, {
-        headers: { 'Accept': 'application/json' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPartners(Array.isArray(data) ? data : []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch drivers:", error);
+      const res = await fetchWithAdminAuth(`${API_URL}/drivers`, { headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error(`Unable to load delivery partners (${res.status}).`);
+      const data = await res.json();
+      setPartners(Array.isArray(data) ? data : []);
+      setError('');
+    } catch (fetchError) {
+      console.error('Failed to fetch drivers:', fetchError);
+      setError('Delivery partners could not be loaded. Please refresh and try again.');
+    } finally {
+      setLoadingPartners(false);
     }
-  };
-
-  useEffect(() => {
-    refresh();
   }, []);
 
-  // ADD Driver
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Ensure phone is exactly 11 digits
-    if (form.phone.length !== 11) {
-      alert("Phone number must be exactly 11 digits.");
+  useEffect(() => {
+    const timeout = window.setTimeout(() => { void refresh(); }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [refresh]);
+
+  const filteredPartners = useMemo(() => partners.filter((partner) => {
+    const matchesQuery = `${partner.name} ${partner.email} ${partner.phone}`.toLowerCase().includes(query.trim().toLowerCase());
+    const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' ? partner.isActive : !partner.isActive);
+    return matchesQuery && matchesStatus;
+  }), [partners, query, statusFilter]);
+  const activeCount = partners.filter((partner) => partner.isActive).length;
+  const inactiveCount = partners.length - activeCount;
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const cleanedName = form.name.trim();
+    if (cleanedName.length < 2) {
+      setFormError('Enter the partner’s full name.');
       return;
     }
-
+    if (!/^(09\d{9}|\+639\d{9})$/.test(form.phone)) {
+      setFormError('Use a valid PH mobile number: 09XXXXXXXXX or +639XXXXXXXXX.');
+      return;
+    }
     setIsLoading(true);
+    setFormError('');
     try {
       const res = await fetchWithAdminAuth(`${API_URL}/drivers`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ ...form, isActive: true }), // Default to active
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ ...form, name: cleanedName, phone: form.phone.replace(/^\+63/, '0'), isActive: true }),
       });
-
-      if (res.ok) {
-        setForm({ name: "", email: "", password: "", phone: "", vehicleType: "" });
-        setShowForm(false);
-        refresh();
-      } else {
+      if (!res.ok) {
         const errorData = await res.json();
-        alert('Error: ' + (errorData.message || 'Failed to add partner'));
+        setFormError(errorData.message || 'Failed to add partner. Please check the details and retry.');
+        return;
       }
-    } catch (error) {
-      console.error("Add driver error:", error);
+      setForm({ name: '', email: '', password: '', phone: '', vehicleType: '' });
+      setShowForm(false);
+      setFeedback(`${displayName(cleanedName)} added as a delivery partner.`);
+      await refresh();
+    } catch (requestError) {
+      console.error('Add driver error:', requestError);
+      setFormError('The partner could not be added. Check your connection and retry.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // TOGGLE Driver Status
   const handleToggle = async (partner: DeliveryPartner) => {
     try {
       const res = await fetchWithAdminAuth(`${API_URL}/drivers/${partner.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ isActive: !partner.isActive }),
       });
-
-      if (res.ok) {
-        refresh();
-      }
-    } catch (error) {
-      console.error("Toggle error:", error);
+      if (!res.ok) throw new Error(`Unable to update partner status (${res.status}).`);
+      setFeedback(`${displayName(partner.name)} is now ${partner.isActive ? 'inactive' : 'active'}.`);
+      await refresh();
+    } catch (toggleError) {
+      console.error('Toggle error:', toggleError);
+      setError('Partner status could not be updated. Please try again.');
     }
-  };
-
-  // DELETE Driver
-  const handleDelete = (id: string, name: string) => {
-    setDeleteTarget({ id, name });
   };
 
   const confirmDeletePartner = async () => {
     if (!deleteTarget) return;
-
+    setIsDeleting(true);
     try {
       const res = await fetchWithAdminAuth(`${API_URL}/drivers/${deleteTarget.id}`, {
         method: 'DELETE',
-        headers: { 'Accept': 'application/json' },
+        headers: { Accept: 'application/json' },
       });
-      if (res.ok) await refresh();
-    } catch (error) {
-      console.error("Delete error:", error);
+      if (!res.ok) throw new Error(`Unable to remove partner (${res.status}).`);
+      setFeedback(`${displayName(deleteTarget.name)} was removed.`);
+      await refresh();
+    } catch (deleteError) {
+      console.error('Delete error:', deleteError);
+      setError('Partner could not be removed. Please try again.');
     } finally {
       setDeleteTarget(null);
+      setIsDeleting(false);
     }
+  };
+
+  const renderPartner = (partner: DeliveryPartner, compact = false) => {
+    const VehicleIcon = /bike|motorcycle/i.test(partner.vehicleType) ? Bike : Car;
+    return (
+      <article key={partner.id} className={`admin-card p-4 sm:p-5 ${compact ? '' : 'grid grid-cols-[minmax(220px,1.2fr)_minmax(250px,1.5fr)_minmax(130px,.7fr)_minmax(150px,.7fr)] items-center gap-4 rounded-none border-0 border-b border-b-[var(--oppa-border)] p-4 shadow-none last:border-0 hover:translate-y-0 hover:shadow-none'}`}>
+        <div className="flex min-w-0 items-center gap-3">
+          <div className={`flex size-12 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white ${avatarColor(partner.name)}`}>{displayName(partner.name).charAt(0) || 'D'}</div>
+          <div className="min-w-0"><p title={displayName(partner.name)} className="truncate font-semibold text-[var(--oppa-text)]">{displayName(partner.name)}</p><p className="mt-1 flex items-center gap-1.5 text-xs capitalize text-[var(--oppa-text-muted)]"><VehicleIcon size={14} aria-hidden="true" />{partner.vehicleType || 'Vehicle not specified'}</p></div>
+        </div>
+        <div className="min-w-0 space-y-2 text-sm">
+          <a href={`mailto:${partner.email}`} title={`Email ${displayName(partner.name)}`} className="flex min-w-0 items-center gap-2 text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green-dark)]"><Mail size={15} className="shrink-0" /><span className="truncate">{partner.email}</span></a>
+          <a href={`tel:${partner.phone}`} title={`Call ${displayName(partner.name)}`} className="flex items-center gap-2 text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green-dark)]"><Phone size={15} className="shrink-0" />{partner.phone}</a>
+        </div>
+        <div className="flex items-center">
+          <StatusBadge status={partner.isActive ? 'active' : 'inactive'} />
+        </div>
+        <div className="flex items-center justify-end gap-3">
+          <AvailabilitySwitch
+            checked={partner.isActive}
+            label={`${partner.isActive ? 'Deactivate' : 'Activate'} ${displayName(partner.name)}`}
+            activeText="Active"
+            inactiveText="Inactive"
+            onChange={() => void handleToggle(partner)}
+          />
+          <button
+            type="button"
+            aria-label={`Remove ${displayName(partner.name)}`}
+            title={`Remove ${displayName(partner.name)}`}
+            onClick={() => setDeleteTarget({ id: partner.id, name: displayName(partner.name) })}
+            className="inline-flex size-9 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-700 transition-colors hover:border-red-300 hover:bg-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+          >
+            <Trash2 size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </article>
+    );
   };
 
   return (
     <AdminLayout>
-      <div className="min-h-screen space-y-6 p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-[var(--oppa-green)]">Delivery Partners</h1>
-            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage your delivery fleet and riders.</p>
-          </div>
-          <button 
-            onClick={() => setShowForm(true)} 
-            className="flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)]"
-          >
-            <PlusIcon className="size-4" /> Add Partner
-          </button>
-        </div>
+      <PageHeader title="Delivery Partners" subtitle="Manage your delivery fleet and riders." actions={<button onClick={() => { setShowForm(true); setFormError(''); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><Plus size={17} />Add Partner</button>} />
 
-        {deleteTarget && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl">
-              <p className="text-base font-semibold text-[var(--oppa-text)]">Delete "{deleteTarget.name}"?</p>
-              <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">This action will permanently remove this delivery partner.</p>
-
-              <div className="mt-5 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(null)}
-                  className="rounded-full border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmDeletePartner}
-                  className="rounded-full bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-                >
-                  OK
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {partners.length === 0 && (
-          <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">
-            No delivery partners registered yet.
-          </div>
-        )}
-
-        {/* Mobile View: Cards */}
-        {partners.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 md:hidden">
-            {partners.map((p) => (
-              <div key={p.id} className="space-y-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex size-10 items-center justify-center rounded-full bg-[var(--oppa-green)] font-semibold text-white">
-                      {p.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-[var(--oppa-green)]">{p.name}</p>
-                      <p className="text-xs capitalize text-[var(--oppa-text-muted)]">{p.vehicleType}</p>
-                    </div>
-                  </div>
-                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${p.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                    {p.isActive ? "Active" : "Inactive"}
-                  </span>
-                </div>
-                <div className="space-y-1 text-sm text-[var(--oppa-text-muted)] border-t border-[var(--oppa-border)] pt-3">
-                  <p className="flex items-center gap-2"><MailIcon className="h-3.5 w-3.5" /> {p.email}</p>
-                  <p className="flex items-center gap-2"><PhoneIcon className="h-3.5 w-3.5" /> {p.phone}</p>
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <button onClick={() => handleToggle(p)} className="flex-1 rounded-lg bg-[var(--oppa-green)]/10 py-2 text-xs font-medium text-[var(--oppa-green)] transition hover:bg-[var(--oppa-green)]/20">
-                    {p.isActive ? "Deactivate" : "Activate"}
-                  </button>
-                  <button onClick={() => handleDelete(p.id, p.name)} className="rounded-lg bg-red-50 px-3 py-2 text-red-500 transition hover:bg-red-100">
-                    <Trash2 className="size-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Desktop View: Data Table */}
-        {partners.length > 0 && (
-          <div className="hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--oppa-border)] bg-gray-50 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
-                  <th className="px-5 py-4">Partner Info</th>
-                  <th className="px-5 py-4">Contact</th>
-                  <th className="px-5 py-4">Status</th>
-                  <th className="px-5 py-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {partners.map((p) => (
-                  <tr key={p.id} className="border-b border-[var(--oppa-border)]/60 hover:bg-gray-50/50 last:border-0">
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-9 items-center justify-center rounded-full bg-[var(--oppa-green)]/10 font-semibold text-[var(--oppa-green)]">
-                          {p.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{p.name}</p>
-                          <p className="text-xs capitalize text-gray-500">{p.vehicleType}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-gray-500 space-y-1">
-                      <div className="flex items-center gap-2"><MailIcon className="h-3.5 w-3.5" /> {p.email}</div>
-                      <div className="flex items-center gap-2"><PhoneIcon className="h-3.5 w-3.5" /> {p.phone}</div>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${p.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                        {p.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => handleToggle(p)} 
-                          title={p.isActive ? "Deactivate" : "Activate"}
-                          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition ${p.isActive ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}
-                        >
-                          <Power className="size-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(p.id, p.name)} 
-                          title="Delete"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-500 transition hover:bg-red-100 hover:text-red-700"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Modal Form */}
-        {showForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-            <form onSubmit={handleSubmit} className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-8 shadow-xl">
-              <div className="mb-6 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-800">Onboard Partner</h2>
-                <button type="button" onClick={() => setShowForm(false)} className="rounded-full p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600">
-                  <XIcon className="size-5" />
-                </button>
-              </div>
-              <div className="space-y-4">
-                <input type="text" placeholder="Full Name" required value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} className="w-full rounded-xl border border-gray-300 p-3 text-sm outline-none focus:border-[var(--oppa-green)] focus:ring-1 focus:ring-[var(--oppa-green)]" />
-                <input type="email" placeholder="Email" required value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} className="w-full rounded-xl border border-gray-300 p-3 text-sm outline-none focus:border-[var(--oppa-green)] focus:ring-1 focus:ring-[var(--oppa-green)]" />
-                <input type="password" placeholder="Password" minLength={6} required value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} className="w-full rounded-xl border border-gray-300 p-3 text-sm outline-none focus:border-[var(--oppa-green)] focus:ring-1 focus:ring-[var(--oppa-green)]" />
-                <select required value={form.vehicleType} onChange={(e) => setForm({...form, vehicleType: e.target.value})} className="w-full rounded-xl border border-gray-300 bg-white p-3 text-sm outline-none focus:border-[var(--oppa-green)] focus:ring-1 focus:ring-[var(--oppa-green)]">
-                  <option value="" disabled>Select Vehicle Type</option>
-                  <option value="bike">Bike</option>
-                  <option value="motorcycle">Motorcycle</option>
-                </select>
-                
-                {/* 11-Digit Phone Input */}
-                <input 
-                  type="tel" 
-                  placeholder="Phone Number (11 digits)" 
-                  maxLength={11}
-                  required 
-                  value={form.phone} 
-                  onChange={(e) => {
-                    const onlyNumbers = e.target.value.replace(/\D/g, '');
-                    setForm({...form, phone: onlyNumbers});
-                  }} 
-                  className="w-full rounded-xl border border-gray-300 p-3 text-sm outline-none focus:border-[var(--oppa-green)] focus:ring-1 focus:ring-[var(--oppa-green)]" 
-                />
-
-                <button type="submit" disabled={isLoading} className="mt-2 w-full rounded-xl bg-[var(--oppa-green)] py-3 font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)] disabled:opacity-50">
-                  {isLoading ? 'Saving...' : 'Create Partner'}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+      <section aria-label="Partner summary" className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {[['Total riders', partners.length, 'text-[var(--oppa-text)]'], ['Active', activeCount, 'text-emerald-700'], ['Inactive', inactiveCount, 'text-[var(--oppa-text-muted)]']].map(([label, value, color]) => <div key={String(label)} className="admin-card flex items-center justify-between p-4"><span className="text-sm font-medium text-[var(--oppa-text-muted)]">{label}</span><strong className={`tabular-nums text-2xl ${color}`}>{value}</strong></div>)}
+      </section>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+        <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)] transition-colors focus-within:border-[var(--oppa-green)]"><Search size={17} aria-hidden="true" /><input aria-label="Search delivery partners" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, email, or phone…" className="admin-embedded-input w-full text-sm" /></label>
+        <label className="flex h-11 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]"><span>Status</span><select aria-label="Filter partners by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="bg-transparent font-medium text-[var(--oppa-text)] outline-none"><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
       </div>
+      {error && <div role="alert" className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}<button aria-label="Dismiss message" onClick={() => setError('')} className="ml-3 rounded p-1 hover:bg-black/5"><X size={15} /></button></div>}
+      {feedback && <Toast message={feedback} onDismiss={() => setFeedback('')} />}
+
+      {loadingPartners ? <div className="admin-card space-y-3 p-5" aria-label="Loading partners">{[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl bg-[var(--oppa-green-soft)]" />)}</div> :
+        partners.length === 0 ? <div className="admin-card"><EmptyState title="No delivery partners yet" description="Add your first rider to start managing deliveries." action={<button onClick={() => setShowForm(true)} className="mt-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">Add Partner</button>} /></div> :
+          filteredPartners.length === 0 ? <div className="admin-card"><EmptyState title="No partners match these filters" description="Try another search or show all statuses." action={<button onClick={() => { setQuery(''); setStatusFilter('all'); }} className="mt-2 rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)]">Clear filters</button>} /></div> :
+            <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-[var(--shadow-card)]">
+              <div className="hidden grid-cols-[minmax(220px,1.2fr)_minmax(250px,1.5fr)_minmax(130px,.7fr)_minmax(150px,.7fr)] items-center gap-4 border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/60 px-5 py-3 text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)] md:grid"><span>Partner</span><span>Contact</span><span>Status</span><span className="text-right">Actions</span></div>
+              <div className="hidden md:block">{filteredPartners.map((partner) => renderPartner(partner))}</div>
+              <div className="grid gap-3 p-3 md:hidden">{filteredPartners.map((partner) => renderPartner(partner, true))}</div>
+            </section>}
+
+      {deleteTarget && <ConfirmDialog title={`Remove ${deleteTarget.name}?`} description="This will permanently remove this delivery partner." busy={isDeleting} onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDeletePartner()} />}
+      {showForm && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !isLoading) setShowForm(false); }}>
+        <form role="dialog" aria-modal="true" onKeyDown={(event) => { if (event.key === 'Escape' && !isLoading) setShowForm(false); }} onSubmit={(event) => void handleSubmit(event)} aria-labelledby="partner-form-title" className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl sm:p-8">
+          <div className="mb-6 flex items-start justify-between"><div><h2 id="partner-form-title" className="font-serif text-2xl font-bold text-[var(--oppa-text)]">Add delivery partner</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Enter the rider’s contact and vehicle details.</p></div><button type="button" aria-label="Close form" onClick={() => setShowForm(false)} className="rounded-lg p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]"><X size={18} /></button></div>
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-[var(--oppa-text)]">Full name<input type="text" autoComplete="name" required minLength={2} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" /></label>
+            <label className="block text-sm font-medium text-[var(--oppa-text)]">Email<input type="email" autoComplete="email" required value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" /></label>
+            <label className="block text-sm font-medium text-[var(--oppa-text)]">Password<input type="password" autoComplete="new-password" minLength={6} required value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" /><span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">Use at least 6 characters.</span></label>
+            <label className="block text-sm font-medium text-[var(--oppa-text)]">Phone number<input type="tel" inputMode="tel" autoComplete="tel" placeholder="09XXXXXXXXX" maxLength={13} required value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value.replace(/[^\d+]/g, '').slice(0, 13) })} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" /><span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">Philippine mobile format: 09XXXXXXXXX or +639XXXXXXXXX.</span></label>
+            <label className="block text-sm font-medium text-[var(--oppa-text)]">Vehicle type<select required value={form.vehicleType} onChange={(event) => setForm({ ...form, vehicleType: event.target.value })} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]"><option value="" disabled>Select vehicle</option><option value="bike">Bike</option><option value="motorcycle">Motorcycle</option></select></label>
+            {formError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{formError}</p>}
+            <div className="flex justify-end gap-2 pt-2"><button type="button" disabled={isLoading} onClick={() => setShowForm(false)} className="rounded-lg border border-[var(--oppa-border)] px-4 py-2.5 text-sm font-medium text-[var(--oppa-text)]">Cancel</button><button type="submit" disabled={isLoading} className="rounded-lg bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60">{isLoading ? 'Saving…' : 'Create Partner'}</button></div>
+          </div>
+        </form>
+      </div>}
     </AdminLayout>
   );
 }
-
