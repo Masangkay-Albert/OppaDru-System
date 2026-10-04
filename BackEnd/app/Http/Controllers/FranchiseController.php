@@ -155,12 +155,14 @@ class FranchiseController extends Controller
             'customer_name' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:50',
             'dining_option' => 'required|string|in:dine_in,takeout',
-            'payment_method' => 'required|string|in:cash,gcash',
+            'payment_method' => 'required|string|in:cash,gcash,credit_card',
             'payment_reference' => 'required_if:payment_method,gcash|nullable|string|max:100',
+            'terminal_reference' => 'required_if:payment_method,credit_card|nullable|string|max:100',
             'cash_tendered' => 'nullable|numeric|min:0',
             'discount_type' => 'nullable|string|in:PWD,Senior Citizen',
             'discount_id_number' => 'required_with:discount_type|nullable|string|max:100',
             'notes' => 'nullable|string|max:500',
+            'include_cutlery' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -267,7 +269,7 @@ class FranchiseController extends Controller
             return response()->json(['message' => 'Cash tendered must cover the order total.'], 422);
         }
         $gatewayPayment = null;
-        if ($paymentMethod !== 'cash') {
+        if ($paymentMethod === 'gcash') {
             $gatewayPayment = Payment::where('reference', $request->input('payment_reference'))
                 ->where('status', 'paid')
                 ->whereNull('order_id')
@@ -326,6 +328,7 @@ class FranchiseController extends Controller
                 $order = Order::create([
                     'franchise_id' => $user->franchise_id,
                     'cashier_employee_id' => $cashierEmployeeId,
+                    'include_cutlery' => $request->boolean('include_cutlery'),
                     'email' => $user->email,
                     'total' => $total,
                     'delivery_type' => 'onsite',
@@ -340,7 +343,7 @@ class FranchiseController extends Controller
                     'payment_status' => 'paid',
                     'payment_reference' => $paymentMethod === 'cash'
                         ? 'CASH-' . strtoupper(Str::random(8))
-                        : $gatewayPayment->reference,
+                        : ($paymentMethod === 'gcash' ? $gatewayPayment->reference : $request->input('terminal_reference')),
                     'phone' => $request->input('phone', ''),
                     'items' => $orderItems,
                     'vat' => round($total * 0.12, 2),

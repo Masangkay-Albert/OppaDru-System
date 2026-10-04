@@ -104,6 +104,34 @@ class BranchRoleIsolationTest extends TestCase
         ], $headers)->assertUnprocessable();
     }
 
+    public function test_branch_cashier_can_record_card_terminal_payment_and_cutlery_selection(): void
+    {
+        $branch = $this->makeBranch('Card POS Branch');
+        $cashier = $this->makeEmployee($branch, 'cashier', 'card-cashier@branch.test');
+        $product = $this->makeProduct($branch, 'Card Meal');
+        $login = $this->postJson('/api/employee/login', [
+            'email' => $cashier->email,
+            'password' => 'Staff@123',
+        ])->assertOk();
+
+        $response = $this->postJson('/api/employee/pos/orders', [
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'payment_method' => 'credit_card',
+            'terminal_reference' => 'TERMINAL-REF-2081',
+            'dining_option' => 'dine_in',
+            'include_cutlery' => true,
+        ], ['Authorization' => 'Bearer ' . $login->json('token')])->assertCreated();
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $response->json('order.id'),
+            'franchise_id' => $branch->id,
+            'cashier_employee_id' => $cashier->id,
+            'payment_method' => 'credit_card',
+            'payment_reference' => 'TERMINAL-REF-2081',
+            'include_cutlery' => true,
+        ]);
+    }
+
     public function test_driver_sees_only_own_branch_delivery_data_without_financial_fields(): void
     {
         $branch = $this->makeBranch('Driver Branch');

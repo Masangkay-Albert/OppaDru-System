@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Minus, Plus, Search, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ClipboardList, CreditCard, Heart, Minus, Plus, Search, ShoppingBag, Smartphone, Store, UserRound } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { fetchWithEmployeeAuth } from '../../../services/employeeAuth';
 import { getProductImage } from '../../../data/productImages';
+import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 import type { Addon, AddonGroup, ProductSize } from '../../../types/product.types';
 import type { Product } from '../../../services/productService';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
@@ -27,10 +28,18 @@ interface BranchProduct extends Product {
 }
 
 interface PosOrder {
+  id?: string;
   order_number: string;
   total: number;
   payment_method: string;
   status: string;
+  items?: Array<{ product_name?: string; product_price?: number; quantity?: number }>;
+  payment_reference?: string;
+  cashTendered?: number;
+  changeDue?: number;
+  customerName?: string;
+  diningOption?: 'dine_in' | 'takeout';
+  includeCutlery?: boolean;
 }
 
 interface PendingPosState {
@@ -40,6 +49,8 @@ interface PendingPosState {
   diningOption: 'dine_in' | 'takeout';
   discountType: '' | 'PWD' | 'Senior Citizen';
   discountIdNumber: string;
+  includeCutlery: boolean;
+  customerNotes: string;
 }
 
 const pendingPaymentStorageKey = (reference: string) => `franchise_pos_payment_${reference}`;
@@ -49,13 +60,24 @@ const FranchisePOSPage: React.FC = () => {
   const location = useLocation();
   const employeeData = (() => {
     try {
-      return JSON.parse(localStorage.getItem('employee_auth') || 'null') as { franchise_id?: string | null; position?: string } | null;
+      return JSON.parse(localStorage.getItem('employee_auth') || 'null') as {
+        id?: string;
+        fullName?: string;
+        franchise_id?: string | null;
+        position?: string;
+        franchise?: { name?: string };
+      } | null;
     } catch {
       return null;
     }
   })();
   const cashierMode = location.pathname === '/cashier/pos'
     && Boolean(employeeData?.franchise_id && employeeData.position?.toLowerCase() === 'cashier');
+  const staffName = cashierMode ? (employeeData?.fullName || 'Cashier') : (franchiseUser?.full_name || 'Manager');
+  const branchName = cashierMode
+    ? employeeData?.franchise?.name || 'Branch POS Register'
+    : franchiseUser?.franchise?.name || 'Branch menu';
+  const favoriteStorageKey = `branch_pos_favorites_${cashierMode ? employeeData?.id || employeeData?.franchise_id : franchiseUser?.id || 'manager'}`;
   const fetchPosAuth = useCallback((url: string, init?: RequestInit) =>
     cashierMode ? fetchWithEmployeeAuth(url, init) : fetchWithFranchiseAuth(url, init), [cashierMode]);
   const [products, setProducts] = useState<BranchProduct[]>([]);
@@ -68,16 +90,35 @@ const FranchisePOSPage: React.FC = () => {
   const [isLoadingAddons, setIsLoadingAddons] = useState(false);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>(() => {
+    try {
+      const parsed: unknown = JSON.parse(localStorage.getItem(favoriteStorageKey) || '[]');
+      return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+    } catch {
+      return [];
+    }
+  });
+  const [stage, setStage] = useState<'menu' | 'checkout'>('menu');
+  const [includeCutlery, setIncludeCutlery] = useState(() => {
+    try {
+      return localStorage.getItem(`branch_pos_cutlery_${favoriteStorageKey}`) === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
+  const [customerNotes, setCustomerNotes] = useState('');
   const [diningOption, setDiningOption] = useState<'dine_in' | 'takeout'>('takeout');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gcash'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gcash' | 'credit_card'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentCheckoutUrl, setPaymentCheckoutUrl] = useState('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [isStartingPayment, setIsStartingPayment] = useState(false);
   const [searchParams] = useSearchParams();
   const [cashTendered, setCashTendered] = useState('');
+  const [terminalReference, setTerminalReference] = useState('');
   const [discountType, setDiscountType] = useState<'' | 'PWD' | 'Senior Citizen'>('');
   const [discountIdNumber, setDiscountIdNumber] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -100,6 +141,8 @@ const FranchisePOSPage: React.FC = () => {
             setDiningOption(saved.diningOption);
             setDiscountType(saved.discountType);
             setDiscountIdNumber(saved.discountIdNumber);
+            setIncludeCutlery(Boolean(saved.includeCutlery));
+            setCustomerNotes(saved.customerNotes || '');
           } catch {
             setError('Could not restore the POS order associated with this payment. Do not charge the customer again; contact HQ with the payment reference.');
             return;
@@ -137,6 +180,14 @@ const FranchisePOSPage: React.FC = () => {
     void loadProducts();
   }, [cashierMode, fetchPosAuth]);
 
+  useEffect(() => {
+    localStorage.setItem(favoriteStorageKey, JSON.stringify(favoriteIds));
+  }, [favoriteIds, favoriteStorageKey]);
+
+  useEffect(() => {
+    localStorage.setItem(`branch_pos_cutlery_${favoriteStorageKey}`, String(includeCutlery));
+  }, [favoriteStorageKey, includeCutlery]);
+
   const lines = Object.values(cart);
   const subtotal = lines.reduce((sum, line) => sum + (Number(line.product.price) + line.selectedAddons.reduce((addonTotal, addon) => addonTotal + Number(addon.price) * Math.max(1, Number(addon.quantity || 1)), 0)) * line.quantity, 0);
   const discountAmount = discountType ? Math.round(subtotal * 20) / 100 : 0;
@@ -147,9 +198,10 @@ const FranchisePOSPage: React.FC = () => {
     () => products.filter((product) => {
       const matchesSearch = `${product.name} ${product.category}`.toLowerCase().includes(search.toLowerCase());
       const matchesCategory = activeCategory === 'all' || product.category.toLowerCase() === activeCategory;
-      return matchesSearch && matchesCategory;
+      const matchesFavorite = !showFavoritesOnly || favoriteIds.includes(product.id);
+      return matchesSearch && matchesCategory && matchesFavorite;
     }),
-    [products, search, activeCategory],
+    [products, search, activeCategory, favoriteIds, showFavoritesOnly],
   );
   const categories = useMemo(() => [...new Set(products.map((product) => product.category).filter(Boolean))], [products]);
 
@@ -217,6 +269,7 @@ const FranchisePOSPage: React.FC = () => {
     setPaymentReference('');
     setPaymentCheckoutUrl('');
     setPaymentConfirmed(false);
+    setTerminalReference('');
     setSuccess('');
     setCompletedOrder(null);
   };
@@ -261,6 +314,8 @@ const FranchisePOSPage: React.FC = () => {
         diningOption,
         discountType,
         discountIdNumber,
+        includeCutlery,
+        customerNotes,
       };
       sessionStorage.setItem(pendingPaymentStorageKey(payload.data.reference), JSON.stringify(pendingState));
       setPaymentReference(payload.data.reference);
@@ -302,8 +357,12 @@ const FranchisePOSPage: React.FC = () => {
       setError(`Enter the customer's ${discountType} ID number.`);
       return;
     }
-    if (paymentMethod !== 'cash' && (!paymentReference.trim() || !paymentConfirmed)) {
+    if (paymentMethod === 'gcash' && (!paymentReference.trim() || !paymentConfirmed)) {
       setError('Complete and verify the GCash payment before placing the order.');
+      return;
+    }
+    if (paymentMethod === 'credit_card' && !terminalReference.trim()) {
+      setError('Enter the card terminal transaction reference.');
       return;
     }
     if (paymentMethod === 'cash' && tenderedAmount < total) {
@@ -324,10 +383,13 @@ const FranchisePOSPage: React.FC = () => {
           phone: phone.trim(),
           dining_option: diningOption,
           payment_method: paymentMethod,
-          payment_reference: paymentMethod === 'cash' ? undefined : paymentReference.trim(),
+          payment_reference: paymentMethod === 'gcash' ? paymentReference.trim() : undefined,
+          terminal_reference: paymentMethod === 'credit_card' ? terminalReference.trim() : undefined,
           cash_tendered: paymentMethod === 'cash' ? tenderedAmount : undefined,
           discount_type: discountType || undefined,
           discount_id_number: discountType ? discountIdNumber.trim() : undefined,
+          include_cutlery: includeCutlery,
+          notes: [customerNotes.trim(), ...lines.map((line) => line.specialInstructions || '')].filter(Boolean).join('; ') || undefined,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -335,18 +397,26 @@ const FranchisePOSPage: React.FC = () => {
         throw new Error(result.message || 'The POS order could not be completed.');
       }
 
-      setCompletedOrder(result.order);
+      setCompletedOrder({
+        ...result.order,
+        cashTendered: paymentMethod === 'cash' ? tenderedAmount : undefined,
+        changeDue: paymentMethod === 'cash' ? Number(result.change_due || 0) : undefined,
+        customerName: customerName.trim() || 'Walk-in Customer',
+        diningOption,
+        includeCutlery,
+      });
       setSuccess(`Order ${result.order.order_number} completed. Change due: ₱${Number(result.change_due || 0).toFixed(2)}.`);
       if (paymentReference) {
         sessionStorage.removeItem(pendingPaymentStorageKey(paymentReference));
       }
       setCart({});
-      setCashTendered('');
       setPaymentReference('');
       setPaymentCheckoutUrl('');
       setPaymentConfirmed(false);
+      setTerminalReference('');
       setDiscountType('');
       setDiscountIdNumber('');
+      setStage('menu');
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'The POS order could not be completed.');
     } finally {
@@ -355,172 +425,88 @@ const FranchisePOSPage: React.FC = () => {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
-      <div className="mx-auto max-w-[1500px]">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--oppa-green)]">Franchise POS</p>
-            <h1 className="mt-1 text-2xl font-semibold text-[var(--oppa-text)]">POS · {franchiseUser?.franchise?.name || 'Branch menu'}</h1>
-            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Build an order from this branch’s menu and stock.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {cashierMode && <Link to="/cashier/transactions" className="rounded-xl border border-[var(--oppa-border)] px-4 py-3 text-sm font-semibold text-[var(--oppa-green)]">Recent transactions</Link>}
-            <div className="rounded-xl bg-[var(--oppa-cream)] px-4 py-3 text-right">
-              <p className="text-xs text-[var(--oppa-text-muted)]">Order total</p>
-              <p className="text-xl font-bold text-[var(--oppa-green)]">₱{total.toFixed(2)}</p>
-            </div>
-          </div>
-        </header>
+    <div className="min-h-screen bg-[#fbf6ed] text-[#24312b]">
+      <header className="sticky top-0 z-40 flex h-14 items-center justify-between bg-[#078000] px-4 text-white shadow-md sm:px-6">
+        <Link to={cashierMode ? '/cashier/pos' : '/franchise/pos'} className="flex min-w-0 items-center gap-3">
+          <img src={oppaDruLogo} alt="" className="size-9 rounded-full border border-white/30 object-cover" />
+          <span className="min-w-0"><strong className="block truncate font-serif text-sm sm:text-base">Oppa Dru Korean Fried Chicken</strong><small className="block text-[9px] font-semibold uppercase tracking-wide text-white/75">Onsite POS Register · {cashierMode ? 'Cashier' : 'Branch Manager'}</small></span>
+        </Link>
+        <nav className="flex shrink-0 items-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
+          <Link to={cashierMode ? '/cashier/transactions' : '/franchise/orders'} className="flex items-center gap-1.5 hover:text-white/80"><ClipboardList size={16} /><span className="hidden sm:inline">Onsite Orders</span></Link>
+          <button type="button" onClick={() => { setShowFavoritesOnly((value) => !value); setStage('menu'); }} className={`flex items-center gap-1.5 ${showFavoritesOnly ? 'text-yellow-200' : 'hover:text-white/80'}`}><Heart size={16} fill={showFavoritesOnly ? 'currentColor' : 'none'} /><span className="hidden sm:inline">Favorites</span></button>
+          <span className="flex items-center gap-1.5 border-l border-white/20 pl-3 sm:pl-5"><span className="flex size-7 items-center justify-center rounded-full bg-white/15"><UserRound size={15} /></span><span className="hidden sm:inline">{staffName.split(' ')[0]}</span></span>
+        </nav>
+      </header>
 
-        {error && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-        {success && <div role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{success}</div>}
+      {error && <div role="alert" className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:mx-6">{error}</div>}
+      {success && <div role="status" className="mx-4 mt-3 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800 sm:mx-6">{success}</div>}
 
-        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:p-5">
-            <label className="relative mb-4 block">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search branch menu"
-                className="w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 text-sm"
-              />
-            </label>
-            <div className="mb-4 flex flex-wrap gap-2" aria-label="Filter menu by category">
-              {[{ id: 'all', label: 'All items' }, ...categories.map((category) => ({ id: category.toLowerCase(), label: category.replaceAll('-', ' ') }))].map((item) => (
-                <button key={item.id} type="button" onClick={() => setActiveCategory(item.id)} aria-pressed={activeCategory === item.id} className={`rounded-full px-3.5 py-1.5 text-xs font-semibold capitalize transition ${activeCategory === item.id ? 'bg-[var(--oppa-green)] text-white' : 'bg-[var(--oppa-cream)] text-gray-600 hover:bg-[var(--oppa-green-soft)]'}`}>{item.label}</button>
-              ))}
-            </div>
-            {isLoading ? (
-              <p className="py-12 text-center text-sm text-[var(--oppa-text-muted)]">Loading menu...</p>
-            ) : filteredProducts.length === 0 ? (
-              <p className="py-12 text-center text-sm text-[var(--oppa-text-muted)]">No available products at this branch.</p>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                {filteredProducts.map((product) => (
-                  <button
-                    type="button"
-                    key={product.id}
-                    onClick={() => void openProduct(product)}
-                    disabled={!product.branch_available}
-                    className="overflow-hidden rounded-2xl border border-gray-200 text-left transition hover:-translate-y-0.5 hover:border-[var(--oppa-green)] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-55"
-                  >
-                    {product.image && <img src={product.image} alt="" className="h-36 w-full object-cover" />}
-                    <span className="block p-3.5">
-                      <span className="block min-h-10 font-semibold text-[var(--oppa-text)]">{product.name}</span>
-                      <span className="mt-1 block text-sm font-bold text-[var(--oppa-green)]">₱{Number(product.price).toFixed(2)}</span>
-                      <span className={`mt-2 block text-xs font-medium ${product.branch_available ? 'text-green-700' : 'text-red-600'}`}>
-                        {product.branch_available
-                          ? product.branch_stock_tracked
-                            ? `Available · ${product.branch_stock} in stock`
-                            : 'Available'
-                          : product.branch_stock_tracked && product.branch_stock === 0
-                            ? 'Out of stock'
-                            : 'Unavailable at this branch'}
-                      </span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
+      <div className="grid min-h-[calc(100vh-56px)] grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_320px]">
+        <aside className="hidden border-r border-gray-100 bg-white p-5 lg:block">
+          <div className="mb-5 border-b border-gray-100 pb-4"><h2 className="font-serif text-xl font-bold text-[#1c3d2e]">Register Menu</h2><p className="mt-1 text-xs text-gray-500">Select category to filter items</p></div>
+          <nav className="flex flex-col gap-1" aria-label="Product categories">
+            {[{ id: 'all', label: 'All' }, ...categories.map((category) => ({ id: category.toLowerCase(), label: category.replaceAll('-', ' ') }))].map(({ id, label }) => (
+              <button key={id} type="button" onClick={() => { setActiveCategory(id); setShowFavoritesOnly(false); setStage('menu'); }} className={`flex items-center rounded-xl px-3 py-3 text-left text-sm capitalize ${activeCategory === id && !showFavoritesOnly ? 'bg-[#e3efe7] font-semibold text-[#1c3d2e]' : 'text-gray-600 hover:bg-gray-50'}`}><span className="flex-1">{label}</span>{activeCategory === id && !showFavoritesOnly && <span className="h-5 w-1 rounded-full bg-[#c1440e]" />}</button>
+            ))}
+          </nav>
+        </aside>
 
-          <aside className="h-fit rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm xl:sticky xl:top-5">
-            <h2 className="mb-4 flex items-center justify-between gap-2 text-lg font-semibold text-[var(--oppa-text)]">
-              <span className="flex items-center gap-2">
-              <ShoppingBag size={19} /> Current order
-              </span>
-              {lines.length > 0 && <button onClick={() => { setCart({}); setPaymentReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); }} className="text-xs font-medium text-red-600 hover:underline">Clear</button>}
-            </h2>
-            <div className="mb-4 max-h-56 space-y-3 overflow-y-auto">
-              {lines.map(({ key, product, quantity, selectedSize, selectedAddons }) => (
-                <div key={key} className="flex items-center justify-between gap-3 text-sm">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{product.name}</p>
-                    {selectedSize && <p className="text-xs text-gray-500">{selectedSize}</p>}
-                    {selectedAddons.length > 0 && <p className="truncate text-xs text-gray-500">+ {selectedAddons.map((addon) => addon.name).join(', ')}</p>}
-                    <p className="text-xs text-gray-500">₱{((Number(product.price) + selectedAddons.reduce((sum, addon) => sum + Number(addon.price) * Math.max(1, Number(addon.quantity || 1)), 0)) * quantity).toFixed(2)}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button aria-label={`Remove one ${product.name}`} onClick={() => setQuantity(key, quantity - 1)} className="rounded-full border p-1"><Minus size={14} /></button>
-                    <span>{quantity}</span>
-                    <button aria-label={`Add one ${product.name}`} onClick={() => setQuantity(key, quantity + 1)} className="rounded-full border p-1"><Plus size={14} /></button>
-                  </div>
-                </div>
-              ))}
-              {lines.length === 0 && <p className="py-5 text-center text-sm text-gray-500">No items added.</p>}
-            </div>
-
-            <div className="space-y-3 border-t border-gray-100 pt-4">
-              <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Customer name (optional)" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-              <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone (optional)" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-              <div className="grid grid-cols-2 gap-2">
-                <select value={diningOption} onChange={(event) => setDiningOption(event.target.value as 'dine_in' | 'takeout')} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                  <option value="takeout">Takeout</option>
-                  <option value="dine_in">Dine in</option>
-                </select>
-                <select value={paymentMethod} onChange={(event) => {
-                  setPaymentMethod(event.target.value as typeof paymentMethod);
-                  setPaymentReference('');
-                  setPaymentCheckoutUrl('');
-                  setPaymentConfirmed(false);
-                }} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                  <option value="cash">Cash</option>
-                  <option value="gcash">GCash</option>
-                </select>
-              </div>
-              {paymentMethod === 'gcash' && (
-                <div className="space-y-2 rounded-xl bg-[#edf5ef] p-3 text-sm">
-                  {!paymentReference ? (
-                    <button type="button" onClick={() => void startGatewayPayment()} disabled={isStartingPayment || lines.length === 0} className="w-full rounded-lg bg-[var(--oppa-green)] px-3 py-2 font-semibold text-white disabled:opacity-50">
-                      {isStartingPayment ? 'Starting secure payment...' : `Start GCash payment · ₱${total.toFixed(2)}`}
-                    </button>
-                  ) : (
-                    <>
-                      <p>Payment reference: <strong>{paymentReference}</strong></p>
-                      {paymentCheckoutUrl && <a href={paymentCheckoutUrl} target="_blank" rel="noreferrer" className="block rounded-lg border border-[var(--oppa-green)] bg-white px-3 py-2 text-center font-semibold text-[var(--oppa-green)] hover:bg-green-50">Open GCash checkout</a>}
-                      <button type="button" onClick={() => void verifyGatewayPayment()} className={`w-full rounded-lg px-3 py-2 font-semibold ${paymentConfirmed ? 'bg-green-100 text-green-800' : 'border border-gray-300 bg-white'}`}>
-                        {paymentConfirmed ? 'Payment confirmed' : 'Check gateway payment status'}
-                      </button>
-                      {!paymentConfirmed && <button type="button" onClick={() => { setPaymentReference(''); setPaymentCheckoutUrl(''); }} className="w-full text-xs text-gray-500 underline">Start a different payment</button>}
-                    </>
-                  )}
+        <main className="min-w-0 p-4 sm:p-6">
+          {stage === 'menu' ? (
+            <>
+              <section className="mb-5 rounded-2xl bg-[#078000] p-5 text-white shadow-md sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="font-serif text-xl font-bold sm:text-2xl">Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 18 ? 'Afternoon' : 'Evening'}, {staffName.split(' ')[0]}!</h1><p className="mt-1 text-sm text-white/85">Onsite POS Register active & ready · {branchName}</p></div><span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold"><Store size={13} className="mr-1 inline" />Branch Counter</span></div>
+                <div className="mt-4 flex flex-wrap gap-2">{categories.map((category) => <button key={category} type="button" onClick={() => { setActiveCategory(category.toLowerCase()); setShowFavoritesOnly(false); }} className="rounded-full border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold capitalize hover:bg-white/20">{category.replaceAll('-', ' ')}</button>)}</div>
+              </section>
+              <label className="relative mb-5 block"><Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search menu items for customer order..." className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm shadow-sm focus:border-[#1c3d2e] focus:outline-none" /></label>
+              {isLoading ? <p className="py-12 text-center text-sm text-gray-500">Loading branch menu...</p> : filteredProducts.length === 0 ? <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">{showFavoritesOnly ? 'No favorite products saved for this register.' : 'No available products at this branch.'}</div> : (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {filteredProducts.map((product) => <article key={product.id} className={`overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition ${product.branch_available ? 'hover:-translate-y-0.5 hover:shadow-lg' : 'opacity-60'}`}>
+                    <div className="relative h-40 bg-gradient-to-br from-emerald-500 to-emerald-700 sm:h-44">{product.image && <img src={product.image} alt={product.name} className="h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} />}
+                      <span className="absolute bottom-3 right-3 rounded-full bg-[#287d49] px-3 py-1.5 text-xs font-bold text-white shadow">₱{Number(product.price).toFixed(2)}</span>
+                      <button type="button" aria-label={`${favoriteIds.includes(product.id) ? 'Remove' : 'Add'} ${product.name} ${favoriteIds.includes(product.id) ? 'from' : 'to'} favorites`} onClick={() => setFavoriteIds((current) => current.includes(product.id) ? current.filter((id) => id !== product.id) : [...current, product.id])} className="absolute right-3 top-3 flex size-8 items-center justify-center rounded-full bg-white/90 text-gray-500 shadow hover:text-red-500"><Heart size={17} fill={favoriteIds.includes(product.id) ? 'currentColor' : 'none'} className={favoriteIds.includes(product.id) ? 'text-red-500' : ''} /></button>
+                      {!product.branch_available && <span className="absolute left-3 top-3 rounded-full bg-red-600/90 px-2.5 py-1 text-[10px] font-bold text-white">{product.branch_stock_tracked && product.branch_stock === 0 ? 'Out of stock' : 'Unavailable'}</span>}
+                    </div>
+                    <div className="flex min-h-32 flex-col p-3.5"><h2 className="font-serif text-sm font-bold text-gray-800">{product.name}</h2><p className="mt-1 line-clamp-2 flex-1 text-xs text-gray-500">{product.description || 'Freshly prepared at this branch.'}</p>{product.branch_stock_tracked && <p className="mt-1 text-[10px] text-gray-500">{product.branch_stock} in branch stock</p>}<button type="button" disabled={!product.branch_available} onClick={() => void openProduct(product)} className="mt-3 w-full rounded-xl bg-[#c1440e] py-2.5 text-xs font-bold text-white hover:bg-[#a23a0c] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600">Add to Order</button></div>
+                  </article>)}
                 </div>
               )}
-              <select value={discountType} onChange={(event) => {
-                setDiscountType(event.target.value as typeof discountType);
-                setPaymentReference('');
-                setPaymentCheckoutUrl('');
-                setPaymentConfirmed(false);
-              }} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                <option value="">No discount</option>
-                <option value="PWD">PWD (20%)</option>
-                <option value="Senior Citizen">Senior Citizen (20%)</option>
-              </select>
-              {discountType && <input value={discountIdNumber} onChange={(event) => setDiscountIdNumber(event.target.value)} placeholder={`${discountType} ID number`} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />}
-              {paymentMethod === 'cash' && (
-                <label className="block text-sm">
-                  Cash received
-                  <input type="number" min="0" step="0.01" value={cashTendered} onChange={(event) => setCashTendered(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2" />
-                </label>
-              )}
-              <div className="flex justify-between text-sm"><span>Subtotal</span><span>₱{subtotal.toFixed(2)}</span></div>
-              {discountType && <div className="flex justify-between text-sm text-green-700"><span>{discountType} discount</span><span>-₱{discountAmount.toFixed(2)}</span></div>}
-              <div className="flex justify-between border-t pt-3 font-semibold"><span>Total</span><span>₱{total.toFixed(2)}</span></div>
-              {paymentMethod === 'cash' && <div className="flex justify-between text-sm"><span>Change</span><span>₱{changeDue.toFixed(2)}</span></div>}
-              <button
-                type="button"
-                onClick={() => void submitOrder()}
-                disabled={isSubmitting || isLoading || lines.length === 0}
-                className="w-full rounded-xl bg-[var(--oppa-green)] py-3 font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isSubmitting ? 'Processing...' : 'Complete POS order'}
-              </button>
-              {completedOrder && <p className="text-center text-xs text-gray-500">Receipt: {completedOrder.order_number}</p>}
+            </>
+          ) : (
+            <div className="mx-auto max-w-3xl">
+              <div className="mb-5 flex items-center gap-3 border-b border-[#e76f51]/20 pb-3"><button type="button" onClick={() => setStage('menu')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#2d6a4f]"><ArrowLeft size={17} /> Back to Register Menu</button><span className="text-gray-300">|</span><h1 className="font-serif text-lg font-bold text-[#2d6a4f]">POS Register Checkout (Onsite)</h1></div>
+              <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-3 text-sm font-bold">Dining Option</h2><div className="grid grid-cols-2 gap-2">{(['dine_in', 'takeout'] as const).map((option) => <button key={option} type="button" onClick={() => setDiningOption(option)} className={`rounded-xl border px-4 py-3 text-sm font-semibold capitalize ${diningOption === option ? 'border-[#2d6a4f] bg-[#e3efe7] text-[#2d6a4f]' : 'border-gray-200'}`}>{option === 'dine_in' ? 'Dine-in' : 'Takeout'}</button>)}</div>
+              </section>
+              <section className="mb-4 space-y-3 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="text-sm font-bold">Customer Details (Optional)</h2><div className="grid gap-3 sm:grid-cols-2"><label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Customer name / callout<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Walk-in Customer" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-normal normal-case" /></label><label className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Contact / phone #<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="09XX XXX XXXX (optional)" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-normal normal-case" /></label></div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500">Order notes / kitchen instructions<textarea value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} placeholder="E.g., extra crispy, sauce on the side, no onions" maxLength={500} rows={2} className="mt-1 w-full resize-y rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-normal normal-case" /></label>
+              </section>
+              <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><h2 className="mb-3 text-sm font-bold">Discounts</h2><div className="flex flex-wrap gap-2">{[{ value: '', label: 'Regular (No Discount)' }, { value: 'Senior Citizen', label: 'Senior Citizen (20%)' }, { value: 'PWD', label: 'PWD (20%)' }].map(({ value, label }) => <button key={value || 'regular'} type="button" onClick={() => { setDiscountType(value as typeof discountType); setPaymentReference(''); setPaymentConfirmed(false); }} className={`rounded-lg px-3 py-2 text-xs font-bold ${discountType === value ? 'bg-[#2d6a4f] text-white' : 'bg-gray-100 text-gray-700'}`}>{label}</button>)}</div>{discountType && <label className="mt-3 block text-xs font-semibold"> {discountType} ID Card Number<input value={discountIdNumber} onChange={(event) => setDiscountIdNumber(event.target.value)} placeholder={`Enter ${discountType} ID #`} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-normal" /></label>}</section>
+              <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-3 text-sm font-bold">Payment Processing</h2><div className="grid grid-cols-3 gap-2">{[{ value: 'cash', label: 'Cash', Icon: CheckCircle2 }, { value: 'gcash', label: 'GCash', Icon: Smartphone }, { value: 'credit_card', label: 'Card / Terminal', Icon: CreditCard }].map(({ value, label, Icon }) => <button key={value} type="button" onClick={() => { setPaymentMethod(value as typeof paymentMethod); setPaymentReference(''); setTerminalReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); }} className={`flex flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-xs font-semibold ${paymentMethod === value ? 'border-[#2d6a4f] bg-[#e3efe7] text-[#2d6a4f]' : 'border-gray-200'}`}><Icon size={19} />{label}</button>)}</div>
+                {paymentMethod === 'cash' && <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3"><label className="block text-[10px] font-bold uppercase text-gray-600">Cash tendered · Amount due ₱{total.toFixed(2)}<input type="number" min={total} step="0.01" value={cashTendered} onChange={(event) => setCashTendered(event.target.value)} placeholder="₱ 0.00" className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-base font-normal" /></label><div className="mt-2 flex flex-wrap gap-2">{[total, 100, 200, 500, 1000].filter((amount, index, values) => values.indexOf(amount) === index).map((amount) => <button key={amount} type="button" onClick={() => setCashTendered(amount.toFixed(2))} className="rounded-md border bg-white px-2.5 py-1 text-[10px] font-semibold">{amount === total ? 'Exact' : `₱${amount.toLocaleString()}`}</button>)}</div><p className="mt-2 flex justify-between border-t pt-2 text-sm"><span>Change Due</span><strong>₱{changeDue.toFixed(2)}</strong></p></div>}
+                {paymentMethod === 'credit_card' && <label className="mt-4 block text-[10px] font-bold uppercase text-gray-600">POS Terminal / Card Reference<input value={terminalReference} onChange={(event) => setTerminalReference(event.target.value)} placeholder="Enter terminal transaction #" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-normal normal-case" /></label>}
+                {paymentMethod === 'gcash' && <div className="mt-4 space-y-2 rounded-xl bg-[#edf5ef] p-3 text-sm">{!paymentReference ? <button type="button" onClick={() => void startGatewayPayment()} disabled={isStartingPayment || lines.length === 0} className="w-full rounded-lg bg-[#2d6a4f] px-3 py-2.5 font-semibold text-white disabled:opacity-50">{isStartingPayment ? 'Starting secure payment...' : `Start GCash payment · ₱${total.toFixed(2)}`}</button> : <><p>Payment reference: <strong>{paymentReference}</strong></p>{paymentCheckoutUrl && <a href={paymentCheckoutUrl} target="_blank" rel="noreferrer" className="block rounded-lg border border-[#2d6a4f] bg-white px-3 py-2 text-center font-semibold text-[#2d6a4f]">Open GCash checkout</a>}<button type="button" onClick={() => void verifyGatewayPayment()} className={`w-full rounded-lg px-3 py-2.5 font-semibold ${paymentConfirmed ? 'bg-green-100 text-green-800' : 'border border-gray-300 bg-white'}`}>{paymentConfirmed ? 'Payment confirmed' : 'Check gateway payment status'}</button>{!paymentConfirmed && <button type="button" onClick={() => { setPaymentReference(''); setPaymentCheckoutUrl(''); }} className="w-full text-xs text-gray-500 underline">Start a different payment</button>}</>}</div>}
+              </section>
             </div>
-          </aside>
-        </div>
+          )}
+        </main>
+
+        <aside className="flex min-h-[420px] flex-col border-l border-gray-100 bg-white lg:col-span-2 xl:col-span-1 xl:row-span-1">
+          <div className="border-b border-gray-200 px-5 py-4"><div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-lg font-semibold"><ShoppingBag size={19} /> Current Order</h2>{lines.length > 0 && <button type="button" onClick={() => { setCart({}); setPaymentReference(''); setTerminalReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); }} className="text-xs font-medium text-red-600 hover:underline">Clear</button>}</div><p className="mt-0.5 text-sm text-gray-500">{lines.length ? `${lines.length} item${lines.length === 1 ? '' : 's'} added` : 'No items added yet'}</p></div>
+          <div className="flex-1 space-y-3 overflow-y-auto p-4">{lines.map(({ key, product, quantity, selectedSize, selectedAddons }) => <div key={key} className="flex items-start justify-between gap-2 border-b border-gray-100 pb-3 text-sm"><div className="min-w-0"><p className="font-medium">{quantity}x {product.name}</p>{selectedSize && <p className="text-xs text-gray-500">{selectedSize}</p>}{selectedAddons.map((addon) => <p key={addon.id} className="text-xs text-gray-500">+ {addon.name}</p>)}<p className="mt-1 text-xs font-semibold">₱{((Number(product.price) + selectedAddons.reduce((sum, addon) => sum + Number(addon.price) * Math.max(1, Number(addon.quantity || 1)), 0)) * quantity).toFixed(2)}</p></div><div className="flex items-center gap-2"><button type="button" aria-label={`Remove one ${product.name}`} onClick={() => setQuantity(key, quantity - 1)} className="rounded-full border p-1"><Minus size={13} /></button><span>{quantity}</span><button type="button" aria-label={`Add one ${product.name}`} onClick={() => setQuantity(key, quantity + 1)} className="rounded-full border p-1"><Plus size={13} /></button></div></div>)}
+            {!lines.length && <div className="flex min-h-52 flex-col items-center justify-center text-center"><span className="mb-3 flex size-16 items-center justify-center rounded-full bg-gray-100 text-gray-400"><ShoppingBag size={27} /></span><strong className="text-gray-700">Order Register Empty</strong><p className="mt-1 text-xs text-gray-400">Tap items on the menu to begin taking an order</p></div>}
+          </div>
+          <div className="border-t border-gray-200">
+            <div className="flex justify-between px-5 py-3 text-sm"><span className="text-gray-500">Order Subtotal</span><strong>{lines.length ? `₱${subtotal.toFixed(2)}` : '—'}</strong></div>
+            <label className="flex cursor-pointer items-center justify-between border-t border-gray-100 px-5 py-3 text-sm"><span>Include Cutlery / Utensils</span><input type="checkbox" checked={includeCutlery} onChange={(event) => setIncludeCutlery(event.target.checked)} className="size-4 accent-[#2d6a4f]" /></label>
+            <div className="p-4">{stage === 'menu' ? <button type="button" disabled={!lines.length} onClick={() => setStage('checkout')} className="w-full rounded-xl bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] px-4 py-3.5 text-left font-bold text-white shadow hover:shadow-lg disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"><span className="flex items-center justify-between"><span>Charge / Pay</span><span>₱{total.toFixed(2)} →</span></span></button> : <div className="space-y-2 border-t pt-3 text-sm"><div className="flex justify-between text-gray-600"><span>Subtotal</span><span>₱{subtotal.toFixed(2)}</span></div>{discountType && <div className="flex justify-between text-emerald-700"><span>Special Discount</span><span>-₱{discountAmount.toFixed(2)}</span></div>}<div className="flex justify-between text-xs text-gray-500"><span>VAT (12% inclusive)</span><span>₱{(total * 0.12).toFixed(2)}</span></div><div className="flex justify-between border-t pt-3 text-lg font-bold"><span>Total</span><span className="text-[#2d6a4f]">₱{total.toFixed(2)}</span></div><button type="button" onClick={() => void submitOrder()} disabled={isSubmitting || isLoading || !lines.length} className="w-full rounded-xl bg-[#2d6a4f] py-3.5 font-bold text-white hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:opacity-50">{isSubmitting ? 'Processing Sale...' : `Charge ₱${total.toFixed(2)}`}</button></div>}</div>
+          </div>
+        </aside>
       </div>
+
+      {completedOrder && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"><section role="dialog" aria-modal="true" aria-labelledby="branch-pos-receipt-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center gap-2 text-[#2d6a4f]"><CheckCircle2 size={22} /><h2 id="branch-pos-receipt-title" className="text-lg font-bold">Order processed successfully</h2></div><p className="text-center font-serif text-lg font-bold">OPPA DRU KOREAN FRIED CHICKEN</p><p className="mb-4 text-center text-xs text-gray-500">ONSITE REGISTER RECEIPT · {branchName}</p><div className="space-y-2 border-y border-dashed py-3 text-sm"><p className="flex justify-between"><span>Order #</span><strong>{completedOrder.order_number}</strong></p><p className="flex justify-between"><span>Customer</span><span>{completedOrder.customerName}</span></p><p className="flex justify-between"><span>Dining</span><span>{completedOrder.diningOption === 'dine_in' ? 'Dine-in' : 'Takeout'}</span></p>{(completedOrder.items || []).map((item, index) => <p key={`${item.product_name}-${index}`} className="flex justify-between"><span>{item.quantity}x {item.product_name}</span><span>₱{(Number(item.product_price || 0) * Number(item.quantity || 1)).toFixed(2)}</span></p>)}<p className="flex justify-between font-bold"><span>Total</span><span>₱{Number(completedOrder.total).toFixed(2)}</span></p><p className="flex justify-between text-xs text-gray-500"><span>Payment</span><span className="uppercase">{completedOrder.payment_method.replace('_', ' ')}</span></p>{completedOrder.payment_method === 'cash' && <><p className="flex justify-between text-xs"><span>Cash Tendered</span><span>₱{Number(completedOrder.cashTendered || 0).toFixed(2)}</span></p><p className="flex justify-between text-xs"><span>Change</span><span>₱{Number(completedOrder.changeDue || 0).toFixed(2)}</span></p></>}{completedOrder.includeCutlery && <p className="text-xs">Cutlery / utensils included</p>}</div><div className="mt-5 flex gap-2"><button type="button" onClick={() => window.print()} className="flex-1 rounded-xl border py-2.5 text-sm font-semibold">Print Receipt</button><button type="button" onClick={() => { setCompletedOrder(null); setSuccess(''); setCustomerName(''); setPhone(''); setCustomerNotes(''); }} className="flex-1 rounded-xl bg-[#2d6a4f] py-2.5 text-sm font-semibold text-white">New Order</button></div></section></div>}
 
       {configuringProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={() => setConfiguringProduct(null)}>
@@ -562,7 +548,7 @@ const FranchisePOSPage: React.FC = () => {
           </section>
         </div>
       )}
-    </main>
+    </div>
   );
 };
 

@@ -40,6 +40,9 @@ return new class extends Migration
                 if (!Schema::hasColumn('orders', 'cashier_employee_id')) {
                     $table->string('cashier_employee_id', 100)->nullable()->index();
                 }
+                if (!Schema::hasColumn('orders', 'include_cutlery')) {
+                    $table->boolean('include_cutlery')->default(false);
+                }
             });
         }
     }
