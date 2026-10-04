@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Addon;
 use App\Models\AddonGroup;
+use App\Models\Franchise;
+use App\Models\FranchiseUser;
 use App\Models\Product;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
@@ -17,11 +19,30 @@ class AddonController extends Controller
     {
         $category = $request->query('category');
         $productId = $request->query('product_id');
+        $franchiseUser = $request->user();
+        $franchiseId = $franchiseUser instanceof FranchiseUser
+            ? $franchiseUser->franchise_id
+            : $request->query('franchise_id');
 
         $isAdmin = $this->checkAdminAuth($request);
+        if ($franchiseId !== null && !Franchise::where('id', $franchiseId)->where('status', 'active')->exists()) {
+            return response()->json(['message' => 'The selected branch is not currently active.'], 422);
+        }
+        if ($productId) {
+            $product = Product::find($productId);
+            if (!$product || ($product->franchise_id !== null && (string) $product->franchise_id !== (string) $franchiseId)) {
+                return response()->json(['message' => 'The product is not available in the selected branch catalog.'], 422);
+            }
+        }
 
         $groups = AddonGroup::query()
             ->when(!$isAdmin, fn ($query) => $query->where('is_active', true))
+            ->when(!$isAdmin, fn ($query) => $query->where(function ($scope) use ($franchiseId) {
+                $scope->whereNull('franchise_id');
+                if ($franchiseId !== null) {
+                    $scope->orWhere('franchise_id', $franchiseId);
+                }
+            }))
             ->when($productId, function ($query) use ($productId) {
                 $query->where(function ($nested) use ($productId) {
                     $nested->whereHas('products', fn ($products) => $products->where('products.id', $productId))

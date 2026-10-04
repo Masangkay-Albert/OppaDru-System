@@ -15,12 +15,17 @@ import { FiShoppingCart, FiMenu, FiX, FiSearch } from 'react-icons/fi';
 import foodpandaLogo from '../../../assets/foodpanda.png';
 import '../../../styles/global.css';
 import { productService } from '../../../services/productService';
+import { getActiveBranches, getSelectedBranchId, setSelectedBranchId } from '../../../services/franchiseBranchService';
+import type { FranchiseBranch } from '../../../services/franchiseBranchService';
 
 const MenuPage: React.FC = () => {
   const { user } = useAuth();
-  const { getTotalItems } = useCart();
+  const { getTotalItems, cartItems, clearCart } = useCart();
   const { showNotification, newFavoriteName, clearNotification } = useFavorites();
   const [products, setProducts] = useState<Product[]>([]);
+  const [branches, setBranches] = useState<FranchiseBranch[]>([]);
+  const [selectedBranchId, setSelectedBranchIdState] = useState<string | null>(() => getSelectedBranchId());
+  const [branchError, setBranchError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
@@ -31,11 +36,28 @@ const MenuPage: React.FC = () => {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const data = await productService.getAvailableProducts();
+      const data = await productService.getAvailableProducts(selectedBranchId);
       setProducts(data);
-    } catch {
+      setBranchError('');
+    } catch (error) {
       setProducts([]);
+      setBranchError(error instanceof Error ? error.message : 'Unable to load this branch menu.');
     }
+  }, [selectedBranchId]);
+
+  useEffect(() => {
+    getActiveBranches()
+      .then((activeBranches) => {
+        setBranches(activeBranches);
+        const savedBranchId = getSelectedBranchId();
+        if (savedBranchId && !activeBranches.some((branch) => branch.id === savedBranchId)) {
+          setSelectedBranchId(null);
+          setSelectedBranchIdState(null);
+        }
+      })
+      .catch((error: unknown) => {
+        setBranchError(error instanceof Error ? error.message : 'Unable to load branches.');
+      });
   }, []);
 
   useEffect(() => {
@@ -44,6 +66,16 @@ const MenuPage: React.FC = () => {
     window.addEventListener('products-updated', handleProductsUpdated);
     return () => window.removeEventListener('products-updated', handleProductsUpdated);
   }, [fetchProducts]);
+
+  const handleBranchChange = (branchId: string) => {
+    if (branchId === (selectedBranchId || '')) return;
+    if (cartItems.length > 0 && !window.confirm('Changing branches will clear your current cart. Continue?')) return;
+    if (cartItems.length > 0) clearCart();
+    const nextBranchId = branchId || null;
+    setSelectedBranchId(nextBranchId);
+    setSelectedBranchIdState(nextBranchId);
+    setBranchError('');
+  };
 
   const handleOpenModal = useCallback((product: Product) => {
     scrollPositionRef.current = window.scrollY;
@@ -158,6 +190,24 @@ const MenuPage: React.FC = () => {
             userName={user?.full_name?.split(' ')[0]}
             onCategoryClick={handleCategoryChange}
           />
+
+          <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <label htmlFor="customer-branch" className="mb-2 block text-sm font-semibold text-[#1C3D2E]">
+              Choose where to order
+            </label>
+            <select
+              id="customer-branch"
+              value={selectedBranchId || ''}
+              onChange={(event) => handleBranchChange(event.target.value)}
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 sm:max-w-md"
+            >
+              <option value="">Original Oppa Dru (Main Store)</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>{branch.name}</option>
+              ))}
+            </select>
+            {branchError && <p className="mt-2 text-sm text-red-600">{branchError}</p>}
+          </section>
 
           <div className="mb-6">
             <div className="relative">

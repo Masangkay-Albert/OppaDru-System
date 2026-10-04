@@ -6,8 +6,11 @@ import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 
 interface OrderSummary {
-  id?: string | number;
+  id: string | number;
   order_number?: string;
+  email?: string;
+  user?: { full_name?: string };
+  delivery_type?: string;
   status?: string;
   total?: number;
   payment_method?: string;
@@ -15,50 +18,27 @@ interface OrderSummary {
 }
 
 interface DashboardState {
-  franchise_id?: string | number;
+  franchise_id?: string;
   franchise_name?: string;
+  branch_address?: string;
+  branch_status?: string;
   products?: number;
   branch_products?: number;
   shared_products?: number;
   orders?: number;
-  customers?: number;
-  orders_by_status?: Record<string, number>;
-  recent_orders?: OrderSummary[];
-}
-
-interface SummaryState {
-  franchise_id?: string | number;
-  franchise_name?: string;
-  total_products?: number;
-  branch_products?: number;
-  shared_products?: number;
   total_orders?: number;
   total_revenue?: number;
   average_order_value?: number;
-  status_breakdown?: Record<string, number>;
-}
-
-interface InventoryState {
-  franchise_id?: string | number;
-  total_products?: number;
-  branch_products?: number;
-  shared_products?: number;
+  branch_users?: number;
   available_products?: number;
-  unavailable_products?: number;
-  category_breakdown?: Record<string, number>;
-}
-
-interface FulfillmentState {
-  franchise_id?: string | number;
-  total_orders?: number;
+  available_items?: number;
   pending_orders?: number;
   preparing_orders?: number;
-  prepared_orders?: number;
   ready_orders?: number;
-  delivered_orders?: number;
+  completed_orders?: number;
   cancelled_orders?: number;
-  average_order_value?: number;
-  latest_orders?: OrderSummary[];
+  orders_by_status?: Record<string, number>;
+  recent_orders?: OrderSummary[];
 }
 
 const money = new Intl.NumberFormat('en-PH', {
@@ -71,121 +51,123 @@ const FranchiseDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { franchiseUser, logout } = useFranchiseAuth();
   const [dashboard, setDashboard] = useState<DashboardState>({});
-  const [summary, setSummary] = useState<SummaryState>({});
-  const [inventory, setInventory] = useState<InventoryState>({});
-  const [fulfillment, setFulfillment] = useState<FulfillmentState>({});
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
     const loadDashboard = async () => {
+      setIsLoading(true);
+      setError('');
       try {
-        const [dashboardRes, summaryRes, inventoryRes, fulfillmentRes] = await Promise.all([
-          fetchWithFranchiseAuth(`${API_URL}/franchise/dashboard`),
-          fetchWithFranchiseAuth(`${API_URL}/franchise/summary`),
-          fetchWithFranchiseAuth(`${API_URL}/franchise/inventory`),
-          fetchWithFranchiseAuth(`${API_URL}/franchise/fulfillment`),
-        ]);
-
-        const dashboardData = dashboardRes.ok ? await dashboardRes.json() : null;
-        const summaryData = summaryRes.ok ? await summaryRes.json() : null;
-        const inventoryData = inventoryRes.ok ? await inventoryRes.json() : null;
-        const fulfillmentData = fulfillmentRes.ok ? await fulfillmentRes.json() : null;
-
-        setDashboard((dashboardData?.data as DashboardState) ?? {});
-        setSummary((summaryData?.data as SummaryState) ?? {});
-        setInventory((inventoryData?.data as InventoryState) ?? {});
-        setFulfillment((fulfillmentData?.data as FulfillmentState) ?? {});
-
-        if (!dashboardRes.ok || !summaryRes.ok || !inventoryRes.ok || !fulfillmentRes.ok) {
-          setError('One or more dashboard sections could not be loaded.');
+        const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/dashboard`, {
+          signal: AbortSignal.timeout(15000),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.message || 'Unable to load this branch dashboard.');
         }
-      } catch {
-        setError('Unable to load the franchise dashboard right now.');
+        if (isMounted) setDashboard((payload.data || {}) as DashboardState);
+      } catch (loadError) {
+        if (!isMounted) return;
+        setError(loadError instanceof Error && loadError.name === 'TimeoutError'
+          ? 'The branch dashboard is taking too long to respond. Please retry.'
+          : loadError instanceof Error
+            ? loadError.message
+            : 'Unable to load the branch dashboard right now.');
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
 
-    loadDashboard();
-  }, []);
+    void loadDashboard();
+    return () => { isMounted = false; };
+  }, [retryCount]);
 
   const handleLogout = () => {
     logout();
     navigate('/franchise/login');
   };
 
-  const recentOrders = dashboard.recent_orders ?? fulfillment.latest_orders ?? [];
-  const orderStatusEntries = Object.entries(dashboard.orders_by_status ?? summary.status_breakdown ?? {});
+  const retryDashboard = () => setRetryCount((current) => current + 1);
+  const recentOrders = dashboard.recent_orders ?? [];
+  const orderStatusEntries = Object.entries(dashboard.orders_by_status ?? {});
+  const branchName = dashboard.franchise_name || franchiseUser?.franchise?.name || franchiseUser?.full_name || 'Branch Dashboard';
 
   return (
     <div className="min-h-screen bg-[var(--oppa-cream)] px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-6 flex flex-col gap-4 rounded-3xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <header className="mb-6 flex flex-col gap-4 rounded-3xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--oppa-green)]">Franchise Portal</p>
-            <h1 className="mt-2 text-2xl font-semibold text-[var(--oppa-text)]">
-              {franchiseUser?.franchise?.name || franchiseUser?.full_name || 'Branch Dashboard'}
-            </h1>
+            <h1 className="mt-2 text-2xl font-semibold text-[var(--oppa-text)]">{branchName}</h1>
+            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">
+              {dashboard.branch_address || franchiseUser?.franchise?.address || 'Branch location not provided'}
+              {' · '}
+              <span className="capitalize">{dashboard.branch_status || franchiseUser?.franchise?.status || 'active'}</span>
+              {dashboard.franchise_id && <> · Branch ID: {dashboard.franchise_id}</>}
+            </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/franchise/login')}
-              className="rounded-xl border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]"
-            >
-              Switch Account
-            </button>
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--oppa-green-dark)]"
-            >
+          <nav aria-label="Franchise portal" className="flex flex-wrap items-center gap-2">
+            <NavButton primary onClick={() => navigate('/franchise/pos')}>Open POS</NavButton>
+            <NavButton onClick={() => navigate('/franchise/orders')}>Orders</NavButton>
+            <NavButton onClick={() => navigate('/franchise/inventory')}>Inventory</NavButton>
+            <NavButton onClick={() => navigate('/franchise/reports')}>Reports</NavButton>
+            <NavButton onClick={() => navigate('/franchise/users')}>Branch users</NavButton>
+            <NavButton onClick={() => navigate('/franchise/settings')}>Settings</NavButton>
+            <NavButton onClick={() => navigate('/franchise/login')}>Switch Account</NavButton>
+            <button onClick={handleLogout} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--oppa-green-dark)]">
               <LogOut size={16} /> Logout
             </button>
-          </div>
+          </nav>
         </header>
 
         {error && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-            {error}
+          <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <span>{error}</span>
+            <button onClick={retryDashboard} className="rounded-lg border border-red-300 px-3 py-1.5 font-medium hover:bg-red-100">Retry</button>
           </div>
         )}
+        {isLoading && <p className="mb-4 text-sm text-[var(--oppa-text-muted)]">Loading branch dashboard...</p>}
 
         <section className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard icon={ShoppingCart} label="Orders" value={dashboard.orders ?? summary.total_orders ?? 0} tone="default" />
-          <StatCard icon={DollarSign} label="Revenue" value={money.format(summary.total_revenue ?? 0)} tone="success" />
-          <StatCard icon={Package2} label="Products" value={dashboard.products ?? summary.total_products ?? inventory.total_products ?? 0} tone="default" />
-          <StatCard icon={Users} label="Branch users" value={dashboard.customers ?? 0} tone="warning" />
+          <StatCard icon={ShoppingCart} label="Branch orders" value={dashboard.total_orders ?? dashboard.orders ?? 0} tone="default" />
+          <StatCard icon={DollarSign} label="Branch revenue" value={money.format(dashboard.total_revenue ?? 0)} tone="success" />
+          <StatCard icon={Package2} label="Available products" value={dashboard.available_products ?? 0} tone="default" />
+          <StatCard icon={Users} label="Branch users" value={dashboard.branch_users ?? 0} tone="warning" />
         </section>
 
         <section className="mb-6 grid gap-4 lg:grid-cols-3">
           <InfoCard title="Catalog overview" items={[
-            { label: 'Branch products', value: dashboard.branch_products ?? summary.branch_products ?? inventory.branch_products ?? 0 },
-            { label: 'Shared products', value: dashboard.shared_products ?? summary.shared_products ?? inventory.shared_products ?? 0 },
-            { label: 'Available items', value: inventory.available_products ?? 0 },
+            { label: 'Branch products', value: dashboard.branch_products ?? 0 },
+            { label: 'Shared products', value: dashboard.shared_products ?? 0 },
+            { label: 'Available items', value: dashboard.available_items ?? dashboard.available_products ?? 0 },
           ]} />
-
           <InfoCard title="Fulfillment" items={[
-            { label: 'Pending', value: fulfillment.pending_orders ?? 0 },
-            { label: 'Preparing', value: fulfillment.preparing_orders ?? 0 },
-            { label: 'Ready', value: fulfillment.ready_orders ?? 0 },
+            { label: 'Pending', value: dashboard.pending_orders ?? 0 },
+            { label: 'Preparing', value: dashboard.preparing_orders ?? 0 },
+            { label: 'Ready', value: dashboard.ready_orders ?? 0 },
           ]} />
-
           <InfoCard title="Performance" items={[
-            { label: 'Average order', value: money.format(summary.average_order_value ?? fulfillment.average_order_value ?? 0) },
-            { label: 'Completed', value: fulfillment.delivered_orders ?? 0 },
-            { label: 'Cancelled', value: fulfillment.cancelled_orders ?? 0 },
+            { label: 'Average order', value: money.format(dashboard.average_order_value ?? 0) },
+            { label: 'Completed', value: dashboard.completed_orders ?? 0 },
+            { label: 'Cancelled', value: dashboard.cancelled_orders ?? 0 },
           ]} />
         </section>
 
         <section className="rounded-3xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-[var(--oppa-text)]">Order status overview</h2>
-            <span className="inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)]">
-              Live branch summary <ArrowRight size={14} />
-            </span>
+            <button onClick={() => navigate('/franchise/orders')} className="inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)]">
+              Branch orders <ArrowRight size={14} />
+            </button>
           </div>
-
           <div className="flex flex-wrap gap-2">
-            {orderStatusEntries.length === 0 && (
-              <span className="text-sm text-[var(--oppa-text-muted)]">No order status data available yet.</span>
+            {isLoading && <span className="text-sm text-[var(--oppa-text-muted)]">Loading order status...</span>}
+            {!isLoading && orderStatusEntries.length === 0 && !error && (
+              <span className="text-sm text-[var(--oppa-text-muted)]">No order data available yet.</span>
             )}
             {orderStatusEntries.map(([status, count]) => (
               <span key={status} className="rounded-full bg-[var(--oppa-green-soft)] px-3 py-1.5 text-xs font-medium capitalize text-[var(--oppa-green)]">
@@ -196,50 +178,40 @@ const FranchiseDashboardPage: React.FC = () => {
         </section>
 
         <section className="mt-6 overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
-          <div className="border-b border-[var(--oppa-border)] px-5 py-4">
+          <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4">
             <h2 className="text-lg font-semibold text-[var(--oppa-text)]">Recent branch orders</h2>
+            <button onClick={retryDashboard} className="text-sm text-[var(--oppa-green)] hover:underline">Refresh</button>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-[var(--oppa-green-soft)]/50 text-left text-[var(--oppa-text-muted)]">
-                <tr>
-                  <th className="px-5 py-3">Order</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Amount</th>
-                  <th className="px-5 py-3">Payment</th>
-                  <th className="px-5 py-3">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentOrders.length === 0 && (
+          {isLoading ? (
+            <p className="p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading recent branch orders...</p>
+          ) : recentOrders.length === 0 ? (
+            <p className="p-8 text-center text-sm text-[var(--oppa-text-muted)]">No branch orders yet. Orders from this branch will appear here.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-[var(--oppa-green-soft)]/50 text-left text-[var(--oppa-text-muted)]">
                   <tr>
-                    <td colSpan={5} className="px-5 py-8 text-center text-[var(--oppa-text-muted)]">
-                      No recent orders yet.
-                    </td>
+                    <th className="px-5 py-3">Order</th><th className="px-5 py-3">Customer</th>
+                    <th className="px-5 py-3">Type</th><th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Amount</th><th className="px-5 py-3">Payment</th><th className="px-5 py-3">Date</th>
                   </tr>
-                )}
-
-                {recentOrders.map((order, index) => (
-                  <tr key={`${order.order_number ?? order.id ?? index}`} className="border-t border-[var(--oppa-border)] last:border-0">
-                    <td className="px-5 py-3 font-medium text-[var(--oppa-text)]">
-                      {order.order_number || `#${order.id}`}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="rounded-full bg-gray-100 px-2 py-1 text-xs capitalize text-gray-700">
-                        {order.status || 'pending'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-[var(--oppa-text)]">{money.format(Number(order.total ?? 0))}</td>
-                    <td className="px-5 py-3 text-[var(--oppa-text-muted)]">{order.payment_method || 'N/A'}</td>
-                    <td className="px-5 py-3 text-[var(--oppa-text-muted)]">
-                      {order.created_at ? new Date(order.created_at).toLocaleDateString() : 'N/A'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {recentOrders.map((order) => (
+                    <tr key={order.id} className="border-t border-[var(--oppa-border)]">
+                      <td className="px-5 py-3 font-medium">{order.order_number || `#${order.id}`}</td>
+                      <td className="px-5 py-3">{order.user?.full_name || order.email || 'Walk-in Customer'}</td>
+                      <td className="px-5 py-3 capitalize">{order.delivery_type || 'online'}</td>
+                      <td className="px-5 py-3 capitalize">{order.status || 'pending'}</td>
+                      <td className="px-5 py-3">{money.format(Number(order.total ?? 0))}</td>
+                      <td className="px-5 py-3">{order.payment_method || 'N/A'}</td>
+                      <td className="px-5 py-3">{order.created_at ? new Date(order.created_at).toLocaleString() : 'N/A'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </div>
     </div>
@@ -263,9 +235,7 @@ const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, tone = 'd
   return (
     <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
-        <span className={`inline-flex rounded-xl p-2 ${palette[tone]}`}>
-          <Icon size={18} />
-        </span>
+        <span className={`inline-flex rounded-xl p-2 ${palette[tone]}`}><Icon size={18} /></span>
       </div>
       <p className="text-2xl font-semibold text-[var(--oppa-text)]">{value}</p>
       <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">{label}</p>
@@ -290,6 +260,19 @@ const InfoCard: React.FC<InfoCardProps> = ({ title, items }) => (
       ))}
     </div>
   </div>
+);
+
+const NavButton: React.FC<{ children: React.ReactNode; onClick: () => void; primary?: boolean }> = ({
+  children, onClick, primary = false,
+}) => (
+  <button
+    onClick={onClick}
+    className={primary
+      ? 'rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--oppa-green-dark)]'
+      : 'rounded-xl border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]'}
+  >
+    {children}
+  </button>
 );
 
 export default FranchiseDashboardPage;

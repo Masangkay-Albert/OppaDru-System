@@ -45,6 +45,7 @@ Route::get('/storage/{path}', function (string $path) {
 
 Route::get('/settings/pricing', [SettingController::class, 'index']);
 Route::post('/franchise-applications', [FranchiseApplicationController::class, 'store']);
+Route::get('/franchises/active', [FranchiseController::class, 'activeBranches']);
 
 Route::prefix('franchise')->group(function () {
     Route::post('/login', [FranchiseAuthController::class, 'login']);
@@ -55,7 +56,12 @@ Route::prefix('franchise')->group(function () {
         Route::get('/dashboard', [FranchiseController::class, 'dashboard']);
         Route::get('/summary', [FranchiseController::class, 'branchSummary']);
         Route::get('/inventory', [FranchiseController::class, 'inventorySummary']);
+        Route::patch('/inventory/{productId}', [FranchiseController::class, 'updateInventory']);
         Route::get('/fulfillment', [FranchiseController::class, 'fulfillmentSummary']);
+        Route::get('/reports', [FranchiseController::class, 'branchReports']);
+        Route::get('/users', [FranchiseController::class, 'branchUsers']);
+        Route::get('/settings', [FranchiseController::class, 'branchSettings']);
+        Route::get('/addon-groups', [AddonController::class, 'index']);
         Route::get('/products', [FranchiseController::class, 'products']);
         Route::post('/products', [ProductController::class, 'franchiseStore']);
         Route::put('/products/{id}', [ProductController::class, 'franchiseUpdate']);
@@ -64,6 +70,8 @@ Route::prefix('franchise')->group(function () {
         Route::get('/orders', [FranchiseController::class, 'orders']);
         Route::get('/orders/{id}', [FranchiseController::class, 'showOrder']);
         Route::patch('/orders/{id}/status', [FranchiseController::class, 'updateOrderStatus']);
+        Route::post('/pos/orders', [FranchiseController::class, 'storePosOrder']);
+        Route::post('/pos/payments/gcash', [FranchiseController::class, 'createPosPayment']);
     });
 });
 

@@ -4,10 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\Franchise;
 use App\Models\FranchiseUser;
+use App\Models\Addon;
+use App\Models\AddonGroup;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class FranchiseAccessTest extends TestCase
@@ -378,5 +382,412 @@ class FranchiseAccessTest extends TestCase
         ]);
         $branchFulfillmentResponse->assertOk();
         $this->assertSame(1, $branchFulfillmentResponse->json('data.total_orders'));
+    }
+
+    public function test_public_branch_catalog_contains_only_shared_and_selected_branch_products(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'East Branch',
+            'email' => 'east@example.com',
+            'phone' => '09170000003',
+            'address' => '789 East St',
+            'status' => 'active',
+        ]);
+        $inactiveBranch = Franchise::create([
+            'name' => 'Closed Branch',
+            'email' => 'closed@example.com',
+            'phone' => '09170000004',
+            'address' => 'Closed St',
+            'status' => 'inactive',
+        ]);
+
+        Product::create([
+            'name' => 'Shared Bowl',
+            'description' => 'Available everywhere',
+            'price' => 100,
+            'category' => 'rice-meals',
+            'image' => '',
+            'is_available' => true,
+        ]);
+        Product::create([
+            'name' => 'East Special',
+            'description' => 'East branch product',
+            'price' => 120,
+            'category' => 'rice-meals',
+            'image' => '',
+            'franchise_id' => $branch->id,
+            'is_available' => true,
+        ]);
+        Product::create([
+            'name' => 'Closed Branch Item',
+            'description' => 'Not sold at East',
+            'price' => 130,
+            'category' => 'rice-meals',
+            'image' => '',
+            'franchise_id' => $inactiveBranch->id,
+            'is_available' => true,
+        ]);
+
+        $branches = $this->getJson('/api/franchises/active');
+        $branches->assertOk();
+        $this->assertCount(1, $branches->json('data'));
+        $this->assertSame($branch->id, $branches->json('data.0.id'));
+
+        $catalog = $this->getJson('/api/products/available?franchise_id=' . $branch->id);
+        $catalog->assertOk();
+        $this->assertSame(
+            ['East Special', 'Shared Bowl'],
+            collect($catalog->json())->pluck('name')->sort()->values()->all()
+        );
+    }
+
+    public function test_franchise_pos_creates_branch_scoped_order_using_server_prices(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'West Branch',
+            'email' => 'west@example.com',
+            'phone' => '09170000005',
+            'address' => '101 West St',
+            'status' => 'active',
+        ]);
+        FranchiseUser::create([
+            'franchise_id' => $branch->id,
+            'full_name' => 'West Manager',
+            'email' => 'west.manager@example.com',
+            'phone' => '09170000015',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+        ]);
+        $product = Product::create([
+            'name' => 'West Rice Meal',
+            'description' => 'Branch POS item',
+            'price' => 80,
+            'category' => 'rice-meals',
+            'image' => '',
+            'franchise_id' => $branch->id,
+            'is_available' => true,
+        ]);
+
+        $login = $this->postJson('/api/franchise/login', [
+            'email' => 'west.manager@example.com',
+            'password' => 'Franchise@123',
+        ]);
+        $login->assertOk();
+        $token = $login->json('token');
+
+        $response = $this->postJson('/api/franchise/pos/orders', [
+            'items' => [['product_id' => $product->id, 'quantity' => 2]],
+            'customer_name' => 'Walk-in Guest',
+            'dining_option' => 'takeout',
+            'payment_method' => 'cash',
+            'cash_tendered' => 200,
+        ], [
+            'Authorization' => 'Bearer ' . $token,
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame($branch->id, $response->json('order.franchise_id'));
+        $this->assertSame(160.0, (float) $response->json('order.total'));
+        $this->assertSame(40.0, (float) $response->json('change_due'));
+        $this->assertSame('onsite', $response->json('order.delivery_type'));
+        $this->assertDatabaseHas('orders', [
+            'id' => $response->json('order.id'),
+            'franchise_id' => $branch->id,
+        ]);
+    }
+
+    public function test_branch_inventory_stock_is_initializable_consumed_and_isolated(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'Inventory Branch',
+            'email' => 'inventory@example.com',
+            'phone' => '09170000021',
+            'address' => 'Inventory St',
+            'status' => 'active',
+        ]);
+        $otherBranch = Franchise::create([
+            'name' => 'Other Inventory Branch',
+            'email' => 'other-inventory@example.com',
+            'phone' => '09170000022',
+            'address' => 'Other St',
+            'status' => 'active',
+        ]);
+        FranchiseUser::create([
+            'franchise_id' => $branch->id,
+            'full_name' => 'Inventory Manager',
+            'email' => 'inventory.manager@example.com',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+        ]);
+        $sharedProduct = Product::create([
+            'name' => 'Shared Inventory Product',
+            'description' => 'Shared product with branch stock',
+            'price' => 80,
+            'category' => 'rice-meals',
+            'image' => '',
+            'is_available' => true,
+        ]);
+        $otherProduct = Product::create([
+            'name' => 'Other Branch Product',
+            'description' => 'Must stay isolated',
+            'price' => 100,
+            'category' => 'rice-meals',
+            'image' => '',
+            'franchise_id' => $otherBranch->id,
+            'is_available' => true,
+        ]);
+
+        $login = $this->postJson('/api/franchise/login', [
+            'email' => 'inventory.manager@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
+
+        $catalog = $this->getJson('/api/franchise/inventory', $headers)->assertOk();
+        $this->assertSame([$sharedProduct->id], collect($catalog->json('data.items'))->pluck('id')->all());
+
+        $this->patchJson('/api/franchise/inventory/' . $sharedProduct->id, [
+            'stock_quantity' => 3,
+        ], $headers)->assertOk();
+        $this->patchJson('/api/franchise/inventory/' . $otherProduct->id, [
+            'stock_quantity' => 5,
+        ], $headers)->assertNotFound();
+
+        $this->getJson('/api/franchise/users', $headers)
+            ->assertOk()
+            ->assertJsonPath('data.0.email', 'inventory.manager@example.com');
+        $this->getJson('/api/franchise/settings', $headers)
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Inventory Branch');
+
+        $this->postJson('/api/franchise/pos/orders', [
+            'items' => [['product_id' => $sharedProduct->id, 'quantity' => 2]],
+            'dining_option' => 'takeout',
+            'payment_method' => 'cash',
+            'cash_tendered' => 200,
+        ], $headers)->assertCreated();
+
+        $this->assertDatabaseHas('franchise_inventory', [
+            'franchise_id' => $branch->id,
+            'product_id' => $sharedProduct->id,
+            'stock_quantity' => 1,
+        ]);
+
+        $this->postJson('/api/franchise/pos/orders', [
+            'items' => [['product_id' => $sharedProduct->id, 'quantity' => 2]],
+            'dining_option' => 'takeout',
+            'payment_method' => 'cash',
+            'cash_tendered' => 200,
+        ], $headers)->assertUnprocessable();
+
+        $dashboard = $this->getJson('/api/franchise/dashboard', $headers)->assertOk();
+        $this->assertSame($branch->id, $dashboard->json('data.franchise_id'));
+        $this->assertSame(1, $dashboard->json('data.total_orders'));
+        $this->assertSame(1, $dashboard->json('data.branch_users'));
+
+        $this->getJson('/api/franchise/reports', $headers)
+            ->assertOk()
+            ->assertJsonPath('data.total_orders', 1);
+    }
+
+    public function test_franchise_pos_validates_branch_addons_and_prices_drink_sizes_server_side(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'Options Branch',
+            'email' => 'options@example.com',
+            'phone' => '09170000031',
+            'address' => 'Options St',
+            'status' => 'active',
+        ]);
+        $otherBranch = Franchise::create([
+            'name' => 'Other Options Branch',
+            'email' => 'other-options@example.com',
+            'phone' => '09170000032',
+            'address' => 'Other Options St',
+            'status' => 'active',
+        ]);
+        FranchiseUser::create([
+            'franchise_id' => $branch->id,
+            'full_name' => 'Options Manager',
+            'email' => 'options.manager@example.com',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+        ]);
+        $drink = Product::create([
+            'name' => 'Branch Lemonade',
+            'description' => 'Customizable branch drink',
+            'price' => 100,
+            'category' => 'fresh-lemonade',
+            'image' => '',
+            'franchise_id' => $branch->id,
+            'is_available' => true,
+        ]);
+        $branchGroup = AddonGroup::create([
+            'franchise_id' => $branch->id,
+            'name' => 'Branch toppings',
+            'selection_type' => 'multiple',
+            'supports_quantity' => false,
+            'max_selections' => 2,
+            'applicable_categories' => ['fresh-lemonade'],
+            'is_active' => true,
+        ]);
+        $branchAddon = Addon::create([
+            'addon_group_id' => $branchGroup->id,
+            'name' => 'Jelly',
+            'price' => 15,
+            'is_active' => true,
+        ]);
+        $otherGroup = AddonGroup::create([
+            'franchise_id' => $otherBranch->id,
+            'name' => 'Other branch topping',
+            'selection_type' => 'multiple',
+            'supports_quantity' => false,
+            'applicable_categories' => ['fresh-lemonade'],
+            'is_active' => true,
+        ]);
+        $otherAddon = Addon::create([
+            'addon_group_id' => $otherGroup->id,
+            'name' => 'Other topping',
+            'price' => 99,
+            'is_active' => true,
+        ]);
+
+        $login = $this->postJson('/api/franchise/login', [
+            'email' => 'options.manager@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
+
+        $this->getJson('/api/franchise/addon-groups?category=fresh-lemonade&product_id=' . $drink->id, $headers)
+            ->assertOk()
+            ->assertJsonFragment(['name' => 'Branch toppings'])
+            ->assertJsonMissing(['name' => 'Other branch topping']);
+
+        $response = $this->postJson('/api/franchise/pos/orders', [
+            'items' => [[
+                'product_id' => $drink->id,
+                'quantity' => 1,
+                'selected_size' => 'Large',
+                'selected_addons' => [['id' => $branchAddon->id, 'quantity' => 1]],
+            ]],
+            'dining_option' => 'takeout',
+            'payment_method' => 'cash',
+            'cash_tendered' => 200,
+        ], $headers)->assertCreated();
+
+        $this->assertSame(135.0, (float) $response->json('order.total'));
+        $this->assertSame('Large', $response->json('order.items.0.selected_size'));
+        $this->assertSame(120.0, (float) $response->json('order.items.0.product_price'));
+        $this->assertSame(15.0, (float) $response->json('order.items.0.selected_addons.0.price'));
+
+        $paymentPayload = [
+            'items' => [[
+                'product_id' => $drink->id,
+                'quantity' => 1,
+                'selected_size' => 'Large',
+                'selected_addons' => [['id' => $branchAddon->id, 'quantity' => 1]],
+            ]],
+            'dining_option' => 'takeout',
+            'payment_method' => 'gcash',
+            'payment_reference' => 'UNVERIFIED-REFERENCE',
+        ];
+        $this->postJson('/api/franchise/pos/orders', $paymentPayload, $headers)->assertUnprocessable();
+        $payment = Payment::create([
+            'reference' => 'GATEWAY-POS-REFERENCE',
+            'provider' => 'paymongo',
+            'amount' => 135,
+            'status' => 'paid',
+            'paid_at' => now(),
+            'metadata' => ['purpose' => 'franchise_pos', 'franchise_id' => $branch->id],
+        ]);
+        $paymentPayload['payment_reference'] = $payment->reference;
+        $this->postJson('/api/franchise/pos/orders', $paymentPayload, $headers)->assertCreated();
+        $this->assertDatabaseHas('payments', [
+            'id' => $payment->id,
+            'order_id' => Order::where('payment_reference', $payment->reference)->value('id'),
+        ]);
+        $this->postJson('/api/franchise/pos/orders', $paymentPayload, $headers)->assertUnprocessable();
+
+        $this->postJson('/api/franchise/pos/orders', [
+            'items' => [[
+                'product_id' => $drink->id,
+                'quantity' => 1,
+                'selected_size' => 'Medium',
+                'selected_addons' => [['id' => $otherAddon->id, 'quantity' => 1]],
+            ]],
+            'dining_option' => 'takeout',
+            'payment_method' => 'cash',
+            'cash_tendered' => 200,
+        ], $headers)->assertUnprocessable();
+    }
+
+    public function test_franchise_pos_creates_gateway_payment_for_server_calculated_total(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'Payment Branch',
+            'email' => 'payment-branch@example.com',
+            'phone' => '09170000041',
+            'address' => 'Payment St',
+            'status' => 'active',
+        ]);
+        FranchiseUser::create([
+            'franchise_id' => $branch->id,
+            'full_name' => 'Payment Manager',
+            'email' => 'payment.manager@example.com',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+        ]);
+        $product = Product::create([
+            'name' => 'Payment Branch Drink',
+            'description' => 'Drink whose size is priced by the server',
+            'price' => 100,
+            'category' => 'fresh-lemonade',
+            'image' => '',
+            'franchise_id' => $branch->id,
+            'is_available' => true,
+        ]);
+        $login = $this->postJson('/api/franchise/login', [
+            'email' => 'payment.manager@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
+
+        config([
+            'services.paymongo.secret_key' => 'sk_test_branch',
+            'services.paymongo.base_url' => 'https://paymongo.test',
+            'app.frontend_url' => 'https://frontend.test',
+        ]);
+        Http::fake([
+            'https://paymongo.test/sources' => Http::response([
+                'data' => [
+                    'id' => 'src_branch_pos',
+                    'attributes' => [
+                        'status' => 'pending',
+                        'redirect' => ['checkout_url' => 'https://paymongo.test/checkout'],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $response = $this->postJson('/api/franchise/pos/payments/gcash', [
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'selected_size' => 'Large',
+                'selected_addons' => [],
+            ]],
+            'payment_method' => 'gcash',
+        ], $headers)->assertCreated();
+
+        $reference = $response->json('data.reference');
+        $this->assertSame(120.0, (float) $response->json('data.amount'));
+        $this->assertSame('https://paymongo.test/checkout', $response->json('data.checkout_url'));
+        $this->assertDatabaseHas('payments', [
+            'reference' => $reference,
+            'amount' => 120,
+            'status' => 'pending',
+        ]);
+        $this->assertSame('franchise_pos', data_get(Payment::where('reference', $reference)->first()->metadata, 'purpose'));
+        $this->assertSame($branch->id, data_get(Payment::where('reference', $reference)->first()->metadata, 'franchise_id'));
     }
 }

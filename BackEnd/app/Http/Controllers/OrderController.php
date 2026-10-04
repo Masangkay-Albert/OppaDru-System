@@ -8,16 +8,21 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\User;
 use App\Services\Order\OrderDataService;
+use App\Services\FranchiseInventoryService;
 use App\Services\PricingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
-    public function __construct(private readonly OrderDataService $orderDataService)
+    public function __construct(
+        private readonly OrderDataService $orderDataService,
+        private readonly FranchiseInventoryService $franchiseInventoryService,
+    )
     {
     }
 
@@ -148,12 +153,35 @@ class OrderController extends Controller
             'delivery_coordinates.lng' => 'required_with:delivery_coordinates|numeric|between:-180,180',
             'phone' => 'required|string',
             'discount_type' => 'nullable|string|in:PWD,Senior Citizen',
+            'franchise_id' => 'nullable|string|exists:franchises,id',
             'proof_image' => 'nullable|file|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
             'discount_proof_image' => 'nullable|file|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
             'payment_reference' => 'required_if:payment_method,gcash,credit_card|nullable|string|exists:payments,reference',
         ]);
 
         $validator->after(function ($validator) use ($request) {
+            $franchiseId = $request->input('franchise_id');
+            if ($franchiseId) {
+                $activeBranch = \App\Models\Franchise::where('id', $franchiseId)
+                    ->where('status', 'active')
+                    ->exists();
+                if (!$activeBranch) {
+                    $validator->errors()->add('franchise_id', 'The selected branch is not currently accepting orders.');
+                }
+
+                $availableProductIds = $this->franchiseInventoryService
+                    ->catalog((string) $franchiseId, true)
+                    ->pluck('id')
+                    ->all();
+                foreach ((array) $request->input('items', []) as $index => $item) {
+                    $productId = $item['product_id'] ?? null;
+                    $isInBranchCatalog = $productId && in_array($productId, $availableProductIds, true);
+                    if (!$isInBranchCatalog) {
+                        $validator->errors()->add("items.{$index}.product_id", 'This item is not available from the selected branch.');
+                    }
+                }
+            }
+
             if ($request->filled('discount_type') && !$request->hasFile('proof_image') && !$request->hasFile('discount_proof_image')) {
                 $validator->errors()->add('proof_image', 'The proof image field is required when discount type is present.');
             }
@@ -242,7 +270,27 @@ class OrderController extends Controller
             }
         }
 
-        $order = Order::create([
+        try {
+            $order = DB::transaction(function () use (
+                $request,
+                $scheduledData,
+                $pricing,
+                $total,
+                $payment,
+                $orderItems,
+                $userId,
+                $discountType,
+                $discountRate,
+                $discountAmount,
+                $discountProofUrl
+            ) {
+                $franchiseId = $request->input('franchise_id');
+                if ($franchiseId) {
+                    $this->franchiseInventoryService->consume((string) $franchiseId, $request->input('items'));
+                }
+
+                $order = Order::create([
+            'franchise_id' => $request->input('franchise_id'),
             'email' => $request->email,
             'user_id' => $userId,
             'total' => $total,
@@ -277,9 +325,14 @@ class OrderController extends Controller
             'discount_requested_at' => $discountType !== '' ? now() : null,
             'discount_rejection_reason' => null,
             'discount_reviewed_at' => null,
-        ]);
+                ]);
 
-        $this->orderDataService->syncOrderItems($order, $orderItems);
+                $this->orderDataService->syncOrderItems($order, $orderItems);
+                return $order;
+            });
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
 
         $discountRequest = null;
         if ($discountType !== '') {

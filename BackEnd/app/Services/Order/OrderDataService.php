@@ -133,6 +133,7 @@ class OrderDataService
                 'product_price' => $product?->price ?? (float) ($item['product_price'] ?? ($item['price'] ?? 0)),
                 'quantity' => max(1, (int) ($item['quantity'] ?? 1)),
                 'selected_addons' => $selectedAddons,
+                'selected_size' => $item['selected_size'] ?? null,
                 'special_instructions' => $item['special_instructions'] ?? ($item['specialInstructions'] ?? null),
             ];
         }

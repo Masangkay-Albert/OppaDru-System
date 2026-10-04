@@ -47,6 +47,21 @@ The SMTP account must have permission to send mail and should use an app passwor
 
 Registration returns an error instead of claiming success when SMTP rejects the message. The signed verification URL expires after 60 minutes, is validated by Laravel, marks `email_verified_at`, and redirects to the frontend login page.
 
+## Franchise ordering and POS
+
+- Customers choose an active branch in the customer menu; the original store remains the default.
+- Public branch listings are served by `GET /api/franchises/active`.
+- Branch menus use `GET /api/products/available?franchise_id={branch-id}` and return shared products plus products belonging to that active branch.
+- Customer checkout includes the selected `franchise_id` on the order.
+- Franchise managers use `/franchise/pos` for onsite POS orders and `/franchise/orders` to review and update their branch's online and onsite order statuses.
+- POS orders are created through authenticated `POST /api/franchise/pos/orders`; the server validates branch ownership and calculates line prices and discounts.
+- The franchise dashboard, inventory, reports, users, and settings pages are available from the portal navigation. Their API endpoints are scoped to the authenticated manager's branch.
+- Branch stock and availability are stored separately from the shared product catalog in `franchise_inventory`. Stock is decremented transactionally for branch POS and customer orders, and a branch manager can start stock tracking from the Inventory page.
+- Franchise POS supports the configured product add-ons and drink sizes. The API rechecks branch ownership and computes option prices from server-side product/add-on data.
+- POS GCash orders create a gateway payment for the server-calculated order total, then require a confirmed, unused payment record assigned to that branch before finalizing the order. Cash is supported directly. Card is intentionally unavailable in franchise POS until a secure gateway card flow is implemented.
+- Run the additive `franchise_inventory` migration during deployment. It does not seed, reset, or modify existing product/order data; foreign keys prevent deleting referenced branch or product rows.
+- The branch users page displays that branch's franchise managers and assigned employees. User creation/status changes remain HQ-managed.
+
 To test real delivery from the Render Shell without exposing a public diagnostic endpoint, run:
 
 ```bash

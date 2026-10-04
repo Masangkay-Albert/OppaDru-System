@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\DiscountApplication;
+use App\Models\Franchise;
+use App\Models\FranchiseInventory;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
@@ -36,7 +38,6 @@ class OrderPlacementTest extends TestCase
             'image' => 'soygarlic-chicken.jpg',
             'is_available' => true,
         ]);
-
         $loginResponse = $this->postJson('/api/login', [
             'email' => $user->email,
             'password' => 'password123',
@@ -76,6 +77,106 @@ class OrderPlacementTest extends TestCase
             ->assertOk()
             ->assertJsonPath('0.id', $orderResponse->json('order.id'))
             ->assertJsonPath('0.delivery_type', 'standard');
+    }
+
+    public function test_customer_branch_order_is_validated_and_saved_to_that_branch(): void
+    {
+        $user = User::create([
+            'full_name' => 'Branch Customer',
+            'email' => 'branch-customer@example.com',
+            'phone' => '09171234568',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $branch = Franchise::create([
+            'name' => 'Central Branch',
+            'email' => 'central@example.com',
+            'phone' => '09170000006',
+            'address' => 'Central St',
+            'status' => 'active',
+        ]);
+        $product = Product::create([
+            'name' => 'Central Branch Chicken',
+            'description' => 'Branch-specific menu item',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'franchise_id' => $branch->id,
+            'is_available' => true,
+        ]);
+        FranchiseInventory::create([
+            'franchise_id' => $branch->id,
+            'product_id' => $product->id,
+            'stock_quantity' => 1,
+            'is_available' => true,
+        ]);
+
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer ' . $loginResponse->json('token'))
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'franchise_id' => $branch->id,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'total' => 0,
+                'delivery_address' => 'Central St, Dasmarinas, Cavite',
+                'payment_method' => 'cash_on_delivery',
+                'phone' => $user->phone,
+            ]);
+
+        $response->assertCreated();
+        $this->assertSame($branch->id, $response->json('order.franchise_id'));
+        $this->assertDatabaseHas('orders', [
+            'id' => $response->json('order.id'),
+            'franchise_id' => $branch->id,
+        ]);
+        $this->assertDatabaseHas('franchise_inventory', [
+            'franchise_id' => $branch->id,
+            'product_id' => $product->id,
+            'stock_quantity' => 0,
+        ]);
+
+        $otherBranch = Franchise::create([
+            'name' => 'Remote Branch',
+            'email' => 'remote@example.com',
+            'phone' => '09170000007',
+            'address' => 'Remote St',
+            'status' => 'active',
+        ]);
+        $otherProduct = Product::create([
+            'name' => 'Remote Branch Chicken',
+            'description' => 'Must not be orderable from Central',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'franchise_id' => $otherBranch->id,
+            'is_available' => true,
+        ]);
+
+        $this->postJson('/api/orders', [
+            'email' => $user->email,
+            'franchise_id' => $branch->id,
+            'items' => [[
+                'product_id' => $otherProduct->id,
+                'product_name' => $otherProduct->name,
+                'product_price' => 199,
+                'quantity' => 1,
+            ]],
+            'total' => 0,
+            'delivery_address' => 'Central St, Dasmarinas, Cavite',
+            'payment_method' => 'cash_on_delivery',
+            'phone' => $user->phone,
+        ])->assertUnprocessable();
     }
 
     public function test_customer_can_place_a_scheduled_order(): void

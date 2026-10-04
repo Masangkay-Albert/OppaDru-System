@@ -44,6 +44,12 @@ const AdminFranchiseApplicationsPage = lazy(() => import("./modules/admin-side/p
 // ============ FRANCHISE PAGES ============
 const FranchiseLoginPage = lazy(() => import("./modules/franchise-side/pages/FranchiseLoginPage"));
 const FranchiseDashboardPage = lazy(() => import("./modules/franchise-side/pages/FranchiseDashboardPage"));
+const FranchisePOSPage = lazy(() => import("./modules/franchise-side/pages/FranchisePOSPage"));
+const FranchiseOrdersPage = lazy(() => import("./modules/franchise-side/pages/FranchiseOrdersPage"));
+const FranchiseInventoryPage = lazy(() => import("./modules/franchise-side/pages/FranchiseInventoryPage"));
+const FranchiseReportsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseReportsPage"));
+const FranchiseUsersPage = lazy(() => import("./modules/franchise-side/pages/FranchiseUsersPage"));
+const FranchiseSettingsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseSettingsPage"));
 const FranchiseApplicationPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicationPage"));
 import ProtectedFranchiseRoute from "./modules/franchise-side/components/ProtectedFranchiseRoute";
 
@@ -116,6 +122,12 @@ function App() {
                       {/* ===== FRANCHISE ROUTES ===== */}
                       <Route path="/franchise" element={<ProtectedFranchiseRoute><FranchiseDashboardPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/dashboard" element={<ProtectedFranchiseRoute><FranchiseDashboardPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/pos" element={<ProtectedFranchiseRoute><FranchisePOSPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/orders" element={<ProtectedFranchiseRoute><FranchiseOrdersPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/inventory" element={<ProtectedFranchiseRoute><FranchiseInventoryPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/reports" element={<ProtectedFranchiseRoute><FranchiseReportsPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/users" element={<ProtectedFranchiseRoute><FranchiseUsersPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/settings" element={<ProtectedFranchiseRoute><FranchiseSettingsPage /></ProtectedFranchiseRoute>} />
 
                       {/* ===== DRIVER ROUTES ===== */}
                       <Route path="/delivery/login" element={<DriverLoginPage />} />

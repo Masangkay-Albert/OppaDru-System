@@ -11,6 +11,7 @@ export interface OrderItem {
 
 export interface CreateOrderData {
     email: string;
+    franchise_id?: string;
     items: OrderItem[];
     total: number;
     delivery_address: string;
@@ -96,6 +97,7 @@ class OrderService {
         if (isFormData) {
             const formData = body as FormData;
             formData.append('email', data.email);
+            if (data.franchise_id) formData.append('franchise_id', data.franchise_id);
             formData.append('items', JSON.stringify(data.items));
             formData.append('total', String(data.total));
             formData.append('delivery_address', data.delivery_address);

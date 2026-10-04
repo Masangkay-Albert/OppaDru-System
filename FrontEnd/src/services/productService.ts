@@ -2,6 +2,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrend
 import { getProductImage } from '../data/productImages';
 import type { AddonGroup } from '../types/product.types';
 import { ensureAdminSession, getStoredAdminToken } from './adminAuthService';
+import { getSelectedBranchId } from './franchiseBranchService';
 
 export interface Product {
   id: string;
@@ -125,6 +126,8 @@ class ProductService {
     const params = new URLSearchParams();
     if (category) params.set('category', category);
     if (productId) params.set('product_id', productId);
+    const franchiseId = getSelectedBranchId();
+    if (franchiseId) params.set('franchise_id', franchiseId);
 
     const response = await fetch(`${API_URL}/addon-groups?${params.toString()}`, { headers: this.getHeaders() });
     if (!response.ok) throw new Error('Failed to fetch add-on groups');
@@ -201,9 +204,14 @@ class ProductService {
     return this.parseProducts(await response.json());
   }
 
-  async getAvailableProducts(): Promise<Product[]> {
+  async getAvailableProducts(franchiseId?: string | null): Promise<Product[]> {
+    if (franchiseId) {
+      const params = new URLSearchParams({ franchise_id: franchiseId });
+      return this.fetchPublicProducts(`/products/available?${params.toString()}`);
+    }
+
     try {
-      const products = await this.fetchPublicProducts('/products');
+      const products = await this.fetchPublicProducts('/products/available');
       const orderedProducts = [...products].sort((a, b) => {
         if (a.category < b.category) return -1;
         if (a.category > b.category) return 1;

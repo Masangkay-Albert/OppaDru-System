@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Admin;
+use App\Models\Franchise;
 use App\Models\FranchiseUser;
 use App\Models\Product;
 use App\Services\FranchiseService;
@@ -212,13 +213,24 @@ class ProductController extends Controller
         return response()->json(['product' => $product, 'message' => 'Product availability toggled!']);
     }
 
-    public function getAvailable()
+    public function getAvailable(Request $request, \App\Services\FranchiseInventoryService $inventoryService)
     {
-        try {
-            return response()->json($this->productQuery()->get());
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+        $franchiseId = $request->query('franchise_id');
+
+        if ($franchiseId !== null) {
+            $franchise = Franchise::where('id', $franchiseId)->where('status', 'active')->first();
+            if (!$franchise) {
+                return response()->json(['message' => 'The selected branch is unavailable.'], 404);
+            }
+
+            return response()->json(
+                $inventoryService->catalog((string) $franchiseId, true)->values()
+            );
         }
+
+        return response()->json(
+            $this->productQuery()->whereNull('franchise_id')->where('is_available', true)->get()
+        );
     }
 
     public function getByCategory($category)

@@ -17,6 +17,8 @@ import { useCartCalculations } from '../../../hooks/useCartCalculations';
 import { useSettings } from '../../../contexts/SettingsContext';
 import { getAvailableDates, generateTimeSlots } from '../../../services/checkoutService';
 import type { PaymentResult } from '../components/checkout/paymentTypes';
+import { getSelectedBranchId } from '../../../services/franchiseBranchService';
+import { getActiveBranches } from '../../../services/franchiseBranchService';
 
 const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
@@ -38,7 +40,20 @@ const CheckoutPage: React.FC = () => {
   const [discountType, setDiscountType] = useState<'PWD' | 'Senior Citizen' | null>(activeDiscount.type === 'PWD' ? 'PWD' : activeDiscount.type === 'Senior' ? 'Senior Citizen' : null);
   const [discountProof, setDiscountProof] = useState<File | null>(null);
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates>(OPPA_DRU_STORE_COORDS);
+  const selectedBranchId = getSelectedBranchId();
+  const [selectedBranchName, setSelectedBranchName] = useState(
+    selectedBranchId ? 'Loading branch...' : 'Original Oppa Dru (Main Store)',
+  );
   const orderRequestRef = useRef<Promise<void> | null>(null);
+
+  useEffect(() => {
+    if (!selectedBranchId) {
+      return;
+    }
+    getActiveBranches()
+      .then((branches) => setSelectedBranchName(branches.find((branch) => branch.id === selectedBranchId)?.name || 'Selected franchise branch'))
+      .catch(() => setSelectedBranchName('Selected franchise branch'));
+  }, [selectedBranchId]);
 
   useEffect(() => {
     if (!activeDiscount.type) {
@@ -185,7 +200,8 @@ const CheckoutPage: React.FC = () => {
         scheduleDisplayValue,
         scheduleWindowValue,
         discountType,
-        discountProof
+        discountProof,
+        getSelectedBranchId()
       );
 
       if (success) {
@@ -280,6 +296,11 @@ const CheckoutPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
         <NavbarCustomer />
+        <div className="mx-auto max-w-7xl px-4 pt-4">
+          <p className="rounded-xl border border-[var(--oppa-border)] bg-white px-4 py-3 text-sm text-[var(--oppa-text-muted)]">
+            Ordering from: <span className="font-semibold text-[var(--oppa-green)]">{selectedBranchName || 'Loading branch...'}</span>
+          </p>
+        </div>
         <div className="flex items-center justify-center h-[80vh]">
           <div className="bg-white rounded-2xl shadow-xl p-12 text-center max-w-md">
             <FiShoppingCart className="text-7xl text-gray-300 mx-auto mb-6" />

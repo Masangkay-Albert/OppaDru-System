@@ -63,6 +63,7 @@ interface OrderContextType {
     scheduleWindow?: string | null,
     discountType?: 'PWD' | 'Senior Citizen' | null,
     discountProof?: File | null,
+    franchiseId?: string | null,
   ) => Promise<boolean>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   clearOrder: () => void;
@@ -274,7 +275,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     scheduleDisplay: string | null = null,
     scheduleWindow: string | null = null,
     discountType?: 'PWD' | 'Senior Citizen' | null,
-    discountProof?: File | null
+    discountProof?: File | null,
+    franchiseId?: string | null,
   ): Promise<boolean> => {
     const activeUser = user ?? authService.getUserFromStorage();
     if (!activeUser) {
@@ -310,6 +312,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const data: CreateOrderData = {
         email: activeUser.email,
+        franchise_id: franchiseId || undefined,
         items: orderItems,
         total,
         delivery_address: address,

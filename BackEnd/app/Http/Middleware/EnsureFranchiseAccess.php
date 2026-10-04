@@ -24,6 +24,10 @@ class EnsureFranchiseAccess
             return response()->json(['message' => 'Franchise account inactive'], 403);
         }
 
+        if (!$franchiseUser->franchise || $franchiseUser->franchise->status !== 'active') {
+            return response()->json(['message' => 'This branch is not currently active'], 403);
+        }
+
         $request->setUserResolver(fn () => $franchiseUser);
 
         $requestedFranchise = $request->route('franchise_id') ?? $request->input('franchise_id') ?? $request->query('franchise_id');
