@@ -39,6 +39,7 @@ const AdminDelivery = lazy(() => import("./modules/admin-side/pages/AdminDeliver
 const AdminKitchenPage = lazy(() => import("./modules/admin-side/pages/AdminKitchenPage"));
 const AdminPricingSettingsPage = lazy(() => import("./modules/admin-side/pages/AdminPricingSettingsPage"));
 const AdminFranchisesPage = lazy(() => import("./modules/admin-side/pages/AdminFranchisesPage"));
+const AdminFranchiseDetailPage = lazy(() => import("./modules/admin-side/pages/AdminFranchiseDetailPage"));
 const AdminFranchiseApplicationsPage = lazy(() => import("./modules/admin-side/pages/AdminFranchiseApplicationsPage"));
 
 // ============ FRANCHISE PAGES ============
@@ -115,6 +116,7 @@ function App() {
                       <Route path="/admin/reports" element={<ProtectedAdminRoute><AdminReportsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/admins" element={<ProtectedAdminRoute><AdminAdminsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/franchises" element={<ProtectedAdminRoute><AdminFranchisesPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/franchises/:id" element={<ProtectedAdminRoute><AdminFranchiseDetailPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/franchise-applications" element={<ProtectedAdminRoute><AdminFranchiseApplicationsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/kitchen" element={<ProtectedAdminRoute><AdminKitchenPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/settings/pricing" element={<ProtectedAdminRoute><AdminPricingSettingsPage /></ProtectedAdminRoute>} />

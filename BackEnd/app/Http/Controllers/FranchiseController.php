@@ -608,6 +608,38 @@ class FranchiseController extends Controller
         return response()->json(['data' => $managerUsers->concat($employees)->sortByDesc('created_at')->values()]);
     }
 
+    public function storeBranchUser(Request $request)
+    {
+        $user = $request->user();
+        if (!$user instanceof FranchiseUser || !$user->franchise_id) {
+            return response()->json(['message' => 'Franchise access required'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'full_name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:franchise_users,email',
+            'phone' => 'nullable|string|max:50',
+            'password' => 'required|string|min:8',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $branchUser = FranchiseUser::create([
+            'franchise_id' => $user->franchise_id,
+            'full_name' => $request->full_name,
+            'email' => strtolower(trim((string) $request->email)),
+            'phone' => $request->input('phone'),
+            'password' => Hash::make((string) $request->password),
+            'is_active' => true,
+        ]);
+
+        return response()->json([
+            'data' => $branchUser->only(['id', 'franchise_id', 'full_name', 'email', 'phone', 'is_active', 'created_at']),
+            'message' => 'Branch manager account created successfully.',
+        ], 201);
+    }
+
     public function branchSettings(Request $request)
     {
         $user = $request->user();
@@ -626,6 +658,47 @@ class FranchiseController extends Controller
                 'status' => $franchise->status,
                 'operating_hours' => data_get($franchise->metadata, 'operating_hours'),
             ],
+        ]);
+    }
+
+    public function updateBranchSettings(Request $request)
+    {
+        $user = $request->user();
+        if (!$user instanceof FranchiseUser || !$user->franchise_id) {
+            return response()->json(['message' => 'Franchise access required'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'phone' => 'sometimes|nullable|string|max:50',
+            'operating_hours' => 'sometimes|nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $franchise = Franchise::findOrFail($user->franchise_id);
+        if ($request->has('phone')) {
+            $franchise->phone = $request->input('phone');
+        }
+        if ($request->has('operating_hours')) {
+            $metadata = $franchise->metadata ?? [];
+            $metadata['operating_hours'] = $request->input('operating_hours');
+            $franchise->metadata = $metadata;
+        }
+        $franchise->save();
+
+        return response()->json([
+            'data' => [
+                'id' => $franchise->id,
+                'name' => $franchise->name,
+                'email' => $franchise->email,
+                'phone' => $franchise->phone,
+                'address' => $franchise->address,
+                'status' => $franchise->status,
+                'operating_hours' => data_get($franchise->metadata, 'operating_hours'),
+            ],
+            'message' => 'Branch settings updated successfully.',
         ]);
     }
 

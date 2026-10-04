@@ -790,4 +790,90 @@ class FranchiseAccessTest extends TestCase
         $this->assertSame('franchise_pos', data_get(Payment::where('reference', $reference)->first()->metadata, 'purpose'));
         $this->assertSame($branch->id, data_get(Payment::where('reference', $reference)->first()->metadata, 'franchise_id'));
     }
+
+    public function test_franchise_manager_can_edit_only_branch_phone_and_operating_hours(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'North Branch',
+            'email' => 'north@example.com',
+            'phone' => '09170000001',
+            'address' => '123 North St',
+            'status' => 'active',
+            'metadata' => ['region' => 'north'],
+        ]);
+        $otherBranch = Franchise::create([
+            'name' => 'South Branch',
+            'phone' => '09170000002',
+            'address' => '456 South St',
+            'status' => 'active',
+        ]);
+        FranchiseUser::create([
+            'franchise_id' => $branch->id,
+            'full_name' => 'North Manager',
+            'email' => 'north.manager@example.com',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+        ]);
+        $login = $this->postJson('/api/franchise/login', [
+            'email' => 'north.manager@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+
+        $this->putJson('/api/franchise/settings', [
+            'phone' => '09179998888',
+            'operating_hours' => 'Daily, 10:00 AM - 9:00 PM',
+            'address' => 'Unauthorized address change',
+            'status' => 'inactive',
+        ], ['Authorization' => 'Bearer ' . $login->json('token')])->assertOk()
+            ->assertJsonPath('data.phone', '09179998888')
+            ->assertJsonPath('data.operating_hours', 'Daily, 10:00 AM - 9:00 PM')
+            ->assertJsonPath('data.address', '123 North St')
+            ->assertJsonPath('data.status', 'active');
+
+        $this->assertSame(['region' => 'north', 'operating_hours' => 'Daily, 10:00 AM - 9:00 PM'], $branch->fresh()->metadata);
+        $this->assertSame('09170000002', $otherBranch->fresh()->phone);
+    }
+
+    public function test_franchise_manager_can_create_a_manager_only_for_their_branch(): void
+    {
+        $branch = Franchise::create(['name' => 'North Branch', 'status' => 'active']);
+        $otherBranch = Franchise::create(['name' => 'South Branch', 'status' => 'active']);
+        FranchiseUser::create([
+            'franchise_id' => $branch->id,
+            'full_name' => 'North Manager',
+            'email' => 'north.manager@example.com',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+        ]);
+        $login = $this->postJson('/api/franchise/login', [
+            'email' => 'north.manager@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+
+        $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
+        $managerData = [
+            'full_name' => 'Assistant Manager',
+            'email' => 'assistant.manager@example.com',
+            'password' => 'Assistant@123',
+        ];
+        $this->postJson('/api/franchise/users', [
+            ...$managerData,
+            'franchise_id' => $otherBranch->id,
+        ], $headers)->assertForbidden();
+
+        $created = $this->postJson('/api/franchise/users', $managerData, $headers)
+            ->assertCreated()
+            ->assertJsonMissingPath('data.password')
+            ->assertJsonPath('data.franchise_id', $branch->id);
+
+        $this->assertDatabaseHas('franchise_users', [
+            'email' => 'assistant.manager@example.com',
+            'franchise_id' => $branch->id,
+        ]);
+        $this->postJson('/api/franchise/login', [
+            'email' => 'assistant.manager@example.com',
+            'password' => 'Assistant@123',
+        ])->assertOk()->assertJsonPath('franchise_user.franchise_id', $branch->id);
+        $this->assertNotSame($otherBranch->id, $created->json('data.franchise_id'));
+    }
 }

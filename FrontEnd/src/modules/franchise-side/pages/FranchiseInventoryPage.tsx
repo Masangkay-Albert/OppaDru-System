@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, RefreshCw, Search } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Boxes, PackageCheck, PackageX, RefreshCw, Search, TriangleAlert } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 
@@ -85,23 +84,30 @@ const FranchiseInventoryPage: React.FC = () => {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-6 sm:px-6">
-      <div className="mx-auto max-w-7xl">
+    <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
+      <div className="mx-auto max-w-[1500px]">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
           <div>
-            <Link to="/franchise/dashboard" className="mb-2 inline-flex items-center gap-2 text-sm text-[var(--oppa-green)] hover:underline"><ArrowLeft size={16} /> Dashboard</Link>
-            <h1 className="text-2xl font-semibold text-[var(--oppa-text)]">Branch Inventory</h1>
-            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage this branch's stock and availability without changing master products.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--oppa-green)]">Franchise Portal · Inventory</p>
+            <h1 className="mt-1 text-2xl font-semibold text-[var(--oppa-text)]">Branch Inventory</h1>
+            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage branch stock and availability without changing the shared catalog.</p>
           </div>
           <button onClick={() => { setError(''); setIsLoading(true); void loadInventory(); }} className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm hover:bg-[var(--oppa-cream)]"><RefreshCw size={15} /> Refresh</button>
         </header>
 
         {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button onClick={() => { setError(''); setIsLoading(true); void loadInventory(); }} className="font-semibold underline">Retry</button></div>}
         {message && <p role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{message}</p>}
-        {isLoading ? <p className="p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading branch inventory...</p> : items.length === 0 ? (
+        {!isLoading && items.length > 0 && <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <InventoryMetric icon={Boxes} label="Products tracked" value={items.length} tone="green" />
+          <InventoryMetric icon={PackageCheck} label="Available" value={items.filter((item) => item.branch_available).length} tone="green" />
+          <InventoryMetric icon={TriangleAlert} label="Low stock" value={items.filter((item) => item.low_stock).length} tone="amber" />
+          <InventoryMetric icon={PackageX} label="Out of stock" value={items.filter((item) => item.branch_stock_tracked && item.branch_stock === 0).length} tone="red" />
+        </section>}
+        {isLoading ? <p className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading branch inventory...</p> : items.length === 0 ? (
           <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-10 text-center text-sm text-[var(--oppa-text-muted)]">No inventory data available yet.</section>
         ) : (
           <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
+            <div className="border-b border-[var(--oppa-border)] px-4 py-4 sm:px-5"><h2 className="font-semibold text-[var(--oppa-text)]">Stock and availability</h2><p className="mt-1 text-xs text-gray-500">Set a quantity to start branch-level stock tracking.</p></div>
             <div className="grid gap-3 border-b border-[var(--oppa-border)] p-4 md:grid-cols-[1fr_220px_200px]">
               <label className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search inventory" className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-3 text-sm" /></label>
               <select value={category} onChange={(event) => setCategory(event.target.value)} className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"><option value="all">All categories</option>{categories.map((value) => <option key={value} value={value}>{value}</option>)}</select>
@@ -114,7 +120,7 @@ const FranchiseInventoryPage: React.FC = () => {
                   <tbody className="divide-y divide-gray-100">
                     {filteredItems.map((item) => (
                       <tr key={item.id}>
-                        <td className="px-4 py-3"><span className="font-medium">{item.name}</span><span className="block text-xs text-gray-500">{item.franchise_id ? 'Branch product' : 'Shared product'}</span></td>
+                        <td className="px-4 py-3"><div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[var(--oppa-cream)]">{item.image ? <img src={item.image} alt="" className="h-full w-full object-cover" /> : <Boxes size={17} className="text-[var(--oppa-green)]" />}</div><span><span className="block font-semibold">{item.name}</span><span className="block text-xs text-gray-500">{item.franchise_id ? 'Branch product' : 'Shared product'}</span></span></div></td>
                         <td className="px-4 py-3">{item.category}</td>
                         <td className="px-4 py-3">
                           <input type="number" min="0" value={stockEdits[item.id] ?? (item.branch_stock_tracked ? String(item.branch_stock ?? 0) : '')} onChange={(event) => setStockEdits((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Not tracked" className="w-28 rounded-lg border border-gray-200 px-2 py-1.5" aria-label={`Stock quantity for ${item.name}`} />
@@ -144,3 +150,12 @@ const FranchiseInventoryPage: React.FC = () => {
 };
 
 export default FranchiseInventoryPage;
+
+const InventoryMetric: React.FC<{ icon: React.ElementType; label: string; value: number; tone: 'green' | 'amber' | 'red' }> = ({ icon: Icon, label, value, tone }) => {
+  const styles = {
+    green: 'bg-emerald-50 text-emerald-700',
+    amber: 'bg-amber-50 text-amber-700',
+    red: 'bg-red-50 text-red-700',
+  };
+  return <div className="flex items-center gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm"><span className={`rounded-xl p-2.5 ${styles[tone]}`}><Icon size={19} /></span><div><p className="text-sm text-gray-500">{label}</p><p className="text-xl font-bold text-[var(--oppa-text)]">{value}</p></div></div>;
+};

@@ -60,7 +60,9 @@ Route::prefix('franchise')->group(function () {
         Route::get('/fulfillment', [FranchiseController::class, 'fulfillmentSummary']);
         Route::get('/reports', [FranchiseController::class, 'branchReports']);
         Route::get('/users', [FranchiseController::class, 'branchUsers']);
+        Route::post('/users', [FranchiseController::class, 'storeBranchUser']);
         Route::get('/settings', [FranchiseController::class, 'branchSettings']);
+        Route::put('/settings', [FranchiseController::class, 'updateBranchSettings']);
         Route::get('/addon-groups', [AddonController::class, 'index']);
         Route::get('/products', [FranchiseController::class, 'products']);
         Route::post('/products', [ProductController::class, 'franchiseStore']);

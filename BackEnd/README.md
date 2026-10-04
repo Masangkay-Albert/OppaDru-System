@@ -60,7 +60,8 @@ Registration returns an error instead of claiming success when SMTP rejects the 
 - Franchise POS supports the configured product add-ons and drink sizes. The API rechecks branch ownership and computes option prices from server-side product/add-on data.
 - POS GCash orders create a gateway payment for the server-calculated order total, then require a confirmed, unused payment record assigned to that branch before finalizing the order. Cash is supported directly. Card is intentionally unavailable in franchise POS until a secure gateway card flow is implemented.
 - Run the additive `franchise_inventory` migration during deployment. It does not seed, reset, or modify existing product/order data; foreign keys prevent deleting referenced branch or product rows.
-- The branch users page displays that branch's franchise managers and assigned employees. User creation/status changes remain HQ-managed.
+- The branch users page displays that branch's franchise managers and assigned employees. A manager can add another manager using `POST /api/franchise/users`; the new account is always assigned to the authenticated branch and has the same full portal permissions. Cashier/staff account creation remains unavailable until the employee login and POS workflows enforce branch isolation.
+- Franchise managers can update only their branch phone and operating hours with `PUT /api/franchise/settings`. HQ retains control of the official branch name, email, address, and active status.
 
 To test real delivery from the Render Shell without exposing a public diagnostic endpoint, run:
 

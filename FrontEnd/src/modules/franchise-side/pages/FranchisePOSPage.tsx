@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Minus, Plus, Search, ShoppingBag } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Minus, Plus, Search, ShoppingBag } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { getProductImage } from '../../../data/productImages';
 import type { Addon, AddonGroup, ProductSize } from '../../../types/product.types';
 import type { Product } from '../../../services/productService';
+import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 
 interface PosCartLine {
   key: string;
@@ -43,6 +44,7 @@ interface PendingPosState {
 const pendingPaymentStorageKey = (reference: string) => `franchise_pos_payment_${reference}`;
 
 const FranchisePOSPage: React.FC = () => {
+  const { franchiseUser } = useFranchiseAuth();
   const [products, setProducts] = useState<BranchProduct[]>([]);
   const [cart, setCart] = useState<Record<string, PosCartLine>>({});
   const [configuringProduct, setConfiguringProduct] = useState<BranchProduct | null>(null);
@@ -52,6 +54,7 @@ const FranchisePOSPage: React.FC = () => {
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [isLoadingAddons, setIsLoadingAddons] = useState(false);
   const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState('all');
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [diningOption, setDiningOption] = useState<'dine_in' | 'takeout'>('takeout');
@@ -128,9 +131,14 @@ const FranchisePOSPage: React.FC = () => {
   const tenderedAmount = Number(cashTendered || 0);
   const changeDue = Math.max(0, tenderedAmount - total);
   const filteredProducts = useMemo(
-    () => products.filter((product) => `${product.name} ${product.category}`.toLowerCase().includes(search.toLowerCase())),
-    [products, search],
+    () => products.filter((product) => {
+      const matchesSearch = `${product.name} ${product.category}`.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory = activeCategory === 'all' || product.category.toLowerCase() === activeCategory;
+      return matchesSearch && matchesCategory;
+    }),
+    [products, search, activeCategory],
   );
+  const categories = useMemo(() => [...new Set(products.map((product) => product.category).filter(Boolean))], [products]);
 
   const openProduct = async (product: BranchProduct) => {
     setConfiguringProduct(product);
@@ -334,15 +342,13 @@ const FranchisePOSPage: React.FC = () => {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-6 sm:px-6">
-      <div className="mx-auto max-w-7xl">
+    <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
+      <div className="mx-auto max-w-[1500px]">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
           <div>
-            <Link to="/franchise/dashboard" className="mb-2 inline-flex items-center gap-2 text-sm text-[var(--oppa-green)] hover:underline">
-              <ArrowLeft size={16} /> Dashboard
-            </Link>
-            <h1 className="text-2xl font-semibold text-[var(--oppa-text)]">Branch POS Register</h1>
-            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Create and record an in-person branch order.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--oppa-green)]">Franchise POS</p>
+            <h1 className="mt-1 text-2xl font-semibold text-[var(--oppa-text)]">POS · {franchiseUser?.franchise?.name || 'Branch menu'}</h1>
+            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Build an order from this branch’s menu and stock.</p>
           </div>
           <div className="rounded-xl bg-[var(--oppa-cream)] px-4 py-3 text-right">
             <p className="text-xs text-[var(--oppa-text-muted)]">Order total</p>
@@ -353,8 +359,8 @@ const FranchisePOSPage: React.FC = () => {
         {error && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         {success && <div role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{success}</div>}
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-          <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm sm:p-5">
             <label className="relative mb-4 block">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -364,24 +370,29 @@ const FranchisePOSPage: React.FC = () => {
                 className="w-full rounded-xl border border-gray-200 py-3 pl-10 pr-4 text-sm"
               />
             </label>
+            <div className="mb-4 flex flex-wrap gap-2" aria-label="Filter menu by category">
+              {[{ id: 'all', label: 'All items' }, ...categories.map((category) => ({ id: category.toLowerCase(), label: category.replaceAll('-', ' ') }))].map((item) => (
+                <button key={item.id} type="button" onClick={() => setActiveCategory(item.id)} aria-pressed={activeCategory === item.id} className={`rounded-full px-3.5 py-1.5 text-xs font-semibold capitalize transition ${activeCategory === item.id ? 'bg-[var(--oppa-green)] text-white' : 'bg-[var(--oppa-cream)] text-gray-600 hover:bg-[var(--oppa-green-soft)]'}`}>{item.label}</button>
+              ))}
+            </div>
             {isLoading ? (
               <p className="py-12 text-center text-sm text-[var(--oppa-text-muted)]">Loading menu...</p>
             ) : filteredProducts.length === 0 ? (
               <p className="py-12 text-center text-sm text-[var(--oppa-text-muted)]">No available products at this branch.</p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {filteredProducts.map((product) => (
                   <button
                     type="button"
                     key={product.id}
                     onClick={() => void openProduct(product)}
                     disabled={!product.branch_available}
-                    className="overflow-hidden rounded-xl border border-gray-200 text-left transition hover:border-[var(--oppa-green)] hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-55"
+                    className="overflow-hidden rounded-2xl border border-gray-200 text-left transition hover:-translate-y-0.5 hover:border-[var(--oppa-green)] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-55"
                   >
-                    {product.image && <img src={product.image} alt="" className="h-32 w-full object-cover" />}
-                    <span className="block p-3">
-                      <span className="block font-medium text-[var(--oppa-text)]">{product.name}</span>
-                      <span className="mt-1 block text-sm text-[var(--oppa-green)]">₱{Number(product.price).toFixed(2)}</span>
+                    {product.image && <img src={product.image} alt="" className="h-36 w-full object-cover" />}
+                    <span className="block p-3.5">
+                      <span className="block min-h-10 font-semibold text-[var(--oppa-text)]">{product.name}</span>
+                      <span className="mt-1 block text-sm font-bold text-[var(--oppa-green)]">₱{Number(product.price).toFixed(2)}</span>
                       <span className={`mt-2 block text-xs font-medium ${product.branch_available ? 'text-green-700' : 'text-red-600'}`}>
                         {product.branch_available
                           ? product.branch_stock_tracked
@@ -398,9 +409,12 @@ const FranchisePOSPage: React.FC = () => {
             )}
           </section>
 
-          <aside className="h-fit rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--oppa-text)]">
+          <aside className="h-fit rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm xl:sticky xl:top-5">
+            <h2 className="mb-4 flex items-center justify-between gap-2 text-lg font-semibold text-[var(--oppa-text)]">
+              <span className="flex items-center gap-2">
               <ShoppingBag size={19} /> Current order
+              </span>
+              {lines.length > 0 && <button onClick={() => { setCart({}); setPaymentReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); }} className="text-xs font-medium text-red-600 hover:underline">Clear</button>}
             </h2>
             <div className="mb-4 max-h-56 space-y-3 overflow-y-auto">
               {lines.map(({ key, product, quantity, selectedSize, selectedAddons }) => (

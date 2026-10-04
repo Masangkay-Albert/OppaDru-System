@@ -11,6 +11,17 @@ export interface FranchiseSummary {
   status?: string;
   created_at?: string;
   owner_admin_id?: string | number | null;
+  metadata?: Record<string, unknown> | null;
+  users?: FranchiseAdminUser[];
+}
+
+export interface FranchiseAdminUser {
+  id: string | number;
+  full_name: string;
+  email: string;
+  phone?: string | null;
+  is_active: boolean;
+  created_at?: string;
 }
 
 export interface FranchiseApplication {
@@ -46,6 +57,63 @@ export const getFranchiseStats = async () => {
   const body = await response.json().catch(() => ({}));
   return body?.data ?? {};
 };
+
+const franchiseAdminRequest = async <T,>(url: string, init?: RequestInit): Promise<T> => {
+  const response = await fetchWithAdminAuth(url, init);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body?.message || 'Unable to complete the franchise request');
+  }
+  return body?.data as T;
+};
+
+export const getFranchiseDetail = (id: string | number) =>
+  franchiseAdminRequest<FranchiseSummary>(`${API_URL}/admin/franchises/${id}`);
+
+export const createFranchise = (data: Pick<FranchiseSummary, 'name' | 'email' | 'phone' | 'address' | 'status'>) =>
+  franchiseAdminRequest<FranchiseSummary>(`${API_URL}/admin/franchises`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+export const updateFranchise = (id: string | number, data: Partial<Pick<FranchiseSummary, 'name' | 'email' | 'phone' | 'address' | 'status'>>) =>
+  franchiseAdminRequest<FranchiseSummary>(`${API_URL}/admin/franchises/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+export const getFranchiseAdminOverview = async (id: string | number) => {
+  const [summary, inventory, fulfillment, users] = await Promise.all([
+    franchiseAdminRequest<Record<string, unknown>>(`${API_URL}/admin/franchises/${id}/summary`),
+    franchiseAdminRequest<Record<string, unknown>>(`${API_URL}/admin/franchises/${id}/inventory`),
+    franchiseAdminRequest<Record<string, unknown>>(`${API_URL}/admin/franchises/${id}/fulfillment`),
+    franchiseAdminRequest<FranchiseAdminUser[]>(`${API_URL}/admin/franchises/${id}/users`),
+  ]);
+  return { summary, inventory, fulfillment, users };
+};
+
+export const createFranchiseManager = (id: string | number, data: { full_name: string; email: string; phone?: string; password: string }) =>
+  franchiseAdminRequest<FranchiseAdminUser>(`${API_URL}/admin/franchises/${id}/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+export const updateFranchiseManager = (id: string | number, userId: string | number, data: Partial<Pick<FranchiseAdminUser, 'full_name' | 'email' | 'phone' | 'is_active'>>) =>
+  franchiseAdminRequest<FranchiseAdminUser>(`${API_URL}/admin/franchises/${id}/users/${userId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+export const toggleFranchiseManager = (id: string | number, userId: string | number, isActive: boolean) =>
+  franchiseAdminRequest<FranchiseAdminUser>(`${API_URL}/admin/franchises/${id}/users/${userId}/toggle-status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ is_active: isActive }),
+  });
 
 export const getFranchiseApplications = async (): Promise<FranchiseApplication[]> => {
   const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications`);
