@@ -191,19 +191,27 @@ const MenuPage: React.FC = () => {
             onCategoryClick={handleCategoryChange}
           />
 
-          <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <label htmlFor="customer-branch" className="mb-2 block text-sm font-semibold text-[#1C3D2E]">
-              Choose where to order
-            </label>
+          <section className="mb-6 rounded-2xl border border-[#dce8de] bg-white p-4 shadow-sm sm:p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <label htmlFor="customer-branch" className="block text-sm font-bold text-[#1C3D2E]">
+                  Choose which branch to order from
+                </label>
+                <p className="mt-0.5 text-xs text-gray-500">Menu availability can vary by location.</p>
+              </div>
+              <span className="rounded-full bg-[#E3EFE7] px-3 py-1 text-[11px] font-semibold text-[#1C3D2E]">
+                {selectedBranchId ? 'Franchise branch' : 'Original / Main Store'}
+              </span>
+            </div>
             <select
               id="customer-branch"
               value={selectedBranchId || ''}
               onChange={(event) => handleBranchChange(event.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 sm:max-w-md"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 focus:border-[#1C3D2E] focus:outline-none focus:ring-2 focus:ring-[#1C3D2E]/10 sm:max-w-xl"
             >
               <option value="">Original Oppa Dru (Main Store)</option>
               {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
+                <option key={branch.id} value={branch.id}>{branch.name}{branch.address ? ` — ${branch.address}` : ''}</option>
               ))}
             </select>
             {branchError && <p className="mt-2 text-sm text-red-600">{branchError}</p>}

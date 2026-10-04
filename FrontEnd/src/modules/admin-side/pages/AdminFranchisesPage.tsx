@@ -73,7 +73,7 @@ const AdminFranchisesPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">Franchise Management</h1>
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Search, add, and manage franchise branches.</p>
@@ -87,7 +87,7 @@ const AdminFranchisesPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-4">
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Total franchises" value={stats.total_franchises ?? 0} icon={Building2} />
         <MetricCard label="Active" value={stats.active_franchises ?? 0} icon={CheckCircle2} tone="success" />
         <MetricCard label="Pending" value={stats.pending_franchises ?? 0} icon={CircleDashed} tone="warning" />
@@ -95,9 +95,9 @@ const AdminFranchisesPage: React.FC = () => {
       </div>
 
       {error && <div role="alert" className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}<button onClick={() => void load()} className="font-semibold underline">Retry</button></div>}
-      <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-4 sm:flex-row">
-        <label className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search branch name, email, address, or ID" className="w-full rounded-xl border border-gray-300 py-2.5 pl-9 pr-3 text-sm" /></label>
-        <select aria-label="Filter branches by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm"><option value="all">All statuses</option><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select>
+      <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-3 sm:flex-row">
+        <label className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search branch name or location..." className="w-full rounded-xl border border-gray-300 py-2.5 pl-9 pr-3 text-sm" /></label>
+        <select aria-label="Filter branches by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm sm:min-w-40"><option value="all">All status</option><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select>
       </div>
 
       {loading ? (
@@ -111,26 +111,29 @@ const AdminFranchisesPage: React.FC = () => {
           <p className="mt-2">{franchises.length ? 'No branches match your search.' : 'No franchises found yet.'}</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2.5">
           {filteredFranchises.map((franchise) => (
-            <div key={String(franchise.id)} className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-[var(--oppa-text)]">{franchise.name}</h2>
-                  <p className="text-sm text-[var(--oppa-text-muted)]">{franchise.email || 'No email provided'}</p>
+            <div key={String(franchise.id)} className="flex flex-col gap-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-3 shadow-sm transition hover:border-[var(--oppa-green)]/40 hover:shadow-md sm:flex-row sm:items-center">
+              <div className="grid h-20 w-full shrink-0 place-items-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] sm:w-28">
+                <Building2 size={27} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider">Branch</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-semibold text-[var(--oppa-text)]">{franchise.name}</h2>
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${statusTone(franchise.status)}`}>
+                    {franchise.status || 'active'}
+                  </span>
                 </div>
-                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ${statusTone(franchise.status)}`}>
-                  {franchise.status || 'active'}
-                </span>
+                <p className="mt-0.5 truncate text-xs text-[var(--oppa-text-muted)]">{franchise.email || 'No email provided'} · ID: {franchise.id}</p>
+                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600">
+                  <span className="inline-flex items-center gap-1.5"><Phone size={13} />{franchise.phone || 'No phone'}</span>
+                  <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{franchise.address || 'No address provided'}</span>
+                </div>
               </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <MetaItem icon={Phone} label="Phone" value={franchise.phone || 'N/A'} />
-                <MetaItem icon={MapPin} label="Address" value={franchise.address || 'N/A'} />
-                <MetaItem icon={Users} label="Branch ID" value={String(franchise.id)} />
-              </div>
-              <div className="mt-4 flex justify-end border-t border-[var(--oppa-border)] pt-4">
-                <Link to={`/admin/franchises/${franchise.id}`} className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">View / Manage</Link>
+              <div className="flex items-center gap-2 sm:pl-3">
+                <Link to={`/admin/franchises/${franchise.id}`} className="rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]">View</Link>
+                <Link to={`/admin/franchises/${franchise.id}?tab=settings`} className="rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Manage</Link>
               </div>
             </div>
           ))}
@@ -176,20 +179,5 @@ const MetricCard: React.FC<MetricCardProps> = ({ label, value, icon: Icon, tone 
     </div>
   );
 };
-
-interface MetaItemProps {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-}
-
-const MetaItem: React.FC<MetaItemProps> = ({ icon: Icon, label, value }) => (
-  <div className="rounded-xl bg-[var(--oppa-cream)] p-3">
-    <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-[0.1em] text-[var(--oppa-text-muted)]">
-      <Icon size={14} /> {label}
-    </div>
-    <div className="text-sm font-medium text-[var(--oppa-text)]">{value}</div>
-  </div>
-);
 
 export default AdminFranchisesPage;

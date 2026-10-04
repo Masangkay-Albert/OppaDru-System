@@ -34,8 +34,8 @@ const FranchiseLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   const sidebar = (
     <>
-      <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
-        <img src={oppaDruLogo} alt="Oppa Dru" className="h-10 w-10 rounded-full border border-white/20 object-cover" />
+      <div className="flex items-center gap-3 border-b border-white/10 px-4 py-4">
+        <img src={oppaDruLogo} alt="Oppa Dru" className="h-9 w-9 rounded-full border border-white/20 object-cover" />
         <div className="min-w-0">
           <p className="truncate font-serif text-base font-bold text-white">Oppa Dru</p>
           <p className="text-xs text-white/65">Franchise Portal</p>
@@ -44,16 +44,16 @@ const FranchiseLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
       </div>
       <div className="border-b border-white/10 px-5 py-4">
         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/50">Current branch</p>
-        <p className="mt-1 flex items-center gap-2 truncate text-sm font-semibold text-white"><Store size={14} />{branchName}</p>
+        <p className="mt-1 flex items-center gap-2 truncate text-[13px] font-semibold text-white"><Store size={14} />{branchName}</p>
       </div>
-      <nav aria-label="Franchise portal" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav aria-label="Franchise portal" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-3">
         {navigation.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/franchise/dashboard'}
             onClick={() => setMobileOpen(false)}
-            className={({ isActive }) => `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${isActive ? 'bg-white text-[var(--oppa-green-dark)] shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+            className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition ${isActive ? 'bg-[#cfe5d5] text-[#16442d] shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
           >
             <Icon size={17} />{label}
           </NavLink>
@@ -70,7 +70,7 @@ const FranchiseLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
   return (
     <div className="flex min-h-screen bg-[var(--oppa-cream)]">
       {mobileOpen && <button aria-label="Close navigation overlay" className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setMobileOpen(false)} />}
-      <aside className={`bg-oppa-gradient fixed inset-y-0 left-0 z-50 flex w-64 flex-col shadow-xl transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`bg-oppa-gradient fixed inset-y-0 left-0 z-50 flex w-48 flex-col shadow-xl transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {sidebar}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
