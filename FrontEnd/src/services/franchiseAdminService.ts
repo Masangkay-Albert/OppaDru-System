@@ -21,6 +21,7 @@ export interface FranchiseAdminUser {
   email: string;
   phone?: string | null;
   is_active: boolean;
+  can_process_pos?: boolean;
   created_at?: string;
 }
 
@@ -94,14 +95,14 @@ export const getFranchiseAdminOverview = async (id: string | number) => {
   return { summary, inventory, fulfillment, users };
 };
 
-export const createFranchiseManager = (id: string | number, data: { full_name: string; email: string; phone?: string; password: string }) =>
+export const createFranchiseManager = (id: string | number, data: { full_name: string; email: string; phone?: string; password: string; can_process_pos?: boolean }) =>
   franchiseAdminRequest<FranchiseAdminUser>(`${API_URL}/admin/franchises/${id}/users`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(data),
   });
 
-export const updateFranchiseManager = (id: string | number, userId: string | number, data: Partial<Pick<FranchiseAdminUser, 'full_name' | 'email' | 'phone' | 'is_active'>>) =>
+export const updateFranchiseManager = (id: string | number, userId: string | number, data: Partial<Pick<FranchiseAdminUser, 'full_name' | 'email' | 'phone' | 'is_active' | 'can_process_pos'>>) =>
   franchiseAdminRequest<FranchiseAdminUser>(`${API_URL}/admin/franchises/${id}/users/${userId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

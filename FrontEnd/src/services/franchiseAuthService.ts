@@ -9,6 +9,7 @@ export interface FranchiseUser {
   phone?: string;
   franchise_id?: string | number | null;
   is_active?: boolean;
+  can_process_pos?: boolean;
   franchise?: {
     id?: string | number;
     name?: string;
@@ -73,6 +74,7 @@ export const getCurrentFranchiseUser = (): FranchiseUser | null => {
       phone: parsed.phone,
       franchise_id: parsed.franchise_id,
       is_active: parsed.is_active,
+      can_process_pos: parsed.can_process_pos,
       franchise: parsed.franchise,
       token: parsed.token,
     };

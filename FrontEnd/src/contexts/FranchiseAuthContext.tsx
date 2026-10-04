@@ -52,6 +52,7 @@ export const FranchiseAuthProvider: React.FC<{ children: React.ReactNode }> = ({
         phone: rawUser.phone,
         franchise_id: rawUser.franchise_id,
         is_active: rawUser.is_active,
+        can_process_pos: Boolean(rawUser.can_process_pos),
         franchise: rawUser.franchise,
         token,
       };

@@ -5,6 +5,7 @@ import AccountModal from '../components/AccountModal';
 import AccountCreationModal, { type AccountCreationValues } from '../components/AccountCreationModal';
 import { useToast } from '../../customer-side/components/ToastProvider';
 import { API_URL } from '../../../services/apiConfig';
+import { fetchWithAdminAuth } from '../../../services/adminAuthService';
 
 export interface EmployeeAccount {
   id: string;
@@ -28,7 +29,7 @@ const AdminEmployeesPage: React.FC = () => {
 
   const refresh = async () => {
     try {
-      const response = await fetch(`${API_URL}/employees`, {
+      const response = await fetchWithAdminAuth(`${API_URL}/employees`, {
         headers: { Accept: 'application/json' },
       });
       const data = await response.json();
@@ -47,7 +48,7 @@ const AdminEmployeesPage: React.FC = () => {
     setSubmitError('');
 
     try {
-      const response = await fetch(`${API_URL}/employees`, {
+      const response = await fetchWithAdminAuth(`${API_URL}/employees`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -85,7 +86,7 @@ const AdminEmployeesPage: React.FC = () => {
     if (!deleteTarget) return;
 
     try {
-      await fetch(`${API_URL}/employees/${deleteTarget.id}`, {
+      await fetchWithAdminAuth(`${API_URL}/employees/${deleteTarget.id}`, {
         method: 'DELETE',
         headers: { Accept: 'application/json' },
       });
@@ -99,7 +100,7 @@ const AdminEmployeesPage: React.FC = () => {
 
   const handleReset = async (id: string, newPassword: string) => {
     try {
-      const response = await fetch(`${API_URL}/employees/${id}/reset-password`, {
+      const response = await fetchWithAdminAuth(`${API_URL}/employees/${id}/reset-password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

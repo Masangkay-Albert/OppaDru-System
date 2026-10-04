@@ -2,12 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Truck, MapPin, CheckCircle, Phone, Clock, CreditCard, User, Eye, X, ArrowDownUp, ImagePlus } from 'lucide-react';
+import { Truck, MapPin, CheckCircle, Phone, Clock, User, Eye, X, ArrowDownUp, ImagePlus } from 'lucide-react';
 import DriverLayout from '../components/DriverLayout';
 import RouteLayer from '../../customer-side/components/tracking/RouteLayer';
 import { destinationIcon, storeIcon } from '../../customer-side/components/tracking/MapIcons';
 
-import { formatCurrency } from '../../../utils/formatters';
 import { STATUS_COLORS } from '../../../utils/constants';
 import { API_URL } from '../../../services/apiConfig';
 import { OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
@@ -33,21 +32,10 @@ export interface DriverOrder {
   deliveryAddress?: string;
   address?: string;
   phone?: string;
-  total?: number;
-  paymentMethod?: string;
   deliveryCoordinates?: { lat: number; lng: number } | null;
   deliveryProofImageUrl?: string | null;
   deliveryProofUploadedAt?: string | null;
 }
-
-const formatPaymentMethod = (method?: string) => {
-  if (!method) return 'Unknown';
-  if (method === 'cash_on_delivery') return 'Cash on Delivery';
-  if (method === 'gcash') return 'GCash';
-  if (method === 'credit_card') return 'Credit Card';
-  return method;
-};
-
 
 const formatDate = (dateString: string) => {
   if (!dateString) return 'Unknown date';
@@ -344,12 +332,6 @@ const DriverDashboardPage: React.FC = () => {
                     </div>
                   )}
                   
-                  <div className="flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]">
-                    <CreditCard size={14} className="flex-shrink-0" />
-                    <span className={order.paymentMethod === 'cash_on_delivery' ? 'font-bold text-red-500' : ''}>
-                      {formatPaymentMethod(order.paymentMethod)} • {formatCurrency(order.total || 0)}
-                    </span>
-                  </div>
                 </div>
 
                 <div className="mt-4 flex items-center gap-2 border-t border-[var(--oppa-border)] pt-3">
@@ -381,7 +363,6 @@ const DriverDashboardPage: React.FC = () => {
                   <th className="px-5 py-3">Date Ordered</th>
                   <th className="px-5 py-3">Customer Info</th>
                   <th className="px-5 py-3">Delivery Address</th>
-                  <th className="px-5 py-3">Payment</th>
                   <th className="px-5 py-3">Status</th>
                   <th className="px-5 py-3 text-right">Action</th>
                 </tr>
@@ -411,12 +392,6 @@ const DriverDashboardPage: React.FC = () => {
                           <Clock size={12} /> {order.scheduleDisplay}
                         </p>
                       )}
-                    </td>
-                    <td className="px-5 py-3 align-top">
-                      <p className="font-medium text-[var(--oppa-text)]">{formatCurrency(order.total || 0)}</p>
-                      <p className={`text-xs ${order.paymentMethod === 'cash_on_delivery' ? 'text-red-500 font-medium' : 'text-[var(--oppa-text-muted)]'}`}>
-                        {formatPaymentMethod(order.paymentMethod)}
-                      </p>
                     </td>
                     <td className="px-5 py-3 align-top">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[order.status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700'}`}>
@@ -535,22 +510,6 @@ const DriverDashboardPage: React.FC = () => {
                 </p>
               )}
               
-              {/* Payment Info */}
-              <div className="flex justify-between items-center bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Payment Method</p>
-                  <p className={`font-medium text-sm ${selectedOrder.paymentMethod === 'cash_on_delivery' ? 'text-red-600 font-bold' : ''}`}>
-                    {formatPaymentMethod(selectedOrder.paymentMethod)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Total to Collect</p>
-                  <p className="font-bold text-lg text-[var(--oppa-text)]">
-                    {formatCurrency(selectedOrder.total || 0)}
-                  </p>
-                </div>
-              </div>
-
              
               {selectedOrder.items && selectedOrder.items.length > 0 && (
                 <div>

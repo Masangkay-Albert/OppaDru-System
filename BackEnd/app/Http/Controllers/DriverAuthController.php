@@ -21,7 +21,9 @@ class DriverAuthController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $driver = Driver::where('email', $request->email)->first();
+        $driver = Driver::with('franchise')
+            ->where('email', strtolower(trim((string) $request->email)))
+            ->first();
 
         if (!$driver || !Hash::check($request->password, $driver->password)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
@@ -29,6 +31,9 @@ class DriverAuthController extends Controller
 
         if (!$driver->isActive) {
             return response()->json(['message' => 'Account is inactive. Please contact admin.'], 403);
+        }
+        if ($driver->franchise_id && (!$driver->franchise || $driver->franchise->status !== 'active')) {
+            return response()->json(['message' => 'This branch is not currently active.'], 403);
         }
 
         // Generate and save the manual token

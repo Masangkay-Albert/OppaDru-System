@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Order;
+use App\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class KitchenOrderChannelTest extends TestCase
@@ -12,14 +14,25 @@ class KitchenOrderChannelTest extends TestCase
 
     public function test_prepared_walk_in_orders_become_delivered_without_changing_online_orders(): void
     {
+        $kitchenStaff = Employee::create([
+            'fullName' => 'Main Kitchen',
+            'email' => 'kitchen@example.com',
+            'password' => Hash::make('Kitchen@123'),
+            'position' => 'kitchen staff',
+        ]);
+        $token = 'main-kitchen-token';
+        $kitchenStaff->api_token = hash('sha256', $token);
+        $kitchenStaff->save();
+        $headers = ['Authorization' => 'Bearer ' . $token];
+
         $onsiteOrder = $this->createOrder('ONSITE-CHANNEL-TEST', 'onsite', 'Onsite - Takeout (Customer: Walk-in Customer)');
         $onlineOrder = $this->createOrder('ONLINE-CHANNEL-TEST', 'standard', 'Customer delivery address');
 
-        $this->patchJson('/api/kitchen/orders/'.$onsiteOrder->id.'/status', ['status' => 'prepared'])
+        $this->patchJson('/api/kitchen/orders/'.$onsiteOrder->id.'/status', ['status' => 'prepared'], $headers)
             ->assertOk()
             ->assertJsonPath('order.status', 'delivered');
 
-        $this->patchJson('/api/kitchen/orders/'.$onlineOrder->id.'/status', ['status' => 'prepared'])
+        $this->patchJson('/api/kitchen/orders/'.$onlineOrder->id.'/status', ['status' => 'prepared'], $headers)
             ->assertOk()
             ->assertJsonPath('order.status', 'prepared');
 

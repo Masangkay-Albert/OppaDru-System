@@ -18,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'verified-user' => \App\Http\Middleware\EnsureUserIsVerified::class,
             'franchise.access' => \App\Http\Middleware\EnsureFranchiseAccess::class,
+            'employee.access' => \App\Http\Middleware\EnsureEmployeeAccess::class,
+            'admin.access' => \App\Http\Middleware\EnsureAdminAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

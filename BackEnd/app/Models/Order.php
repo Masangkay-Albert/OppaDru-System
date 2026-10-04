@@ -21,6 +21,7 @@ class Order extends Model
         'email',
         'user_id',
         'driver_id',
+        'cashier_employee_id',
         'order_number',
         'total',
         'delivery_fee',
@@ -101,6 +102,11 @@ class Order extends Model
     public function driver()
     {
         return $this->belongsTo(Driver::class, 'driver_id', 'id');
+    }
+
+    public function cashier()
+    {
+        return $this->belongsTo(Employee::class, 'cashier_employee_id', 'id');
     }
 
     public function payment()

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\Employee;
 use Illuminate\Http\Request;
 
 class KitchenOrderController extends Controller
@@ -11,9 +12,14 @@ class KitchenOrderController extends Controller
     // Fetch orders based on the requested tab/status
     public function index(Request $request)
     {
+        $employee = $request->user();
+        if (!$employee instanceof Employee || strtolower((string) $employee->position) !== 'kitchen staff') {
+            return response()->json(['message' => 'Kitchen staff access required.'], 403);
+        }
+
         $tab = $request->query('tab', 'pending');
         
-        $query = Order::query()->with('user'); // Load the user relationship for the customer name
+        $query = Order::query()->with('user')->where('franchise_id', $employee->franchise_id);
 
         if ($tab === 'pending') {
             $query->whereIn('status', ['pending']);
@@ -33,11 +39,9 @@ class KitchenOrderController extends Controller
             $customerName = 'Guest Customer';
             if ($order->user) {
                 $name = trim(($order->user->first_name ?? '') . ' ' . ($order->user->last_name ?? ''));
-                $customerName = $name ?: ($order->user->full_name ?? $order->email ?? 'Customer');
+                $customerName = $name ?: ($order->user->full_name ?? 'Customer');
             } elseif (!empty($order->delivery_address) && preg_match('/Customer:\s*([^)|]+)/i', (string) $order->delivery_address, $matches)) {
                 $customerName = trim($matches[1]);
-            } elseif (!empty($order->email) && !str_starts_with($order->email, 'onsite')) {
-                $customerName = $order->email;
             }
 
             return [
@@ -48,7 +52,15 @@ class KitchenOrderController extends Controller
                     ? 'onsite'
                     : 'online',
                 'status' => $order->status,
-                'items' => $order->items, // Your model already casts this to an array
+                'items' => collect($order->items ?? [])->map(fn (array $item) => [
+                    'name' => $item['name'] ?? $item['product_name'] ?? $item['title'] ?? 'Item',
+                    'quantity' => (int) ($item['quantity'] ?? 0),
+                    'selected_size' => $item['selected_size'] ?? null,
+                    'selected_addons' => collect($item['selected_addons'] ?? [])->map(fn (array $addon) => [
+                        'name' => $addon['name'] ?? $addon['addon_name'] ?? 'Add-on',
+                        'quantity' => (int) ($addon['quantity'] ?? 1),
+                    ])->values(),
+                ])->values(),
                 'scheduleDisplay' => $order->schedule_display,
                 'deliveryType' => $order->delivery_type,
                 'created_at' => $order->created_at,
@@ -61,11 +73,16 @@ class KitchenOrderController extends Controller
     // Update the status of an order
   public function updateStatus(Request $request, string $id)
     {
+        $employee = $request->user();
+        if (!$employee instanceof Employee || strtolower((string) $employee->position) !== 'kitchen staff') {
+            return response()->json(['message' => 'Kitchen staff access required.'], 403);
+        }
+
         $request->validate([
             'status' => 'required|string|in:pending,preparing,prepared,ready,completed,cancelled'
         ]);
 
-        $order = Order::findOrFail($id);
+        $order = Order::where('franchise_id', $employee->franchise_id)->findOrFail($id);
         $isOnsiteOrder = $order->delivery_type === 'onsite'
             || $order->delivery_calculation_method === 'onsite'
             || str_starts_with(strtolower((string) $order->delivery_address), 'onsite');

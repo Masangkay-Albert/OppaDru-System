@@ -1,5 +1,22 @@
 import { API_URL } from './apiConfig';
 
+export const fetchWithEmployeeAuth = async (url: string, init: RequestInit = {}): Promise<Response> => {
+  const token = localStorage.getItem('employee_token');
+  const headers = new Headers(init.headers || {});
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+  if (!headers.has('Content-Type') && !(init.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  const response = await fetch(url, { ...init, headers });
+  if (response.status === 401) {
+    localStorage.removeItem('employee_auth');
+    localStorage.removeItem('employee_token');
+  }
+  return response;
+};
+
 const API_BASE_URL = API_URL;
 
 export const employeeAuth = {
@@ -25,7 +42,7 @@ export const employeeAuth = {
       localStorage.setItem("employee_token", data.token);
 
       return { success: true, position: data.position, message: "Login successful" };
-    } catch (error: any) {
+    } catch {
       return { success: false, message: "Server connection failed." };
     }
   },

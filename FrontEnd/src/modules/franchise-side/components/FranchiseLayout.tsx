@@ -47,7 +47,7 @@ const FranchiseLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
         <p className="mt-1 flex items-center gap-2 truncate text-[13px] font-semibold text-white"><Store size={14} />{branchName}</p>
       </div>
       <nav aria-label="Franchise portal" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-3">
-        {navigation.map(({ to, label, icon: Icon }) => (
+        {navigation.filter(({ to }) => to !== '/franchise/pos' || franchiseUser?.can_process_pos).map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

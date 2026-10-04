@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { PlusIcon, XIcon, PhoneIcon, MailIcon, Power, Trash2 } from "lucide-react";
 import AdminLayout from '../components/AdminLayout';
 import { API_URL } from '../../../services/apiConfig';
+import { fetchWithAdminAuth } from '../../../services/adminAuthService';
 
 export interface DeliveryPartner {
   id: string;
@@ -21,7 +22,7 @@ export default function AdminDelivery() {
 
   const refresh = async () => {
     try {
-      const res = await fetch(`${API_URL}/drivers`, {
+      const res = await fetchWithAdminAuth(`${API_URL}/drivers`, {
         headers: { 'Accept': 'application/json' }
       });
       if (res.ok) {
@@ -49,7 +50,7 @@ export default function AdminDelivery() {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/drivers`, {
+      const res = await fetchWithAdminAuth(`${API_URL}/drivers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -76,7 +77,7 @@ export default function AdminDelivery() {
   // TOGGLE Driver Status
   const handleToggle = async (partner: DeliveryPartner) => {
     try {
-      const res = await fetch(`${API_URL}/drivers/${partner.id}`, {
+      const res = await fetchWithAdminAuth(`${API_URL}/drivers/${partner.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -102,7 +103,7 @@ export default function AdminDelivery() {
     if (!deleteTarget) return;
 
     try {
-      const res = await fetch(`${API_URL}/drivers/${deleteTarget.id}`, {
+      const res = await fetchWithAdminAuth(`${API_URL}/drivers/${deleteTarget.id}`, {
         method: 'DELETE',
         headers: { 'Accept': 'application/json' },
       });
@@ -304,5 +305,4 @@ export default function AdminDelivery() {
     </AdminLayout>
   );
 }
-
 

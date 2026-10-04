@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Minus, Plus, Search, ShoppingBag } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
+import { fetchWithEmployeeAuth } from '../../../services/employeeAuth';
 import { getProductImage } from '../../../data/productImages';
 import type { Addon, AddonGroup, ProductSize } from '../../../types/product.types';
 import type { Product } from '../../../services/productService';
@@ -45,6 +46,18 @@ const pendingPaymentStorageKey = (reference: string) => `franchise_pos_payment_$
 
 const FranchisePOSPage: React.FC = () => {
   const { franchiseUser } = useFranchiseAuth();
+  const location = useLocation();
+  const employeeData = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('employee_auth') || 'null') as { franchise_id?: string | null; position?: string } | null;
+    } catch {
+      return null;
+    }
+  })();
+  const cashierMode = location.pathname === '/cashier/pos'
+    && Boolean(employeeData?.franchise_id && employeeData.position?.toLowerCase() === 'cashier');
+  const fetchPosAuth = useCallback((url: string, init?: RequestInit) =>
+    cashierMode ? fetchWithEmployeeAuth(url, init) : fetchWithFranchiseAuth(url, init), [cashierMode]);
   const [products, setProducts] = useState<BranchProduct[]>([]);
   const [cart, setCart] = useState<Record<string, PosCartLine>>({});
   const [configuringProduct, setConfiguringProduct] = useState<BranchProduct | null>(null);
@@ -102,7 +115,7 @@ const FranchisePOSPage: React.FC = () => {
   useEffect(() => {
     const loadProducts = async () => {
       try {
-        const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/products`);
+        const response = await fetchPosAuth(`${API_URL}${cashierMode ? '/employee/pos/products' : '/franchise/products'}`);
         if (!response.ok) {
           throw new Error('Could not load the branch menu. Please sign in again or retry.');
         }
@@ -122,7 +135,7 @@ const FranchisePOSPage: React.FC = () => {
     };
 
     void loadProducts();
-  }, []);
+  }, [cashierMode, fetchPosAuth]);
 
   const lines = Object.values(cart);
   const subtotal = lines.reduce((sum, line) => sum + (Number(line.product.price) + line.selectedAddons.reduce((addonTotal, addon) => addonTotal + Number(addon.price) * Math.max(1, Number(addon.quantity || 1)), 0)) * line.quantity, 0);
@@ -150,7 +163,7 @@ const FranchisePOSPage: React.FC = () => {
     setIsLoadingAddons(true);
     try {
       const params = new URLSearchParams({ category: product.category, product_id: product.id });
-      const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/addon-groups?${params}`);
+      const response = await fetchPosAuth(`${API_URL}${cashierMode ? '/employee/pos/addon-groups' : '/franchise/addon-groups'}?${params}`);
       const payload = await response.json().catch(() => []);
       if (!response.ok) throw new Error(payload.message || 'Could not load product options.');
       setAddonGroups(Array.isArray(payload) ? payload : []);
@@ -230,7 +243,7 @@ const FranchisePOSPage: React.FC = () => {
     setError('');
     setPaymentConfirmed(false);
     try {
-      const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/pos/payments/gcash`, {
+      const response = await fetchPosAuth(`${API_URL}${cashierMode ? '/employee/pos/payments/gcash' : '/franchise/pos/payments/gcash'}`, {
         method: 'POST',
         body: JSON.stringify({
           items: paymentItems(),
@@ -303,7 +316,7 @@ const FranchisePOSPage: React.FC = () => {
     setSuccess('');
 
     try {
-      const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/pos/orders`, {
+      const response = await fetchPosAuth(`${API_URL}${cashierMode ? '/employee/pos/orders' : '/franchise/pos/orders'}`, {
         method: 'POST',
         body: JSON.stringify({
           items: paymentItems(),
@@ -350,9 +363,12 @@ const FranchisePOSPage: React.FC = () => {
             <h1 className="mt-1 text-2xl font-semibold text-[var(--oppa-text)]">POS · {franchiseUser?.franchise?.name || 'Branch menu'}</h1>
             <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Build an order from this branch’s menu and stock.</p>
           </div>
-          <div className="rounded-xl bg-[var(--oppa-cream)] px-4 py-3 text-right">
-            <p className="text-xs text-[var(--oppa-text-muted)]">Order total</p>
-            <p className="text-xl font-bold text-[var(--oppa-green)]">₱{total.toFixed(2)}</p>
+          <div className="flex items-center gap-3">
+            {cashierMode && <Link to="/cashier/transactions" className="rounded-xl border border-[var(--oppa-border)] px-4 py-3 text-sm font-semibold text-[var(--oppa-green)]">Recent transactions</Link>}
+            <div className="rounded-xl bg-[var(--oppa-cream)] px-4 py-3 text-right">
+              <p className="text-xs text-[var(--oppa-text-muted)]">Order total</p>
+              <p className="text-xl font-bold text-[var(--oppa-green)]">₱{total.toFixed(2)}</p>
+            </div>
           </div>
         </header>
 

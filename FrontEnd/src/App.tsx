@@ -52,6 +52,7 @@ const FranchiseReportsPage = lazy(() => import("./modules/franchise-side/pages/F
 const FranchiseUsersPage = lazy(() => import("./modules/franchise-side/pages/FranchiseUsersPage"));
 const FranchiseSettingsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseSettingsPage"));
 const FranchiseApplicationPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicationPage"));
+const CashierTransactionsPage = lazy(() => import("./modules/employee-side/pages/CashierTransactionsPage"));
 import ProtectedFranchiseRoute from "./modules/franchise-side/components/ProtectedFranchiseRoute";
 
 // ============ DRIVER PAGES ============
@@ -124,7 +125,7 @@ function App() {
                       {/* ===== FRANCHISE ROUTES ===== */}
                       <Route path="/franchise" element={<ProtectedFranchiseRoute><FranchiseDashboardPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/dashboard" element={<ProtectedFranchiseRoute><FranchiseDashboardPage /></ProtectedFranchiseRoute>} />
-                      <Route path="/franchise/pos" element={<ProtectedFranchiseRoute><FranchisePOSPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/pos" element={<ProtectedFranchiseRoute requirePos><FranchisePOSPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/orders" element={<ProtectedFranchiseRoute><FranchiseOrdersPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/inventory" element={<ProtectedFranchiseRoute><FranchiseInventoryPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/reports" element={<ProtectedFranchiseRoute><FranchiseReportsPage /></ProtectedFranchiseRoute>} />
@@ -149,12 +150,14 @@ function App() {
 
                       {/* Cashier routes matching employeeLogin.tsx redirect */}
                       <Route path="/cashier" element={<ProtectedEmployeeRoute><EmployeeMenuPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/pos" element={<ProtectedEmployeeRoute portal="branch-cashier"><FranchisePOSPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/transactions" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierTransactionsPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/checkout" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/orders" element={<ProtectedEmployeeRoute><EmployeeOrdersPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/favorites" element={<ProtectedEmployeeRoute><EmployeeFavoritesPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/settings" element={<ProtectedEmployeeRoute><EmployeeSettingsPage /></ProtectedEmployeeRoute>} />
 
-                      <Route path="/kitchen/dashboard" element={<KitchenDashboardPage />} />
+                      <Route path="/kitchen/dashboard" element={<ProtectedEmployeeRoute portal="kitchen"><KitchenDashboardPage /></ProtectedEmployeeRoute>} />
 
                     </Routes>
                     </Suspense>

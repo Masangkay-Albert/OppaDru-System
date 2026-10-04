@@ -15,13 +15,21 @@ class DeliveryProofController extends Controller
         if (!$driver) {
             return response()->json(['message' => 'Unauthenticated driver.'], 401);
         }
+        if (!$driver->isActive || ($driver->franchise_id && (!$driver->franchise || $driver->franchise->status !== 'active'))) {
+            return response()->json(['message' => 'Driver account or branch is inactive.'], 403);
+        }
 
         $request->validate([
             'proof_image' => 'required|file|image|mimes:jpeg,jpg,png,webp|max:5120',
         ]);
 
-        $order = Order::findOrFail($id);
-        if ($order->driver_id !== $driver->id || !in_array($order->status, ['on_the_way', 'arrived', 'delivered'], true)) {
+        $order = Order::where('franchise_id', $driver->franchise_id)
+            ->where('driver_id', $driver->id)
+            ->where(function ($query) {
+                $query->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');
+            })
+            ->findOrFail($id);
+        if (!in_array($order->status, ['on_the_way', 'arrived', 'delivered'], true)) {
             return response()->json(['message' => 'You can only upload proof for an active delivery assigned to you.'], 403);
         }
 

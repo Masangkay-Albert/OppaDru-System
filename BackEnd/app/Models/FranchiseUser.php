@@ -25,6 +25,7 @@ class FranchiseUser extends Authenticatable
         'password',
         'api_token',
         'is_active',
+        'can_process_pos',
     ];
 
     protected $hidden = [
@@ -36,6 +37,7 @@ class FranchiseUser extends Authenticatable
     protected $casts = [
         'password' => 'hashed',
         'is_active' => 'boolean',
+        'can_process_pos' => 'boolean',
     ];
 
     protected static function boot()

@@ -22,6 +22,7 @@ class Employee extends Authenticatable
         'email',
         'password',
         'position',
+        'is_active',
     ];
 
     protected $hidden = [
@@ -31,6 +32,7 @@ class Employee extends Authenticatable
 
     protected $casts = [
         'password' => 'hashed',
+        'is_active' => 'boolean',
     ];
 
     protected static function boot()
@@ -54,5 +56,10 @@ class Employee extends Authenticatable
                     strtoupper(Str::random(4));
             }
         });
+    }
+
+    public function franchise()
+    {
+        return $this->belongsTo(Franchise::class, 'franchise_id', 'id');
     }
 }

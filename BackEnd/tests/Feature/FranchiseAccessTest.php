@@ -457,6 +457,7 @@ class FranchiseAccessTest extends TestCase
             'phone' => '09170000015',
             'password' => Hash::make('Franchise@123'),
             'is_active' => true,
+            'can_process_pos' => true,
         ]);
         $product = Product::create([
             'name' => 'West Rice Meal',
@@ -518,6 +519,7 @@ class FranchiseAccessTest extends TestCase
             'email' => 'inventory.manager@example.com',
             'password' => Hash::make('Franchise@123'),
             'is_active' => true,
+            'can_process_pos' => true,
         ]);
         $sharedProduct = Product::create([
             'name' => 'Shared Inventory Product',
@@ -612,6 +614,7 @@ class FranchiseAccessTest extends TestCase
             'email' => 'options.manager@example.com',
             'password' => Hash::make('Franchise@123'),
             'is_active' => true,
+            'can_process_pos' => true,
         ]);
         $drink = Product::create([
             'name' => 'Branch Lemonade',
@@ -736,6 +739,7 @@ class FranchiseAccessTest extends TestCase
             'email' => 'payment.manager@example.com',
             'password' => Hash::make('Franchise@123'),
             'is_active' => true,
+            'can_process_pos' => true,
         ]);
         $product = Product::create([
             'name' => 'Payment Branch Drink',
@@ -834,7 +838,7 @@ class FranchiseAccessTest extends TestCase
         $this->assertSame('09170000002', $otherBranch->fresh()->phone);
     }
 
-    public function test_franchise_manager_can_create_a_manager_only_for_their_branch(): void
+    public function test_franchise_manager_cannot_create_another_manager_account(): void
     {
         $branch = Franchise::create(['name' => 'North Branch', 'status' => 'active']);
         $otherBranch = Franchise::create(['name' => 'South Branch', 'status' => 'active']);
@@ -852,28 +856,17 @@ class FranchiseAccessTest extends TestCase
 
         $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
         $managerData = [
-            'full_name' => 'Assistant Manager',
+            'name' => 'Assistant Manager',
             'email' => 'assistant.manager@example.com',
             'password' => 'Assistant@123',
+            'role' => 'manager',
         ];
         $this->postJson('/api/franchise/users', [
             ...$managerData,
             'franchise_id' => $otherBranch->id,
         ], $headers)->assertForbidden();
 
-        $created = $this->postJson('/api/franchise/users', $managerData, $headers)
-            ->assertCreated()
-            ->assertJsonMissingPath('data.password')
-            ->assertJsonPath('data.franchise_id', $branch->id);
-
-        $this->assertDatabaseHas('franchise_users', [
-            'email' => 'assistant.manager@example.com',
-            'franchise_id' => $branch->id,
-        ]);
-        $this->postJson('/api/franchise/login', [
-            'email' => 'assistant.manager@example.com',
-            'password' => 'Assistant@123',
-        ])->assertOk()->assertJsonPath('franchise_user.franchise_id', $branch->id);
-        $this->assertNotSame($otherBranch->id, $created->json('data.franchise_id'));
+        $this->postJson('/api/franchise/users', $managerData, $headers)->assertUnprocessable();
+        $this->assertDatabaseMissing('franchise_users', ['email' => 'assistant.manager@example.com']);
     }
 }

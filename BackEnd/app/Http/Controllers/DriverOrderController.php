@@ -25,10 +25,17 @@ class DriverOrderController extends Controller
         if (!$driver) {
             return response()->json(['message' => 'Unauthenticated driver.'], 401);
         }
+        if (!$driver->isActive || ($driver->franchise_id && (!$driver->franchise || $driver->franchise->status !== 'active'))) {
+            return response()->json(['message' => 'Driver account or branch is inactive.'], 403);
+        }
 
         $tab = $request->query('tab', 'available');
         
-        $query = Order::query()->with('user');
+        $query = Order::query()->with('user')
+            ->where('franchise_id', $driver->franchise_id)
+            ->where(function ($deliveryQuery) {
+                $deliveryQuery->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');
+            });
 
         // Link the React tabs to the exact database statuses & driver ownership
         if ($tab === 'available') {
@@ -50,11 +57,9 @@ class DriverOrderController extends Controller
             $customerName = 'Guest Customer';
             if ($order->user) {
                 $name = trim(($order->user->first_name ?? '') . ' ' . ($order->user->last_name ?? ''));
-                $customerName = $name ?: ($order->user->full_name ?? $order->email ?? 'Customer');
+                $customerName = $name ?: ($order->user->full_name ?? 'Customer');
             } elseif (!empty($order->delivery_address) && preg_match('/Customer:\s*([^)|]+)/i', (string) $order->delivery_address, $matches)) {
                 $customerName = trim($matches[1]);
-            } elseif (!empty($order->email) && !str_starts_with($order->email, 'onsite')) {
-                $customerName = $order->email;
             }
 
             return [
@@ -62,7 +67,15 @@ class DriverOrderController extends Controller
                 'driver_id' => $order->driver_id,
                 'customerName' => $customerName,
                 'status' => $order->status,
-                'items' => $order->items,
+                'items' => collect($order->items ?? [])->map(fn (array $item) => [
+                    'name' => $item['name'] ?? $item['product_name'] ?? $item['title'] ?? 'Item',
+                    'quantity' => (int) ($item['quantity'] ?? 0),
+                    'selected_size' => $item['selected_size'] ?? null,
+                    'selected_addons' => collect($item['selected_addons'] ?? [])->map(fn (array $addon) => [
+                        'name' => $addon['name'] ?? $addon['addon_name'] ?? 'Add-on',
+                        'quantity' => (int) ($addon['quantity'] ?? 1),
+                    ])->values(),
+                ])->values(),
                 'scheduleDisplay' => $order->schedule_display,
                 'deliveryType' => $order->delivery_type,
                 'created_at' => $order->created_at,
@@ -70,8 +83,6 @@ class DriverOrderController extends Controller
                 // Extra fields drivers need
                 'deliveryAddress' => $order->delivery_address, 
                 'phone' => $order->phone,
-                'total' => $order->total,
-                'paymentMethod' => $order->payment_method,
                 'deliveryCoordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)
                     ? ['lat' => (float) $order->delivery_lat, 'lng' => (float) $order->delivery_lng]
                     : null,
@@ -91,6 +102,9 @@ class DriverOrderController extends Controller
         if (!$driver) {
             return response()->json(['message' => 'Unauthenticated driver.'], 401);
         }
+        if (!$driver->isActive || ($driver->franchise_id && (!$driver->franchise || $driver->franchise->status !== 'active'))) {
+            return response()->json(['message' => 'Driver account or branch is inactive.'], 403);
+        }
 
         $request->merge([
             'status' => strtolower(trim((string) $request->input('status', ''))),
@@ -100,30 +114,43 @@ class DriverOrderController extends Controller
             'status' => 'required|string|in:on_the_way,arrived,delivered',
         ]);
 
-        $order = Order::findOrFail($id);
-
         $targetStatus = $request->status;
+        try {
+            $order = \Illuminate\Support\Facades\DB::transaction(function () use ($driver, $id, $targetStatus) {
+                $order = Order::where('franchise_id', $driver->franchise_id)
+                    ->where(function ($deliveryQuery) {
+                        $deliveryQuery->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');
+                    })
+                    ->lockForUpdate()
+                    ->findOrFail($id);
 
-        if ($targetStatus === 'on_the_way') {
-            if ($order->driver_id && $order->driver_id !== $driver->id) {
-                return response()->json([
-                    'message' => 'This order has already been accepted by another driver.'
-                ], 409);
-            }
-            $order->driver_id = $driver->id;
+                if ($targetStatus === 'on_the_way') {
+                    if (!in_array($order->status, ['prepared', 'ready'], true) || $order->driver_id) {
+                        abort(response()->json(['message' => 'This delivery is no longer available to accept.'], 409));
+                    }
+                    $order->driver_id = $driver->id;
+                } elseif ($order->driver_id !== $driver->id) {
+                    abort(response()->json(['message' => 'This delivery is assigned to another driver.'], 403));
+                }
+
+                if ($targetStatus === 'arrived' && $order->status !== 'on_the_way') {
+                    abort(response()->json(['message' => 'Start the delivery before marking arrival.'], 409));
+                }
+                if ($targetStatus === 'delivered' && !in_array($order->status, ['on_the_way', 'arrived'], true)) {
+                    abort(response()->json(['message' => 'This delivery cannot be marked delivered from its current status.'], 409));
+                }
+                if ($targetStatus === 'delivered') {
+                    $order->delivery_confirmed_at = $order->delivery_confirmed_at ?? now();
+                }
+
+                $order->status = $targetStatus;
+                $order->save();
+
+                return $order;
+            });
+        } catch (\Illuminate\Http\Exceptions\HttpResponseException $exception) {
+            return $exception->getResponse();
         }
-
-        // Allow proof submission after the driver confirms arrival or delivered.
-        if ($targetStatus === 'arrived' || $targetStatus === 'delivered') {
-            $order->driver_id = $driver->id;
-        }
-
-        if ($targetStatus === 'delivered') {
-            $order->delivery_confirmed_at = $order->delivery_confirmed_at ?? now();
-        }
-
-        $order->status = $targetStatus;
-        $order->save();
 
         return response()->json([
             'message' => 'Order status updated successfully',

@@ -61,6 +61,7 @@ Route::prefix('franchise')->group(function () {
         Route::get('/reports', [FranchiseController::class, 'branchReports']);
         Route::get('/users', [FranchiseController::class, 'branchUsers']);
         Route::post('/users', [FranchiseController::class, 'storeBranchUser']);
+        Route::patch('/users/{type}/{id}/status', [FranchiseController::class, 'updateBranchUserStatus']);
         Route::get('/settings', [FranchiseController::class, 'branchSettings']);
         Route::put('/settings', [FranchiseController::class, 'updateBranchSettings']);
         Route::get('/addon-groups', [AddonController::class, 'index']);
@@ -75,20 +76,29 @@ Route::prefix('franchise')->group(function () {
         Route::post('/pos/orders', [FranchiseController::class, 'storePosOrder']);
         Route::post('/pos/payments/gcash', [FranchiseController::class, 'createPosPayment']);
     });
+
 });
 
-Route::get('/employees', [EmployeeController::class, 'index']);
-Route::post('/employees', [EmployeeController::class, 'store']);
-Route::delete('/employees/{id}', [EmployeeController::class, 'destroy']);
-Route::put('/employees/{id}/reset-password', [EmployeeController::class, 'resetPassword']);
 Route::post('/employee/login', [EmployeeAuthController::class, 'login']);
-
-Route::get('/drivers', [DriverController::class, 'index']);
-Route::get('/drivers/{id}', [DriverController::class, 'show']);
-Route::post('/drivers', [DriverController::class, 'store']);
-Route::put('/drivers/{id}', [DriverController::class, 'update']);
-Route::delete('/drivers/{id}', [DriverController::class, 'destroy']);
-Route::put('/drivers/{id}/reset-password', [DriverController::class, 'resetPassword']);
+Route::middleware(['employee.access:cashier'])->group(function () {
+    Route::get('/employee/pos/products', [FranchiseController::class, 'employeePosProducts']);
+    Route::get('/employee/pos/orders', [FranchiseController::class, 'employeePosOrders']);
+    Route::get('/employee/pos/addon-groups', [AddonController::class, 'index']);
+    Route::post('/employee/pos/orders', [FranchiseController::class, 'storePosOrder']);
+    Route::post('/employee/pos/payments/gcash', [FranchiseController::class, 'createPosPayment']);
+});
+Route::middleware(['admin.access'])->group(function () {
+    Route::get('/employees', [EmployeeController::class, 'index']);
+    Route::post('/employees', [EmployeeController::class, 'store']);
+    Route::delete('/employees/{id}', [EmployeeController::class, 'destroy']);
+    Route::put('/employees/{id}/reset-password', [EmployeeController::class, 'resetPassword']);
+    Route::get('/drivers', [DriverController::class, 'index']);
+    Route::get('/drivers/{id}', [DriverController::class, 'show']);
+    Route::post('/drivers', [DriverController::class, 'store']);
+    Route::put('/drivers/{id}', [DriverController::class, 'update']);
+    Route::delete('/drivers/{id}', [DriverController::class, 'destroy']);
+    Route::put('/drivers/{id}/reset-password', [DriverController::class, 'resetPassword']);
+});
 Route::post('/driver/login', [DriverAuthController::class, 'login']);
 Route::post('/driver/logout', [DriverAuthController::class, 'logout']);
 
@@ -112,8 +122,10 @@ Route::get('/settings/pricing', [SettingController::class, 'index']);
 
 
 /// KITCHEN
-Route::get('/kitchen/orders', [KitchenOrderController::class, 'index']);
-Route::patch('/kitchen/orders/{id}/status', [KitchenOrderController::class, 'updateStatus']);
+Route::middleware(['employee.access:kitchen_staff'])->group(function () {
+    Route::get('/kitchen/orders', [KitchenOrderController::class, 'index']);
+    Route::patch('/kitchen/orders/{id}/status', [KitchenOrderController::class, 'updateStatus']);
+});
 
 //drivers
 Route::get('/driver/orders', [DriverOrderController::class, 'index']);

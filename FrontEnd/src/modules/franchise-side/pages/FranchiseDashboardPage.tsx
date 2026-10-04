@@ -105,7 +105,7 @@ const FranchiseDashboardPage: React.FC = () => {
             </p>
           </div>
 
-          <NavButton primary onClick={() => navigate('/franchise/pos')}>Open POS</NavButton>
+          {franchiseUser?.can_process_pos && <NavButton primary onClick={() => navigate('/franchise/pos')}>Open POS</NavButton>}
         </header>
 
         {error && (

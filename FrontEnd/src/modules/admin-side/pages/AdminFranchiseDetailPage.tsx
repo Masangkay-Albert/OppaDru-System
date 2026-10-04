@@ -8,6 +8,7 @@ import {
   getFranchiseAdminOverview,
   getFranchiseDetail,
   toggleFranchiseManager,
+  updateFranchiseManager,
   updateFranchise,
 } from '../../../services/franchiseAdminService';
 import type { FranchiseAdminUser, FranchiseSummary } from '../../../services/franchiseAdminService';
@@ -39,7 +40,7 @@ const AdminFranchiseDetailPage: React.FC = () => {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [showAddManager, setShowAddManager] = useState(false);
-  const [managerForm, setManagerForm] = useState({ full_name: '', email: '', phone: '', password: '' });
+  const [managerForm, setManagerForm] = useState({ full_name: '', email: '', phone: '', password: '', can_process_pos: false });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,7 +89,7 @@ const AdminFranchiseDetailPage: React.FC = () => {
     setNotice('');
     try {
       await createFranchiseManager(id, managerForm);
-      setManagerForm({ full_name: '', email: '', phone: '', password: '' });
+      setManagerForm({ full_name: '', email: '', phone: '', password: '', can_process_pos: false });
       setShowAddManager(false);
       setNotice('Branch manager account created.');
       await load();
@@ -108,6 +109,18 @@ const AdminFranchiseDetailPage: React.FC = () => {
       await load();
     } catch (statusError) {
       setError(statusError instanceof Error ? statusError.message : 'Could not update manager status.');
+    }
+  };
+
+  const setManagerPosPermission = async (user: FranchiseAdminUser) => {
+    setError('');
+    setNotice('');
+    try {
+      await updateFranchiseManager(id, user.id, { can_process_pos: !user.can_process_pos });
+      setNotice(`Manager POS permission ${user.can_process_pos ? 'disabled' : 'enabled'}.`);
+      await load();
+    } catch (permissionError) {
+      setError(permissionError instanceof Error ? permissionError.message : 'Could not update POS permission.');
     }
   };
 
@@ -161,8 +174,8 @@ const AdminFranchiseDetailPage: React.FC = () => {
           </Panel>}
 
           {tab === 'users' && <Panel title="Branch manager accounts">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-gray-500">These accounts can access this branch’s franchise portal.</p><button onClick={() => setShowAddManager(true)} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]"><Plus size={16} /> Add manager</button></div>
-            <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-[var(--oppa-cream)] text-gray-600"><tr>{['Name', 'Email', 'Phone', 'Status', 'Action'].map((label) => <th key={label} className="px-4 py-3 font-medium">{label}</th>)}</tr></thead><tbody>{users.map((user) => <tr key={String(user.id)} className="border-t"><td className="px-4 py-3 font-medium">{user.full_name}</td><td className="px-4 py-3">{user.email}</td><td className="px-4 py-3">{user.phone || '—'}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs capitalize ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>{user.is_active ? 'Active' : 'Inactive'}</span></td><td className="px-4 py-3"><button onClick={() => void setManagerStatus(user)} className="font-medium text-[var(--oppa-green)] hover:underline">{user.is_active ? 'Deactivate' : 'Activate'}</button></td></tr>)}</tbody></table></div>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-gray-500">These accounts access the branch portal. POS permission is off by default; cashiers should use staff accounts instead.</p><button onClick={() => setShowAddManager(true)} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]"><Plus size={16} /> Add manager</button></div>
+            <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-[var(--oppa-cream)] text-gray-600"><tr>{['Name', 'Email', 'Phone', 'Status', 'POS permission', 'Action'].map((label) => <th key={label} className="px-4 py-3 font-medium">{label}</th>)}</tr></thead><tbody>{users.map((user) => <tr key={String(user.id)} className="border-t"><td className="px-4 py-3 font-medium">{user.full_name}</td><td className="px-4 py-3">{user.email}</td><td className="px-4 py-3">{user.phone || '—'}</td><td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs capitalize ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>{user.is_active ? 'Active' : 'Inactive'}</span></td><td className="px-4 py-3"><button onClick={() => void setManagerPosPermission(user)} className="font-medium text-[var(--oppa-green)] hover:underline">{user.can_process_pos ? 'Enabled' : 'Disabled'}</button></td><td className="px-4 py-3"><button onClick={() => void setManagerStatus(user)} className="font-medium text-[var(--oppa-green)] hover:underline">{user.is_active ? 'Deactivate' : 'Activate'}</button></td></tr>)}</tbody></table></div>
             {!users.length && <p className="p-6 text-center text-sm text-gray-500">No manager accounts found.</p>}
           </Panel>}
 
@@ -192,7 +205,7 @@ const AdminFranchiseDetailPage: React.FC = () => {
       {showAddManager && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowAddManager(false); }}>
         <form onSubmit={addManager} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
           <div className="mb-5 flex items-center gap-3"><span className="rounded-xl bg-[var(--oppa-green-soft)] p-2 text-[var(--oppa-green)]"><Users size={20} /></span><div><h2 className="text-lg font-semibold">Add branch manager</h2><p className="text-sm text-gray-500">Creates a portal account assigned to this branch.</p></div></div>
-          <div className="space-y-3"><Field label="Full name" value={managerForm.full_name} onChange={(value) => setManagerForm({ ...managerForm, full_name: value })} required /><Field label="Email" type="email" value={managerForm.email} onChange={(value) => setManagerForm({ ...managerForm, email: value })} required /><Field label="Phone" value={managerForm.phone} onChange={(value) => setManagerForm({ ...managerForm, phone: value })} /><Field label="Initial password" type="password" value={managerForm.password} onChange={(value) => setManagerForm({ ...managerForm, password: value })} minLength={8} required /></div>
+          <div className="space-y-3"><Field label="Full name" value={managerForm.full_name} onChange={(value) => setManagerForm({ ...managerForm, full_name: value })} required /><Field label="Email" type="email" value={managerForm.email} onChange={(value) => setManagerForm({ ...managerForm, email: value })} required /><Field label="Phone" value={managerForm.phone} onChange={(value) => setManagerForm({ ...managerForm, phone: value })} /><Field label="Initial password" type="password" value={managerForm.password} onChange={(value) => setManagerForm({ ...managerForm, password: value })} minLength={8} required /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={managerForm.can_process_pos} onChange={(event) => setManagerForm({ ...managerForm, can_process_pos: event.target.checked })} />Allow this manager to process branch POS orders</label></div>
           <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setShowAddManager(false)} className="rounded-xl border px-4 py-2 text-sm">Cancel</button><button disabled={saving} className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Creating…' : 'Create account'}</button></div>
         </form>
       </div>}

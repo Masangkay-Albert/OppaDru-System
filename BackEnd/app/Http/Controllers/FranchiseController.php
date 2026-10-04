@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Franchise;
 use App\Models\FranchiseUser;
 use App\Models\Employee;
+use App\Models\Driver;
 use App\Models\Addon;
 use App\Models\Order;
 use App\Models\Payment;
@@ -138,9 +139,10 @@ class FranchiseController extends Controller
     public function storePosOrder(Request $request)
     {
         $user = $request->user();
-        if (!$user instanceof FranchiseUser || !$user->franchise_id) {
-            return response()->json(['message' => 'Franchise access required'], 403);
+        if (!$this->canProcessBranchPos($user)) {
+            return response()->json(['message' => 'Cashier access or explicit POS permission is required.'], 403);
         }
+        $cashierEmployeeId = $user instanceof Employee ? $user->id : null;
 
         $validator = Validator::make($request->all(), [
             'items' => 'required|array|min:1',
@@ -273,6 +275,7 @@ class FranchiseController extends Controller
             if (!$gatewayPayment
                 || data_get($gatewayPayment->metadata, 'purpose') !== 'franchise_pos'
                 || (string) data_get($gatewayPayment->metadata, 'franchise_id') !== (string) $user->franchise_id
+                || data_get($gatewayPayment->metadata, 'cashier_employee_id') !== $cashierEmployeeId
                 || round((float) $gatewayPayment->amount, 2) !== round($total, 2)) {
                 return response()->json(['message' => 'Payment must be confirmed by the payment gateway for the exact POS total before completing this order.'], 422);
             }
@@ -306,7 +309,8 @@ class FranchiseController extends Controller
                 $discountType,
                 $discountRate,
                 $discountAmount,
-                $gatewayPayment
+                $gatewayPayment,
+                $cashierEmployeeId
             ) {
                 $inventoryService->consume((string) $user->franchise_id, $items);
                 if ($gatewayPayment) {
@@ -314,12 +318,14 @@ class FranchiseController extends Controller
                     if (!$gatewayPayment || $gatewayPayment->status !== 'paid' || $gatewayPayment->order_id !== null
                         || data_get($gatewayPayment->metadata, 'purpose') !== 'franchise_pos'
                         || (string) data_get($gatewayPayment->metadata, 'franchise_id') !== (string) $user->franchise_id
+                        || data_get($gatewayPayment->metadata, 'cashier_employee_id') !== $cashierEmployeeId
                         || round((float) $gatewayPayment->amount, 2) !== round($total, 2)) {
                         throw new \InvalidArgumentException('This payment is no longer available for this order.');
                     }
                 }
                 $order = Order::create([
                     'franchise_id' => $user->franchise_id,
+                    'cashier_employee_id' => $cashierEmployeeId,
                     'email' => $user->email,
                     'total' => $total,
                     'delivery_type' => 'onsite',
@@ -370,8 +376,8 @@ class FranchiseController extends Controller
     public function createPosPayment(Request $request)
     {
         $user = $request->user();
-        if (!$user instanceof FranchiseUser || !$user->franchise_id) {
-            return response()->json(['message' => 'Franchise access required'], 403);
+        if (!$this->canProcessBranchPos($user)) {
+            return response()->json(['message' => 'Cashier access or explicit POS permission is required.'], 403);
         }
 
         $validator = Validator::make($request->all(), [
@@ -468,8 +474,8 @@ class FranchiseController extends Controller
                     'currency' => 'PHP',
                     'type' => 'gcash',
                     'redirect' => [
-                        'success' => rtrim(config('app.frontend_url'), '/') . '/franchise/pos?payment_reference=' . $reference,
-                        'failed' => rtrim(config('app.frontend_url'), '/') . '/franchise/pos?payment_reference=' . $reference,
+                        'success' => rtrim(config('app.frontend_url'), '/') . ($user instanceof Employee ? '/cashier/pos' : '/franchise/pos') . '?payment_reference=' . $reference,
+                        'failed' => rtrim(config('app.frontend_url'), '/') . ($user instanceof Employee ? '/cashier/pos' : '/franchise/pos') . '?payment_reference=' . $reference,
                     ],
                 ]],
             ]);
@@ -489,6 +495,7 @@ class FranchiseController extends Controller
             'metadata' => [
                 'purpose' => 'franchise_pos',
                 'franchise_id' => (string) $user->franchise_id,
+                'cashier_employee_id' => $user instanceof Employee ? $user->id : null,
                 'source_status' => $attributes['status'] ?? 'pending',
                 'checkout_url' => $attributes['redirect']['checkout_url'] ?? null,
             ],
@@ -502,6 +509,49 @@ class FranchiseController extends Controller
                 'expires_at' => $payment->expires_at?->toISOString(),
             ],
         ], 201);
+    }
+
+    private function canProcessBranchPos($user): bool
+    {
+        if ($user instanceof Employee) {
+            return $user->is_active
+                && $user->franchise_id !== null
+                && strtolower((string) $user->position) === 'cashier';
+        }
+
+        return $user instanceof FranchiseUser
+            && $user->is_active
+            && $user->can_process_pos
+            && $user->franchise_id !== null;
+    }
+
+    public function employeePosProducts(Request $request)
+    {
+        $user = $request->user();
+        if (!$user instanceof Employee || !$user->franchise_id || strtolower((string) $user->position) !== 'cashier') {
+            return response()->json(['message' => 'Branch cashier access required.'], 403);
+        }
+
+        return response()->json([
+            'data' => app(FranchiseInventoryService::class)->catalog((string) $user->franchise_id, true),
+        ]);
+    }
+
+    public function employeePosOrders(Request $request)
+    {
+        $user = $request->user();
+        if (!$user instanceof Employee || !$user->franchise_id || strtolower((string) $user->position) !== 'cashier') {
+            return response()->json(['message' => 'Branch cashier access required.'], 403);
+        }
+
+        return response()->json([
+            'data' => Order::where('franchise_id', $user->franchise_id)
+                ->where('cashier_employee_id', $user->id)
+                ->where('delivery_type', 'onsite')
+                ->orderByDesc('created_at')
+                ->limit(100)
+                ->get(['id', 'order_number', 'total', 'payment_method', 'status', 'created_at']),
+        ]);
     }
 
     public function inventorySummary(Request $request, FranchiseInventoryService $inventoryService)
@@ -594,18 +644,32 @@ class FranchiseController extends Controller
             ]);
         $employees = Employee::where('franchise_id', $user->franchise_id)
             ->orderByDesc('created_at')
-            ->get(['id', 'fullName', 'email', 'position', 'created_at'])
+            ->get(['id', 'fullName', 'email', 'position', 'is_active', 'created_at'])
             ->map(fn (Employee $employee) => [
                 'id' => $employee->id,
                 'name' => $employee->fullName,
                 'email' => $employee->email,
                 'phone' => null,
-                'role' => ucfirst($employee->position),
-                'status' => 'active',
+                'role' => str_replace(' ', '_', strtolower($employee->position)),
+                'status' => $employee->is_active ? 'active' : 'inactive',
+                'user_type' => 'employee',
                 'created_at' => $employee->created_at,
             ]);
+        $drivers = Driver::where('franchise_id', $user->franchise_id)
+            ->orderByDesc('created_at')
+            ->get(['id', 'name', 'email', 'phone', 'isActive', 'created_at'])
+            ->map(fn (Driver $driver) => [
+                'id' => $driver->id,
+                'name' => $driver->name,
+                'email' => $driver->email,
+                'phone' => $driver->phone,
+                'role' => 'driver',
+                'status' => $driver->isActive ? 'active' : 'inactive',
+                'user_type' => 'driver',
+                'created_at' => $driver->created_at,
+            ]);
 
-        return response()->json(['data' => $managerUsers->concat($employees)->sortByDesc('created_at')->values()]);
+        return response()->json(['data' => $managerUsers->concat($employees)->concat($drivers)->sortByDesc('created_at')->values()]);
     }
 
     public function storeBranchUser(Request $request)
@@ -616,28 +680,90 @@ class FranchiseController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'full_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:franchise_users,email',
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255',
             'phone' => 'nullable|string|max:50',
             'password' => 'required|string|min:8',
+            'role' => 'required|string|in:cashier,kitchen_staff,driver',
+            'vehicle_type' => 'required_if:role,driver|nullable|string|max:100',
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $branchUser = FranchiseUser::create([
-            'franchise_id' => $user->franchise_id,
-            'full_name' => $request->full_name,
-            'email' => strtolower(trim((string) $request->email)),
-            'phone' => $request->input('phone'),
-            'password' => Hash::make((string) $request->password),
-            'is_active' => true,
-        ]);
+        $email = strtolower(trim((string) $request->email));
+        if (FranchiseUser::where('email', $email)->exists()
+            || Employee::where('email', $email)->exists()
+            || Driver::where('email', $email)->exists()) {
+            return response()->json(['message' => 'This email address is already assigned to an account.'], 422);
+        }
 
-        return response()->json([
-            'data' => $branchUser->only(['id', 'franchise_id', 'full_name', 'email', 'phone', 'is_active', 'created_at']),
-            'message' => 'Branch manager account created successfully.',
-        ], 201);
+        if ($request->role === 'driver') {
+            $branchUser = Driver::create([
+                'franchise_id' => $user->franchise_id,
+                'name' => $request->name,
+                'email' => $email,
+                'phone' => $request->input('phone', ''),
+                'password' => (string) $request->password,
+                'vehicleType' => $request->vehicle_type,
+                'isActive' => true,
+            ]);
+            $data = [
+                'id' => $branchUser->id,
+                'franchise_id' => $branchUser->franchise_id,
+                'name' => $branchUser->name,
+                'email' => $branchUser->email,
+                'phone' => $branchUser->phone,
+                'role' => 'driver',
+                'status' => 'active',
+                'user_type' => 'driver',
+                'created_at' => $branchUser->created_at,
+            ];
+        } else {
+            $branchUser = Employee::create([
+                'franchise_id' => $user->franchise_id,
+                'fullName' => $request->name,
+                'email' => $email,
+                'password' => (string) $request->password,
+                'position' => $request->role === 'kitchen_staff' ? 'kitchen staff' : 'cashier',
+                'is_active' => true,
+            ]);
+            $data = [
+                'id' => $branchUser->id,
+                'franchise_id' => $branchUser->franchise_id,
+                'name' => $branchUser->fullName,
+                'email' => $branchUser->email,
+                'phone' => $request->input('phone'),
+                'role' => str_replace(' ', '_', strtolower($branchUser->position)),
+                'status' => 'active',
+                'user_type' => 'employee',
+                'created_at' => $branchUser->created_at,
+            ];
+        }
+
+        return response()->json(['data' => $data, 'message' => 'Branch staff account created successfully.'], 201);
+    }
+
+    public function updateBranchUserStatus(Request $request, string $type, string $id)
+    {
+        $user = $request->user();
+        if (!$user instanceof FranchiseUser || !$user->franchise_id) {
+            return response()->json(['message' => 'Franchise access required'], 403);
+        }
+        $validated = $request->validate(['is_active' => 'required|boolean']);
+
+        if ($type === 'employee') {
+            $staff = Employee::where('franchise_id', $user->franchise_id)->findOrFail($id);
+            $staff->is_active = $validated['is_active'];
+        } elseif ($type === 'driver') {
+            $staff = Driver::where('franchise_id', $user->franchise_id)->findOrFail($id);
+            $staff->isActive = $validated['is_active'];
+        } else {
+            return response()->json(['message' => 'Unsupported branch user type.'], 422);
+        }
+        $staff->save();
+
+        return response()->json(['message' => 'Branch staff status updated.']);
     }
 
     public function branchSettings(Request $request)
@@ -882,6 +1008,7 @@ class FranchiseController extends Controller
             'phone' => 'nullable|string|max:50',
             'password' => 'nullable|string|min:8',
             'is_active' => 'nullable|boolean',
+            'can_process_pos' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -895,6 +1022,7 @@ class FranchiseController extends Controller
             'phone' => $request->phone,
             'password' => Hash::make((string) $request->input('password', 'Franchise@123')),
             'is_active' => $request->boolean('is_active', true),
+            'can_process_pos' => $request->boolean('can_process_pos', false),
         ]);
 
         return response()->json(['data' => $user->load('franchise')], 201);
@@ -915,6 +1043,7 @@ class FranchiseController extends Controller
             'phone' => 'sometimes|nullable|string|max:50',
             'password' => 'sometimes|nullable|string|min:8',
             'is_active' => 'sometimes|boolean',
+            'can_process_pos' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -939,6 +1068,9 @@ class FranchiseController extends Controller
 
         if ($request->has('is_active')) {
             $user->is_active = $request->boolean('is_active');
+        }
+        if ($request->has('can_process_pos')) {
+            $user->can_process_pos = $request->boolean('can_process_pos');
         }
 
         $user->save();

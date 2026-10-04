@@ -21,10 +21,18 @@ class EmployeeAuthController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $employee = Employee::where('email', $request->email)->first();
+        $employee = Employee::with('franchise')
+            ->where('email', strtolower(trim((string) $request->email)))
+            ->first();
 
         if (!$employee || !Hash::check($request->password, $employee->password)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
+        }
+        if (!$employee->is_active) {
+            return response()->json(['message' => 'Employee account is inactive. Please contact the branch manager.'], 403);
+        }
+        if ($employee->franchise_id && (!$employee->franchise || $employee->franchise->status !== 'active')) {
+            return response()->json(['message' => 'This branch is not currently active.'], 403);
         }
     
         $token = Str::random(60);
