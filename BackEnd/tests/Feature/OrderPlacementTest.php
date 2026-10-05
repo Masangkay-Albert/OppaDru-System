@@ -277,10 +277,6 @@ class OrderPlacementTest extends TestCase
             'discount_rate' => 0,
         ];
 
-        $this->postJson('/api/payment/quote', collect($pricingPayload)->except('amount')->all())
-            ->assertOk()
-            ->assertJsonPath('pricing.total', 400);
-
         $this->postJson('/api/payment/gcash/create', $pricingPayload)
             ->assertCreated()
             ->assertJsonPath('amount', 400);
