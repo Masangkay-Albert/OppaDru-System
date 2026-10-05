@@ -3,7 +3,6 @@ import {
   FiCalendar,
   FiChevronRight,
   FiClock,
-  FiHash,
   FiTrash2,
 } from 'react-icons/fi';
 import { FaCheck } from 'react-icons/fa';
@@ -44,6 +43,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     : STATUS_DISPLAY[order.status] ?? STATUS_DISPLAY[ORDER_STATUS.PENDING];
   const isActive = order.status !== ORDER_STATUS.DELIVERED;
   const statusColor = getStatusColor(isScheduledOrder ? ORDER_STATUS.SCHEDULED : effectiveStatus);
+  const displayOrderNumber = order.orderNumber || order.id;
 
   return (
     <div className="order-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300">
@@ -55,7 +55,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="order-card-id font-semibold text-gray-800 text-sm">Order #{order.id.slice(-8).toUpperCase()}</span>
+                <span className="order-card-id font-semibold text-gray-800 text-sm">Order #{displayOrderNumber}</span>
                 <span className={`order-card-status text-xs font-medium px-2 py-0.5 rounded-full ${displayStatus.badgeClass} border flex items-center gap-1`}>
                   {displayStatus.icon}
                   {displayStatus.label}
@@ -132,10 +132,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-gray-100 mt-2.5">
           <div className="flex items-center gap-3 text-xs text-gray-400">
-            <span className="flex items-center gap-1">
-              <FiHash size={12} /> {order.id.slice(0, 12)}...
-            </span>
-            <span className="hidden xs:inline">•</span>
             <span className="capitalize">{order.paymentMethod?.replace('_', ' ') || 'Cash'}</span>
           </div>
           <div className="order-card-actions flex items-center gap-2">

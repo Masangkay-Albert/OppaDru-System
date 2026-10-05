@@ -133,7 +133,7 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-gray-500">Order ID</span>
-            <span className="text-gray-700 font-mono text-xs">{currentOrder.id}</span>
+            <span className="text-gray-700 font-mono text-xs">{currentOrder.orderNumber || currentOrder.id}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Placed</span>

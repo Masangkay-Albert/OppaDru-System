@@ -72,7 +72,9 @@ const MyOrdersPage: React.FC = () => {
 
       const scheduleDetails = getScheduledOrderDetails(order);
       const effectiveStatus = scheduleDetails.isScheduled ? ORDER_STATUS.SCHEDULED : order.status;
-      const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      const orderIdentifier = order.orderNumber || order.id;
+      const matchesSearch = orderIdentifier.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesFilter = effectiveStatus === filterStatus;
       return matchesSearch && matchesFilter;
