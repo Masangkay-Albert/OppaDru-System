@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -62,6 +62,7 @@ const DriverDashboardPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<DriverOrder | null>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofUploading, setProofUploading] = useState(false);
+  const ordersFetchInFlightRef = useRef(false);
 
   
   useEffect(() => {
@@ -89,10 +90,13 @@ const DriverDashboardPage: React.FC = () => {
 
 
   const fetchOrders = async (showLoading = true) => {
+    if (ordersFetchInFlightRef.current) return;
+    ordersFetchInFlightRef.current = true;
+    const requestedTab = activeTab;
     if (showLoading) setLoading(true);
     try {
       const token = localStorage.getItem("driver_token");
-      const response = await fetch(`${API_URL}/driver/orders?tab=${activeTab}`, {
+      const response = await fetch(`${API_URL}/driver/orders?tab=${requestedTab}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json'
@@ -102,11 +106,14 @@ const DriverDashboardPage: React.FC = () => {
       if (!response.ok) throw new Error('Failed to fetch orders');
       
       const data = await response.json();
-      setOrders(data);
+      if (requestedTab === activeTab) {
+        setOrders((current) => JSON.stringify(current) === JSON.stringify(data) ? current : data);
+      }
     } catch (error) {
       console.error("Error fetching orders:", error);
     } finally {
-      if (showLoading) setLoading(false);
+      ordersFetchInFlightRef.current = false;
+      if (showLoading && requestedTab === activeTab) setLoading(false);
     }
   };
 
@@ -114,7 +121,7 @@ const DriverDashboardPage: React.FC = () => {
     void fetchOrders();
     const interval = window.setInterval(() => {
       void fetchOrders(false);
-    }, 1000);
+    }, 5000);
 
     return () => window.clearInterval(interval);
   }, [activeTab]);

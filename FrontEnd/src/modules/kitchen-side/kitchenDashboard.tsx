@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChefHat, CheckCircle, Clock, User, Eye, X, ArrowDownUp } from 'lucide-react';
 
@@ -46,6 +46,7 @@ const KitchenDashboardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabView>('pending');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc'); // 'desc' = Latest, 'asc' = Oldest
   const [staffName, setStaffName] = useState<string>("Kitchen Staff");
+  const ordersFetchInFlightRef = useRef(false);
   
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
 
@@ -69,10 +70,13 @@ const KitchenDashboardPage: React.FC = () => {
 
   
   const fetchOrders = async (showLoading = true) => {
+    if (ordersFetchInFlightRef.current) return;
+    ordersFetchInFlightRef.current = true;
+    const requestedTab = activeTab;
     if (showLoading) setLoading(true);
     try {
       const token = localStorage.getItem("employee_token");
-      const response = await fetch(`${API_URL}/kitchen/orders?tab=${activeTab}`, {
+      const response = await fetch(`${API_URL}/kitchen/orders?tab=${requestedTab}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json'
@@ -82,11 +86,14 @@ const KitchenDashboardPage: React.FC = () => {
       if (!response.ok) throw new Error('Failed to fetch orders');
       
       const data = await response.json();
-      setOrders(data);
+      if (requestedTab === activeTab) {
+        setOrders((current) => JSON.stringify(current) === JSON.stringify(data) ? current : data);
+      }
     } catch (error) {
       console.error("Error fetching orders:", error);
     } finally {
-      if (showLoading) setLoading(false);
+      ordersFetchInFlightRef.current = false;
+      if (showLoading && requestedTab === activeTab) setLoading(false);
     }
   };
 
@@ -94,7 +101,7 @@ const KitchenDashboardPage: React.FC = () => {
     void fetchOrders();
     const interval = window.setInterval(() => {
       void fetchOrders(false);
-    }, 1000);
+    }, 5000);
 
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
