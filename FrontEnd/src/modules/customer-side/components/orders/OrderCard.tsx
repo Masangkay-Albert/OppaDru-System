@@ -46,7 +46,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const statusColor = getStatusColor(isScheduledOrder ? ORDER_STATUS.SCHEDULED : effectiveStatus);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300">
+    <div className="order-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300">
       <div className="p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -55,8 +55,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-gray-800 text-sm">Order #{order.id.slice(-8).toUpperCase()}</span>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${displayStatus.badgeClass} border flex items-center gap-1`}>
+                <span className="order-card-id font-semibold text-gray-800 text-sm">Order #{order.id.slice(-8).toUpperCase()}</span>
+                <span className={`order-card-status text-xs font-medium px-2 py-0.5 rounded-full ${displayStatus.badgeClass} border flex items-center gap-1`}>
                   {displayStatus.icon}
                   {displayStatus.label}
                 </span>
@@ -74,16 +74,16 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           </div>
 
           <div className="flex items-center gap-3 flex-shrink-0 ml-auto sm:ml-0">
-            <div className="text-right">
+            <div className="order-card-total text-right">
               <p className="text-xs text-gray-500">Total</p>
               <p className="text-base font-bold text-[#2d6a4f]">{formatCurrency(order.total)}</p>
             </div>
             {isActive ? (
-              <div className="w-8 h-8 rounded-full bg-[#2d6a4f]/10 flex items-center justify-center text-[#2d6a4f] flex-shrink-0">
+              <div className="order-card-chevron w-8 h-8 rounded-full bg-[#2d6a4f]/10 flex items-center justify-center text-[#2d6a4f] flex-shrink-0">
                 <FiChevronRight size={18} />
               </div>
             ) : (
-              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-500 flex-shrink-0">
+              <div className="order-card-chevron w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-500 flex-shrink-0">
                 <FaCheck size={15} />
               </div>
             )}
@@ -116,9 +116,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           </div>
         )}
 
-        <div className="flex flex-wrap gap-1.5 pt-3 border-t border-gray-100 mt-3">
+        <div className="order-item-chips flex flex-wrap gap-1.5 pt-3 border-t border-gray-100 mt-3">
           {order.items.slice(0, 3).map((item: any, idx: number) => (
-            <span key={idx} className="inline-flex items-center gap-1 bg-gray-50 px-2.5 py-1 rounded-lg text-xs text-gray-700 border border-gray-100">
+            <span key={idx} title={item.name} className="order-item-chip inline-flex items-center gap-1 bg-gray-50 px-2.5 py-1 rounded-lg text-xs text-gray-700 border border-gray-100">
               <span className="font-semibold text-[#2d6a4f]">{item.quantity}x</span>
               <span className="truncate max-w-[100px]">{item.name}</span>
             </span>
@@ -138,12 +138,12 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <span className="hidden xs:inline">•</span>
             <span className="capitalize">{order.paymentMethod?.replace('_', ' ') || 'Cash'}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => onToggleDetails(order.id)} className="text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1">
+          <div className="order-card-actions flex items-center gap-2">
+            <button onClick={() => onToggleDetails(order.id)} className="order-details-button text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1">
               {isExpanded ? 'Hide Details' : 'View Details'}
             </button>
             {isActive ? (
-              <button onClick={(e) => onTrack(order.id, e)} className="text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1">
+              <button onClick={(e) => onTrack(order.id, e)} className="order-track-button text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1">
                 Track Order <FiChevronRight size={14} />
               </button>
             ) : (

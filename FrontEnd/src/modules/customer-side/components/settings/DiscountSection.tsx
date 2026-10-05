@@ -172,7 +172,7 @@ const DiscountSection: React.FC = () => {
   const isRejected = discountInfo.status === 'rejected';
 
   return (
-    <div>
+    <div className="settings-section settings-discount">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-gray-800">Discount Application</h2>
@@ -295,7 +295,7 @@ const DiscountSection: React.FC = () => {
         <form className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div 
-              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.isPWD ? 'border-[#2d6a4f] bg-[#d8f3dc]/20' : 'border-gray-200 hover:border-gray-300'}`}
+              className={`discount-option p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.isPWD ? 'border-[#2d6a4f] bg-[#d8f3dc]/20' : 'border-gray-200 hover:border-gray-300'}`}
               onClick={() => setFormData({ ...formData, isPWD: !formData.isPWD, isSenior: false })}
             >
               <div className="flex items-center justify-between">
@@ -310,7 +310,7 @@ const DiscountSection: React.FC = () => {
               <p className="text-xs text-gray-400 mt-1">20% discount on total bill</p>
             </div>
             <div 
-              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.isSenior ? 'border-[#2d6a4f] bg-[#d8f3dc]/20' : 'border-gray-200 hover:border-gray-300'}`}
+              className={`discount-option p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.isSenior ? 'border-[#2d6a4f] bg-[#d8f3dc]/20' : 'border-gray-200 hover:border-gray-300'}`}
               onClick={() => setFormData({ ...formData, isSenior: !formData.isSenior, isPWD: false })}
             >
               <div className="flex items-center justify-between">
@@ -326,7 +326,7 @@ const DiscountSection: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2.5">
+          <div className="discount-account-name rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-2.5">
             <p className="text-xs font-medium text-gray-500">Account name</p>
             <p className="text-sm font-medium text-gray-800">{user?.full_name || 'Loading account name...'}</p>
           </div>
@@ -362,7 +362,7 @@ const DiscountSection: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Proof Image</label>
-            <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-3">
+            <div className="discount-upload-zone rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-3">
               <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-5 text-center transition hover:border-[#2d6a4f] hover:bg-[#d8f3dc]/10">
                 <FiUpload className="text-[#2d6a4f]" size={20} />
                 <span className="text-sm font-medium text-gray-700">Upload valid ID or discount proof</span>

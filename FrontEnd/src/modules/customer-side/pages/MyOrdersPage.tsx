@@ -14,6 +14,7 @@ import {
 } from '../../../utils/orderManagement';
 import { OrderCard } from '../components/orders/OrderCard';
 import { OrderEditModal } from '../components/orders/OrderEditModal';
+import '../../../styles/secondary-pages.css';
 
 const MyOrdersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -197,16 +198,16 @@ const MyOrdersPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
+    <div className="secondary-page secondary-orders min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
       <NavbarCustomer />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="secondary-page-container orders-page-container max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+        <div className="secondary-page-header orders-page-header flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/customer')}
-              className="flex items-center gap-2 text-gray-500 hover:text-[#2d6a4f] transition-colors group"
+              className="back-menu-button flex items-center gap-2 text-gray-500 hover:text-[#2d6a4f] transition-colors group"
             >
               <FiArrowLeft className="group-hover:-translate-x-1 transition-transform" size={18} />
               <span className="text-sm font-medium">Back to Menu</span>
@@ -214,11 +215,11 @@ const MyOrdersPage: React.FC = () => {
             <span className="text-gray-300">|</span>
             <div className="flex items-center gap-2">
               <FaClipboardList className="text-xl text-[#2d6a4f]" />
-              <h1 className="text-xl font-bold text-[#2d6a4f]">My Orders</h1>
+              <h1 className="secondary-page-title text-xl font-bold text-[#2d6a4f]">My Orders</h1>
             </div>
           </div>
           
-          <div className="flex items-center gap-4 bg-white/80 backdrop-blur-sm rounded-xl px-4 py-2 shadow-sm border border-gray-100 text-sm">
+          <div className="orders-stats flex items-center gap-4 bg-white/80 backdrop-blur-sm rounded-xl px-4 py-2 shadow-sm border border-gray-100 text-sm">
             <span className="flex items-center gap-1.5">
               <FiShoppingBag size={15} className="text-gray-400" /> 
               Total: <strong className="text-[#2d6a4f]">{stats.total}</strong>
@@ -237,7 +238,7 @@ const MyOrdersPage: React.FC = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="orders-toolbar flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17} />
             <input
@@ -245,7 +246,7 @@ const MyOrdersPage: React.FC = () => {
               placeholder="Search orders..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20 bg-white text-sm"
+              className="orders-search-input w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20 bg-white text-sm"
             />
             {searchTerm && (
               <button 
@@ -260,7 +261,7 @@ const MyOrdersPage: React.FC = () => {
           <div className="relative">
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:border-gray-300 transition-colors min-w-[140px] justify-between"
+              className="orders-filter-button flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:border-gray-300 transition-colors min-w-[140px] justify-between"
             >
               <span>{currentStatus?.label || 'Pending'}</span>
               <FiChevronDown className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
@@ -285,9 +286,9 @@ const MyOrdersPage: React.FC = () => {
         </div>
 
         {/* Orders List */}
-        <div className="mt-5 space-y-3">
+        <div className="orders-list mt-5 space-y-3">
           {filteredOrders.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+            <div className="orders-empty-state bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
               <FiPackage className="text-4xl text-[#2d6a4f]/30 mx-auto mb-3" />
               <h2 className="text-xl font-bold text-gray-800 mb-1">
                 {orders.length === 0 ? 'No orders yet' : 'No matching orders'}

@@ -8,7 +8,6 @@ import ProductCard from '../components/product/ProductCard';
 import ProductModal from '../components/product/ProductModal';
 import CartSidebar from '../components/cart/CartSidebar';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
-import PromoBanner from '../components/common/PromoBanner';
 import NotificationToast from '../components/common/ProductNotification';
 import GreetingBanner from '../components/common/GreetingBanner';
 import { FiShoppingCart, FiMenu, FiX, FiSearch } from 'react-icons/fi';
@@ -17,6 +16,7 @@ import '../../../styles/global.css';
 import { productService } from '../../../services/productService';
 import { getActiveBranches, getSelectedBranchId, setSelectedBranchId } from '../../../services/franchiseBranchService';
 import type { FranchiseBranch } from '../../../services/franchiseBranchService';
+import '../../../styles/menu-design.css';
 
 const MenuPage: React.FC = () => {
   const { user } = useAuth();
@@ -115,15 +115,13 @@ const MenuPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FBF6ED]">
+    <div className="menu-page min-h-screen bg-[#FBF6ED]">
       <NotificationToast 
         message={newFavoriteName} 
         isVisible={showNotification} 
         onClose={clearNotification} 
       />
       <NavbarCustomer />
-      <PromoBanner />
-
       {totalItems > 0 && (
         <button 
           onClick={() => setIsMobileCartOpen(true)} 
@@ -144,7 +142,7 @@ const MenuPage: React.FC = () => {
       </button>
 
       <div className="flex flex-col lg:flex-row">
-        <aside className="hidden lg:block w-72 bg-white border-r border-gray-100 p-6 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
+        <aside className="menu-sidebar hidden lg:block w-72 bg-white border-r border-gray-100 p-6 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
           <div className="mb-6 pb-4 border-b border-gray-100">
             <h2 className="text-2xl font-serif font-extrabold text-[#1C3D2E]">Menu</h2>
             <p className="text-xs text-gray-500 mt-1">Browse by category</p>
@@ -185,13 +183,13 @@ const MenuPage: React.FC = () => {
           </div>
         </aside>
 
-        <main ref={mainContentRef} className="flex-1 p-4 sm:p-6 lg:p-8">
+        <main ref={mainContentRef} className="menu-main flex-1 p-4 sm:p-6 lg:p-8">
           <GreetingBanner 
             userName={user?.full_name?.split(' ')[0]}
             onCategoryClick={handleCategoryChange}
           />
 
-          <section className="mb-6 rounded-2xl border border-[#dce8de] bg-white p-4 shadow-sm sm:p-5">
+          <section className="menu-branch-control mb-6 rounded-2xl border border-[#dce8de] bg-white p-4 shadow-sm sm:p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <label htmlFor="customer-branch" className="block text-sm font-bold text-[#1C3D2E]">
@@ -207,7 +205,7 @@ const MenuPage: React.FC = () => {
               id="customer-branch"
               value={selectedBranchId || ''}
               onChange={(event) => handleBranchChange(event.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 focus:border-[#1C3D2E] focus:outline-none focus:ring-2 focus:ring-[#1C3D2E]/10 sm:max-w-xl"
+              className="menu-branch-select w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 focus:border-[#1C3D2E] focus:outline-none focus:ring-2 focus:ring-[#1C3D2E]/10 sm:max-w-xl"
             >
               <option value="">Original Oppa Dru (Main Store)</option>
               {branches.map((branch) => (
@@ -217,20 +215,20 @@ const MenuPage: React.FC = () => {
             {branchError && <p className="mt-2 text-sm text-red-600">{branchError}</p>}
           </section>
 
-          <div className="mb-6">
+          <div className="menu-search mb-6">
             <div className="relative">
               <input
                 type="text"
                 placeholder="Search for your favorite food..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-3 pl-11 rounded-xl border border-gray-200 bg-white focus:border-[#1C3D2E] focus:outline-none focus:ring-1 focus:ring-[#1C3D2E] transition-all text-sm"
+                className="menu-search-input w-full px-4 py-3 pl-11 rounded-xl border border-gray-200 bg-white focus:border-[#1C3D2E] focus:outline-none focus:ring-1 focus:ring-[#1C3D2E] transition-all text-sm"
               />
               <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-base" />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+          <div className="menu-product-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
             {filteredProducts.map((product) => (
               <ProductCard key={product.id} product={product} onOpenModal={handleOpenModal} />
             ))}

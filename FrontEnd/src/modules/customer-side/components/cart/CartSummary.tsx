@@ -11,7 +11,7 @@ interface CartSummaryProps {
 
 const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutlery, onCutleryChange }) => {
   return (
-    <div className="border-t border-gray-200 bg-white rounded-b-xl">
+    <div className="menu-cart-summary border-t border-gray-200 bg-white rounded-b-xl">
       <div className="px-5 py-3 space-y-2 text-sm">
         <div className="flex justify-between items-center">
           <span className="text-gray-500">Subtotal</span>
@@ -34,7 +34,7 @@ const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutler
               onChange={(e) => onCutleryChange(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-[#2d6a4f] peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+            <div className="menu-cutlery-switch w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-[#2d6a4f] after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
           </div>
         </label>
         {!useCutlery && (

@@ -40,7 +40,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
 
   if (!hasItems) {
     return (
-      <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-20">
+      <div className="checkout-summary bg-white rounded-2xl shadow-lg p-6 sticky top-20">
         <p className="text-gray-500 text-center">Your cart is empty</p>
         <button onClick={() => navigate('/customer')} className="w-full mt-4 py-2 bg-[#2d6a4f] text-white rounded-lg">
           Continue Shopping
@@ -50,7 +50,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-20">
+    <div className="checkout-summary bg-white rounded-2xl shadow-lg p-6 sticky top-20">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-8 h-8 bg-[#d8f3dc] rounded-full flex items-center justify-center">
           <svg className="w-4 h-4 text-[#2d6a4f]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -68,7 +68,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
           const itemDiscount = activeDiscount.discountRate > 0 ? itemTotal * activeDiscount.discountRate : 0;
           const discountedPrice = itemTotal - itemDiscount;
           return (
-            <div key={item.id} className="text-sm">
+            <div key={item.id} className="checkout-summary-item text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-700">{item.quantity}x {item.name}</span>
                 {activeDiscount.discountRate > 0 ? (
@@ -90,13 +90,13 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         })}
       </div>
 
-      <button onClick={() => navigate('/customer')} className="text-[#e76f51] text-sm font-medium mb-6 flex items-center gap-1 hover:underline">
+      <button onClick={() => navigate('/customer')} className="checkout-add-more text-[#e76f51] text-sm font-medium mb-6 flex items-center gap-1 hover:underline">
         + Add more items
       </button>
 
       <VoucherSection subtotal={subtotal} onVoucherApplied={onVoucherApply} onVoucherRemoved={() => onVoucherApply(0)} />
 
-      <div className="border-t border-gray-100 pt-4 space-y-2 text-sm">
+      <div className="checkout-fees border-t border-gray-100 pt-4 space-y-2 text-sm">
         <div className="flex justify-between">
           <span className="text-gray-500">Subtotal</span>
           <span className="text-gray-800">{formatCurrency(subtotal)}</span>
@@ -134,7 +134,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
           <span className="text-gray-500">VAT </span>
           <span className="text-gray-800">{formatCurrency(vat)}</span>
         </div>
-        <div className="border-t border-gray-100 pt-2 mt-2">
+        <div className="checkout-total border-t border-gray-100 pt-2 mt-2">
           <div className="flex justify-between font-bold text-lg">
             <span>Total</span>
             <span className="text-[#2d6a4f]">{formatCurrency(total)}</span>
@@ -146,7 +146,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
       <button
         onClick={onPlaceOrder}
         disabled={isPlacingOrder}
-        className={`w-full mt-6 py-3 rounded-xl font-semibold transition ${
+        className={`checkout-place-order w-full mt-6 py-3 rounded-xl font-semibold transition ${
           isPlacingOrder
             ? 'bg-gray-400 cursor-not-allowed'
             : 'bg-[#2d6a4f] text-white hover:bg-[#1b4d3e]'

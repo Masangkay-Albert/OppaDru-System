@@ -70,7 +70,7 @@ const SecuritySection: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className="settings-section settings-security">
       <h2 className="text-xl font-bold text-gray-800 mb-2">Security</h2>
       <p className="text-sm text-gray-500 mb-6">Manage your account security</p>
 

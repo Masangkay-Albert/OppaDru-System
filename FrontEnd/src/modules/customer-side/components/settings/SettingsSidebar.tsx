@@ -15,7 +15,7 @@ const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeTab, onTabChang
   ];
 
   return (
-    <div className="w-full lg:w-64 flex-shrink-0">
+    <div className="settings-sidebar w-full lg:w-64 flex-shrink-0">
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-4 sticky top-24">
         <nav className="space-y-1">
           {menuItems.map((item) => {

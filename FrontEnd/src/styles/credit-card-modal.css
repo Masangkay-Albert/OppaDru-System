@@ -1,0 +1,714 @@
+:root {
+  --cc-green: #1c3d2e;
+  --cc-green-mid: #2d6a4f;
+  --cc-green-light: #e8f2e9;
+  --cc-rust: #a8431b;
+  --cc-cream: #fbf6ed;
+  --cc-ink: #26362c;
+  --cc-muted: #5b6a60;
+  --cc-border: #dfe5df;
+  --cc-space-1: 4px;
+  --cc-space-2: 8px;
+  --cc-space-3: 12px;
+  --cc-space-4: 16px;
+  --cc-space-6: 24px;
+  --cc-radius-field: 13px;
+  --cc-radius-card: 22px;
+  --cc-shadow-modal: 0 28px 80px rgba(9, 27, 17, 0.32), 0 8px 24px rgba(9, 27, 17, 0.14);
+  --cc-transition: 200ms ease;
+}
+
+/* Modal shell and backdrop */
+.credit-card-payment-overlay {
+  z-index: 110;
+  padding: 16px;
+  background: rgba(11, 24, 16, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: cc-backdrop-in 220ms ease-out both;
+}
+
+.credit-card-payment-overlay.animate-fadeIn {
+  animation: cc-backdrop-in 220ms ease-out both;
+}
+
+.credit-card-payment-modal {
+  display: flex;
+  width: min(100%, 460px);
+  max-width: 460px;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: var(--cc-radius-card);
+  box-shadow: var(--cc-shadow-modal), 0 0 0 1px rgba(28, 61, 46, 0.1);
+  animation: cc-modal-in 240ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.credit-card-processing {
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: var(--cc-radius-card);
+  box-shadow: var(--cc-shadow-modal);
+}
+
+@keyframes cc-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cc-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Header */
+.credit-card-modal-header {
+  position: relative;
+  isolation: isolate;
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 18px 21px 16px;
+  background:
+    radial-gradient(ellipse at 95% 0%, rgba(148, 194, 147, 0.2), transparent 35%),
+    linear-gradient(115deg, #1b4934 0%, #1c3d2e 62%, #24523a 100%);
+}
+
+.credit-card-modal-header::after {
+  position: absolute;
+  z-index: -1;
+  top: -50px;
+  right: 35px;
+  width: 150px;
+  height: 150px;
+  content: "";
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 50%;
+  box-shadow: 0 0 0 18px rgba(255, 255, 255, 0.025), 0 0 0 36px rgba(255, 255, 255, 0.02);
+}
+
+.credit-card-header-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  backdrop-filter: blur(8px);
+}
+
+.credit-card-header-icon svg {
+  font-size: 19px;
+}
+
+.credit-card-modal-title {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.credit-card-modal-subtitle {
+  margin-top: 6px;
+  padding-left: 54px;
+  color: #e0ebe2;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.credit-card-close {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  transition: color var(--cc-transition), background-color var(--cc-transition), transform var(--cc-transition), border-color var(--cc-transition);
+}
+
+.credit-card-close svg {
+  flex: none;
+}
+
+.credit-card-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.19);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: rotate(8deg) scale(1.04);
+}
+
+.credit-card-close:active {
+  transform: scale(0.96);
+}
+
+.credit-card-payment-overlay :where(button, input):focus-visible {
+  outline: 3px solid #d47a32;
+  outline-offset: 3px;
+}
+
+/* Amount */
+.credit-card-modal-content {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 20px 22px 22px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #b4c6b8 #f3f6f2;
+}
+
+.credit-card-modal-content::-webkit-scrollbar {
+  width: 7px;
+}
+
+.credit-card-modal-content::-webkit-scrollbar-track {
+  background: #f3f6f2;
+  border-radius: 999px;
+}
+
+.credit-card-modal-content::-webkit-scrollbar-thumb {
+  background: #b4c6b8;
+  border: 2px solid #f3f6f2;
+  border-radius: 999px;
+}
+
+.credit-card-amount {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 16px;
+  padding: 12px 15px;
+  background: linear-gradient(115deg, #f0f7f1, #f7faf6);
+  border: 1px solid #dceade;
+  border-radius: 15px;
+}
+
+.credit-card-amount::after {
+  position: absolute;
+  top: -28px;
+  right: -25px;
+  width: 85px;
+  height: 85px;
+  content: "";
+  background: rgba(80, 143, 91, 0.045);
+  border-radius: 50%;
+}
+
+.credit-card-amount p:first-child {
+  color: #5b6c60;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.015em;
+}
+
+.credit-card-amount p:last-child {
+  position: relative;
+  z-index: 1;
+  color: #24603d;
+  font-size: 27px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+/* Card preview */
+.credit-card-preview-wrap {
+  margin-bottom: 18px;
+  perspective: 900px;
+}
+
+.credit-card-preview {
+  position: relative;
+  isolation: isolate;
+  min-height: 176px;
+  overflow: hidden;
+  padding: 18px;
+  aspect-ratio: 1.62 / 1;
+  background:
+    radial-gradient(circle at 94% 7%, rgba(115, 181, 134, 0.26), transparent 34%),
+    linear-gradient(128deg, #163b2b 0%, #1d5136 52%, #28734b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-radius: 17px;
+  box-shadow: 0 12px 24px rgba(15, 54, 31, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  transition: transform 240ms ease, box-shadow 240ms ease, background 240ms ease;
+}
+
+.credit-card-preview::before {
+  position: absolute;
+  z-index: -1;
+  inset: -70% -35%;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 39%, rgba(255, 255, 255, 0.1) 48%, rgba(255, 255, 255, 0.015) 55%, transparent 65%);
+  transform: translateX(-10%);
+  transition: transform 500ms ease;
+}
+
+.credit-card-preview::after {
+  position: absolute;
+  z-index: -1;
+  top: 47px;
+  left: 19px;
+  width: 39px;
+  height: 30px;
+  content: "";
+  background:
+    linear-gradient(90deg,
+      transparent 31%, rgba(112, 84, 42, 0.38) 31.5% 34%, transparent 34.5% 66%,
+      rgba(112, 84, 42, 0.38) 66.5% 69%, transparent 69.5%),
+    linear-gradient(0deg,
+      transparent 31%, rgba(112, 84, 42, 0.38) 31.5% 34%, transparent 34.5% 66%,
+      rgba(112, 84, 42, 0.38) 66.5% 69%, transparent 69.5%),
+    linear-gradient(135deg, #e4eee7 0%, #a9c0b1 48%, #d3e1d7 100%);
+  border: 1px solid rgba(235, 246, 238, 0.78);
+  border-radius: 7px;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.52),
+    inset 0 -1px 2px rgba(38, 72, 51, 0.22),
+    0 2px 4px rgba(0, 0, 0, 0.16);
+  display: none;
+}
+
+.credit-card-preview:hover {
+  box-shadow: 0 15px 28px rgba(15, 54, 31, 0.27), inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  transform: translateY(-1px);
+}
+
+.credit-card-preview:hover::before {
+  transform: translateX(10%);
+}
+
+.credit-card-preview > div:first-child {
+  position: relative;
+  z-index: 1;
+  min-height: 31px;
+}
+
+.credit-card-secure-icon {
+  width: 30px;
+  height: 26px;
+  padding: 6px;
+  color: #e6f0e8 !important;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+}
+
+.credit-card-secure-label {
+  color: #f0f5f0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}
+
+.credit-card-network-icon {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 40px;
+  height: 29px;
+  padding: 4px;
+  color: #f4f8f3;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.2));
+  transition: transform var(--cc-transition), color var(--cc-transition);
+}
+
+.credit-card-preview-number {
+  position: relative;
+  z-index: 1;
+  margin-top: 38px;
+  color: #fff;
+  font-size: clamp(16px, 4.3vw, 20px);
+  font-weight: 550;
+  letter-spacing: 0.13em;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: color var(--cc-transition);
+}
+
+.credit-card-preview > div:last-child {
+  position: absolute;
+  z-index: 1;
+  right: 18px;
+  bottom: 17px;
+  left: 18px;
+  gap: 14px;
+}
+
+.credit-card-preview-label {
+  margin-bottom: 3px;
+  color: #d2e2d5;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.credit-card-preview-value {
+  max-width: 235px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0.055em;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--cc-transition);
+}
+
+/* Form fields */
+.credit-card-form-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.credit-card-field-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #34463a;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.credit-card-field > .relative,
+.credit-card-expiry-fields > .flex > .relative,
+.credit-card-expiry-grid > div:last-child > .relative {
+  position: relative;
+}
+
+.credit-card-field-icon,
+.credit-card-expiry-icon {
+  z-index: 1;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  color: #718076;
+  transition: color var(--cc-transition), transform var(--cc-transition);
+}
+
+.credit-card-field-icon svg,
+.credit-card-expiry-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.credit-card-field:focus-within .credit-card-field-icon,
+.credit-card-expiry-fields:focus-within .credit-card-expiry-icon {
+  color: #2d6a4f;
+  transform: scale(1.04);
+}
+
+.credit-card-payment-modal input:not([type="checkbox"]) {
+  min-width: 0;
+  min-height: 49px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+  color: #27382d;
+  background: #fff;
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-field);
+  box-shadow: inset 0 1px 2px rgba(28, 61, 46, 0.035);
+  font-size: 14px;
+  font-weight: 500;
+  transition: border-color var(--cc-transition), box-shadow var(--cc-transition), background-color var(--cc-transition), transform var(--cc-transition);
+}
+
+.credit-card-payment-modal input:not([type="checkbox"]):hover {
+  border-color: #adbdaf;
+}
+
+.credit-card-payment-modal input:not([type="checkbox"]):focus {
+  border-color: #397351;
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(57, 115, 81, 0.14), inset 0 1px 2px rgba(28, 61, 46, 0.025);
+}
+
+.credit-card-payment-modal input::placeholder {
+  color: #78847c;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.015em;
+  opacity: 1;
+}
+
+.credit-card-field-input.uppercase::placeholder {
+  color: #7c8880;
+  font-weight: 450;
+  letter-spacing: 0.06em;
+}
+
+.credit-card-field-input:not(.uppercase) {
+  font-variant-numeric: tabular-nums;
+}
+
+.credit-card-field:has(.credit-card-field-icon) input {
+  padding-left: 42px;
+}
+
+.credit-card-field:has(.credit-card-field-icon) .credit-card-field-icon {
+  left: 13px;
+}
+
+.credit-card-field:has(.credit-card-field-icon):focus-within input {
+  padding-left: 42px;
+}
+
+.credit-card-field:has(input[maxlength="19"]) input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  letter-spacing: 0.045em;
+  font-variant-numeric: tabular-nums;
+}
+
+.credit-card-expiry-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: end;
+  column-gap: 12px;
+}
+
+.credit-card-expiry-fields {
+  min-width: 0;
+  grid-column: 1;
+}
+
+.credit-card-expiry-fields > .flex {
+  gap: 9px;
+}
+
+.credit-card-expiry-grid > div:last-child {
+  min-width: 0;
+  grid-column: 2;
+}
+
+.credit-card-expiry-input,
+.credit-card-cvv-input {
+  height: 49px;
+  min-height: 49px !important;
+  padding-inline: 10px !important;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.credit-card-expiry-month {
+  padding-left: 37px !important;
+}
+
+.credit-card-expiry-icon {
+  left: 10px;
+  width: 18px;
+  height: 18px;
+}
+
+.credit-card-expiry-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.credit-card-expiry-input::placeholder,
+.credit-card-cvv-input::placeholder {
+  color: #77837a;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.credit-card-cvv-input {
+  letter-spacing: 0.16em;
+}
+
+.credit-card-payment-modal input:-webkit-autofill,
+.credit-card-payment-modal input:-webkit-autofill:hover,
+.credit-card-payment-modal input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #27382d;
+  box-shadow: 0 0 0 1000px #fff inset, inset 0 1px 2px rgba(28, 61, 46, 0.035);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Security notice */
+.credit-card-security-notice {
+  min-height: 44px;
+  margin-top: 16px;
+  padding: 10px 12px;
+  color: #42594a;
+  background: #eff7f0;
+  border: 1px solid #d6e8d8;
+  border-radius: 13px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.credit-card-lock-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  padding: 8px;
+  color: #fff !important;
+  background: #378153;
+  border-radius: 50%;
+}
+
+/* Pay button */
+.credit-card-pay-button {
+  min-height: 54px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  color: #fff;
+  background: linear-gradient(115deg, #2d6a4f 0%, #1c3d2e 100%);
+  border: 1px solid #285e45;
+  border-radius: 14px;
+  box-shadow: 0 5px 13px rgba(28, 61, 46, 0.2);
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--cc-transition), background var(--cc-transition), border-color var(--cc-transition), box-shadow var(--cc-transition), transform var(--cc-transition);
+}
+
+.credit-card-pay-button:hover:not(:disabled) {
+  background: linear-gradient(115deg, #347a59 0%, #204b35 100%);
+  box-shadow: 0 8px 17px rgba(28, 61, 46, 0.26);
+  transform: translateY(-2px);
+}
+
+.credit-card-pay-button:active:not(:disabled) {
+  box-shadow: 0 3px 8px rgba(28, 61, 46, 0.18);
+  transform: translateY(0);
+}
+
+.credit-card-pay-button:disabled {
+  color: #46584b;
+  background: #dfe7e0;
+  border-color: #d2ddd3;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.credit-card-pay-button svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+.credit-card-pay-button:disabled svg {
+  color: #5d7162;
+}
+
+.credit-card-processing {
+  color: var(--cc-ink);
+}
+
+.credit-card-processing > svg {
+  color: var(--cc-green-mid);
+}
+
+@media (max-width: 520px) {
+  .credit-card-payment-overlay {
+    align-items: flex-end;
+    padding: 10px 10px env(safe-area-inset-bottom);
+  }
+
+  .credit-card-payment-modal {
+    width: 100%;
+    max-width: 460px;
+    max-height: calc(100vh - 20px - env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 20px - env(safe-area-inset-bottom));
+    border-radius: 22px 22px 16px 16px;
+  }
+
+  .credit-card-modal-header {
+    padding: 15px 16px 13px;
+  }
+
+  .credit-card-modal-title {
+    font-size: 17px;
+  }
+
+  .credit-card-modal-subtitle {
+    padding-left: 52px;
+    font-size: 12px;
+  }
+
+  .credit-card-modal-content {
+    padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .credit-card-preview {
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .credit-card-preview::after {
+    top: 45px;
+    left: 16px;
+    width: 37px;
+    height: 29px;
+  }
+
+  .credit-card-preview-number {
+    margin-top: 34px;
+    font-size: clamp(15px, 4.4vw, 19px);
+    letter-spacing: 0.1em;
+  }
+
+  .credit-card-preview > div:last-child {
+    right: 16px;
+    bottom: 15px;
+    left: 16px;
+  }
+
+  .credit-card-close {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (max-width: 360px) {
+  .credit-card-modal-content {
+    padding-inline: 13px;
+  }
+
+  .credit-card-form-fields {
+    gap: 12px;
+  }
+
+  .credit-card-expiry-grid {
+    column-gap: 9px;
+  }
+
+  .credit-card-expiry-fields > .flex {
+    gap: 7px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .credit-card-payment-overlay *,
+  .credit-card-payment-overlay *::before,
+  .credit-card-payment-overlay *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

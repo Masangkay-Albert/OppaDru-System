@@ -36,8 +36,8 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="w-full lg:w-96 bg-white h-full lg:h-screen flex flex-col border-l border-gray-200 shadow-lg">
-      <div className="px-5 py-4 border-b border-gray-200 bg-white">
+    <div className="menu-cart-sidebar w-full lg:w-96 bg-white h-full lg:h-screen flex flex-col border-l border-gray-200 shadow-lg">
+      <div className="menu-cart-header px-5 py-4 border-b border-gray-200 bg-white">
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-800">Your Cart</h2>
           {onClose && (
@@ -52,9 +52,9 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
       </div>
 
       {!hasItems ? (
-        <div className="flex-1 flex flex-col items-center justify-center px-6">
+        <div className="menu-cart-empty flex-1 flex flex-col items-center justify-center px-6">
           <div className="text-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
+            <div className="menu-cart-empty-icon w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
               <FiShoppingBag className="w-10 h-10 text-gray-400" />
             </div>
             <p className="text-gray-600 font-medium text-lg">Hungry?</p>
@@ -83,7 +83,7 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
         onCutleryChange={handleCutleryChange}
       />
 
-      <div className="p-4 border-t border-gray-200 bg-white">
+      <div className="menu-cart-actions p-4 border-t border-gray-200 bg-white">
         {hasItems ? (
           <button
             onClick={handleCheckout}

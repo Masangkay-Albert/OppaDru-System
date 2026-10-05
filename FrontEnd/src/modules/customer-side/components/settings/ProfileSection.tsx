@@ -43,7 +43,7 @@ const ProfileSection: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className="settings-section settings-profile">
       <h2 className="text-xl font-bold text-gray-800 mb-2">Profile Settings</h2>
       <p className="text-sm text-gray-500 mb-6">Update your personal information</p>
 

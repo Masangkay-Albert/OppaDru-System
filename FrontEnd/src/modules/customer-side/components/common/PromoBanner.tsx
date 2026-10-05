@@ -24,20 +24,21 @@ const PromoBanner: React.FC = () => {
   const currentPromo = promos[currentIndex];
 
   return (
-    <div className="bg-[var(--oppa-accent)] text-white py-3 px-5 relative overflow-hidden">
+    <div className="promo-banner bg-[var(--oppa-accent)] text-white py-3 px-5 relative overflow-hidden">
       <div className="flex justify-between items-center flex-wrap gap-3">
-        <div className="flex items-center gap-3 flex-wrap text-sm">
-          <strong className="text-white">{currentPromo.title}</strong>
-          <span className="text-white/90">{currentPromo.description}</span>
+        <div className="promo-copy flex items-center gap-3 flex-wrap text-sm">
+          <strong className="promo-title text-white">{currentPromo.title}</strong>
+          <span className="promo-description text-white/90">{currentPromo.description}</span>
         </div>
-        <div className="bg-white/15 px-3 py-1 rounded-full text-xs">{currentPromo.validUntil}</div>
+        <div className="promo-validity bg-white/15 px-3 py-1 rounded-full text-xs">{currentPromo.validUntil}</div>
       </div>
       <div className="flex justify-center gap-2 mt-2">
         {promos.map((_, index) => (
           <button
             key={index}
             onClick={() => setCurrentIndex(index)}
-            className={`h-1.5 rounded-full transition-all ${index === currentIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/40'}`}
+            aria-label={`Show promotion ${index + 1}`}
+            className={`promo-indicator h-1.5 rounded-full transition-all ${index === currentIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/40'}`}
           />
         ))}
       </div>

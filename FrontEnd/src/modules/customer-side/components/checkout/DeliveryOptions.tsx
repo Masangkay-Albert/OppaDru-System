@@ -12,7 +12,7 @@ const DeliveryOptions: React.FC<DeliveryOptionsProps> = ({
   deliveryOption, onOptionChange, scheduleDisplay, onScheduleClick 
 }) => {
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6">
+    <div className="checkout-section checkout-delivery-card bg-white rounded-2xl shadow-lg p-6">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-8 h-8 bg-[#d8f3dc] rounded-full flex items-center justify-center">
           <svg className="w-4 h-4 text-[#2d6a4f]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,7 +23,7 @@ const DeliveryOptions: React.FC<DeliveryOptionsProps> = ({
       </div>
       
       <div className="space-y-3">
-        <label className="flex justify-between items-center p-4 border rounded-xl cursor-pointer hover:border-[#e76f51]">
+        <label className="checkout-radio-card checkout-delivery-option flex justify-between items-center p-4 border rounded-xl cursor-pointer hover:border-[#e76f51]">
           <div className="flex items-center gap-3">
             <input type="radio" name="delivery" checked={deliveryOption === 'standard'} onChange={() => onOptionChange('standard')} className="accent-[#2d6a4f]" />
             <div>
@@ -33,7 +33,7 @@ const DeliveryOptions: React.FC<DeliveryOptionsProps> = ({
           </div>
         </label>
         
-        <label className="flex justify-between items-center p-4 border rounded-xl cursor-pointer hover:border-[#e76f51]">
+        <label className="checkout-radio-card checkout-delivery-option flex justify-between items-center p-4 border rounded-xl cursor-pointer hover:border-[#e76f51]">
           <div className="flex items-center gap-3">
             <input type="radio" name="delivery" checked={deliveryOption === 'priority'} onChange={() => onOptionChange('priority')} className="accent-[#2d6a4f]" />
             <div>
@@ -44,7 +44,7 @@ const DeliveryOptions: React.FC<DeliveryOptionsProps> = ({
           <span className="font-medium text-[#e76f51]">₱99</span>
         </label>
         
-        <label className="flex justify-between items-center p-4 border rounded-xl cursor-pointer hover:border-[#e76f51]">
+        <label className="checkout-radio-card checkout-delivery-option flex justify-between items-center p-4 border rounded-xl cursor-pointer hover:border-[#e76f51]">
           <div className="flex items-center gap-3">
             <input type="radio" name="delivery" checked={deliveryOption === 'scheduled'} onChange={onScheduleClick} className="accent-[#2d6a4f]" />
             <div>

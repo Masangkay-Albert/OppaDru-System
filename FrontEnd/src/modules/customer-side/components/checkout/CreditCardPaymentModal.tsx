@@ -18,6 +18,7 @@ import type { CartItem } from '../../../../types/product.types';
 import type { PaymentResult } from './paymentTypes';
 import { CardField } from './CardField';
 import { PaymentStatusDialog } from './PaymentStatusDialog';
+import '../../../../styles/credit-card-modal.css';
 
 interface CreditCardPaymentModalProps {
   isOpen: boolean;
@@ -123,8 +124,8 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
 
   if (isProcessing) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl max-w-md w-full p-8 text-center shadow-2xl">
+      <div className="credit-card-payment-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="credit-card-processing bg-white rounded-2xl max-w-md w-full p-8 text-center shadow-2xl">
           <FaSpinner className="text-5xl text-[#2d6a4f] animate-spin mx-auto" />
           <h3 className="text-xl font-semibold text-gray-800 mt-4">Processing Payment</h3>
           <p className="text-sm text-gray-500 mt-2">Please wait...</p>
@@ -152,58 +153,58 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl relative overflow-hidden">
+    <div className="credit-card-payment-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+      <div className="credit-card-payment-modal bg-white rounded-2xl max-w-md w-full shadow-2xl relative overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#1a1a2e] to-[#16213e] px-6 py-5">
+        <div className="credit-card-modal-header bg-gradient-to-r from-[#1a1a2e] to-[#16213e] px-6 py-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
+              <div className="credit-card-header-icon w-10 h-10 bg-white/10 rounded-full flex items-center justify-center">
                 <FaCreditCard className="text-white text-xl" />
               </div>
-              <span className="text-white font-bold text-lg">Credit / Debit Card</span>
+              <span className="credit-card-modal-title text-white font-bold text-lg">Credit / Debit Card</span>
             </div>
-            <button onClick={handleClose} className="text-white/60 hover:text-white transition">
+            <button onClick={handleClose} className="credit-card-close text-white/60 hover:text-white transition">
               <IoClose size={24} />
             </button>
           </div>
-          <p className="text-white/60 text-sm mt-1">Enter your card details securely</p>
+          <p className="credit-card-modal-subtitle text-white/60 text-sm mt-1">Enter your card details securely</p>
         </div>
 
-        <div className="p-6">
+        <div className="credit-card-modal-content p-6">
           {/* Amount Display */}
-          <div className="bg-gray-50 rounded-xl p-3 text-center mb-4 border border-gray-100">
+          <div className="credit-card-amount bg-gray-50 rounded-xl p-3 text-center mb-4 border border-gray-100">
             <p className="text-xs text-gray-500">Amount to Pay</p>
             <p className="text-2xl font-bold text-[#2d6a4f]">{formatCurrency(amount)}</p>
           </div>
 
           {/* Card Preview */}
-          <div className="relative mb-5">
-            <div className="bg-gradient-to-br from-[#1a1a2e] to-[#16213e] rounded-xl p-4 text-white min-h-[160px] shadow-lg">
+          <div className="credit-card-preview-wrap relative mb-5">
+            <div className="credit-card-preview bg-gradient-to-br from-[#1a1a2e] to-[#16213e] rounded-xl p-4 text-white min-h-[160px] shadow-lg">
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2">
-                  <FaShieldAlt className="text-white/60 text-sm" />
-                  <span className="text-white/60 text-xs font-medium">Secure</span>
+                  <FaShieldAlt className="credit-card-secure-icon text-white/60 text-sm" />
+                  <span className="credit-card-secure-label text-white/60 text-xs font-medium">Secure</span>
                 </div>
-                <CardIcon size={32} className="text-white/80" />
+                <CardIcon size={32} className="credit-card-network-icon text-white/80" />
               </div>
               
               <div className="mt-4">
-                <p className="font-mono text-lg tracking-wider">
+                <p className="credit-card-preview-number font-mono text-lg tracking-wider">
                   {form.cardNumber || '•••• •••• •••• ••••'}
                 </p>
               </div>
               
               <div className="flex justify-between text-xs mt-4">
                 <div>
-                  <p className="text-white/50">Card Holder</p>
-                  <p className="font-semibold uppercase tracking-wide text-sm">
+                  <p className="credit-card-preview-label text-white/50">Card Holder</p>
+                  <p className="credit-card-preview-value font-semibold uppercase tracking-wide text-sm">
                     {form.cardHolderName || 'FULL NAME'}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-white/50">Expires</p>
-                  <p className="font-semibold">
+                  <p className="credit-card-preview-label text-white/50">Expires</p>
+                  <p className="credit-card-preview-value font-semibold">
                     {form.expiryMonth || 'MM'}/{form.expiryYear.slice(-2) || 'YY'}
                   </p>
                 </div>
@@ -212,7 +213,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
           </div>
 
           {/* Form Fields */}
-          <div className="space-y-3">
+          <div className="credit-card-form-fields space-y-3">
             <CardField
               label="Card Number"
               value={form.cardNumber}
@@ -228,7 +229,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
             <CardField
               label="Card Holder Name"
               value={form.cardHolderName}
-              placeholder="JOHN DOE"
+              placeholder="John Albert"
               icon={<FaUser size={16} />}
               uppercase
               onChange={(value) => handleChange('cardHolderName', value.toUpperCase())}
@@ -237,12 +238,12 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
               onBlur={() => setIsFocused(null)}
             />
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-700 mb-1">Expiry Date</label>
+            <div className="credit-card-expiry-grid grid grid-cols-3 gap-3">
+              <div className="credit-card-expiry-fields col-span-2">
+                <label className="credit-card-field-label block text-xs font-medium text-gray-700 mb-1">Expiry Date</label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+                    <div className="credit-card-expiry-icon absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
                       <FaCalendarAlt size={14} />
                     </div>
                     <input
@@ -250,7 +251,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
                       value={form.expiryMonth}
                       onChange={(e) => handleChange('expiryMonth', e.target.value)}
                       placeholder="MM"
-                      className={`w-full pl-8 pr-2 py-3 border-2 rounded-xl text-center focus:border-[#2d6a4f] focus:outline-none transition ${
+                      className={`credit-card-expiry-input credit-card-expiry-month w-full pl-8 pr-2 py-3 border-2 rounded-xl text-center focus:border-[#2d6a4f] focus:outline-none transition ${
                         isFocused === 'expiry' ? 'border-[#2d6a4f] ring-2 ring-[#2d6a4f]/20' : 'border-gray-200'
                       }`}
                       maxLength={2}
@@ -264,7 +265,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
                       value={form.expiryYear}
                       onChange={(e) => handleChange('expiryYear', e.target.value)}
                       placeholder="YYYY"
-                      className={`w-full px-2 py-3 border-2 rounded-xl text-center focus:border-[#2d6a4f] focus:outline-none transition ${
+                      className={`credit-card-expiry-input credit-card-expiry-year w-full px-2 py-3 border-2 rounded-xl text-center focus:border-[#2d6a4f] focus:outline-none transition ${
                         isFocused === 'expiry' ? 'border-[#2d6a4f] ring-2 ring-[#2d6a4f]/20' : 'border-gray-200'
                       }`}
                       maxLength={4}
@@ -275,14 +276,14 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">CVV</label>
+                <label className="credit-card-field-label block text-xs font-medium text-gray-700 mb-1">CVV</label>
                 <div className="relative">
                   <input
                     type="password"
                     value={form.cvv}
                     onChange={(e) => handleChange('cvv', e.target.value)}
                     placeholder="•••"
-                    className={`w-full px-3 py-3 border-2 rounded-xl text-center focus:border-[#2d6a4f] focus:outline-none transition ${
+                    className={`credit-card-cvv-input w-full px-3 py-3 border-2 rounded-xl text-center focus:border-[#2d6a4f] focus:outline-none transition ${
                       isFocused === 'cvv' ? 'border-[#2d6a4f] ring-2 ring-[#2d6a4f]/20' : 'border-gray-200'
                     }`}
                     maxLength={4}
@@ -295,8 +296,8 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
           </div>
 
           {/* Security Badge */}
-          <div className="mt-4 flex items-center gap-2 text-xs text-gray-400 bg-gray-50 p-3 rounded-xl border border-gray-100">
-            <FaLock className="text-[#2d6a4f]" size={14} />
+          <div className="credit-card-security-notice mt-4 flex items-center gap-2 text-xs text-gray-400 bg-gray-50 p-3 rounded-xl border border-gray-100">
+            <FaLock className="credit-card-lock-icon text-[#2d6a4f]" size={14} />
             <span>Your payment information is secure and encrypted</span>
           </div>
 
@@ -304,7 +305,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
           <button
             onClick={handleSubmit}
             disabled={!isFormValid() || isLoading}
-            className={`mt-4 w-full py-3.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 ${
+            className={`credit-card-pay-button mt-4 w-full py-3.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 ${
               isFormValid() && !isLoading
                 ? 'bg-[#2d6a4f] text-white hover:bg-[#1b4332] shadow-lg shadow-[#2d6a4f]/30'
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'

@@ -18,7 +18,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({
   setPaymentMethod
 }) => {
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6">
+    <div className="checkout-section checkout-payment-card bg-white rounded-2xl shadow-lg p-6">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-8 h-8 bg-[#d8f3dc] rounded-full flex items-center justify-center">
           <svg className="w-4 h-4 text-[#2d6a4f]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -34,7 +34,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({
           return (
             <label
               key={option.id}
-              className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${
+              className={`checkout-radio-card checkout-payment-option flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition-all ${
                 paymentMethod === option.id
                   ? 'border-[#2d6a4f] bg-[#d8f3dc]/30'
                   : 'border-gray-200 hover:border-[#e76f51]'

@@ -39,7 +39,7 @@ const AddressCard: React.FC<AddressCardProps> = ({
 
   return (
     <div
-      className={`border-2 rounded-xl p-4 transition cursor-pointer ${
+      className={`checkout-saved-address border-2 rounded-xl p-4 transition cursor-pointer ${
         isSelected
           ? 'border-[#2d6a4f] bg-[#f0fdf4]'
           : 'border-gray-200 hover:border-gray-300'
@@ -49,16 +49,16 @@ const AddressCard: React.FC<AddressCardProps> = ({
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-gray-800 truncate">{name}</span>
+            <span className="checkout-address-name font-medium text-gray-800 truncate">{name}</span>
             {isDefault && (
-              <span className="text-xs bg-[#2d6a4f] text-white px-2 py-0.5 rounded-full flex-shrink-0">DEFAULT</span>
+              <span className="checkout-default-badge text-xs bg-[#2d6a4f] text-white px-2 py-0.5 rounded-full flex-shrink-0">DEFAULT</span>
             )}
-            {isSelected && <FiCheck className="text-[#2d6a4f] flex-shrink-0" size={16} />}
+            {isSelected && <FiCheck className="checkout-address-selected-icon text-[#2d6a4f] flex-shrink-0" size={16} />}
             {label && (
               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full flex-shrink-0">{label}</span>
             )}
           </div>
-          <p className="text-sm text-gray-600 mt-1 truncate">{address}</p>
+          <p className="checkout-address-text text-sm text-gray-600 mt-1 truncate">{address}</p>
           {hasDetails && (
             <div className="text-xs text-gray-500 mt-1 space-x-2 truncate">
               {details.block && <span>Block {details.block}</span>}
@@ -72,13 +72,13 @@ const AddressCard: React.FC<AddressCardProps> = ({
         <div className="flex items-center gap-1 ml-4 flex-shrink-0">
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            className="p-2 text-gray-400 hover:text-[#2d6a4f] hover:bg-[#f0fdf4] rounded-lg transition"
+            className="checkout-address-action p-2 text-gray-400 hover:text-[#2d6a4f] hover:bg-[#f0fdf4] rounded-lg transition"
           >
             <FiEdit2 size={16} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onSetDefault(); }}
-            className={`p-2 rounded-lg transition ${
+            className={`checkout-address-action p-2 rounded-lg transition ${
               isDefault
                 ? 'text-[#2d6a4f] bg-[#f0fdf4] cursor-default'
                 : 'text-gray-400 hover:text-[#2d6a4f] hover:bg-[#f0fdf4]'
@@ -89,7 +89,7 @@ const AddressCard: React.FC<AddressCardProps> = ({
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+            className="checkout-address-action checkout-address-delete p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
           >
             <FiTrash2 size={16} />
           </button>

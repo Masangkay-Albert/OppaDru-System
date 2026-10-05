@@ -66,7 +66,7 @@ const AddressSection: React.FC<AddressSectionProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6">
+    <div className="checkout-section checkout-address-card bg-white rounded-2xl shadow-lg p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-[#d8f3dc] rounded-full flex items-center justify-center">
@@ -225,7 +225,7 @@ const AddressSection: React.FC<AddressSectionProps> = ({
               </div>
             </div>
           ) : (
-            <div className="rounded-xl bg-[#f8fbf8] p-4 border border-[#d8f3dc]">
+            <div className="checkout-instructions-saved rounded-xl bg-[#f8fbf8] p-4 border border-[#d8f3dc]">
               <div className="flex items-start gap-2">
                 <FiCheck className="text-[#2d6a4f] mt-0.5" size={16} />
                 <div>

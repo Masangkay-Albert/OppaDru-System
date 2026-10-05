@@ -30,18 +30,18 @@ const GreetingBanner: React.FC<GreetingBannerProps> = ({
   const displayName = userName || 'Guest';
 
   return (
-    <div className="bg-[var(--oppa-green-dark)] rounded-2xl p-6 mb-6 text-white shadow-md">
-      <h2 className="text-xl sm:text-2xl font-serif font-bold mb-1 text-[var(--oppa-cream)]">
+    <div className="menu-greeting bg-[var(--oppa-green-dark)] rounded-2xl p-6 mb-6 text-white shadow-md">
+      <h2 className="menu-greeting-title text-xl sm:text-2xl font-serif font-bold mb-1 text-[var(--oppa-cream)]">
         {greeting}, {displayName}!
       </h2>
-      <p className="text-[var(--oppa-green-soft)] text-sm mb-4">What are you craving today?</p>
+      <p className="menu-greeting-subtitle text-[var(--oppa-green-soft)] text-sm mb-4">What are you craving today?</p>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="menu-category-pills flex flex-wrap gap-2">
         {categories.map((category) => (
           <button
             key={category.id}
             onClick={() => onCategoryClick(category.id)}
-            className="px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-[var(--oppa-cream)] border border-white/15 hover:bg-white/20 transition-all"
+            className="menu-category-pill px-4 py-2 rounded-full text-sm font-medium bg-white/10 text-[var(--oppa-cream)] border border-white/15 hover:bg-white/20 transition-all"
           >
             {category.name}
           </button>

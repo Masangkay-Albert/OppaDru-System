@@ -55,17 +55,17 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
         <h3 className="font-medium text-gray-800">Vouchers</h3>
       </div>
       
-      <div className="flex gap-2">
+      <div className="checkout-voucher-control flex gap-2">
         <input 
           type="text" 
           value={voucherCode}
           onChange={(e) => setVoucherCode(e.target.value)}
           placeholder="Enter voucher code (OPPA10 or OPPA20)"
-          className="flex-1 px-4 py-2 border rounded-xl text-sm"
+          className="checkout-voucher-input flex-1 px-4 py-2 border rounded-xl text-sm"
         />
         <button 
           onClick={handleApply}
-          className="px-4 py-2 bg-[#2d6a4f] text-white rounded-xl text-sm font-medium hover:bg-[#1b4d3e] transition-colors"
+          className="checkout-voucher-apply px-4 py-2 bg-[#2d6a4f] text-white rounded-xl text-sm font-medium hover:bg-[#1b4d3e] transition-colors"
         >
           Apply
         </button>

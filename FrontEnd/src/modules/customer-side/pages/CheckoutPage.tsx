@@ -19,6 +19,7 @@ import { getAvailableDates, generateTimeSlots } from '../../../services/checkout
 import type { PaymentResult } from '../components/checkout/paymentTypes';
 import { getSelectedBranchId } from '../../../services/franchiseBranchService';
 import { getActiveBranches } from '../../../services/franchiseBranchService';
+import '../../../styles/checkout-page.css';
 
 const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
@@ -294,7 +295,7 @@ const CheckoutPage: React.FC = () => {
 
   if (cartItems.length === 0 && !orderCompleted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
+      <div className="checkout-page min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
         <NavbarCustomer />
         <div className="mx-auto max-w-7xl px-4 pt-4">
           <p className="rounded-xl border border-[var(--oppa-border)] bg-white px-4 py-3 text-sm text-[var(--oppa-text-muted)]">
@@ -319,24 +320,24 @@ const CheckoutPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
+    <div className="checkout-page min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
       <NavbarCustomer />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center gap-3 mb-6 pb-3 border-b border-[#e76f51]/20">
+      <div className="checkout-page-container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="checkout-page-header flex items-center gap-3 mb-6 pb-3 border-b border-[#e76f51]/20">
           <button
             onClick={() => navigate('/customer')}
-            className="flex items-center gap-2 text-gray-500 hover:text-[#2d6a4f] transition-colors group"
+            className="checkout-back-button flex items-center gap-2 text-gray-500 hover:text-[#2d6a4f] transition-colors group"
           >
             <FiArrowLeft className="group-hover:-translate-x-1 transition-transform" size={18} />
             <span className="text-sm font-medium">Back to Menu</span>
           </button>
           <span className="text-gray-300 text-xl">|</span>
-          <h1 className="text-xl font-bold text-[#2d6a4f]">Review and place your order</h1>
+          <h1 className="checkout-page-title text-xl font-bold text-[#2d6a4f]">Review and place your order</h1>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
+        <div className="checkout-layout grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="checkout-form-column lg:col-span-2">
             <CheckoutForm
               address={address}
               updateAddress={updateAddress}
@@ -354,7 +355,7 @@ const CheckoutPage: React.FC = () => {
             />
           </div>
 
-          <div className="lg:col-span-1">
+          <div className="checkout-summary-column lg:col-span-1">
             <CheckoutSummary
               cartItems={cartItems}
               deliveryType={deliveryType}
