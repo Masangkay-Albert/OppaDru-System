@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { AdminOrder } from '../services/adminOrderService';
 import oppaDruLogo from '../assets/oppadrulogo.jpg';
+import { formatCurrency } from './formatters';
 
 export interface ReportFilterDetails {
   year: string;
@@ -50,9 +51,7 @@ const DAY_NAMES = [
 ];
 
 const formatCurrencyForPdf = (amount: number | string | null | undefined): string => {
-  const numeric = typeof amount === 'string' ? Number(amount) : Number(amount || 0);
-  const safe = Number.isFinite(numeric) ? numeric : 0;
-  return `PHP ${safe.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return formatCurrency(amount).replace('₱', 'PHP ');
 };
 
 const loadImageAsDataUrl = (url: string): Promise<string> => {

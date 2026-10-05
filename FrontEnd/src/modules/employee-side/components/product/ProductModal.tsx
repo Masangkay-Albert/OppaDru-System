@@ -5,6 +5,7 @@ import QuantitySelector from './QuantitySelector';
 import AddonsSection from '../common/AddonsSection';
 import { FiX } from 'react-icons/fi';
 import { productService } from '../../../../services/productService';
+import { formatCurrency } from '../../../../utils/formatters';
 
 interface ProductModalProps {
   product: Product | null;
@@ -60,7 +61,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
       Large: 20,
     };
 
-    return Number((basePrice + (priceAdjustments[size] ?? 0)).toFixed(2));
+    return Math.round(basePrice + (priceAdjustments[size] ?? 0));
   }, [product, requiresSizeSelection]);
 
   useEffect(() => {
@@ -235,7 +236,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
           {/* Scrollable Body */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="flex items-baseline justify-between mb-2">
-              <p className="text-3xl font-extrabold text-[#2d6a4f]">₱{currentUnitPrice.toFixed(2)}</p>
+              <p className="text-3xl font-extrabold text-[#2d6a4f]">{formatCurrency(currentUnitPrice)}</p>
               <span className="text-xs bg-[#E3EFE7] text-[#1C3D2E] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
                 {product.category || 'Menu Item'}
               </span>
@@ -269,7 +270,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
                         }`}
                       >
                         <div className="text-sm">{sizeOption.label}</div>
-                        <div className="text-xs opacity-75">₱{optionPrice.toFixed(2)}</div>
+                        <div className="text-xs opacity-75">{formatCurrency(optionPrice)}</div>
                       </button>
                     );
                   })}
@@ -329,7 +330,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
           <div className="p-5 border-t border-gray-100 bg-gray-50/50 shrink-0">
             <div className="flex justify-between items-center font-bold text-base mb-3">
               <span className="text-gray-600">Item Total:</span>
-              <span className="text-[#2d6a4f] text-2xl font-extrabold">₱{totalPrice.toFixed(2)}</span>
+              <span className="text-[#2d6a4f] text-2xl font-extrabold">{formatCurrency(totalPrice)}</span>
             </div>
             <button
               onClick={handleSave}
@@ -341,7 +342,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
               }`}
             >
               <span>{editMode ? 'Update Order Item' : 'Add to Register Order'}</span>
-              <span>— ₱{totalPrice.toFixed(2)}</span>
+              <span>— {formatCurrency(totalPrice)}</span>
             </button>
           </div>
         </div>

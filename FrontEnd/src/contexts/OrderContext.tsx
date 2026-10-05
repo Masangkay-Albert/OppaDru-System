@@ -14,6 +14,7 @@ export interface Order {
   address: string;
   status: OrderStatus;
   paymentMethod: string;
+  payment_status?: string;
   phone?: string;
   orderNumber?: string;
   userId?: string;
@@ -111,8 +112,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const apiOrders = await orderService.getUserOrders();
       const mappedOrders: Order[] = apiOrders.map(apiOrder => {
         const productSubtotal = (apiOrder.items || []).reduce((sum: number, item: any) => {
-          const addonTotal = (item.selected_addons || []).reduce((addonSum: number, addon: any) => addonSum + Number(addon.price || 0), 0);
-          return sum + ((Number(item.product_price || 0) * Number(item.quantity || 1)) + addonTotal);
+          const addonTotal = (item.selected_addons || []).reduce((addonSum: number, addon: any) => addonSum + Number(addon.price || 0) * Number(addon.quantity || 1), 0);
+          return sum + ((Number(item.product_price || 0) + addonTotal) * Number(item.quantity || 1));
         }, 0);
         const derivedDeliveryFee = Number(apiOrder.delivery_fee || 0) > 0
           ? Number(apiOrder.delivery_fee || 0)
@@ -142,6 +143,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           address: apiOrder.delivery_address,
           status: apiOrder.status as OrderStatus,
           paymentMethod: apiOrder.payment_method,
+          payment_status: apiOrder.payment_status,
           phone: apiOrder.phone,
           orderNumber: apiOrder.order_number,
           userId: resolvedUser.id,
@@ -268,7 +270,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     paymentReference?: string,
     deliveryType: 'standard' | 'priority' | 'scheduled' = 'standard',
     voucherDiscount: number = 0,
-    _discountRate: number = 0,
+    discountRate: number = 0,
     scheduledAt: string | null = null,
     scheduledDate: string | null = null,
     scheduledTime: string | null = null,
@@ -298,11 +300,12 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         product_name: item.selectedSize ? `${item.name} (${item.selectedSize})` : item.name,
         product_price: Number(item.price),
         quantity: item.quantity,
+        selected_size: item.selectedSize,
         selected_addons: item.selectedAddons?.map(addon => ({
           id: addon.id,
           name: addon.name,
           price: Number(addon.price),
-          quantity: 1,
+          quantity: addon.quantity || 1,
         })),
         special_instructions: [
           item.specialInstructions,
@@ -322,7 +325,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         delivery_coordinates: deliveryAddressCoords,
         payment_reference: paymentReference,
         voucher_discount: voucherDiscount,
-        discount_rate: 0,
+        discount_rate: discountRate,
         discount_type: discountType || undefined,
         proof_image: discountProof || undefined,
         scheduled_at: deliveryType === 'scheduled' ? (scheduledAt || new Date().toISOString()) : null,
@@ -351,6 +354,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         address: apiOrder.delivery_address,
         status: apiOrder.status as OrderStatus,
         paymentMethod: apiOrder.payment_method,
+        payment_status: apiOrder.payment_status,
         phone: apiOrder.phone,
         orderNumber: apiOrder.order_number,
         userId: activeUser.id,

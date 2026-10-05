@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Boxes, PackageCheck, PackageX, RefreshCw, Search, TriangleAlert } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
+import { formatCurrency } from '../../../utils/formatters';
 
 interface InventoryItem {
   id: string;
@@ -132,7 +133,7 @@ const FranchiseInventoryPage: React.FC = () => {
                             {item.branch_enabled ? 'Available' : 'Unavailable'}
                           </button>
                         </td>
-                        <td className="px-4 py-3">₱{Number(item.price).toFixed(2)}</td>
+                        <td className="px-4 py-3">{formatCurrency(item.price)}</td>
                         <td className="px-4 py-3">
                           <button disabled={busyId === item.id || !/^\d+$/.test(stockEdits[item.id] ?? (item.branch_stock_tracked ? String(item.branch_stock ?? '') : ''))} onClick={() => void saveInventory(item, { stock_quantity: Number(stockEdits[item.id] ?? item.branch_stock) })} className="rounded-lg bg-[var(--oppa-green)] px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Save stock</button>
                         </td>

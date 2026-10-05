@@ -30,7 +30,7 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
   // If the saved delivery fee is stale/zero, derive it from the total and known fees.
   if (deliveryFee === 0 && currentOrder.total > 0) {
     const derived = currentOrder.total - subtotal - serviceFee - priorityFee - vat;
-    deliveryFee = Math.max(0, Number(derived.toFixed(2)));
+    deliveryFee = Math.max(0, Math.round(derived));
   }
 
   // If VAT is 0 or missing, recalculate from total

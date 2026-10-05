@@ -68,7 +68,7 @@ export const getOrderFeeBreakdown = (order: any) => {
 
   if (deliveryFee === 0 && Number(order?.total || 0) > 0) {
     const derived = Number(order.total) - productSubtotal - serviceFee - priorityFee - vat;
-    deliveryFee = Math.max(0, Number(derived.toFixed(2)));
+    deliveryFee = Math.max(0, Math.round(derived));
   }
 
   if (vat === 0 && Number(order?.total || 0) > 0) {

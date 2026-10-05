@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -86,6 +87,15 @@ class Order extends Model
     protected static function boot()
     {
         parent::boot();
+        static::saving(function (self $order) {
+            if (
+                strtolower((string) $order->payment_method) === 'cash_on_delivery'
+                && strtolower((string) $order->status) === 'delivered'
+                && in_array(strtolower((string) ($order->payment_status ?? 'pending')), ['pending', 'unpaid'], true)
+            ) {
+                $order->payment_status = 'paid';
+            }
+        });
         static::creating(function ($model) {
             if (empty($model->id)) {
                 $model->id = 'OPPA-ORD-' . date('Ymd') . '-' . strtoupper(Str::random(6));
@@ -94,6 +104,43 @@ class Order extends Model
                 $model->order_number = 'OPPA-ORD-' . date('Ymd') . '-' . strtoupper(Str::random(8));
             }
         });
+    }
+
+    public function scopeCountedAsRevenue(Builder $query): Builder
+    {
+        return $query
+            ->whereNotIn('status', ['cancelled', 'failed'])
+            ->where(function (Builder $paymentQuery) {
+                $paymentQuery
+                    ->where('payment_status', 'paid')
+                    ->orWhere(function (Builder $codQuery) {
+                        $codQuery
+                            ->where('payment_method', 'cash_on_delivery')
+                            ->where('status', 'delivered')
+                            ->where(function (Builder $pendingQuery) {
+                                $pendingQuery
+                                    ->whereNull('payment_status')
+                                    ->orWhereIn('payment_status', ['pending', 'unpaid']);
+                            });
+                    });
+            });
+    }
+
+    public function isCountedAsRevenue(): bool
+    {
+        $status = strtolower((string) $this->status);
+        $paymentStatus = strtolower((string) ($this->payment_status ?? 'pending'));
+
+        if (in_array($status, ['cancelled', 'failed'], true) || in_array($paymentStatus, ['failed', 'cancelled', 'expired'], true)) {
+            return false;
+        }
+
+        return $paymentStatus === 'paid'
+            || (
+                strtolower((string) $this->payment_method) === 'cash_on_delivery'
+                && $status === 'delivered'
+                && in_array($paymentStatus, ['pending', 'unpaid'], true)
+            );
     }
 
     public function user()

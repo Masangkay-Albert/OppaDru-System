@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { BarChart3, CalendarDays, CreditCard, DollarSign, RefreshCw, ShoppingCart } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
+import { formatCurrency } from '../../../utils/formatters';
 
 interface ProductSale {
   product_id: string | null;
@@ -21,11 +22,7 @@ interface Report {
   discount_summary: { discounted_orders: number; discount_amount: number };
 }
 
-const money = (amount: number) => new Intl.NumberFormat('en-PH', {
-  style: 'currency',
-  currency: 'PHP',
-  maximumFractionDigits: 2,
-}).format(amount || 0);
+const money = (amount: number) => formatCurrency(amount);
 
 const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
 

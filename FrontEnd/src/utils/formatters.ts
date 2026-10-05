@@ -9,8 +9,11 @@ const toFiniteNumber = (amount: NumericValue): number => {
 
 export const formatCurrency = (amount: NumericValue): string => {
   const safeAmount = toFiniteNumber(amount);
-  const formatted = safeAmount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `₱${formatted}`;
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: 0,
+  }).format(Math.round(safeAmount));
 };
 
 export const formatDate = (date: Date): string => {
@@ -28,9 +31,9 @@ export const formatNumber = (amount: number): string => {
 };
 
 export const formatPrice = (amount: NumericValue): string => {
-  return `₱${toFiniteNumber(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+  return formatCurrency(amount);
 };
 
 export const formatCurrencyWithoutSign = (amount: NumericValue): string => {
-  return toFiniteNumber(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return formatCurrency(amount).replace(/₱\s?/, '');
 };

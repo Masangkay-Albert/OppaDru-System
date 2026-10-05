@@ -4,7 +4,7 @@ import { ShoppingBag, Users, Package, AlertTriangle, ArrowRight, Copy } from 'lu
 import AdminLayout from '../components/AdminLayout';
 import StatCard from '../components/StatCard';
 import { Avatar, DataTable, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
-import { getAllOrders, type AdminOrder, getAllCustomers } from '../../../services/adminOrderService';
+import { getAllOrders, isRevenueOrder, type AdminOrder, getAllCustomers } from '../../../services/adminOrderService';
 import { getAllAccounts, apiGetAdminCount } from '../../../services/adminAuthService';
 import { getAllProducts } from '../../../services/adminProductService';
 import { formatCurrency } from '../../../utils/formatters';
@@ -24,7 +24,7 @@ const DashboardCharts: React.FC<{ orders: AdminOrder[]; loading: boolean }> = ({
       const dayOrders = orders.filter((order) => {
         const raw = order.created_at || order.timestamp;
         const date = raw ? new Date(raw) : null;
-        return date && !Number.isNaN(date.getTime()) && startOfDay(date) === dayStart && String(order.status).toLowerCase() !== 'cancelled';
+        return date && !Number.isNaN(date.getTime()) && startOfDay(date) === dayStart && isRevenueOrder(order);
       });
       return { label: day.toLocaleDateString('en-US', { weekday: 'short' }), date: day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), total: dayOrders.reduce((sum, order) => sum + Number(order.total || 0), 0), orders: dayOrders.length };
     });
@@ -56,7 +56,7 @@ const DashboardCharts: React.FC<{ orders: AdminOrder[]; loading: boolean }> = ({
     return orders.reduce((sum, order) => {
       const raw = order.created_at || order.timestamp;
       const date = raw ? new Date(raw) : null;
-      return date && startOfDay(date) >= start && startOfDay(date) < end && String(order.status).toLowerCase() !== 'cancelled' ? sum + Number(order.total || 0) : sum;
+      return date && startOfDay(date) >= start && startOfDay(date) < end && isRevenueOrder(order) ? sum + Number(order.total || 0) : sum;
     }, 0);
   }, [orders]);
   const trend = previousWeekSales > 0 ? Math.round(((totalSales - previousWeekSales) / previousWeekSales) * 100) : 0;

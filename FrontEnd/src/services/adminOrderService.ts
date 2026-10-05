@@ -24,6 +24,20 @@ const getOnlineOrderStorageKeys = (): string[] => {
   return keys;
 };
 
+export const isRevenueOrder = (order: Pick<AdminOrder, 'status' | 'payment_status' | 'payment_method' | 'paymentMethod' | 'channel'>): boolean => {
+  const status = String(order.status || '').trim().toLowerCase();
+  const paymentStatus = String(order.payment_status || '').trim().toLowerCase();
+  const paymentMethod = String(order.payment_method || order.paymentMethod || '').trim().toLowerCase();
+
+  if (['cancelled', 'failed'].includes(status) || ['failed', 'cancelled', 'expired'].includes(paymentStatus)) {
+    return false;
+  }
+
+  return paymentStatus === 'paid'
+    || (paymentMethod === 'cash_on_delivery' && status === 'delivered' && ['pending', 'unpaid', ''].includes(paymentStatus))
+    || (order.channel === 'onsite' && paymentStatus === '');
+};
+
 const updateOnlineOrdersInStorage = (updater: (orders: Order[]) => Order[]): void => {
   const keys = getOnlineOrderStorageKeys();
 
@@ -63,6 +77,7 @@ export type AdminOrder = Omit<Order, 'timestamp' | 'items'> & {
   customer_name?: string;
   payment_method?: string;
   paymentMethod?: string;
+  payment_status?: string;
   served?: boolean;
   order_number?: string;
   delivery_proof_image_url?: string | null;

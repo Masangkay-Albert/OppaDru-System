@@ -30,7 +30,7 @@ class OrderController extends Controller
     {
         $orders = Order::select([
             'id', 'order_number', 'email', 'user_id', 'total', 'status',
-            'payment_method', 'delivery_address', 'delivery_lat', 'delivery_lng', 'delivery_coordinates', 'phone', 'items', 'created_at',
+            'payment_method', 'payment_status', 'delivery_address', 'delivery_lat', 'delivery_lng', 'delivery_coordinates', 'phone', 'items', 'created_at',
             'delivery_proof_image', 'delivery_proof_uploaded_at', 'delivery_confirmed_at',
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',
             'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
@@ -135,6 +135,7 @@ class OrderController extends Controller
             'items.*.product_name' => 'required|string',
             'items.*.product_price' => 'required|numeric',
             'items.*.quantity' => 'required|integer|min:1',
+            'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'items.*.selected_addons' => 'nullable|array',
             'items.*.special_instructions' => 'nullable|string',
             'total' => 'nullable|numeric|min:0',
@@ -222,12 +223,15 @@ class OrderController extends Controller
             return response()->json(['errors' => ['scheduled_at' => [$exception->getMessage()]]], 422);
         }
 
+        $discountType = trim((string) $request->input('discount_type', ''));
+        $discountRate = $discountType !== '' ? (float) $request->input('discount_rate', 0.20) : 0.0;
+
         try {
             $pricing = app(PricingService::class)->calculate(
                 $request->items,
                 $request->input('delivery_type', 'standard'),
                 (float) $request->input('voucher_discount', 0),
-                (float) $request->input('discount_rate', 0),
+                $discountRate,
                 $request->input('delivery_coordinates')
             );
         } catch (\InvalidArgumentException $exception) {
@@ -237,7 +241,7 @@ class OrderController extends Controller
         $payment = null;
         if (in_array($request->payment_method, ['gcash', 'credit_card'], true)) {
             $payment = Payment::where('reference', $request->payment_reference)->first();
-            if (!$payment || $payment->status !== 'paid' || round((float) $payment->amount, 2) !== $total) {
+            if (!$payment || $payment->status !== 'paid' || round((float) $payment->amount) !== $total) {
                 return response()->json(['message' => 'Payment is not confirmed for this order.'], 422);
             }
 
@@ -255,13 +259,11 @@ class OrderController extends Controller
         $user = User::where('email', $request->email)->first();
         $userId = $user ? $user->id : null;
 
-        $discountType = trim((string) $request->input('discount_type', ''));
-        $discountRate = 0.20;
         $discountAmount = 0;
         $discountProofUrl = null;
 
         if ($discountType !== '') {
-            $discountAmount = round((float) $total * $discountRate, 2);
+            $discountAmount = $pricing['discountAmount'];
             if ($request->hasFile('proof_image') || $request->hasFile('discount_proof_image')) {
                 $file = $request->file('proof_image') ?? $request->file('discount_proof_image');
                 $filename = time() . '-' . uniqid('', true) . '.' . $file->getClientOriginalExtension();
@@ -319,7 +321,7 @@ class OrderController extends Controller
             'payment_status' => $payment ? 'paid' : 'pending',
             'discount_type' => $discountType !== '' ? $discountType : null,
             'discount_rate' => $discountType !== '' ? $discountRate : null,
-            'discount_amount' => $discountType !== '' ? 0 : null,
+            'discount_amount' => $discountType !== '' ? $discountAmount : null,
             'discount_status' => $discountType !== '' ? 'pending' : 'not_requested',
             'discount_proof_image' => $discountType !== '' ? $discountProofUrl : null,
             'discount_requested_at' => $discountType !== '' ? now() : null,
@@ -411,11 +413,11 @@ class OrderController extends Controller
 
         $discountType = $request->input('discount_type');
         $discountRate = $discountType ? (float) $request->input('discount_rate', 0.20) : null;
-        $discountAmount = $discountType ? (float) $request->input('discount_amount', 0) : null;
+        $discountAmount = $discountType ? round((float) $request->input('discount_amount', 0)) : null;
         $discountIdNumber = $request->input('discount_id_number');
 
-        $total = (float) $request->input('total', 0);
-        $vat = (float) $request->input('vat', round($total * 0.12, 2));
+        $total = round((float) $request->input('total', 0));
+        $vat = round((float) $request->input('vat', round($total * 0.12)));
 
         $cashierEmail = trim((string) ($request->input('cashier_email') ?: $request->input('email') ?: ''));
         if ($cashierEmail === '' || $cashierEmail === 'onsite@oppadru.ph') {
@@ -615,6 +617,12 @@ class OrderController extends Controller
         $customerStats = Order::query()
             ->select('user_id')
             ->selectRaw('COUNT(*) as order_count')
+            ->whereNotNull('user_id')
+            ->groupBy('user_id')
+            ->get()
+            ->keyBy('user_id');
+        $customerSpent = Order::countedAsRevenue()
+            ->select('user_id')
             ->selectRaw('COALESCE(SUM(total), 0) as total_spent')
             ->whereNotNull('user_id')
             ->groupBy('user_id')
@@ -624,8 +632,9 @@ class OrderController extends Controller
         $users = User::select('id', 'full_name', 'email', 'phone', 'created_at')
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(function ($user) use ($customerStats) {
+            ->map(function ($user) use ($customerStats, $customerSpent) {
             $stats = $customerStats->get($user->id);
+            $spent = $customerSpent->get($user->id);
 
             return [
                 'id' => $user->id,
@@ -634,7 +643,7 @@ class OrderController extends Controller
                 'phone' => $user->phone,
                 'date_registered' => $user->created_at,
                 'order_count' => (int) ($stats->order_count ?? 0),
-                'total_spent' => (float) ($stats->total_spent ?? 0),
+                'total_spent' => (float) ($spent->total_spent ?? 0),
             ];
         });
 

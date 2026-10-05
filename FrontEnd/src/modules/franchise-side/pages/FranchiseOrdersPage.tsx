@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ClipboardList, Eye, RefreshCw, Search, X } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
+import { formatCurrency } from '../../../utils/formatters';
 
 interface OrderItem {
   product_name?: string;
@@ -17,6 +18,7 @@ interface BranchOrder {
   total: number | string;
   status: string;
   payment_method: string;
+  payment_status?: string | null;
   delivery_type?: string | null;
   delivery_address?: string | null;
   email?: string;
@@ -105,7 +107,21 @@ const FranchiseOrdersPage: React.FC = () => {
     }
   };
 
-  const orderRevenue = orders.filter((order) => order.status !== 'cancelled').reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const orderRevenue = orders.reduce((sum, order) => {
+    const orderStatus = order.status.trim().toLowerCase();
+    const paymentStatus = String(order.payment_status || '').trim().toLowerCase();
+    const paymentMethod = order.payment_method.trim().toLowerCase();
+    const isCancelledOrFailed = ['cancelled', 'failed'].includes(orderStatus)
+      || ['failed', 'cancelled', 'expired'].includes(paymentStatus);
+    const isPaid = paymentStatus === 'paid';
+    const isDeliveredCod = paymentMethod === 'cash_on_delivery'
+      && orderStatus === 'delivered'
+      && ['pending', 'unpaid', ''].includes(paymentStatus);
+
+    return isCancelledOrFailed || (!isPaid && !isDeliveredCod)
+      ? sum
+      : sum + Number(order.total || 0);
+  }, 0);
 
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
@@ -120,7 +136,7 @@ const FranchiseOrdersPage: React.FC = () => {
           <OrderMetric icon={ClipboardList} label="Orders in view" value={orders.length} />
           <OrderMetric icon={ClipboardList} label="Pending" value={orders.filter((order) => order.status === 'pending').length} tone="amber" />
           <OrderMetric icon={ClipboardList} label="Preparing" value={orders.filter((order) => ['confirmed', 'preparing', 'prepared'].includes(order.status)).length} tone="blue" />
-          <OrderMetric icon={ClipboardList} label="Branch sales" value={`₱${orderRevenue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`} tone="green" />
+          <OrderMetric icon={ClipboardList} label="Branch sales" value={formatCurrency(orderRevenue)} tone="green" />
         </section>
         <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
           <div className="border-b border-[var(--oppa-border)] px-4 py-4"><h2 className="font-semibold text-[var(--oppa-text)]">Order list</h2><p className="mt-1 text-xs text-gray-500">Filters apply to this branch only.</p></div>
@@ -135,7 +151,7 @@ const FranchiseOrdersPage: React.FC = () => {
             <div className="overflow-x-auto"><table className="w-full min-w-[950px] text-left text-sm"><thead className="bg-[#edf5ef] text-xs uppercase text-[var(--oppa-text-muted)]"><tr><th className="px-4 py-3">Order</th><th className="px-4 py-3">Type / Customer</th><th className="px-4 py-3">Total</th><th className="px-4 py-3">Payment</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Details</th></tr></thead><tbody className="divide-y divide-gray-100">{orders.map((order) => <tr key={order.id} className="transition hover:bg-[#fbfcfa]">
               <td className="px-4 py-4 font-medium">{order.order_number}</td>
               <td className="max-w-xs px-4 py-4"><span className="block capitalize">{order.delivery_type === 'onsite' ? 'In person' : 'Online'}</span><span className="block truncate text-xs text-gray-500">{order.user?.full_name || order.email || order.user?.email || order.delivery_address || 'Customer'}</span></td>
-              <td className="px-4 py-4 font-semibold">₱{Number(order.total).toFixed(2)}</td>
+              <td className="px-4 py-4 font-semibold">{formatCurrency(order.total)}</td>
               <td className="px-4 py-4 capitalize">{order.payment_method?.replaceAll('_', ' ') || '—'}</td>
               <td className="px-4 py-4"><select value={order.status} disabled={updatingOrderId === order.id} onChange={(event) => void updateStatus(order, event.target.value)} className="rounded-lg border border-gray-200 px-2 py-1.5 capitalize disabled:opacity-50">{ORDER_STATUSES.map((value) => <option key={value} value={value}>{value}</option>)}</select></td>
               <td className="px-4 py-4 text-xs text-gray-500">{order.created_at ? new Date(order.created_at).toLocaleString() : '—'}</td>
@@ -150,8 +166,8 @@ const FranchiseOrdersPage: React.FC = () => {
         {detailLoading ? <p className="py-10 text-center text-sm text-gray-500">Loading order details...</p> : <>
           <div className="grid grid-cols-2 gap-4 rounded-xl bg-[#edf5ef] p-4 text-sm"><div><p className="text-xs text-gray-500">Customer</p><p className="mt-1 font-medium">{selectedOrder.user?.full_name || selectedOrder.email || 'Walk-in customer'}</p></div><div><p className="text-xs text-gray-500">Status</p><p className="mt-1 capitalize">{selectedOrder.status}</p></div><div><p className="text-xs text-gray-500">Payment</p><p className="mt-1 capitalize">{selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div><div><p className="text-xs text-gray-500">Order type</p><p className="mt-1">{selectedOrder.delivery_type === 'onsite' ? 'In person' : 'Online'}</p></div><div className="col-span-2"><p className="text-xs text-gray-500">Address / notes</p><p className="mt-1">{selectedOrder.delivery_address || '—'}</p></div></div>
           <h3 className="mb-3 mt-6 font-semibold">Items</h3>
-          {(selectedOrder.items || selectedOrder.order_items || selectedOrder.orderItems || []).length ? <div className="divide-y">{(selectedOrder.items || selectedOrder.order_items || selectedOrder.orderItems || []).map((item, index) => <div key={`${item.product_name || item.name || 'item'}-${index}`} className="flex justify-between gap-4 py-3 text-sm"><span>{item.quantity} × {item.product_name || item.name || 'Item'}</span><span>₱{(Number(item.product_price ?? item.price ?? 0) * item.quantity).toFixed(2)}</span></div>)}</div> : <p className="py-5 text-sm text-gray-500">No item details provided.</p>}
-          <div className="mt-4 flex justify-between border-t pt-4 font-semibold"><span>Total</span><span>₱{Number(selectedOrder.total).toFixed(2)}</span></div>
+          {(selectedOrder.items || selectedOrder.order_items || selectedOrder.orderItems || []).length ? <div className="divide-y">{(selectedOrder.items || selectedOrder.order_items || selectedOrder.orderItems || []).map((item, index) => <div key={`${item.product_name || item.name || 'item'}-${index}`} className="flex justify-between gap-4 py-3 text-sm"><span>{item.quantity} × {item.product_name || item.name || 'Item'}</span><span>{formatCurrency(Number(item.product_price ?? item.price ?? 0) * item.quantity)}</span></div>)}</div> : <p className="py-5 text-sm text-gray-500">No item details provided.</p>}
+          <div className="mt-4 flex justify-between border-t pt-4 font-semibold"><span>Total</span><span>{formatCurrency(selectedOrder.total)}</span></div>
         </>}
       </section></div>}
     </main>

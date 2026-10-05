@@ -1,5 +1,6 @@
 // src/services/voucherService.ts
 import { VOUCHERS } from '../utils/constants';
+import { formatCurrency } from '../utils/formatters';
 
 export interface VoucherResult {
   isValid: boolean;
@@ -21,7 +22,7 @@ export const validateAndApplyVoucher = (code: string, subtotal: number): Voucher
     return { 
       isValid: false, 
       discount: 0, 
-      error: `Minimum order of ₱${VOUCHERS.OPPA20.minOrder} required` 
+      error: `Minimum order of ${formatCurrency(VOUCHERS.OPPA20.minOrder)} required`
     };
   }
   

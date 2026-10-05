@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { getAddonImage } from '../../../../data/productImages';
 import type { Addon, AddonGroup } from '../../../../types/product.types';
+import { formatCurrency } from '../../../../utils/formatters';
 
 interface AddonsSectionProps {
   group: AddonGroup;
@@ -51,7 +52,7 @@ const AddonsSection: React.FC<AddonsSectionProps> = ({
               />
             </div>
             <span className="flex-1 text-sm font-medium text-gray-800">{addon.name}</span>
-            <span className="text-xs font-semibold text-[#e76f51] shrink-0">+ ₱{Number(addon.price).toFixed(2)}</span>
+            <span className="text-xs font-semibold text-[#e76f51] shrink-0">+ {formatCurrency(addon.price)}</span>
           </label>
         ))}
       </div>

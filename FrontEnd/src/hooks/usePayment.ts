@@ -67,7 +67,7 @@ export const usePayment = () => {
     expiryYear: string;
     cvv: string;
     amount: number;
-    items: Array<{ id: string; quantity: number; selectedAddons?: Array<{ id: string; price: number }> }>;
+    items: Array<{ id: string; quantity: number; selectedSize?: string; selectedAddons?: Array<{ id: string; price: number; quantity?: number }> }>;
     deliveryType: 'standard' | 'priority' | 'scheduled';
     voucherDiscount: number;
     discountRate: number;

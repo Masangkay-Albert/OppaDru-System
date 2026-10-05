@@ -165,7 +165,7 @@ class PaymentService {
     expiryYear: string;
     cvv: string;
     amount: number;
-    items: Array<{ id: string; quantity: number; selectedAddons?: Array<{ id: string; price: number; quantity?: number }> }>;
+    items: Array<{ id: string; quantity: number; selectedSize?: string; selectedAddons?: Array<{ id: string; price: number; quantity?: number }> }>;
     deliveryType: 'standard' | 'priority' | 'scheduled';
     voucherDiscount: number;
     discountRate: number;
@@ -185,7 +185,12 @@ class PaymentService {
           items: data.items.map(item => ({
             product_id: item.id,
             quantity: item.quantity,
-            selected_addons: item.selectedAddons?.map(addon => ({ id: addon.id, price: addon.price, quantity: 1 })) || [],
+            selected_size: item.selectedSize,
+            selected_addons: item.selectedAddons?.map(addon => ({
+              id: addon.id,
+              price: addon.price,
+              quantity: addon.quantity || 1,
+            })) || [],
           })),
           delivery_type: data.deliveryType,
           voucher_discount: data.voucherDiscount,

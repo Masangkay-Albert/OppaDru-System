@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PaymentResult } from '../modules/customer-side/components/checkout/paymentTypes';
 import type { CartItem } from '../types/product.types';
 
-const API_URL = 'https://oppadru-system-1.onrender.com/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
 const APP_URL = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://oppadru-system-1.onrender.com');
 
 export type GCashPaymentStep = 'display' | 'confirming' | 'result';
@@ -94,7 +94,12 @@ export const useGCashPaymentFlow = ({
         items: items.map((item) => ({
           product_id: item.id,
           quantity: item.quantity,
-          selected_addons: item.selectedAddons?.map((addon) => ({ id: addon.id, price: addon.price, quantity: 1 })) || [],
+          selected_size: item.selectedSize,
+          selected_addons: item.selectedAddons?.map((addon) => ({
+            id: addon.id,
+            price: addon.price,
+            quantity: addon.quantity || 1,
+          })) || [],
         })),
       }),
     }).then(async (response) => {

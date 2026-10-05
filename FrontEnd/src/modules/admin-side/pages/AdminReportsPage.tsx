@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BarChart3, FileText, Globe2, Loader2, Shield, Store, TrendingUp } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
-import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
+import { getAllOrders, isRevenueOrder, type AdminOrder } from '../../../services/adminOrderService';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import { getCurrentAdmin } from '../../../services/adminAuthService';
 import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
@@ -208,9 +208,8 @@ const AdminReportsPage: React.FC = () => {
     });
   }, [orders, filters, quickRange]);
 
-  const isCancelledOrder = (order: AdminOrder) => String(order.status || '').trim().toLowerCase() === 'cancelled';
   const salesOrders = useMemo(
-    () => filteredOrders.filter((order) => !isCancelledOrder(order)),
+    () => filteredOrders.filter(isRevenueOrder),
     [filteredOrders]
   );
 
@@ -557,7 +556,7 @@ const AdminReportsPage: React.FC = () => {
 
 const MetricCard = ({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: number; detail: string }) => <div className="admin-card p-5"><div className="flex items-center gap-2 text-[var(--oppa-green-dark)]">{icon}<span className="text-sm font-medium text-[var(--oppa-text-muted)]">{label}</span></div><p className="tabular-nums mt-5 text-3xl font-bold text-[var(--oppa-text)]">{value}</p><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{detail}</p></div>;
 
-const formatCompactPeso = (amount: number) => amount >= 1000 ? `₱${(amount / 1000).toFixed(1)}k` : `₱${Math.round(amount)}`;
+const formatCompactPeso = (amount: number) => formatCurrency(amount);
 
 const FilterSelect = ({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) => (
   <label className="text-xs font-medium text-[var(--oppa-text-muted)]">

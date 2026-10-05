@@ -103,8 +103,8 @@ class FranchiseController extends Controller
                 'total_products' => Product::where('franchise_id', $franchise->id)->count(),
                 'shared_products' => Product::whereNull('franchise_id')->count(),
                 'total_orders' => $orders()->count(),
-                'total_revenue' => (float) $orders()->whereNotIn('status', ['cancelled'])->sum('total'),
-                'average_order_value' => (float) $orders()->whereNotIn('status', ['cancelled'])->avg('total'),
+                'total_revenue' => (float) $orders()->countedAsRevenue()->sum('total'),
+                'average_order_value' => (float) $orders()->countedAsRevenue()->avg('total'),
                 'status_breakdown' => $orders()->selectRaw('status, COUNT(*) as total')->groupBy('status')->pluck('total', 'status'),
             ],
         ]);
@@ -129,8 +129,8 @@ class FranchiseController extends Controller
                 'total_products' => Product::where('franchise_id', $franchise->id)->count(),
                 'shared_products' => Product::whereNull('franchise_id')->count(),
                 'total_orders' => $orders()->count(),
-                'total_revenue' => (float) $orders()->whereNotIn('status', ['cancelled'])->sum('total'),
-                'average_order_value' => (float) $orders()->whereNotIn('status', ['cancelled'])->avg('total'),
+                'total_revenue' => (float) $orders()->countedAsRevenue()->sum('total'),
+                'average_order_value' => (float) $orders()->countedAsRevenue()->avg('total'),
                 'status_breakdown' => $orders()->selectRaw('status, COUNT(*) as total')->groupBy('status')->pluck('total', 'status'),
             ],
         ]);
@@ -248,7 +248,7 @@ class FranchiseController extends Controller
                 default => 0,
             };
         });
-        $subtotal = max(0, round($pricing['subtotal'] + $sizeAdjustments, 2));
+        $subtotal = max(0, round($pricing['subtotal'] + $sizeAdjustments));
         foreach ($items as $index => $item) {
             $basePrice = (float) $products->get($item['product_id'])->price;
             $sizeAdjustment = match ($item['selected_size']) {
@@ -260,8 +260,8 @@ class FranchiseController extends Controller
         }
         $discountType = $request->input('discount_type');
         $discountRate = $discountType ? 0.20 : 0;
-        $discountAmount = round($subtotal * $discountRate, 2);
-        $total = max(0, $subtotal - $discountAmount);
+        $discountAmount = round($subtotal * $discountRate);
+        $total = max(0, round($subtotal - $discountAmount));
         $paymentMethod = $request->input('payment_method');
         $cashTendered = (float) $request->input('cash_tendered', 0);
 
@@ -278,7 +278,7 @@ class FranchiseController extends Controller
                 || data_get($gatewayPayment->metadata, 'purpose') !== 'franchise_pos'
                 || (string) data_get($gatewayPayment->metadata, 'franchise_id') !== (string) $user->franchise_id
                 || data_get($gatewayPayment->metadata, 'cashier_employee_id') !== $cashierEmployeeId
-                || round((float) $gatewayPayment->amount, 2) !== round($total, 2)) {
+                || round((float) $gatewayPayment->amount) !== $total) {
                 return response()->json(['message' => 'Payment must be confirmed by the payment gateway for the exact POS total before completing this order.'], 422);
             }
         }
@@ -321,7 +321,7 @@ class FranchiseController extends Controller
                         || data_get($gatewayPayment->metadata, 'purpose') !== 'franchise_pos'
                         || (string) data_get($gatewayPayment->metadata, 'franchise_id') !== (string) $user->franchise_id
                         || data_get($gatewayPayment->metadata, 'cashier_employee_id') !== $cashierEmployeeId
-                        || round((float) $gatewayPayment->amount, 2) !== round($total, 2)) {
+                        || round((float) $gatewayPayment->amount) !== $total) {
                         throw new \InvalidArgumentException('This payment is no longer available for this order.');
                     }
                 }
@@ -346,7 +346,7 @@ class FranchiseController extends Controller
                         : ($paymentMethod === 'gcash' ? $gatewayPayment->reference : $request->input('terminal_reference')),
                     'phone' => $request->input('phone', ''),
                     'items' => $orderItems,
-                    'vat' => round($total * 0.12, 2),
+                    'vat' => round($total * 0.12),
                     'discount_type' => $discountType,
                     'discount_rate' => $discountType ? $discountRate : null,
                     'discount_amount' => $discountType ? $discountAmount : null,
@@ -369,9 +369,9 @@ class FranchiseController extends Controller
         return response()->json([
             'success' => true,
             'order' => $order->refresh(),
-            'subtotal' => round($subtotal, 2),
+            'subtotal' => round($subtotal),
             'discount_amount' => $discountAmount,
-            'change_due' => $paymentMethod === 'cash' ? round($cashTendered - $total, 2) : 0,
+            'change_due' => $paymentMethod === 'cash' ? round($cashTendered - $total) : 0,
             'message' => 'Franchise POS order placed successfully.',
         ], 201);
     }
@@ -459,9 +459,9 @@ class FranchiseController extends Controller
                 default => 0,
             };
         });
-        $subtotal = max(0, round($pricing['subtotal'] + $sizeAdjustment, 2));
-        $discountAmount = $request->filled('discount_type') ? round($subtotal * 0.20, 2) : 0;
-        $amount = max(0, round($subtotal - $discountAmount, 2));
+        $subtotal = max(0, round($pricing['subtotal'] + $sizeAdjustment));
+        $discountAmount = $request->filled('discount_type') ? round($subtotal * 0.20) : 0;
+        $amount = max(0, round($subtotal - $discountAmount));
 
         $secretKey = config('services.paymongo.secret_key');
         if (!$secretKey) {
@@ -613,7 +613,7 @@ class FranchiseController extends Controller
                 'ready_orders' => $branchOrders()->where('status', 'ready')->count(),
                 'delivered_orders' => $branchOrders()->whereIn('status', ['delivered', 'completed'])->count(),
                 'cancelled_orders' => $branchOrders()->where('status', 'cancelled')->count(),
-                'average_order_value' => (float) $branchOrders()->whereNotIn('status', ['cancelled'])->avg('total'),
+                'average_order_value' => (float) $branchOrders()->countedAsRevenue()->avg('total'),
                 'latest_orders' => $branchOrders()->orderByDesc('created_at')->limit(10)->get([
                     'id',
                     'order_number',
@@ -883,7 +883,7 @@ class FranchiseController extends Controller
 
         $orders = $query->with('orderItems')->orderByDesc('created_at')->get();
         $completedOrders = $orders->whereIn('status', ['delivered', 'completed']);
-        $salesOrders = $orders->whereNotIn('status', ['cancelled']);
+        $salesOrders = $orders->filter(fn (Order $order) => $order->isCountedAsRevenue());
         $productSales = [];
         foreach ($salesOrders as $order) {
             foreach (($order->items ?? []) as $item) {
@@ -973,7 +973,7 @@ class FranchiseController extends Controller
                 'ready_orders' => $orders()->where('status', 'ready')->count(),
                 'delivered_orders' => $orders()->whereIn('status', ['delivered', 'completed'])->count(),
                 'cancelled_orders' => $orders()->where('status', 'cancelled')->count(),
-                'average_order_value' => (float) $orders()->whereNotIn('status', ['cancelled'])->avg('total'),
+                'average_order_value' => (float) $orders()->countedAsRevenue()->avg('total'),
                 'latest_orders' => $orders()->orderBy('created_at', 'desc')->limit(10)->get([
                     'id',
                     'order_number',
@@ -1192,7 +1192,7 @@ class FranchiseController extends Controller
                 ->orWhereNull('franchise_id');
         });
         $branchOrders = fn () => Order::where('franchise_id', $branchId);
-        $salesOrders = fn () => Order::where('franchise_id', $branchId)->whereNotIn('status', ['cancelled']);
+        $salesOrders = fn () => Order::where('franchise_id', $branchId)->countedAsRevenue();
         $inventory = app(FranchiseInventoryService::class)->catalog($branchId);
         $franchise = Franchise::findOrFail($branchId);
 

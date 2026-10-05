@@ -1,5 +1,6 @@
 import React from 'react';
 import { getOrderGraceRemainingSeconds } from '../../../../utils/orderManagement';
+import { formatCurrency } from '../../../../utils/formatters';
 
 interface OrderEditModalProps {
   editingOrder: any;
@@ -43,7 +44,7 @@ export const OrderEditModal: React.FC<OrderEditModalProps> = ({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-semibold text-gray-800">{item.name}</p>
-                  <p className="text-xs text-gray-500">₱{Number(item.price || 0).toFixed(2)}</p>
+                  <p className="text-xs text-gray-500">{formatCurrency(item.price || 0)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => onUpdateQuantity(itemIndex, -1)} className="h-7 w-7 rounded-full border border-gray-200 text-lg">-</button>
@@ -68,7 +69,7 @@ export const OrderEditModal: React.FC<OrderEditModalProps> = ({
                           />
                           <span>{addon.name}</span>
                         </div>
-                        <span className="text-[#e76f51]">+ ₱{Number(addon.price || 0).toFixed(2)}</span>
+                        <span className="text-[#e76f51]">+ {formatCurrency(addon.price || 0)}</span>
                       </label>
                     );
                   })}

@@ -17,10 +17,10 @@ const POSCashCalculator: React.FC<POSCashCalculatorProps> = ({
 
   const quickAmounts = [
     { label: 'Exact', value: Math.ceil(totalDue) },
-    { label: '₱100', value: 100 },
-    { label: '₱200', value: 200 },
-    { label: '₱500', value: 500 },
-    { label: '₱1,000', value: 1000 },
+    { label: formatCurrency(100), value: 100 },
+    { label: formatCurrency(200), value: 200 },
+    { label: formatCurrency(500), value: 500 },
+    { label: formatCurrency(1000), value: 1000 },
   ];
 
   return (

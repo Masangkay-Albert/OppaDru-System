@@ -31,18 +31,19 @@ export const useCartCalculations = ({
     const haversine = Math.sin(latitudeDelta / 2) ** 2
       + Math.cos(merchantLatitude) * Math.cos(customerLatitude) * Math.sin(longitudeDelta / 2) ** 2;
     const distanceKm = Math.round(6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine)) * 1000) / 1000;
-    const deliveryFee = Math.min(
+    const deliveryFee = Math.round(Math.min(
       pricing.delivery_max_fee,
       Math.max(0, pricing.delivery_base_fee + Math.max(0, distanceKm - pricing.delivery_base_distance_km) * pricing.delivery_per_km_rate)
-    );
-    const serviceFee = Math.min(pricing.service_fee_max, Math.max(pricing.service_fee_min, subtotal * pricing.service_fee_rate));
+    ));
+    const serviceFee = Math.round(Math.min(pricing.service_fee_max, Math.max(pricing.service_fee_min, subtotal * pricing.service_fee_rate)));
     const priorityFee = deliveryType === 'priority' ? FEES.DELIVERY.PRIORITY : 0;
     
     const subtotalWithFees = subtotal + deliveryFee + serviceFee + priorityFee;
-    const discountAmount = subtotalWithFees * discount;
-    const afterDiscount = subtotalWithFees - discountAmount - voucherDiscount;
+    const discountAmount = Math.round(subtotalWithFees * discount);
+    const roundedVoucherDiscount = Math.round(voucherDiscount);
+    const afterDiscount = Math.max(0, subtotalWithFees - discountAmount - roundedVoucherDiscount);
     const vat = calculateIncludedVat(subtotal, pricing.vat_rate);
-    const total = Math.round(afterDiscount * 100) / 100;
+    const total = Math.round(afterDiscount);
     
     return {
       subtotal,
@@ -50,6 +51,7 @@ export const useCartCalculations = ({
       serviceFee,
       priorityFee,
       discountAmount,
+      voucherDiscount: roundedVoucherDiscount,
       vat,
       total,
       hasItems: cartItems.length > 0

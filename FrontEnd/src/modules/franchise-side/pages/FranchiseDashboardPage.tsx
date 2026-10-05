@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
+import { formatCurrency } from '../../../utils/formatters';
 
 interface OrderSummary {
   id: string | number;
@@ -41,11 +42,7 @@ interface DashboardState {
   recent_orders?: OrderSummary[];
 }
 
-const money = new Intl.NumberFormat('en-PH', {
-  style: 'currency',
-  currency: 'PHP',
-  maximumFractionDigits: 2,
-});
+const money = { format: formatCurrency };
 
 const FranchiseDashboardPage: React.FC = () => {
   const navigate = useNavigate();

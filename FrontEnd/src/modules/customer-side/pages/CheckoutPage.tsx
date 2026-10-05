@@ -149,20 +149,7 @@ const CheckoutPage: React.FC = () => {
     setIsPlacingOrder(true);
 
     try {
-      const rawStreetAddress = address.street;
-      const shortAddress = cleanAddress(rawStreetAddress);
-
-      let coords = await geocodeAddress(shortAddress);
-
-      if (!coords) {
-        const cityMatch = rawStreetAddress.match(/(Dasmariñas|Imus|Bacoor|General Trias|Silang|Tagaytay|Manila|Quezon|Makati|Taguig|Cebu|Davao|Baguio)/i);
-        const fallbackAddress = cityMatch ? `${cityMatch[1]}, Philippines` : 'Dasmariñas, Cavite, Philippines';
-        coords = await geocodeAddress(fallbackAddress);
-      }
-
-      if (!coords) {
-        coords = { ...OPPA_DRU_STORE_COORDS };
-      }
+      const coords = deliveryCoordinates || { ...OPPA_DRU_STORE_COORDS };
 
       const fullDeliveryAddress = buildFullDeliveryAddress();
 

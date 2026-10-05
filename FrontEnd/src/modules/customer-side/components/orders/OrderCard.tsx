@@ -228,7 +228,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
                   if (localDeliveryFee === 0 && Number(order.total || 0) > 0) {
                     const derived = Number(order.total) - subtotal - localServiceFee - localPriorityFee - localVat;
-                    localDeliveryFee = Math.max(0, Number(derived.toFixed(2)));
+                    localDeliveryFee = Math.max(0, Math.round(derived));
                   }
 
                   if (localVat === 0 && Number(order.total || 0) > 0) {

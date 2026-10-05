@@ -7,6 +7,7 @@ import ProductModal from '../product/ProductModal';
 import { calculateItemTotal, calculateSubtotal } from '../../../../services/cartService';
 import type { CartItem } from '../../../../types/product.types';
 import { FiX, FiShoppingBag, FiTrash2 } from 'react-icons/fi';
+import { formatCurrency } from '../../../../utils/formatters';
 
 interface CartSidebarProps {
   onClose?: () => void;
@@ -109,7 +110,7 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
             className="w-full py-3.5 bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] text-white rounded-xl font-bold hover:shadow-lg transition-all hover:scale-[1.02] flex items-center justify-between px-5"
           >
             <span>Charge / Pay</span>
-            <span>₱{subtotal.toFixed(2)} →</span>
+            <span>{formatCurrency(subtotal)} →</span>
           </button>
         ) : (
           <button

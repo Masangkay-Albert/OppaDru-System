@@ -8,6 +8,7 @@ import { FiArrowRight, FiPhone, FiMail, FiMapPin } from "react-icons/fi";
 import { MdOutlineFastfood } from "react-icons/md";
 import { landingCategories } from "../../../data/landingCategories";
 import heroSectionImg from "../../../assets/herosection.png";
+import { formatCurrency } from "../../../utils/formatters";
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -107,7 +108,7 @@ const LandingPage: React.FC = () => {
               <h3 className="text-2xl font-extrabold text-gray-900">Chicken Meal</h3>
               <p className="mt-2 text-gray-500 font-medium">Sulit Big Chicken</p>
             </div>
-            <span className="block mt-6 text-4xl font-black text-lime-700 tracking-tight group-hover:scale-105 transition-transform origin-left">₱415</span>
+            <span className="block mt-6 text-4xl font-black text-lime-700 tracking-tight group-hover:scale-105 transition-transform origin-left">{formatCurrency(415)}</span>
           </div>
           <div
             className="rounded-[32px] p-8 bg-gray-900 text-white shadow-lg hover:shadow-2xl hover:bg-gray-800 transition-all duration-300 flex flex-col justify-between"
@@ -116,7 +117,7 @@ const LandingPage: React.FC = () => {
               <h3 className="text-2xl font-extrabold">Rice Meal</h3>
               <p className="mt-2 text-gray-400 font-medium">Best seller combo</p>
             </div>
-            <span className="block mt-6 text-4xl font-black text-yellow-400 tracking-tight group-hover:scale-105 transition-transform origin-left">₱198</span>
+            <span className="block mt-6 text-4xl font-black text-yellow-400 tracking-tight group-hover:scale-105 transition-transform origin-left">{formatCurrency(198)}</span>
           </div>
           <div
             className="rounded-[32px] p-8 bg-gradient-to-br from-yellow-100 to-yellow-200 shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col justify-between border border-yellow-300/30"
@@ -125,7 +126,7 @@ const LandingPage: React.FC = () => {
               <h3 className="text-2xl font-extrabold text-gray-900">Fruity Soda & Milk</h3>
               <p className="mt-2 text-gray-700 font-medium">Perfect for refreshing drinks</p>
             </div>
-            <span className="block mt-6 text-4xl font-black text-lime-800 tracking-tight group-hover:scale-105 transition-transform origin-left">₱109</span>
+            <span className="block mt-6 text-4xl font-black text-lime-800 tracking-tight group-hover:scale-105 transition-transform origin-left">{formatCurrency(109)}</span>
           </div>
         </div>
       </section>

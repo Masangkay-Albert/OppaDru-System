@@ -7,6 +7,7 @@ import AddonsSection from '../common/AddonsSection';
 import { FiX } from 'react-icons/fi';
 import '../../../../styles/modal.css';
 import { productService } from '../../../../services/productService';
+import { formatCurrency } from '../../../../utils/formatters';
 
 interface ProductModalProps {
   product: Product | null;
@@ -119,7 +120,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
       Large: 20,
     };
 
-    return Number((basePrice + priceAdjustments[size]).toFixed(2));
+    return Math.round(basePrice + priceAdjustments[size]);
   };
 
   const getAddonsTotal = () => selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0);
@@ -203,7 +204,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
           </div>
 
           <div className="flex-1 overflow-y-auto p-6">
-            <p className="text-3xl font-extrabold text-[#2d6a4f] mb-2">₱{getSizePrice(selectedSize).toFixed(2)}</p>
+            <p className="text-3xl font-extrabold text-[#2d6a4f] mb-2">{formatCurrency(getSizePrice(selectedSize))}</p>
             <p className="text-sm text-gray-500 mb-4">{product.description}</p>
 
             {requiresSizeSelection(product.category) && (
@@ -233,7 +234,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
                         }`}
                       >
                         <div className="text-sm font-semibold">{option.label}</div>
-                        <div className="text-xs opacity-80">₱{optionPrice.toFixed(2)}</div>
+                        <div className="text-xs opacity-80">{formatCurrency(optionPrice)}</div>
                       </button>
                     );
                   })}
@@ -308,7 +309,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
           <div className="p-6 border-t border-gray-200 bg-white shrink-0">
             <div className="flex justify-between items-center font-bold text-lg mb-3">
               <span>Total:</span>
-              <span className="text-[#2d6a4f] text-2xl">₱{getTotalPrice().toFixed(2)}</span>
+              <span className="text-[#2d6a4f] text-2xl">{formatCurrency(getTotalPrice())}</span>
             </div>
             <button
               onClick={handleSubmit}

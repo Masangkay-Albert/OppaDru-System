@@ -3,6 +3,8 @@
 namespace Tests\Unit;
 
 use App\Models\Product;
+use App\Models\Addon;
+use App\Models\AddonGroup;
 use App\Services\PricingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -59,7 +61,7 @@ class PricingServiceTest extends TestCase
     {
         $pricing = $this->calculateFor(415);
 
-        $this->assertSame(44.46, $pricing['vat']);
+        $this->assertSame(44.0, $pricing['vat']);
         $this->assertSame(479.0, $pricing['total']);
     }
 
@@ -67,11 +69,87 @@ class PricingServiceTest extends TestCase
     {
         $pricing = $this->calculateFor(415, null, 2);
 
-        $this->assertSame(88.93, $pricing['vat']);
-        $this->assertSame(903.9, $pricing['total']);
+        $this->assertSame(89.0, $pricing['vat']);
+        $this->assertSame(904.0, $pricing['total']);
     }
 
-    private function calculateFor(float $price, ?array $coordinates = null, int $quantity = 1): array
+    public function test_priority_delivery_adds_ninety_nine_pesos_without_changing_included_vat(): void
+    {
+        $standard = $this->calculateFor(415);
+        $priority = $this->calculateFor(415, null, 1, 'priority');
+
+        $this->assertSame(99.0, $priority['priorityFee']);
+        $this->assertSame($standard['total'] + 99.0, $priority['total']);
+        $this->assertSame($standard['vat'], $priority['vat']);
+    }
+
+    public function test_size_and_addon_quantities_are_included_in_the_server_total(): void
+    {
+        $sizedProduct = Product::create([
+            'name' => 'Sized drink',
+            'description' => 'Drink',
+            'price' => 100,
+            'category' => 'fruity-soda-milk',
+            'image' => '',
+            'is_available' => true,
+        ]);
+        $addonGroup = AddonGroup::create([
+            'name' => 'Extra topping',
+            'selection_type' => 'multiple',
+            'supports_quantity' => true,
+            'applicable_categories' => ['fruity-soda-milk'],
+            'is_active' => true,
+        ]);
+        $addon = Addon::create([
+            'addon_group_id' => $addonGroup->id,
+            'name' => 'Jelly',
+            'price' => 11,
+            'is_active' => true,
+        ]);
+
+        $pricing = app(PricingService::class)->calculate([[
+            'product_id' => $sizedProduct->id,
+            'quantity' => 3,
+            'selected_size' => 'Small',
+            'selected_addons' => [['id' => $addon->id, 'quantity' => 2]],
+        ]]);
+
+        $this->assertSame(336.0, $pricing['subtotal']);
+        $this->assertSame(400.0, $pricing['total']);
+    }
+
+    public function test_all_components_are_rounded_before_calculating_the_total(): void
+    {
+        $standard = $this->calculateFor(866, null, 1, 'standard', 12.6, 0.20);
+        $priority = $this->calculateFor(866, null, 1, 'priority', 12.6, 0.20);
+
+        $this->assertSame(866.0, $standard['subtotal']);
+        $this->assertSame(49.0, $standard['deliveryFee']);
+        $this->assertSame(26.0, $standard['serviceFee']);
+        $this->assertSame(188.0, $standard['discountAmount']);
+        $this->assertSame(93.0, $standard['vat']);
+        $this->assertSame(93.0, $priority['vat']);
+        $this->assertSame(740.0, $standard['total']);
+        $this->assertSame(819.0, $priority['total']);
+    }
+
+    public function test_legacy_decimal_subtotals_are_whole_peso_in_new_pricing_results(): void
+    {
+        $pricing = $this->calculateFor(415.50);
+
+        $this->assertSame(416.0, $pricing['subtotal']);
+        $this->assertSame(45.0, $pricing['vat']);
+        $this->assertSame(480.0, $pricing['total']);
+    }
+
+    private function calculateFor(
+        float $price,
+        ?array $coordinates = null,
+        int $quantity = 1,
+        string $deliveryType = 'standard',
+        float $voucherDiscount = 0,
+        float $discountRate = 0,
+    ): array
     {
         $product = Product::create([
             'name' => 'Test item ' . $price,
@@ -85,6 +163,6 @@ class PricingServiceTest extends TestCase
         return app(PricingService::class)->calculate([[
             'product_id' => $product->id,
             'quantity' => $quantity,
-        ]], 'standard', 0, 0, $coordinates);
+        ]], $deliveryType, $voucherDiscount, $discountRate, $coordinates);
     }
 }

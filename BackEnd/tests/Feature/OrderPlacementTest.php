@@ -3,9 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\DiscountApplication;
+use App\Models\Addon;
+use App\Models\AddonGroup;
 use App\Models\Franchise;
 use App\Models\FranchiseInventory;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\Product;
 use App\Models\User;
 use App\Notifications\DiscountApplicationDecisionNotification;
@@ -77,6 +80,237 @@ class OrderPlacementTest extends TestCase
             ->assertOk()
             ->assertJsonPath('0.id', $orderResponse->json('order.id'))
             ->assertJsonPath('0.delivery_type', 'standard');
+    }
+
+    public function test_cod_order_is_counted_only_after_delivery_and_only_once(): void
+    {
+        $user = User::create([
+            'full_name' => 'COD Customer',
+            'email' => 'cod-customer@example.com',
+            'phone' => '09171234569',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $product = Product::create([
+            'name' => 'COD Chicken',
+            'description' => 'Test chicken',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ]);
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer ' . $loginResponse->json('token'))
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'total' => 0,
+                'delivery_address' => 'COD delivery address',
+                'payment_method' => 'cash_on_delivery',
+                'phone' => $user->phone,
+            ]);
+
+        $response->assertCreated()->assertJsonPath('order.payment_status', 'pending');
+        $order = Order::findOrFail($response->json('order.id'));
+
+        $this->assertSame(0.0, (float) Order::countedAsRevenue()->sum('total'));
+
+        $order->status = 'delivered';
+        $order->save();
+        $this->assertSame('paid', $order->fresh()->payment_status);
+        $this->assertSame(263.0, (float) Order::countedAsRevenue()->sum('total'));
+
+        $order->save();
+        $this->assertSame(263.0, (float) Order::countedAsRevenue()->sum('total'));
+
+        $order->status = 'cancelled';
+        $order->save();
+        $this->assertSame(0.0, (float) Order::countedAsRevenue()->sum('total'));
+    }
+
+    public function test_only_paid_or_delivered_cod_orders_are_counted_as_revenue(): void
+    {
+        $paidCardOrder = Order::create([
+            'email' => 'card-customer@example.com',
+            'total' => 725,
+            'status' => 'pending',
+            'payment_method' => 'credit_card',
+            'payment_status' => 'paid',
+            'delivery_address' => 'Delivery address',
+            'phone' => '09170000000',
+            'items' => [],
+        ]);
+        Order::create([
+            'email' => 'failed-customer@example.com',
+            'total' => 199,
+            'status' => 'pending',
+            'payment_method' => 'gcash',
+            'payment_status' => 'failed',
+            'delivery_address' => 'Delivery address',
+            'phone' => '09170000000',
+            'items' => [],
+        ]);
+        Order::create([
+            'email' => 'cancelled-customer@example.com',
+            'total' => 299,
+            'status' => 'cancelled',
+            'payment_method' => 'gcash',
+            'payment_status' => 'paid',
+            'delivery_address' => 'Delivery address',
+            'phone' => '09170000000',
+            'items' => [],
+        ]);
+
+        $this->assertSame(725.0, (float) Order::countedAsRevenue()->sum('total'));
+        $this->assertTrue($paidCardOrder->isCountedAsRevenue());
+    }
+
+    public function test_successful_online_payment_is_saved_as_paid_at_the_rounded_order_total(): void
+    {
+        $user = User::create([
+            'full_name' => 'GCash Customer',
+            'email' => 'gcash-customer@example.com',
+            'phone' => '09171234570',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $product = Product::create([
+            'name' => 'GCash Chicken',
+            'description' => 'Test chicken',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ]);
+        $payment = Payment::create([
+            'reference' => 'GCASH-PAID-TEST',
+            'provider' => 'test',
+            'amount' => 263,
+            'status' => 'paid',
+            'paid_at' => now(),
+        ]);
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer ' . $loginResponse->json('token'))
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'total' => 263,
+                'delivery_address' => 'Online payment delivery address',
+                'payment_method' => 'gcash',
+                'payment_reference' => $payment->reference,
+                'phone' => $user->phone,
+            ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('order.total', '263.00')
+            ->assertJsonPath('order.payment_status', 'paid');
+        $this->assertSame(263.0, (float) Order::countedAsRevenue()->sum('total'));
+        $this->assertSame($response->json('order.id'), $payment->fresh()->order_id);
+    }
+
+    public function test_gcash_and_card_amount_validation_accepts_size_and_addon_quantities(): void
+    {
+        config()->set('services.paymongo.secret_key', null);
+        $user = User::create([
+            'full_name' => 'Payment Customer',
+            'email' => 'payment-customer@example.com',
+            'phone' => '09171234571',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $product = Product::create([
+            'name' => 'Payment drink',
+            'description' => 'Test drink',
+            'price' => 100,
+            'category' => 'fruity-soda-milk',
+            'image' => '',
+            'is_available' => true,
+        ]);
+        $addonGroup = AddonGroup::create([
+            'name' => 'Payment topping',
+            'selection_type' => 'multiple',
+            'supports_quantity' => true,
+            'applicable_categories' => ['fruity-soda-milk'],
+            'is_active' => true,
+        ]);
+        $addon = Addon::create([
+            'addon_group_id' => $addonGroup->id,
+            'name' => 'Jelly',
+            'price' => 11,
+            'is_active' => true,
+        ]);
+        $item = [
+            'product_id' => $product->id,
+            'quantity' => 3,
+            'selected_size' => 'Small',
+            'selected_addons' => [['id' => $addon->id, 'quantity' => 2]],
+        ];
+        $pricingPayload = [
+            'amount' => 400,
+            'items' => [$item],
+            'delivery_type' => 'standard',
+            'voucher_discount' => 0,
+            'discount_rate' => 0,
+        ];
+
+        $this->postJson('/api/payment/gcash/create', $pricingPayload)
+            ->assertCreated()
+            ->assertJsonPath('amount', 400);
+
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ]);
+        $this->withHeader('Authorization', 'Bearer ' . $loginResponse->json('token'))
+            ->postJson('/api/payment/card/process', $pricingPayload + [
+                'card_number' => '4242424242424242',
+                'card_holder_name' => 'Payment Customer',
+                'expiry_month' => '12',
+                'expiry_year' => (string) (now()->year + 2),
+                'cvv' => '123',
+            ])
+            ->assertStatus(503)
+            ->assertJsonPath('message', 'Card sandbox payments are not configured.');
+    }
+
+    public function test_failed_payments_are_never_counted_even_for_delivered_cod_orders(): void
+    {
+        Order::create([
+            'email' => 'failed-cod@example.com',
+            'total' => 199,
+            'status' => 'delivered',
+            'payment_method' => 'cash_on_delivery',
+            'payment_status' => 'failed',
+            'delivery_address' => 'Delivery address',
+            'phone' => '09170000000',
+            'items' => [],
+        ]);
+
+        $this->assertSame(0.0, (float) Order::countedAsRevenue()->sum('total'));
     }
 
     public function test_customer_branch_order_is_validated_and_saved_to_that_branch(): void
@@ -522,6 +756,7 @@ class OrderPlacementTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('order.discount_type', 'PWD')
             ->assertJsonPath('order.discount_status', 'pending');
+        $this->assertSame(53.0, (float) $orderResponse->json('order.discount_amount'));
 
         $requestId = $orderResponse->json('discount_request.id');
         $this->assertNotNull($requestId);

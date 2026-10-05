@@ -25,6 +25,7 @@ class PaymentController extends Controller
         $validator = Validator::make($request->all(), [
             'amount' => 'required|numeric|min:0.01',
             'items' => 'required|array|min:1',
+            'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
             'delivery_coordinates' => 'nullable|array',
             'delivery_coordinates.lat' => 'required_with:delivery_coordinates|numeric|between:-90,90',
@@ -43,7 +44,7 @@ class PaymentController extends Controller
                 (float) $request->input('discount_rate', 0),
                 $request->input('delivery_coordinates')
             );
-            if (round((float) $request->amount, 2) !== $pricing['total']) {
+            if (round((float) $request->amount) !== $pricing['total']) {
                 return ['success' => false, 'message' => 'The checkout total has changed. Please review your order.', 'status' => 422];
             }
 
@@ -248,7 +249,7 @@ class PaymentController extends Controller
             DB::transaction(function () use ($payment) {
                 $payment->update(['status' => 'paid', 'paid_at' => now()]);
                 if ($payment->order) {
-                    $payment->order->update(['payment_status' => 'paid', 'status' => 'pending']);
+                    $payment->order->update(['payment_status' => 'paid']);
                 }
             });
 
@@ -374,7 +375,6 @@ class PaymentController extends Controller
             if ($payment->order) {
                 $payment->order->update([
                     'payment_status' => $newStatus,
-                    'status' => $newStatus === 'paid' ? 'pending' : $payment->order->status,
                 ]);
             }
         });

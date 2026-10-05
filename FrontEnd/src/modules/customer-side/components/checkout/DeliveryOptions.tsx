@@ -1,5 +1,6 @@
 // src/modules/customer-side/components/checkout/DeliveryOptions.tsx
 import React from 'react';
+import { formatCurrency } from '../../../../utils/formatters';
 
 interface DeliveryOptionsProps {
   deliveryOption: 'standard' | 'priority' | 'scheduled';
@@ -41,7 +42,7 @@ const DeliveryOptions: React.FC<DeliveryOptionsProps> = ({
               <p className="text-xs text-gray-400">30-45 mins</p>
             </div>
           </div>
-          <span className="font-medium text-[#e76f51]">₱99</span>
+          <span className="font-medium text-[#e76f51]">{formatCurrency(99)}</span>
         </label>
         
         <label className="checkout-radio-card checkout-delivery-option flex justify-between items-center p-4 border rounded-xl cursor-pointer hover:border-[#e76f51]">

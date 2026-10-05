@@ -1,5 +1,6 @@
 import React from 'react';
 import type { CartItem as CartItemType } from '../../../../types/product.types';
+import { formatCurrency } from '../../../../utils/formatters';
 import { FiTrash2 } from 'react-icons/fi';
 
 interface CartItemProps {
@@ -36,7 +37,7 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
                 <span className="text-xs font-medium text-[#7f4f24] mt-0.5 block">{item.selectedSize}</span>
               )}
             </div>
-            <span className="text-sm font-bold text-[#1b4d3e] whitespace-nowrap">₱{baseTotal}</span>
+            <span className="text-sm font-bold text-[#1b4d3e] whitespace-nowrap">{formatCurrency(baseTotal)}</span>
           </div>
 
           {item.selectedAddons && item.selectedAddons.length > 0 && (
@@ -44,7 +45,7 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
               {item.selectedAddons.map((addon) => (
                 <div key={addon.id} className="flex justify-between items-center text-xs text-[#7f4f24]/70">
                   <span>+ {addon.name}</span>
-                  <span>₱{addon.price}</span>
+                  <span>{formatCurrency(addon.price)}</span>
                 </div>
               ))}
             </div>

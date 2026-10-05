@@ -6,6 +6,7 @@ import { productService } from '../../../services/productService';
 import type { AddonGroup } from '../../../types/product.types';
 import { categories } from '../../../data/mockData';
 import { getAddonImage } from '../../../data/productImages';
+import { formatCurrency } from '../../../utils/formatters';
 
 type AddonDraft = {
   name: string;
@@ -344,7 +345,7 @@ const AdminAddonsPage: React.FC = () => {
                             : <div className="grid grid-cols-[40px_minmax(0,1fr)_90px_auto_36px] items-center gap-4">
                               <AddonImage name={addon.name} image={addon.image} />
                               <span className="min-w-0 truncate text-sm font-medium text-[var(--oppa-text)]" title={addon.name}>{addon.name}</span>
-                              <span className="tabular-nums w-[90px] text-right text-sm font-semibold text-[var(--oppa-text)]">₱{Number(addon.price).toFixed(2)}</span>
+                              <span className="tabular-nums w-[90px] text-right text-sm font-semibold text-[var(--oppa-text)]">{formatCurrency(addon.price)}</span>
                               <AvailabilitySwitch checked={available} label={`Set ${addon.name} ${available ? 'unavailable' : 'available'}`} activeText="Available" inactiveText="Unavailable" onChange={() => void toggleAddonAvailability(addonId, available)} />
                               <RowActionsMenu label={addon.name} items={[{ label: 'Edit add-on', onSelect: () => setEditingAddon((current) => ({ ...current, [addonId]: { name: addon.name, price: String(addon.price), image: addon.image || '', preview: addon.image || '' } })) }, { label: 'Delete add-on', destructive: true, onSelect: () => void deleteAddon(addonId, addon.name) }]} />
                             </div>}

@@ -74,7 +74,7 @@ class DiscountVerificationController extends Controller
 
         $discountType = trim((string) $request->input('discount_type'));
         $discountRate = 0.20;
-        $discountAmount = round((float) $order->total * $discountRate, 2);
+        $discountAmount = round((float) $order->total * $discountRate);
 
         $proofUrl = null;
         if ($request->hasFile('proof_image') || $request->hasFile('discount_proof_image')) {
@@ -140,7 +140,7 @@ class DiscountVerificationController extends Controller
 
         if ($request->input('action') === 'approve') {
             $discountRate = (float) $discountRequest->discount_rate;
-            $discountAmount = round((float) $order->total * $discountRate, 2);
+            $discountAmount = round((float) $order->total * $discountRate);
             $discountRequest->update([
                 'status' => 'approved',
                 'discount_amount' => $discountAmount,

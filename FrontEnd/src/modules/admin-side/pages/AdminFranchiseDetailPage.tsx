@@ -12,6 +12,7 @@ import {
   updateFranchise,
 } from '../../../services/franchiseAdminService';
 import type { FranchiseAdminUser, FranchiseSummary } from '../../../services/franchiseAdminService';
+import { formatCurrency } from '../../../utils/formatters';
 
 type Tab = 'overview' | 'orders' | 'inventory' | 'users' | 'reports' | 'settings';
 type Overview = Awaited<ReturnType<typeof getFranchiseAdminOverview>>;
@@ -24,7 +25,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'reports', label: 'Reports' },
   { id: 'settings', label: 'Branch info' },
 ];
-const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
+const money = { format: formatCurrency };
 
 const AdminFranchiseDetailPage: React.FC = () => {
   const { id = '' } = useParams();

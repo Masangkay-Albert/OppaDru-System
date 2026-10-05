@@ -51,6 +51,7 @@ class OrderDataService
                 ? 'onsite'
                 : 'online',
             'payment_method' => $order->payment_method,
+            'payment_status' => $order->payment_status,
             'delivery_address' => $order->delivery_address,
             'delivery_coordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)
                 ? ['lat' => (float) $order->delivery_lat, 'lng' => (float) $order->delivery_lng]

@@ -38,6 +38,7 @@ export interface Order {
     total: number;
     status: string;
     payment_method: string;
+    payment_status?: string;
     delivery_address: string;
     delivery_coordinates?: { lat: number; lng: number } | null;
     delivery_type?: 'standard' | 'priority' | 'scheduled';

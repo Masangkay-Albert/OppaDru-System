@@ -53,23 +53,33 @@ class PricingService
                 $quantity = max(1, (int) ($addon['quantity'] ?? 1));
                 return (float) $selectedAddons->get($addon['id'])->price * $quantity;
             });
-            $subtotal += ((float) $product->price + $addons) * (int) $item['quantity'];
+            $unitPrice = (float) $product->price;
+            $selectedSize = $item['selected_size'] ?? null;
+            if (in_array(strtolower((string) $product->category), ['fruity-soda-milk', 'fresh-lemonade'], true)) {
+                $unitPrice += match ($selectedSize) {
+                    'Small' => -10,
+                    'Large' => 20,
+                    default => 0,
+                };
+            }
+            $subtotal += ($unitPrice + $addons) * (int) $item['quantity'];
         }
-        $subtotal = round($subtotal, 2);
+        $subtotal = round($subtotal);
 
         $settings = $this->settings();
         $deliveryDistanceKm = $this->distanceInKilometers($deliveryCoordinates, $settings);
 
-        $deliveryFee = min(
+        $deliveryFee = round(min(
             $settings['delivery_max_fee'],
             max(0, $settings['delivery_base_fee'] + max(0, $deliveryDistanceKm - $settings['delivery_base_distance_km']) * $settings['delivery_per_km_rate'])
-        );
-        $serviceFee = min($settings['service_fee_max'], max($settings['service_fee_min'], $subtotal * $settings['service_fee_rate']));
+        ));
+        $serviceFee = round(min($settings['service_fee_max'], max($settings['service_fee_min'], $subtotal * $settings['service_fee_rate'])));
         $priorityFee = strtolower($deliveryType) === 'priority' ? 99.0 : 0.0;
-        $discountAmount = round(($subtotal + $deliveryFee + $serviceFee + $priorityFee) * max(0, $discountRate), 2);
-        $afterDiscount = max(0, $subtotal + $deliveryFee + $serviceFee + $priorityFee - $discountAmount - max(0, $voucherDiscount));
-        $vat = round($subtotal * $settings['vat_rate'] / (1 + $settings['vat_rate']), 2);
-        $total = round($afterDiscount, 2);
+        $discountAmount = round(($subtotal + $deliveryFee + $serviceFee + $priorityFee) * max(0, $discountRate));
+        $roundedVoucherDiscount = round(max(0, $voucherDiscount));
+        $afterDiscount = max(0, $subtotal + $deliveryFee + $serviceFee + $priorityFee - $discountAmount - $roundedVoucherDiscount);
+        $vat = round($subtotal * $settings['vat_rate'] / (1 + $settings['vat_rate']));
+        $total = round($afterDiscount);
 
         return compact('subtotal', 'deliveryFee', 'serviceFee', 'priorityFee', 'deliveryDistanceKm', 'discountAmount', 'vat', 'total') + [
             'deliveryCalculationMethod' => 'base_fee_plus_distance_rate_capped',

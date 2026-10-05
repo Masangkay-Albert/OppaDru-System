@@ -25,14 +25,17 @@ export const generateCartItemId = (
 
 
 export const calculateItemTotal = (item: CartItem): number => {
-  const addonsTotal = item.selectedAddons?.reduce((sum, addon) => sum + Number(addon.price || 0), 0) ?? 0;
-  return (item.price * item.quantity) + addonsTotal;
+  const addonsTotal = item.selectedAddons?.reduce(
+    (sum, addon) => sum + Number(addon.price || 0) * Math.max(1, Number(addon.quantity || 1)),
+    0,
+  ) ?? 0;
+  return (item.price + addonsTotal) * item.quantity;
 };
 
 export const calculateSubtotal = (items: CartItem[]): number => {
-  return Math.round(items.reduce((sum, item) => sum + calculateItemTotal(item), 0) * 100) / 100;
+  return Math.round(items.reduce((sum, item) => sum + calculateItemTotal(item), 0));
 };
 
 export const calculateIncludedVat = (vatInclusiveAmount: number, vatRate: number): number => {
-  return Math.round((vatInclusiveAmount * vatRate / (1 + vatRate)) * 100) / 100;
+  return Math.round(vatInclusiveAmount * vatRate / (1 + vatRate));
 };
