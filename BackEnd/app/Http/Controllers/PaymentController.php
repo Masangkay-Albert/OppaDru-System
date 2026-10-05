@@ -20,17 +20,21 @@ class PaymentController extends Controller
     ) {
     }
 
-    private function validateAmount(Request $request): ?array
+    private function validateAmount(Request $request, bool $requireMatchingAmount = true): array
     {
-        $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:0.01',
+        $rules = [
             'items' => 'required|array|min:1',
             'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
             'delivery_coordinates' => 'nullable|array',
             'delivery_coordinates.lat' => 'required_with:delivery_coordinates|numeric|between:-90,90',
             'delivery_coordinates.lng' => 'required_with:delivery_coordinates|numeric|between:-180,180',
-        ]);
+        ];
+        if ($requireMatchingAmount) {
+            $rules['amount'] = 'required|numeric|min:0.01';
+        }
+
+        $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
             return ['success' => false, 'message' => $validator->errors()->first(), 'status' => 422];
@@ -44,14 +48,24 @@ class PaymentController extends Controller
                 (float) $request->input('discount_rate', 0),
                 $request->input('delivery_coordinates')
             );
-            if (round((float) $request->amount) !== $pricing['total']) {
+            if ($requireMatchingAmount && round((float) $request->amount) !== $pricing['total']) {
                 return ['success' => false, 'message' => 'The checkout total has changed. Please review your order.', 'status' => 422];
             }
 
-            return ['success' => true, 'amount' => $pricing['total']];
+            return ['success' => true, 'amount' => $pricing['total'], 'pricing' => $pricing];
         } catch (\InvalidArgumentException $exception) {
             return ['success' => false, 'message' => $exception->getMessage(), 'status' => 422];
         }
+    }
+
+    public function quoteAmount(Request $request)
+    {
+        $quote = $this->validateAmount($request, false);
+        if (($quote['success'] ?? false) === false) {
+            return response()->json(['success' => false, 'message' => $quote['message']], $quote['status'] ?? 422);
+        }
+
+        return response()->json(['success' => true, 'pricing' => $quote['pricing']]);
     }
 
     public function createGCashPayment(Request $request)

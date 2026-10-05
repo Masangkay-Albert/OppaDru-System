@@ -135,6 +135,7 @@ Route::post('/driver/orders/{id}/delivery-proof', [DeliveryProofController::clas
 
 Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);
 Route::post('/payment/confirm/{reference}', [PaymentController::class, 'confirmPaymentFromMobile']);
+Route::post('/payment/quote', [PaymentController::class, 'quoteAmount']);
 Route::post('/payment/gcash/create', [PaymentController::class, 'createGCashPayment']);
 Route::post('/payment/gcash/webhook', [PaymentController::class, 'webhook']);
 Route::get('/payment/status/{reference}', [PaymentController::class, 'getPaymentStatus']);

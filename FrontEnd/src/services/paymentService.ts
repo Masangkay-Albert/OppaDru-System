@@ -3,6 +3,24 @@ import type { PaymentResult } from '../modules/customer-side/components/checkout
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
 
+export interface CheckoutPricingQuote {
+  subtotal: number;
+  deliveryFee: number;
+  serviceFee: number;
+  priorityFee: number;
+  discountAmount: number;
+  vat: number;
+  total: number;
+}
+
+interface CheckoutPricingInput {
+  items: Array<{ id: string; quantity: number; selectedSize?: string; selectedAddons?: Array<{ id: string; price: number; quantity?: number }> }>;
+  deliveryType: 'standard' | 'priority' | 'scheduled';
+  voucherDiscount: number;
+  discountRate: number;
+  deliveryCoordinates?: { lat: number; lng: number };
+}
+
 export interface OTPRequestResult {
   success: boolean;
   otp?: string;
@@ -32,6 +50,34 @@ class PaymentService {
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     };
+  }
+
+  async getCheckoutQuote(data: CheckoutPricingInput): Promise<CheckoutPricingQuote> {
+    const response = await fetch(`${API_URL}/payment/quote`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        items: data.items.map(item => ({
+          product_id: item.id,
+          quantity: item.quantity,
+          selected_size: item.selectedSize,
+          selected_addons: item.selectedAddons?.map(addon => ({
+            id: addon.id,
+            price: addon.price,
+            quantity: addon.quantity || 1,
+          })) || [],
+        })),
+        delivery_type: data.deliveryType,
+        voucher_discount: data.voucherDiscount,
+        discount_rate: data.discountRate,
+        delivery_coordinates: data.deliveryCoordinates,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success || !result.pricing) {
+      throw new Error(result.message || 'Unable to verify checkout total.');
+    }
+    return result.pricing as CheckoutPricingQuote;
   }
 
   private generateReferenceNumber(): string {

@@ -6,6 +6,7 @@ import { useCartCalculations } from '../../../../hooks/useCartCalculations';
 import { formatCurrency } from '../../../../utils/formatters';
 import { calculateItemTotal } from '../../../../services/cartService';
 import { useSettings } from '../../../../contexts/SettingsContext';
+import type { CheckoutPricingQuote } from '../../../../services/paymentService';
 
 interface CheckoutSummaryProps {
   cartItems: CartItem[];
@@ -15,6 +16,9 @@ interface CheckoutSummaryProps {
   voucherDiscount: number;
   deliveryCoordinates?: { lat: number; lng: number };
   isPlacingOrder?: boolean;
+  pricingQuote?: CheckoutPricingQuote | null;
+  isPricingReady?: boolean;
+  requiresPricingQuote?: boolean;
 }
 
 const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
@@ -24,19 +28,30 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   onVoucherApply,
   voucherDiscount,
   deliveryCoordinates,
-  isPlacingOrder = false
+  isPlacingOrder = false,
+  pricingQuote = null,
+  isPricingReady = true,
+  requiresPricingQuote = false,
 }) => {
   const navigate = useNavigate();
   const { getActiveDiscount } = useSettings();
   const activeDiscount = getActiveDiscount();
 
-  const { subtotal, deliveryFee, serviceFee, priorityFee, discountAmount, vat, total, hasItems } = useCartCalculations({
+  const calculatedPricing = useCartCalculations({
     cartItems,
     deliveryType,
     voucherDiscount,
     discount: activeDiscount.discountRate,
     deliveryCoordinates,
   });
+  const { hasItems } = calculatedPricing;
+  const subtotal = pricingQuote?.subtotal ?? calculatedPricing.subtotal;
+  const deliveryFee = pricingQuote?.deliveryFee ?? calculatedPricing.deliveryFee;
+  const serviceFee = pricingQuote?.serviceFee ?? calculatedPricing.serviceFee;
+  const priorityFee = pricingQuote?.priorityFee ?? calculatedPricing.priorityFee;
+  const discountAmount = pricingQuote?.discountAmount ?? calculatedPricing.discountAmount;
+  const vat = pricingQuote?.vat ?? calculatedPricing.vat;
+  const total = pricingQuote?.total ?? calculatedPricing.total;
 
   if (!hasItems) {
     return (
@@ -145,9 +160,9 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
 
       <button
         onClick={onPlaceOrder}
-        disabled={isPlacingOrder}
+        disabled={isPlacingOrder || (requiresPricingQuote && !isPricingReady)}
         className={`checkout-place-order w-full mt-6 py-3 rounded-xl font-semibold transition ${
-          isPlacingOrder
+          isPlacingOrder || (requiresPricingQuote && !isPricingReady)
             ? 'bg-gray-400 cursor-not-allowed'
             : 'bg-[#2d6a4f] text-white hover:bg-[#1b4d3e]'
         }`}

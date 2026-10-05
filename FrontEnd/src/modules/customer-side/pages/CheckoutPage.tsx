@@ -19,6 +19,7 @@ import { getAvailableDates, generateTimeSlots } from '../../../services/checkout
 import type { PaymentResult } from '../components/checkout/paymentTypes';
 import { getSelectedBranchId } from '../../../services/franchiseBranchService';
 import { getActiveBranches } from '../../../services/franchiseBranchService';
+import { paymentService, type CheckoutPricingQuote } from '../../../services/paymentService';
 import '../../../styles/checkout-page.css';
 
 const CheckoutPage: React.FC = () => {
@@ -41,6 +42,8 @@ const CheckoutPage: React.FC = () => {
   const [discountType, setDiscountType] = useState<'PWD' | 'Senior Citizen' | null>(activeDiscount.type === 'PWD' ? 'PWD' : activeDiscount.type === 'Senior' ? 'Senior Citizen' : null);
   const [discountProof, setDiscountProof] = useState<File | null>(null);
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates>(OPPA_DRU_STORE_COORDS);
+  const [pricingQuote, setPricingQuote] = useState<CheckoutPricingQuote | null>(null);
+  const [isPricingReady, setIsPricingReady] = useState(false);
   const selectedBranchId = getSelectedBranchId();
   const [selectedBranchName, setSelectedBranchName] = useState(
     selectedBranchId ? 'Loading branch...' : 'Original Oppa Dru (Main Store)',
@@ -100,6 +103,33 @@ const CheckoutPage: React.FC = () => {
     discount: activeDiscount.discountRate,
     deliveryCoordinates,
   });
+  useEffect(() => {
+    let active = true;
+    setPricingQuote(null);
+    setIsPricingReady(false);
+
+    paymentService.getCheckoutQuote({
+      items: cartItems,
+      deliveryType,
+      voucherDiscount,
+      discountRate: activeDiscount.discountRate,
+      deliveryCoordinates,
+    }).then((quote) => {
+      if (active) {
+        setPricingQuote(quote);
+        setIsPricingReady(true);
+      }
+    }).catch((error: unknown) => {
+      if (!active) return;
+      console.error('Unable to retrieve authoritative checkout pricing.', error);
+      showToast(error instanceof Error ? error.message : 'Unable to verify checkout total.', 'error');
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [cartItems, deliveryType, voucherDiscount, activeDiscount.discountRate, deliveryCoordinates, showToast]);
+  const checkoutTotal = pricingQuote?.total ?? total;
 
   const buildFullDeliveryAddress = () => {
     const parts: string[] = [];
@@ -351,6 +381,9 @@ const CheckoutPage: React.FC = () => {
               voucherDiscount={voucherDiscount}
               deliveryCoordinates={deliveryCoordinates}
               isPlacingOrder={isPlacingOrder}
+              pricingQuote={pricingQuote}
+              isPricingReady={isPricingReady}
+              requiresPricingQuote={paymentMethod !== 'cash_on_delivery'}
             />
           </div>
         </div>
@@ -378,7 +411,7 @@ const CheckoutPage: React.FC = () => {
       <GCashPaymentModal
         isOpen={showGCashModal}
         onClose={() => setShowGCashModal(false)}
-        amount={total}
+        amount={checkoutTotal}
         items={cartItems}
         deliveryType={deliveryType}
         voucherDiscount={voucherDiscount}
@@ -391,7 +424,7 @@ const CheckoutPage: React.FC = () => {
       <CreditCardPaymentModal
         isOpen={showCardModal}
         onClose={() => setShowCardModal(false)}
-        amount={total}
+        amount={checkoutTotal}
         items={cartItems}
         deliveryType={deliveryType}
         voucherDiscount={voucherDiscount}
