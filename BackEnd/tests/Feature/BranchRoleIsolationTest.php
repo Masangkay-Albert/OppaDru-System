@@ -146,6 +146,7 @@ class BranchRoleIsolationTest extends TestCase
         ])->assertOk();
 
         $this->assertSame([$ownOrder->id], collect($response->json())->pluck('id')->all());
+        $this->assertSame($ownOrder->order_number, $response->json()[0]['order_number']);
         $this->assertArrayNotHasKey('total', $response->json()[0]);
         $this->assertArrayNotHasKey('paymentMethod', $response->json()[0]);
         $this->assertArrayNotHasKey('product_price', $response->json()[0]['items'][0]);
@@ -197,6 +198,7 @@ class BranchRoleIsolationTest extends TestCase
         ])->assertOk();
 
         $this->assertSame(['KITCHEN-OWN-ORDER'], collect($response->json())->pluck('id')->all());
+        $this->assertSame($ownOrder->order_number, $response->json()[0]['order_number']);
         $this->assertArrayNotHasKey('total', $response->json()[0]);
         $this->assertArrayNotHasKey('product_price', $response->json()[0]['items'][0]);
         $this->getJson('/api/employee/pos/products', [

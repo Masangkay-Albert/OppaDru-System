@@ -64,6 +64,7 @@ class DriverOrderController extends Controller
 
             return [
                 'id' => $order->id,
+                'order_number' => $order->order_number,
                 'driver_id' => $order->driver_id,
                 'customerName' => $customerName,
                 'status' => $order->status,

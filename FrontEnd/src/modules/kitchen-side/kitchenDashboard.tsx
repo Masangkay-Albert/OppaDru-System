@@ -13,6 +13,7 @@ const chipDisabled = `${chipBase} bg-gray-100 text-gray-500 cursor-default`;
 
 export interface KitchenOrder {
   id: string;
+  order_number?: string;
   customerName: string; 
   channel?: 'online' | 'onsite';
   status: string;
@@ -49,6 +50,7 @@ const KitchenDashboardPage: React.FC = () => {
   const ordersFetchInFlightRef = useRef(false);
   
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
+  const getDisplayOrderNumber = (order: KitchenOrder) => order.order_number || order.id;
 
   // Security bouncer
   useEffect(() => {
@@ -208,7 +210,7 @@ const KitchenDashboardPage: React.FC = () => {
                 <div className="flex justify-between items-start mt-2">
                   <div>
                     <p className="font-medium text-[var(--oppa-text)]">{order.customerName}</p>
-                    <p className="text-xs text-[var(--oppa-text-muted)]">#{order.id.slice(-6)}</p>
+                    <p className="text-xs text-[var(--oppa-text-muted)]">{getDisplayOrderNumber(order)}</p>
                     <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
                       {order.channel === 'onsite' ? 'Onsite' : 'Online'}
                     </span>
@@ -259,7 +261,7 @@ const KitchenDashboardPage: React.FC = () => {
                 {sortedOrders.map((order) => (
                   <tr key={order.id} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]">
                     <td className="px-5 py-3 font-mono text-xs align-middle">
-                      #{order.id.slice(-6)}
+                      {getDisplayOrderNumber(order)}
                       <span className={`mt-1 block w-fit rounded-full px-2 py-0.5 font-sans text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
                         {order.channel === 'onsite' ? 'Onsite' : 'Online'}
                       </span>
@@ -313,7 +315,7 @@ const KitchenDashboardPage: React.FC = () => {
             <div className="flex items-start justify-between mb-4 border-b pb-4">
               <div>
                 <h2 className="text-xl font-bold">Order Details</h2>
-                <p className="text-sm text-gray-500 font-mono">#{selectedOrder.id}</p>
+                <p className="text-sm text-gray-500 font-mono">{getDisplayOrderNumber(selectedOrder)}</p>
               </div>
               <button onClick={() => setSelectedOrder(null)} className="rounded-full p-2 hover:bg-gray-100 transition">
                 <X size={20} />

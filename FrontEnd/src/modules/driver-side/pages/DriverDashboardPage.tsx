@@ -22,6 +22,7 @@ type SortOrder = 'desc' | 'asc';
 
 export interface DriverOrder {
   id: string;
+  order_number?: string;
   driver_id?: string | null;
   customerName: string;
   status: string;
@@ -60,6 +61,7 @@ const DriverDashboardPage: React.FC = () => {
   const [driverId, setDriverId] = useState<string>("");
   
   const [selectedOrder, setSelectedOrder] = useState<DriverOrder | null>(null);
+  const getDisplayOrderNumber = (order: DriverOrder) => order.order_number || order.id;
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofUploading, setProofUploading] = useState(false);
   const ordersFetchInFlightRef = useRef(false);
@@ -308,7 +310,7 @@ const DriverDashboardPage: React.FC = () => {
                 <div className="flex items-start justify-between gap-2 mt-2">
                   <div className="min-w-0">
                     <p className="truncate font-medium text-[var(--oppa-text)]">{order.customerName || 'Customer'}</p>
-                    <p className="text-xs text-[var(--oppa-text-muted)]">#{order.id.slice(-6)}</p>
+                    <p className="text-xs text-[var(--oppa-text-muted)]">{getDisplayOrderNumber(order)}</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(order.created_at)}</p>
                   </div>
                   <button 
@@ -378,7 +380,7 @@ const DriverDashboardPage: React.FC = () => {
                 {sortedOrders.map((order) => (
                   <tr key={order.id} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]">
                     <td className="px-5 py-3 align-top">
-                      <p className="text-[var(--oppa-text-muted)] font-mono text-xs">#{order.id.slice(-6)}</p>
+                      <p className="text-[var(--oppa-text-muted)] font-mono text-xs">{getDisplayOrderNumber(order)}</p>
                       {order.deliveryType === 'priority' && (
                         <span className="inline-block mt-1 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Priority</span>
                       )}
@@ -444,7 +446,7 @@ const DriverDashboardPage: React.FC = () => {
             <div className="flex items-start justify-between mb-4 border-b pb-4">
               <div>
                 <h2 className="text-xl font-bold">Delivery Details</h2>
-                <p className="text-sm text-gray-500 font-mono">#{selectedOrder.id}</p>
+                <p className="text-sm text-gray-500 font-mono">{getDisplayOrderNumber(selectedOrder)}</p>
               </div>
               <button onClick={() => setSelectedOrder(null)} className="rounded-full p-2 hover:bg-gray-100 transition">
                 <X size={20} />

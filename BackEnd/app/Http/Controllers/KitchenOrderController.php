@@ -46,6 +46,7 @@ class KitchenOrderController extends Controller
 
             return [
                 'id' => $order->id,
+                'order_number' => $order->order_number,
                 'customerName' => $customerName,
                 'channel' => $order->delivery_type === 'onsite' || $order->delivery_calculation_method === 'onsite'
                     || str_starts_with(strtolower((string) $order->delivery_address), 'onsite')
