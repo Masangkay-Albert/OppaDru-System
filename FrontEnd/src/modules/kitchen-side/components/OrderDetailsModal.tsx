@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, CalendarClock, Check, CheckCircle, ChefHat, Clock3, Copy, PackageCheck, Phone,
-  Printer, ShoppingBag, Truck, X,
+  AlertTriangle, CalendarClock, CheckCircle, ChefHat, Clock3, Copy, PackageCheck, Phone,
+  ShoppingBag, Truck, X,
 } from 'lucide-react';
 import type { KitchenOrder } from '../kitchenOrderTypes';
 import {
@@ -17,6 +17,17 @@ interface OrderDetailsModalProps {
   onReschedule: (order: KitchenOrder, scheduledFor: string) => void;
   onCancel: (order: KitchenOrder) => void;
 }
+
+const formatPaymentMethod = (method: string | null | undefined) => {
+  if (!method) return 'Not available';
+  const labels: Record<string, string> = {
+    gcash: 'GCash',
+    cash_on_delivery: 'Cash on delivery',
+    cash: 'Cash',
+    card: 'Card',
+  };
+  return labels[method.toLowerCase()] || method.replaceAll('_', ' ');
+};
 
 export const ScheduleCard = ({ order, now }: { order: KitchenOrder; now: number }) => {
   if (!order.isScheduled || !order.scheduledFor || !order.prepStartTime) return null;
@@ -50,28 +61,39 @@ export const ScheduleCard = ({ order, now }: { order: KitchenOrder; now: number 
 export const OrderItemsList = ({ order }: { order: KitchenOrder }) => {
   const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({});
   const totalQuantity = order.items.reduce((total, item) => total + item.quantity, 0);
+  const completed = ['prepared', 'ready', 'delivered', 'completed'].includes(order.status);
+  const cancelled = ['cancelled', 'canceled'].includes(order.status);
 
   return (
     <section>
-      <h3 className="mb-2 font-semibold text-[var(--oppa-text)]">Items to Prepare</h3>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h3 className="font-semibold text-[var(--oppa-text)]">{completed ? 'Prepared items' : cancelled ? 'Order items' : 'Items to Prepare'}</h3>
+        {completed && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800"><CheckCircle size={14} /> All prepared</span>}
+      </div>
       <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 bg-gray-50 px-4">
         {order.items.map((item, index) => (
           <li key={`${item.name}-${index}`} className="flex items-start gap-3 py-3">
-            <input
-              type="checkbox"
-              aria-label={`Mark ${item.name} prepared`}
-              checked={Boolean(checkedItems[index])}
-              onChange={(event) => setCheckedItems((current) => ({ ...current, [index]: event.target.checked }))}
-              className="mt-1 size-4 accent-[var(--oppa-green)]"
-            />
+            {completed ? (
+              <CheckCircle size={18} aria-label="Prepared" className="mt-0.5 shrink-0 text-emerald-700" />
+            ) : cancelled ? (
+              <span className="mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-full border border-gray-300 text-[10px] text-gray-400">—</span>
+            ) : (
+              <input
+                type="checkbox"
+                aria-label={`Mark ${item.name} prepared`}
+                checked={Boolean(checkedItems[index])}
+                onChange={(event) => setCheckedItems((current) => ({ ...current, [index]: event.target.checked }))}
+                className="mt-1 size-4 accent-[var(--oppa-green)]"
+              />
+            )}
             <div className="min-w-0 flex-1">
-              <p className={`font-medium text-[var(--oppa-text)] ${checkedItems[index] ? 'text-gray-400 line-through' : ''}`}>
+              <p className={`font-medium ${completed || checkedItems[index] ? 'text-gray-400 line-through' : 'text-[var(--oppa-text)]'}`}>
                 <span className="mr-2 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">{item.quantity}x</span>
                 {item.name}
               </p>
-              {(item.selected_size || item.selected_addons?.length) && (
+              {((item.selected_size && !['0', 'none', 'n/a'].includes(item.selected_size.trim().toLowerCase())) || item.selected_addons?.length) && (
                 <p className="mt-1 text-xs text-gray-500">
-                  {[item.selected_size, ...(item.selected_addons || []).map((addon) => `${addon.name}${addon.quantity > 1 ? ` ×${addon.quantity}` : ''}`)].filter(Boolean).join(' · ')}
+                  {[item.selected_size && !['0', 'none', 'n/a'].includes(item.selected_size.trim().toLowerCase()) ? item.selected_size : null, ...(item.selected_addons || []).map((addon) => `${addon.name}${addon.quantity > 1 ? ` ×${addon.quantity}` : ''}`)].filter(Boolean).join(' · ')}
                 </p>
               )}
               {item.special_instructions && <p className="mt-1 text-xs text-amber-800">Note: {item.special_instructions}</p>}
@@ -114,24 +136,10 @@ export const OrderTimeline = ({ order, now }: { order: KitchenOrder; now: number
   );
 };
 
-const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
-}[character] || character));
-
-const printKitchenTicket = (order: KitchenOrder) => {
-  const ticket = window.open('', '_blank', 'width=440,height=720');
-  if (!ticket) {
-    window.alert('Allow pop-ups to print the kitchen ticket.');
-    return;
-  }
-  const items = order.items.map((item) => `<li><strong>${item.quantity}x</strong> ${escapeHtml(item.name)}${item.selected_size ? `<small>${escapeHtml(item.selected_size)}</small>` : ''}${item.special_instructions ? `<small>Note: ${escapeHtml(item.special_instructions)}</small>` : ''}</li>`).join('');
-  ticket.document.write(`<!doctype html><html><head><title>Kitchen ticket</title><style>body{font:14px Arial,sans-serif;padding:24px;color:#15251b}h1{font-size:20px}small{display:block;color:#555;margin:4px 0 0 32px}li{padding:10px 0;border-bottom:1px solid #ddd}header{border-bottom:2px dashed #333;padding-bottom:12px}</style></head><body><header><h1>OPPA DRU · KITCHEN TICKET</h1><p>${escapeHtml(order.order_number || order.id)}</p><p>${escapeHtml(formatKitchenManilaDateTime(order.created_at))}</p>${order.scheduledFor ? `<p>DUE: ${escapeHtml(formatKitchenManilaDateTime(order.scheduledFor))}</p>` : ''}<p>${escapeHtml(order.customerName)} · ${escapeHtml(order.fulfillmentType || 'delivery')}</p></header><ul>${items}</ul>${order.specialInstructions ? `<p><strong>Order notes:</strong> ${escapeHtml(order.specialInstructions)}</p>` : ''}<script>window.onload=()=>{window.print();window.close()}</script></body></html>`);
-  ticket.document.close();
-};
-
 const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, onReschedule, onCancel }: OrderDetailsModalProps) => {
   const [now, setNow] = useState(() => Date.now());
   const [rescheduling, setRescheduling] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'start-early' | 'cancel' | null>(null);
   const [newSchedule, setNewSchedule] = useState(order.scheduledFor ? toLocalDateTimeInput(order.scheduledFor) : '');
   const [timelineId] = useState(() => `${order.id}-title`);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -181,12 +189,11 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
   };
 
   const requestStartEarly = () => {
-    const dueTime = order.scheduledFor ? formatKitchenManilaDateTime(order.scheduledFor) : 'the scheduled time';
-    if (window.confirm(`This order is scheduled for ${dueTime}. Start preparing now?`)) onStart(order, true);
+    setConfirmAction('start-early');
   };
 
   const doCancel = () => {
-    if (window.confirm(`Cancel order ${order.order_number || order.id}?`)) onCancel(order);
+    setConfirmAction('cancel');
   };
 
   return (
@@ -230,7 +237,24 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
             <div><p className="text-xs text-gray-500">Customer</p><p className="mt-1 font-semibold">{order.customerName}</p></div>
             <div><p className="text-xs text-gray-500">Date Ordered</p><p className="mt-1 text-sm font-medium">{formatKitchenManilaDateTime(order.created_at)}</p></div>
             <div><p className="text-xs text-gray-500">Fulfillment</p><p className="mt-1 inline-flex items-center gap-2 font-medium">{order.fulfillmentType === 'pickup' ? <ShoppingBag size={16} /> : <Truck size={16} />}{order.fulfillmentType === 'pickup' ? 'Pickup' : 'Delivery'}</p></div>
-            <div><p className="text-xs text-gray-500">Payment</p><p className="mt-1 text-sm font-medium">{order.paymentMethod || 'Not available'}{order.paymentStatus ? ` · ${order.paymentStatus}` : ''}</p></div>
+            <div>
+              <p className="text-xs text-gray-500">Payment</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="inline-flex min-h-7 items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold capitalize text-slate-700">
+                  {formatPaymentMethod(order.paymentMethod)}
+                </span>
+                {order.paymentStatus && (
+                  <span className={`inline-flex min-h-7 items-center gap-1 rounded-full px-2.5 text-xs font-bold capitalize ${
+                    order.paymentStatus.toLowerCase() === 'paid'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-900'
+                  }`}>
+                    {order.paymentStatus.toLowerCase() === 'paid' && <CheckCircle size={13} />}
+                    {order.paymentStatus.replaceAll('_', ' ')}
+                  </span>
+                )}
+              </div>
+            </div>
             {order.phone && <div className="sm:col-span-2"><a href={`tel:${order.phone}`} className="inline-flex min-h-11 items-center gap-2 font-medium text-[var(--oppa-green)]"><Phone size={16} />{order.phone}</a></div>}
           </section>
 
@@ -247,6 +271,30 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
         </div>
 
         <footer className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-gray-100 bg-white px-5 py-4 sm:px-6">
+          {confirmAction && (
+            <div role="alertdialog" aria-live="assertive" className={`order-first w-full rounded-xl border p-3 ${confirmAction === 'cancel' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+              <p className={`text-sm font-semibold ${confirmAction === 'cancel' ? 'text-red-950' : 'text-amber-950'}`}>
+                {confirmAction === 'cancel'
+                  ? `Cancel order ${order.order_number || order.id}?`
+                  : `This order is scheduled for ${order.scheduledFor ? formatKitchenManilaDateTime(order.scheduledFor) : 'later'}. Start preparing now?`}
+              </p>
+              <div className="mt-3 flex justify-end gap-2">
+                <button type="button" onClick={() => setConfirmAction(null)} className="min-h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700">Go back</button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    if (confirmAction === 'cancel') onCancel(order);
+                    else onStart(order, true);
+                    setConfirmAction(null);
+                  }}
+                  className={`min-h-10 rounded-lg px-4 text-sm font-semibold text-white disabled:opacity-50 ${confirmAction === 'cancel' ? 'bg-red-700 hover:bg-red-800' : 'bg-[var(--oppa-green)] hover:bg-[#245f37]'}`}
+                >
+                  {confirmAction === 'cancel' ? 'Yes, cancel order' : 'Start preparing now'}
+                </button>
+              </div>
+            </div>
+          )}
           {order.status === 'pending' && (
             <>
               <button type="button" onClick={() => onStart(order)} disabled={busy || isCancelled || !prepIsOpen} title={!prepIsOpen && order.prepStartTime ? `Available at ${formatKitchenManilaDateTime(order.prepStartTime, { year: undefined, month: undefined, day: undefined })}` : undefined} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
@@ -256,7 +304,6 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
             </>
           )}
           {order.status === 'preparing' && <button type="button" onClick={() => onComplete(order)} disabled={busy || isCancelled} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 font-semibold text-white disabled:opacity-50"><PackageCheck size={17} /> Done Preparing</button>}
-          <button type="button" onClick={() => printKitchenTicket(order)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold"><Printer size={16} /> Print Ticket</button>
           {order.status === 'pending' && !isCancelled && (
             <div className="flex w-full flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
               {order.isScheduled && (
@@ -272,7 +319,6 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
             </div>
           )}
           <button type="button" onClick={onClose} className="min-h-11 rounded-xl px-4 py-2 text-sm font-semibold text-gray-600">Close</button>
-          <span className="sr-only"><Check aria-hidden="true" /></span>
         </footer>
       </section>
     </div>

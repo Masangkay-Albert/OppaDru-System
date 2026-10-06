@@ -251,6 +251,12 @@ const KitchenDashboardPage: React.FC = () => {
         - new Date(right.scheduledFor || right.created_at).getTime();
     })
     : sortOrders(visibleOrders, sortOrder);
+  const priorityOrders = sortedOrders.filter(isPriority);
+  const otherOrders = sortedOrders.filter((order) => !isPriority(order));
+  const orderGroups = [
+    { key: 'priority', label: 'Priority orders', count: priorityOrders.length, orders: priorityOrders },
+    { key: 'other', label: 'Other orders', count: otherOrders.length, orders: otherOrders },
+  ].filter((group) => group.orders.length > 0);
   const renderBadges = (order: KitchenOrder) => (
     <div className="mt-1 flex flex-wrap gap-1">
       <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
@@ -326,13 +332,21 @@ const KitchenDashboardPage: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="space-y-2 md:hidden">
-            {sortedOrders.map((order) => {
+          <div className="space-y-5 md:hidden">
+            {orderGroups.map((group) => (
+              <section key={group.key} aria-label={group.label}>
+                <div className={`mb-2 flex items-center gap-2 border-b pb-2 ${group.key === 'priority' ? 'border-orange-300 text-orange-900' : 'border-[var(--oppa-border)] text-[var(--oppa-text-muted)]'}`}>
+                  {group.key === 'priority' ? <Flame size={15} /> : <span className="size-2 rounded-full bg-gray-300" />}
+                  <h2 className="text-xs font-bold uppercase tracking-[0.14em]">{group.label}</h2>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${group.key === 'priority' ? 'bg-orange-100 text-orange-900' : 'bg-gray-100 text-gray-600'}`}>{group.count}</span>
+                </div>
+                <div className="space-y-2">
+            {group.orders.map((order) => {
               const scheduleState = order.isScheduled && order.prepStartTime && order.scheduledFor
                 ? getKitchenScheduleState(order.prepStartTime, order.scheduledFor, now) : null;
               const mayStart = !order.isScheduled || !order.prepStartTime || new Date(order.prepStartTime).getTime() <= now;
               return (
-                <article key={order.id} className={`rounded-2xl border border-[var(--oppa-border)] p-3 shadow-sm ${isPriority(order) ? 'border-l-4 border-l-orange-500 bg-orange-50/60' : 'bg-white'}`}>
+                <article key={order.id} className={`rounded-2xl border p-4 shadow-sm transition-shadow hover:shadow-md ${group.key === 'priority' ? 'border-orange-200 border-l-4 border-l-orange-500 bg-gradient-to-r from-orange-50 to-white' : 'border-[var(--oppa-border)] bg-white'}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <StatusBadge status={order.status} />
@@ -352,6 +366,9 @@ const KitchenDashboardPage: React.FC = () => {
                 </article>
               );
             })}
+                </div>
+              </section>
+            ))}
           </div>
 
           <div className="hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
@@ -361,12 +378,23 @@ const KitchenDashboardPage: React.FC = () => {
                 <th className="px-4 py-3">{activeTab === 'scheduled' ? 'Scheduled For' : 'Date Ordered'}</th>
                 <th className="px-4 py-3">Items</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th>
               </tr></thead>
-              <tbody>{sortedOrders.map((order) => {
+              <tbody>{orderGroups.map((group) => (
+                <React.Fragment key={group.key}>
+                  <tr className={group.key === 'priority' ? 'bg-orange-50' : 'bg-[#f8f7f2]'}>
+                    <td colSpan={6} className={`border-b px-4 py-2 ${group.key === 'priority' ? 'border-orange-200' : 'border-[var(--oppa-border)]'}`}>
+                      <div className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] ${group.key === 'priority' ? 'text-orange-900' : 'text-[var(--oppa-text-muted)]'}`}>
+                        {group.key === 'priority' ? <Flame size={13} /> : <span className="size-2 rounded-full bg-gray-300" />}
+                        {group.label}
+                        <span className={`rounded-full px-2 py-0.5 ${group.key === 'priority' ? 'bg-orange-200/70 text-orange-950' : 'bg-gray-200 text-gray-700'}`}>{group.count}</span>
+                      </div>
+                    </td>
+                  </tr>
+              {group.orders.map((order) => {
                 const scheduleState = order.isScheduled && order.prepStartTime && order.scheduledFor
                   ? getKitchenScheduleState(order.prepStartTime, order.scheduledFor, now) : null;
                 const mayStart = !order.isScheduled || !order.prepStartTime || new Date(order.prepStartTime).getTime() <= now;
                 return (
-                  <tr key={order.id} className={`border-b border-gray-100 last:border-0 hover:bg-emerald-50/60 ${isPriority(order) ? 'bg-orange-50/50' : ''}`}>
+                  <tr key={order.id} className={`border-b border-gray-100 last:border-0 hover:bg-emerald-50/60 ${group.key === 'priority' ? 'bg-orange-50/30' : ''}`}>
                     <td className="px-4 py-3 align-middle"><span className="font-mono text-xs">{order.order_number || order.id}</span>{renderBadges(order)}</td>
                     <td className="px-4 py-3 font-medium">{order.customerName || 'Customer'}</td>
                     <td className="px-4 py-3 text-gray-600">
@@ -381,7 +409,9 @@ const KitchenDashboardPage: React.FC = () => {
                     </div></td>
                   </tr>
                 );
-              })}</tbody>
+              })}
+                </React.Fragment>
+              ))}</tbody>
             </table>
           </div>
         </>
