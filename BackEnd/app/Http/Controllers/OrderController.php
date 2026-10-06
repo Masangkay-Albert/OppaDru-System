@@ -10,10 +10,10 @@ use App\Models\User;
 use App\Services\Order\OrderDataService;
 use App\Services\FranchiseInventoryService;
 use App\Services\PricingService;
+use App\Support\DatabaseImage;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -32,6 +32,7 @@ class OrderController extends Controller
             'id', 'order_number', 'email', 'user_id', 'total', 'status',
             'payment_method', 'payment_status', 'delivery_address', 'delivery_lat', 'delivery_lng', 'delivery_coordinates', 'phone', 'items', 'created_at',
             'delivery_proof_image', 'delivery_proof_uploaded_at', 'delivery_confirmed_at',
+            'delivery_proof_image_data', 'discount_proof_image', 'discount_proof_image_data',
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',
             'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
         ])->with(['user:id,full_name', 'orderItems'])
@@ -260,15 +261,13 @@ class OrderController extends Controller
         $userId = $user ? $user->id : null;
 
         $discountAmount = 0;
-        $discountProofUrl = null;
+        $discountProofData = null;
 
         if ($discountType !== '') {
             $discountAmount = $pricing['discountAmount'];
             if ($request->hasFile('proof_image') || $request->hasFile('discount_proof_image')) {
                 $file = $request->file('proof_image') ?? $request->file('discount_proof_image');
-                $filename = time() . '-' . uniqid('', true) . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('discount-proof', $filename, 'public');
-                $discountProofUrl = rtrim(config('app.url', 'https://oppadru-system-1.onrender.com'), '/') . '/storage/' . ltrim($path, '/');
+                $discountProofData = DatabaseImage::fromUploadedFile($file);
             }
         }
 
@@ -284,7 +283,7 @@ class OrderController extends Controller
                 $discountType,
                 $discountRate,
                 $discountAmount,
-                $discountProofUrl
+                $discountProofData
             ) {
                 $franchiseId = $request->input('franchise_id');
                 if ($franchiseId) {
@@ -323,7 +322,8 @@ class OrderController extends Controller
             'discount_rate' => $discountType !== '' ? $discountRate : null,
             'discount_amount' => $discountType !== '' ? $discountAmount : null,
             'discount_status' => $discountType !== '' ? 'pending' : 'not_requested',
-            'discount_proof_image' => $discountType !== '' ? $discountProofUrl : null,
+            'discount_proof_image' => null,
+            'discount_proof_image_data' => $discountType !== '' ? $discountProofData : null,
             'discount_requested_at' => $discountType !== '' ? now() : null,
             'discount_rejection_reason' => null,
             'discount_reviewed_at' => null,
@@ -343,7 +343,8 @@ class OrderController extends Controller
                 'discount_type' => $discountType,
                 'discount_rate' => $discountRate,
                 'discount_amount' => $discountAmount,
-                'proof_image_url' => $discountProofUrl,
+                'proof_image_url' => null,
+                'proof_image_data' => $discountProofData,
                 'status' => 'pending',
                 'submitted_at' => now(),
                 'order_total_at_submission' => $total,

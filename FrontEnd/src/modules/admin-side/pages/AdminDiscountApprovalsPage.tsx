@@ -1,35 +1,45 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BadgeCheck, CheckCircle, X, XCircle } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { listDiscountApplications, updateDiscountApplicationStatus, type DiscountApplicationRequest } from '../../../services/discountApplicationService';
 
 const AdminDiscountApprovalsPage: React.FC = () => {
   const [applications, setApplications] = useState<DiscountApplicationRequest[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedReason, setSelectedReason] = useState<Record<string, string>>({});
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
   const [selectedProof, setSelectedProof] = useState<DiscountApplicationRequest | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const isLoadingApplications = useRef(false);
+  const applicationMutationVersion = useRef(0);
 
-  const loadApplications = async () => {
-    setLoading(true);
-    setLoadError(null);
+  const loadApplications = useCallback(async (showLoading = false) => {
+    if (isLoadingApplications.current) return;
+    isLoadingApplications.current = true;
+    const mutationVersionAtStart = applicationMutationVersion.current;
+    if (showLoading) setLoading(true);
     try {
       const data = await listDiscountApplications();
+      if (mutationVersionAtStart !== applicationMutationVersion.current) return;
       const pendingOnly = Array.isArray(data) ? data.filter((application) => application.status === 'pending') : [];
       setApplications(pendingOnly);
+      setLoadError(null);
     } catch (error) {
-      setApplications([]);
       setLoadError(error instanceof Error ? error.message : 'Failed to fetch discount applications.');
     } finally {
-      setLoading(false);
+      isLoadingApplications.current = false;
+      if (showLoading) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void loadApplications(); }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
+    const initialLoad = window.setTimeout(() => { void loadApplications(true); }, 0);
+    const interval = window.setInterval(() => { void loadApplications(); }, 5000);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(interval);
+    };
+  }, [loadApplications]);
 
   const handleAction = async (id: string, action: 'approve' | 'reject') => {
     if (actionLoading[id]) return;
@@ -42,7 +52,13 @@ const AdminDiscountApprovalsPage: React.FC = () => {
         action,
         action === 'reject' ? (selectedReason[id] || 'No reason provided.') : undefined,
       );
-      await loadApplications();
+      applicationMutationVersion.current += 1;
+      setApplications((current) => current.filter((application) => application.id !== id));
+      setSelectedReason((current) => {
+        const remaining = { ...current };
+        delete remaining[id];
+        return remaining;
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update discount request.';
       window.alert(message);
@@ -71,7 +87,7 @@ const AdminDiscountApprovalsPage: React.FC = () => {
           </div>
         </div>
 
-        {loadError ? (
+        {loadError && applications.length === 0 ? (
           <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">
             {loadError}
           </div>
@@ -85,6 +101,11 @@ const AdminDiscountApprovalsPage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
+            {loadError && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" role="status">
+                Could not refresh discount requests: {loadError}
+              </div>
+            )}
             {applications.map((application) => (
               <div key={application.id} className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/40 p-4">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">

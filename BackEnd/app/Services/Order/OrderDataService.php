@@ -30,9 +30,9 @@ class OrderDataService
             ? rtrim(request()->root(), '/')
             : rtrim(config('app.url'), '/');
 
-        $proofUrl = $order->delivery_proof_image
-            ? $baseUrl . '/storage/' . ltrim($order->delivery_proof_image, '/')
-            : null;
+        $proofImage = $order->delivery_proof_image;
+        $proofUrl = $this->resolveImageUrl($proofImage, $baseUrl);
+        $discountProofImage = $order->discount_proof_image;
 
         return [
             'id' => $order->id,
@@ -75,7 +75,7 @@ class OrderDataService
             'discount_rate' => (float) ($order->discount_rate ?? 0),
             'discount_amount' => (float) ($order->discount_amount ?? 0),
             'discount_status' => $order->discount_status ?? 'not_requested',
-            'discount_proof_image' => $order->discount_proof_image,
+            'discount_proof_image' => $this->resolveImageUrl($discountProofImage, $baseUrl),
             'discount_rejection_reason' => $order->discount_rejection_reason,
             'discount_requested_at' => $order->discount_requested_at ? $this->convertToPhilippineTime($order->discount_requested_at) : null,
             'discount_reviewed_at' => $order->discount_reviewed_at ? $this->convertToPhilippineTime($order->discount_reviewed_at) : null,
@@ -92,6 +92,19 @@ class OrderDataService
     public function formatOrders($orders): array
     {
         return $orders->map(fn (Order $order) => $this->formatOrder($order))->all();
+    }
+
+    private function resolveImageUrl(?string $image, string $baseUrl): ?string
+    {
+        if (!$image) {
+            return null;
+        }
+
+        if (str_starts_with($image, 'data:image/') || preg_match('/\Ahttps?:\/\//i', $image) || str_starts_with($image, '/')) {
+            return $image;
+        }
+
+        return $baseUrl . '/storage/' . ltrim($image, '/');
     }
 
     public function buildOrderItems(array $items): array

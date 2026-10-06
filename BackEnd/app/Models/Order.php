@@ -35,6 +35,7 @@ class Order extends Model
         'delivery_lat',
         'delivery_lng',
         'delivery_proof_image',
+        'delivery_proof_image_data',
         'delivery_proof_uploaded_at',
         'delivery_confirmed_at',
         'service_fee',
@@ -57,6 +58,7 @@ class Order extends Model
         'discount_amount',
         'discount_status',
         'discount_proof_image',
+        'discount_proof_image_data',
         'discount_rejection_reason',
         'discount_requested_at',
         'discount_reviewed_at',
@@ -83,6 +85,31 @@ class Order extends Model
         'discount_requested_at' => 'datetime',
         'discount_reviewed_at' => 'datetime',
     ];
+
+    protected $hidden = [
+        'delivery_proof_image_data',
+        'discount_proof_image_data',
+    ];
+
+    public function getDeliveryProofImageAttribute($value): ?string
+    {
+        return $value || !empty($this->attributes['delivery_proof_image_data'])
+            ? url('/api/orders/'.$this->id.'/delivery-proof')
+            : null;
+    }
+
+    public function getDiscountProofImageAttribute($value): ?string
+    {
+        if (!empty($this->attributes['discount_proof_image_data'])) {
+            return url('/api/orders/'.$this->id.'/discount-proof');
+        }
+
+        if ($value && (str_starts_with($value, 'data:image/') || preg_match('/\.(jpe?g|png|gif|webp)(?:[?#].*)?\z/i', $value))) {
+            return url('/api/orders/'.$this->id.'/discount-proof');
+        }
+
+        return $value;
+    }
 
     protected static function boot()
     {

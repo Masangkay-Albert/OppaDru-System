@@ -102,6 +102,15 @@ const defaultDiscountInfo: DiscountInfo = {
   status: 'not_requested',
 };
 
+const areDiscountInfoEqual = (left: DiscountInfo, right: DiscountInfo) =>
+  left.isPWD === right.isPWD
+  && left.isSenior === right.isSenior
+  && left.idNumber === right.idNumber
+  && left.fullName === right.fullName
+  && left.expiryDate === right.expiryDate
+  && left.rejectionReason === right.rejectionReason
+  && left.status === right.status;
+
 const defaultPricing: PricingSettings = {
   delivery_base_fee: 49,
   delivery_base_distance_km: 3,
@@ -182,7 +191,85 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }
     setIsLoading(false);
-  }, [user?.id]);
+  }, [user?.id, user?.full_name]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let isActive = true;
+    let isRequestInFlight = false;
+
+    const syncDiscountApplication = async () => {
+      const token = localStorage.getItem('auth_token');
+      if (!token || isRequestInFlight) return;
+
+      isRequestInFlight = true;
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/discount/applications/me`, {
+          headers: { Authorization: ['Bearer', token].join(' ') },
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to refresh discount status (${response.status}).`);
+        }
+
+        const data: {
+          data?: Array<{
+            discount_type?: string;
+            full_name?: string;
+            id_number?: string;
+            expiry_date?: string | null;
+            rejection_reason?: string | null;
+            status?: DiscountInfo['status'];
+          }>;
+        } = await response.json();
+        if (!isActive) return;
+
+        const latest = Array.isArray(data?.data) ? data.data[0] : null;
+        if (!latest) {
+          setDiscountInfo((previous) => {
+            const next = { ...defaultDiscountInfo, fullName: user.full_name || '' };
+            return areDiscountInfoEqual(previous, next) ? previous : next;
+          });
+          return;
+        }
+
+        const nextType = latest.discount_type === 'PWD' ? 'PWD' : 'Senior Citizen';
+        const isApproved = latest.status === 'approved';
+        setDiscountInfo((previous) => {
+          const next: DiscountInfo = {
+            isPWD: isApproved && nextType === 'PWD',
+            isSenior: isApproved && nextType === 'Senior Citizen',
+            idNumber: latest.id_number || '',
+            fullName: user.full_name || latest.full_name || '',
+            expiryDate: latest.expiry_date || '',
+            rejectionReason: latest.rejection_reason || '',
+            status: latest.status || 'not_requested',
+          };
+          return areDiscountInfoEqual(previous, next) ? previous : next;
+        });
+      } catch (error) {
+        console.error('Unable to refresh customer discount status.', error);
+      } finally {
+        isRequestInFlight = false;
+      }
+    };
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void syncDiscountApplication();
+    };
+
+    void syncDiscountApplication();
+    const interval = window.setInterval(refreshWhenVisible, 5000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
+    return () => {
+      isActive = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [user?.id, user?.full_name]);
 
   useEffect(() => {
     if (user?.id) {

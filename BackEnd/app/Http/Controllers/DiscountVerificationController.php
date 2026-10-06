@@ -7,9 +7,9 @@ use App\Models\DiscountVerificationRequest;
 use App\Models\Order;
 use App\Notifications\DiscountApplicationDecisionNotification;
 use App\Services\PricingService;
+use App\Support\DatabaseImage;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class DiscountVerificationController extends Controller
@@ -76,12 +76,10 @@ class DiscountVerificationController extends Controller
         $discountRate = 0.20;
         $discountAmount = round((float) $order->total * $discountRate);
 
-        $proofUrl = null;
+        $proofImageData = null;
         if ($request->hasFile('proof_image') || $request->hasFile('discount_proof_image')) {
             $file = $request->file('proof_image') ?? $request->file('discount_proof_image');
-            $filename = time() . '-' . uniqid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('discount-proof', $filename, 'public');
-            $proofUrl = rtrim(config('app.url', 'https://oppadru-system-1.onrender.com'), '/') . '/storage/' . ltrim($path, '/');
+            $proofImageData = DatabaseImage::fromUploadedFile($file);
         }
 
         $requestRecord = DiscountVerificationRequest::create([
@@ -89,7 +87,8 @@ class DiscountVerificationController extends Controller
             'discount_type' => $discountType,
             'discount_rate' => $discountRate,
             'discount_amount' => $discountAmount,
-            'proof_image_url' => $proofUrl,
+            'proof_image_url' => null,
+            'proof_image_data' => $proofImageData,
             'status' => 'pending',
             'submitted_at' => now(),
             'order_total_at_submission' => $order->total,
@@ -100,7 +99,8 @@ class DiscountVerificationController extends Controller
             'discount_rate' => $discountRate,
             'discount_amount' => $discountAmount,
             'discount_status' => 'pending',
-            'discount_proof_image' => $proofUrl,
+            'discount_proof_image' => null,
+            'discount_proof_image_data' => $proofImageData,
             'discount_requested_at' => now(),
             'discount_rejection_reason' => null,
             'discount_reviewed_at' => null,
@@ -154,7 +154,8 @@ class DiscountVerificationController extends Controller
                 'discount_rate' => $discountRate,
                 'discount_amount' => $discountAmount,
                 'discount_status' => 'approved',
-                'discount_proof_image' => $discountRequest->proof_image_url,
+                'discount_proof_image' => null,
+                'discount_proof_image_data' => $discountRequest->proof_image_data,
                 'discount_rejection_reason' => null,
                 'discount_reviewed_at' => now(),
             ]);
@@ -184,7 +185,8 @@ class DiscountVerificationController extends Controller
             'discount_rate' => $discountRequest->discount_rate,
             'discount_amount' => 0,
             'discount_status' => 'rejected',
-            'discount_proof_image' => $discountRequest->proof_image_url,
+            'discount_proof_image' => null,
+            'discount_proof_image_data' => $discountRequest->proof_image_data,
             'discount_rejection_reason' => $reason,
             'discount_reviewed_at' => now(),
         ]);

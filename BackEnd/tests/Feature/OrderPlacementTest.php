@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\DiscountApplication;
+use App\Models\DiscountVerificationRequest;
 use App\Models\Addon;
 use App\Models\AddonGroup;
 use App\Models\Franchise;
@@ -10,6 +11,7 @@ use App\Models\FranchiseInventory;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Models\Driver;
 use App\Models\User;
 use App\Notifications\DiscountApplicationDecisionNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -705,6 +707,88 @@ class OrderPlacementTest extends TestCase
         });
     }
 
+    public function test_customer_discount_application_proof_is_persisted_in_the_database(): void
+    {
+        $user = User::create([
+            'full_name' => 'Proof Customer',
+            'email' => 'proof.customer@example.com',
+            'phone' => '09171234569',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ]);
+        $proofFile = UploadedFile::fake()->create('pwd-proof.jpg', 10, 'image/jpeg');
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$loginResponse->json('token'))
+            ->post('/api/discount/applications', [
+                'discount_type' => 'PWD',
+                'id_number' => 'PWD-12345',
+                'proof_image' => $proofFile,
+            ]);
+
+        $response->assertCreated();
+        $application = DiscountApplication::findOrFail($response->json('application.id'));
+        $this->assertStringStartsWith('data:image/', $application->getRawOriginal('proof_image_data'));
+        $this->assertStringContainsString('/api/discount-applications/'.$application->id.'/proof-image', $application->proof_image_url);
+
+        $imageResponse = $this->get('/api/discount-applications/'.$application->id.'/proof-image');
+        $imageResponse->assertOk()->assertHeader('Content-Type', 'image/jpeg');
+        $this->assertSame(
+            base64_decode(substr($application->getRawOriginal('proof_image_data'), strpos($application->getRawOriginal('proof_image_data'), ',') + 1), true),
+            $imageResponse->getContent(),
+        );
+    }
+
+    public function test_delivery_proof_is_persisted_in_the_order_database_record(): void
+    {
+        $driver = Driver::create([
+            'name' => 'Proof Driver',
+            'email' => 'proof.driver@example.com',
+            'password' => Hash::make('password123'),
+            'phone' => '09171234569',
+            'vehicleType' => 'motorcycle',
+            'isActive' => true,
+        ]);
+        $driverToken = 'test-driver-token';
+        $driver->forceFill(['api_token' => hash('sha256', $driverToken)])->save();
+
+        $order = Order::create([
+            'email' => 'delivery.customer@example.com',
+            'total' => 263,
+            'status' => 'delivered',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Delivery proof test address',
+            'phone' => '09171234568',
+            'items' => [],
+            'driver_id' => $driver->id,
+        ]);
+        $proofFile = UploadedFile::fake()->create('delivery-proof.jpg', 10, 'image/jpeg');
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$driverToken)
+            ->post('/api/driver/orders/'.$order->id.'/delivery-proof', [
+                'proof_image' => $proofFile,
+            ]);
+
+        $response->assertOk();
+        $order->refresh();
+        $imageData = $order->getRawOriginal('delivery_proof_image_data');
+        $this->assertStringStartsWith('data:image/', $imageData);
+        $this->assertSame($response->json('delivery_proof_image_url'), $order->delivery_proof_image);
+
+        $imageResponse = $this->get('/api/orders/'.$order->id.'/delivery-proof');
+        $imageResponse->assertOk()->assertHeader('Content-Type', 'image/jpeg');
+        $this->assertSame(
+            base64_decode(substr($imageData, strpos($imageData, ',') + 1), true),
+            $imageResponse->getContent(),
+        );
+    }
+
     public function test_discount_verification_request_can_be_created_and_approved_by_admin(): void
     {
         $user = User::create([
@@ -760,6 +844,18 @@ class OrderPlacementTest extends TestCase
 
         $requestId = $orderResponse->json('discount_request.id');
         $this->assertNotNull($requestId);
+        $discountRequest = DiscountVerificationRequest::findOrFail($requestId);
+        $this->assertStringStartsWith('data:image/', $discountRequest->getRawOriginal('proof_image_data'));
+        $this->assertSame(
+            $discountRequest->getRawOriginal('proof_image_data'),
+            Order::findOrFail($orderResponse->json('order.id'))->getRawOriginal('discount_proof_image_data'),
+        );
+        $discountImageResponse = $this->get('/api/discount-verifications/'.$requestId.'/proof-image');
+        $discountImageResponse->assertOk()->assertHeader('Content-Type', 'image/jpeg');
+        $this->assertSame(
+            base64_decode(substr($discountRequest->getRawOriginal('proof_image_data'), strpos($discountRequest->getRawOriginal('proof_image_data'), ',') + 1), true),
+            $discountImageResponse->getContent(),
+        );
 
         $reviewResponse = $this
             ->withHeader('Authorization', 'Bearer '.$adminLogin->json('token'))

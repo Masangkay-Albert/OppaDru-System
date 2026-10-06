@@ -20,6 +20,7 @@ use App\Http\Controllers\DriverOrderController;
 use App\Http\Controllers\DeliveryProofController;
 use App\Http\Controllers\DiscountVerificationController;
 use App\Http\Controllers\DiscountApplicationController;
+use App\Http\Controllers\ProofImageController;
 use App\Http\Controllers\FranchiseApplicationController;
 use App\Http\Controllers\FranchiseAuthController;
 use App\Http\Controllers\FranchiseController;
@@ -131,6 +132,10 @@ Route::middleware(['employee.access:kitchen_staff'])->group(function () {
 Route::get('/driver/orders', [DriverOrderController::class, 'index']);
 Route::patch('/driver/orders/{id}/status', [DriverOrderController::class, 'updateStatus']);
 Route::post('/driver/orders/{id}/delivery-proof', [DeliveryProofController::class, 'store']);
+Route::get('/orders/{id}/delivery-proof', [ProofImageController::class, 'delivery']);
+Route::get('/orders/{id}/discount-proof', [ProofImageController::class, 'orderDiscount']);
+Route::get('/discount-applications/{id}/proof-image', [ProofImageController::class, 'discountApplication']);
+Route::get('/discount-verifications/{id}/proof-image', [ProofImageController::class, 'discountVerification']);
 
 
 Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);

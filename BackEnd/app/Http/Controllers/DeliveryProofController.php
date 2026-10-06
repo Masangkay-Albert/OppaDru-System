@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Driver;
 use App\Models\Order;
+use App\Support\DatabaseImage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class DeliveryProofController extends Controller
 {
@@ -33,23 +33,14 @@ class DeliveryProofController extends Controller
             return response()->json(['message' => 'You can only upload proof for an active delivery assigned to you.'], 403);
         }
 
-        $previousImage = $order->delivery_proof_image;
-        $path = $request->file('proof_image')->store('delivery-proofs', 'public');
-        $order->delivery_proof_image = $path;
+        $order->delivery_proof_image_data = DatabaseImage::fromUploadedFile($request->file('proof_image'));
+        $order->delivery_proof_image = null;
         $order->delivery_proof_uploaded_at = now();
         $order->save();
 
-        if ($previousImage) {
-            Storage::disk('public')->delete($previousImage);
-        }
-
-        $baseUrl = (function_exists('request') && request()?->hasHeader('host'))
-            ? rtrim(request()->root(), '/')
-            : rtrim(config('app.url'), '/');
-
         return response()->json([
             'message' => 'Delivery proof uploaded successfully.',
-            'delivery_proof_image_url' => $baseUrl . '/storage/' . ltrim($path, '/'),
+            'delivery_proof_image_url' => $order->delivery_proof_image,
             'delivery_proof_uploaded_at' => $order->delivery_proof_uploaded_at?->toISOString(),
         ]);
     }

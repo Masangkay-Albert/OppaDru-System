@@ -87,14 +87,25 @@ class DriverOrderController extends Controller
                 'deliveryCoordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)
                     ? ['lat' => (float) $order->delivery_lat, 'lng' => (float) $order->delivery_lng]
                     : null,
-                'deliveryProofImageUrl' => $order->delivery_proof_image
-                    ? rtrim(config('app.url'), '/') . '/storage/' . ltrim($order->delivery_proof_image, '/')
-                    : null,
+                'deliveryProofImageUrl' => $this->deliveryProofUrl($order->delivery_proof_image),
                 'deliveryProofUploadedAt' => $order->delivery_proof_uploaded_at?->toISOString(),
             ];
         });
 
         return response()->json($formattedOrders);
+    }
+
+    private function deliveryProofUrl(?string $proofImage): ?string
+    {
+        if (!$proofImage) {
+            return null;
+        }
+
+        if (str_starts_with($proofImage, 'data:image/') || str_starts_with($proofImage, 'http://') || str_starts_with($proofImage, 'https://')) {
+            return $proofImage;
+        }
+
+        return rtrim(config('app.url'), '/').'/storage/'.ltrim($proofImage, '/');
     }
 
     public function updateStatus(Request $request, string $id)

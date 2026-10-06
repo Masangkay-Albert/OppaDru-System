@@ -20,6 +20,7 @@ class DiscountVerificationRequest extends Model
         'discount_rate',
         'discount_amount',
         'proof_image_url',
+        'proof_image_data',
         'status',
         'rejection_reason',
         'submitted_at',
@@ -35,6 +36,17 @@ class DiscountVerificationRequest extends Model
         'submitted_at' => 'datetime',
         'reviewed_at' => 'datetime',
     ];
+
+    protected $hidden = [
+        'proof_image_data',
+    ];
+
+    public function getProofImageUrlAttribute($value): ?string
+    {
+        return $value || !empty($this->attributes['proof_image_data'])
+            ? url('/api/discount-verifications/'.$this->id.'/proof-image')
+            : null;
+    }
 
     protected static function boot()
     {

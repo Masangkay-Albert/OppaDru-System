@@ -22,6 +22,7 @@ class DiscountApplication extends Model
         'id_number',
         'expiry_date',
         'proof_image_url',
+        'proof_image_data',
         'status',
         'rejection_reason',
         'submitted_at',
@@ -34,6 +35,17 @@ class DiscountApplication extends Model
         'reviewed_at' => 'datetime',
         'expiry_date' => 'date',
     ];
+
+    protected $hidden = [
+        'proof_image_data',
+    ];
+
+    public function getProofImageUrlAttribute($value): ?string
+    {
+        return $value || !empty($this->attributes['proof_image_data'])
+            ? url('/api/discount-applications/'.$this->id.'/proof-image')
+            : null;
+    }
 
     protected static function boot()
     {

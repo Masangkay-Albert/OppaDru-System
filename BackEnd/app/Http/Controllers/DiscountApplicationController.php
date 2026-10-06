@@ -5,10 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Admin;
 use App\Models\DiscountApplication;
 use App\Notifications\DiscountApplicationDecisionNotification;
+use App\Support\DatabaseImage;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Database\QueryException;
 
@@ -40,13 +40,7 @@ class DiscountApplicationController extends Controller
             return response()->json(['message' => 'You have already submitted a discount request.'], 409);
         }
 
-        $proofPath = null;
-        if ($request->hasFile('proof_image')) {
-            $file = $request->file('proof_image');
-            $filename = time() . '-' . uniqid('', true) . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('discount-proof', $filename, 'public');
-            $proofPath = rtrim(config('app.url', 'https://oppadru-system-1.onrender.com'), '/') . '/storage/' . ltrim($path, '/');
-        }
+        $proofImageData = DatabaseImage::fromUploadedFile($request->file('proof_image'));
 
         $applicationData = [
             'user_id' => $userId,
@@ -54,7 +48,8 @@ class DiscountApplicationController extends Controller
             'full_name' => $user->full_name,
             'id_number' => trim((string) $request->input('id_number')),
             'expiry_date' => $request->input('expiry_date'),
-            'proof_image_url' => $proofPath,
+            'proof_image_url' => null,
+            'proof_image_data' => $proofImageData,
             'status' => 'pending',
             'rejection_reason' => null,
             'submitted_at' => now(),
