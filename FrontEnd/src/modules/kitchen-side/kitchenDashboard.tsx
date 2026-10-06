@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, CheckCircle, Clock, User, Eye, X, ArrowDownUp } from 'lucide-react';
+import { ChefHat, CheckCircle, Clock, Eye, X, ArrowDownUp, Flame, ClipboardList, ChevronDown } from 'lucide-react';
 
-import { STATUS_COLORS } from '../../utils/constants';
+import { sortOrders } from '../../utils/dashboardOrders';
+import { OrderDateTime, StatusBadge, UserChip } from '../shared/components/DashboardPrimitives';
 import KitchenLayout from './components/kitchenLayout'; 
 import { API_URL } from '../../services/apiConfig'; 
 
-const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition whitespace-nowrap';
-const chipPrimary = `${chipBase} bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]/70 cursor-pointer`;
-const chipSuccess = `${chipBase} bg-green-50 text-green-600 hover:bg-green-100 cursor-pointer`;
-const chipDisabled = `${chipBase} bg-gray-100 text-gray-500 cursor-default`;
+const chipBase = 'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition whitespace-nowrap motion-reduce:transition-none';
+const chipPrimary = `${chipBase} bg-[var(--oppa-green)] text-white shadow-sm hover:bg-[#245f37] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2 cursor-pointer`;
+const chipSuccess = `${chipBase} bg-[var(--oppa-green)] text-white shadow-sm hover:bg-[#245f37] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2 cursor-pointer`;
+const chipDisabled = 'inline-flex h-8 items-center gap-1 rounded-lg bg-gray-100 px-2 text-[11px] font-medium text-gray-500 whitespace-nowrap cursor-default';
 
 export interface KitchenOrder {
   id: string;
@@ -134,38 +135,32 @@ const KitchenDashboardPage: React.FC = () => {
   };
 
   // Sort the orders safely, handling missing or weird dates
-  const sortedOrders = [...orders].sort((a, b) => {
-    // Fallback to 0 if created_at is missing so the code doesn't crash
-    const dateA = new Date(a.created_at || 0).getTime();
-    const dateB = new Date(b.created_at || 0).getTime();
-    
-    return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-  });
+  const sortedOrders = sortOrders(orders, sortOrder);
+  const priorityOrdersCount = sortedOrders.filter((order) => order.deliveryType === 'priority').length;
 
   return (
     <KitchenLayout>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-medium text-[var(--oppa-green)] mb-1">
-            <User size={16} />
-            <span>Logged in as {staffName}</span>
-          </div>
-          <h1 className="mt-1 font-serif text-2xl font-bold leading-tight text-[var(--oppa-text)] sm:text-3xl">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-serif text-3xl font-bold leading-tight tracking-tight text-[var(--oppa-text)] sm:text-4xl">
             Kitchen Dashboard
           </h1>
+        </div>
+        <div className="pb-1">
+          <UserChip name={staffName} />
         </div>
       </div>
 
       {/* Tabs and Sort Controls */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative z-20 mb-4 flex min-h-10 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Tabs */}
-        <div className="flex flex-wrap gap-2">
+        <div className="inline-flex min-h-10 flex-wrap gap-1 rounded-2xl border border-[var(--oppa-border)] bg-white/70 p-1 shadow-sm">
           {(['pending', 'preparing', 'history'] as TabView[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition capitalize ${
-                activeTab === tab ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]/70'
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2 ${
+                activeTab === tab ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'bg-transparent text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'
               }`}
             >
               {tab === 'pending' ? 'New Orders' : tab === 'preparing' ? 'Currently Preparing' : 'History'}
@@ -174,43 +169,61 @@ const KitchenDashboardPage: React.FC = () => {
         </div>
 
         {/* Sort Dropdown (Always visible now) */}
-        <div className="flex w-max items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text-muted)] shadow-sm">
+        <div className="flex h-10 w-max items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-white px-3 text-sm text-[var(--oppa-text-muted)] shadow-sm ring-1 ring-black/[0.02]">
           <ArrowDownUp size={16} className="text-[var(--oppa-green)]" />
           <span className="font-medium">Sort by:</span>
+          <span className="relative inline-flex items-center">
           <select
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-            className="cursor-pointer bg-transparent font-medium text-[var(--oppa-text)] outline-none"
+            className="relative z-20 w-auto cursor-pointer appearance-none bg-transparent py-1 pr-4 font-semibold text-[var(--oppa-text)] outline-none focus-visible:rounded focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"
           >
             <option value="desc">Latest First</option>
             <option value="asc">Oldest First</option>
           </select>
+          <ChevronDown size={14} className="pointer-events-none absolute right-1 text-[var(--oppa-text-muted)]" />
+          </span>
         </div>
       </div>
 
       {loading ? (
         <div className="p-8 text-center text-gray-500">Loading orders...</div>
       ) : sortedOrders.length === 0 ? (
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">
+        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-10 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">
+          <ClipboardList className="mx-auto mb-3 text-[var(--oppa-green)]/60" size={30} />
+          <p className="font-medium text-[var(--oppa-text)]">
           {activeTab === 'pending' ? 'No new orders to prepare.' 
            : activeTab === 'preparing' ? 'You are not preparing any orders right now.' 
            : 'No completed orders yet.'}
+          </p>
+          <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">Orders will appear here when they are ready for this tab.</p>
         </div>
       ) : (
         <>
           {/* Mobile View */}
-          <div className="space-y-3 md:hidden">
-            {sortedOrders.map((order) => (
-              <div key={order.id} className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm relative overflow-hidden">
+          <div className="space-y-2 md:hidden">
+            {sortedOrders.map((order, index) => (
+              <React.Fragment key={order.id}>
+              {index === 0 && priorityOrdersCount > 0 && (
+                <p className="py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-orange-800">Priority orders</p>
+              )}
+              {index === priorityOrdersCount && priorityOrdersCount > 0 && priorityOrdersCount < sortedOrders.length && (
+                <p className="pt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--oppa-text-muted)]">Other orders</p>
+              )}
+              {index === 0 && priorityOrdersCount === 0 && (
+                <p className="py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--oppa-text-muted)]">Other orders</p>
+              )}
+              <div className={`relative overflow-hidden rounded-2xl border border-[var(--oppa-border)] p-3 shadow-sm transition-shadow motion-reduce:transition-none hover:shadow-md ${order.deliveryType === 'priority' ? 'border-l-4 border-l-orange-500 bg-gradient-to-r from-orange-50 to-white' : 'bg-white'}`}>
                 {order.deliveryType === 'priority' && (
-                  <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg uppercase tracking-wider">
-                    Priority
+                  <div className="mb-3 flex w-fit items-center gap-1 rounded-full bg-orange-100 px-2.5 py-1 text-[10px] font-bold tracking-wider text-orange-800">
+                    <Flame size={12} /> PRIORITY
                   </div>
                 )}
-                <div className="flex justify-between items-start mt-2">
+                <div className="flex items-start justify-between gap-2">
                   <div>
+                    <StatusBadge status={order.status} />
+                    <p className="mt-2 font-mono text-[13px] tabular-nums text-gray-700">{getDisplayOrderNumber(order)}</p>
                     <p className="font-medium text-[var(--oppa-text)]">{order.customerName}</p>
-                    <p className="text-xs text-[var(--oppa-text-muted)]">{getDisplayOrderNumber(order)}</p>
                     <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
                       {order.channel === 'onsite' ? 'Onsite' : 'Online'}
                     </span>
@@ -218,14 +231,16 @@ const KitchenDashboardPage: React.FC = () => {
                   </div>
                   <button 
                     onClick={() => setSelectedOrder(order)}
-                    className="p-1.5 text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200"
+                    aria-label="Details"
+                    title="Details"
+                    className="rounded-lg border border-[var(--oppa-border)] bg-white p-2 text-gray-600 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"
                   >
                     <Eye size={16} />
                   </button>
                 </div>
                 
                 {/* Status Actions */}
-                <div className="mt-4 flex items-center gap-2 border-t border-[var(--oppa-border)] pt-3">
+                <div className="mt-3 flex items-center gap-2 border-t border-[var(--oppa-border)] pt-2">
                   {activeTab === 'pending' ? (
                     <button onClick={() => updateOrderStatus(order.id, 'preparing', 'preparing')} className={chipPrimary + " w-full justify-center"}>
                       <ChefHat size={14} /> Start Preparing
@@ -241,50 +256,70 @@ const KitchenDashboardPage: React.FC = () => {
                   )}
                 </div>
               </div>
+              </React.Fragment>
             ))}
           </div>
 
           {/* Desktop View */}
-          <div className="hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/40 text-left text-xs uppercase text-[var(--oppa-text-muted)]">
-                  <th className="px-5 py-3">Order ID</th>
-                  <th className="px-5 py-3">Customer</th>
-                  <th className="px-5 py-3">Date Ordered</th>
-                  <th className="px-5 py-3 min-w-[200px]">Items</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3 text-right">Actions</th>
+          <div className="relative z-0 hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
+            <table className="w-full min-w-[1080px] table-auto text-sm">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-[var(--oppa-border)] bg-[#eaf3eb] text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                  <th className="w-[1%] whitespace-nowrap px-4 py-2.5">Order ID</th>
+                  <th className="w-[180px] px-4 py-2.5">Customer</th>
+                  <th className="hidden w-[190px] whitespace-nowrap px-4 py-2.5 xl:table-cell">Date Ordered</th>
+                  <th className="w-[100px] px-4 py-2.5">Items</th>
+                  <th className="w-[135px] whitespace-nowrap px-4 py-2.5">Status</th>
+                  <th className="w-[190px] whitespace-nowrap px-4 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {sortedOrders.map((order) => (
-                  <tr key={order.id} className="border-b border-[var(--oppa-border)]/60 last:border-0 hover:bg-[var(--oppa-cream)]">
-                    <td className="px-5 py-3 font-mono text-xs align-middle">
-                      {getDisplayOrderNumber(order)}
-                      <span className={`mt-1 block w-fit rounded-full px-2 py-0.5 font-sans text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
-                        {order.channel === 'onsite' ? 'Onsite' : 'Online'}
-                      </span>
-                      {order.deliveryType === 'priority' && (
-                        <span className="block mt-1 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded w-max uppercase">Priority</span>
-                      )}
+                {sortedOrders.map((order, index) => (
+                  <React.Fragment key={order.id}>
+                  {index === 0 && priorityOrdersCount > 0 && (
+                    <tr className="bg-orange-50/60">
+                      <td colSpan={6} className="border-b border-orange-100 px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-orange-800">Priority orders</td>
+                    </tr>
+                  )}
+                  {index === priorityOrdersCount && priorityOrdersCount > 0 && priorityOrdersCount < sortedOrders.length && (
+                    <tr className="bg-[var(--oppa-cream)]/80">
+                      <td colSpan={6} className="border-b border-[var(--oppa-border)] px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--oppa-text-muted)]">Other orders</td>
+                    </tr>
+                  )}
+                  {index === 0 && priorityOrdersCount === 0 && (
+                    <tr className="bg-[var(--oppa-cream)]/80">
+                      <td colSpan={6} className="border-b border-[var(--oppa-border)] px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--oppa-text-muted)]">Other orders</td>
+                    </tr>
+                  )}
+                  <tr className={`border-b border-[var(--oppa-border)]/60 transition-colors duration-150 motion-reduce:transition-none last:border-0 hover:bg-emerald-50/70 ${order.deliveryType === 'priority' ? 'bg-gradient-to-r from-orange-50 to-white shadow-[inset_4px_0_0_0_#f97316] hover:from-orange-100' : ''}`}>
+                    <td className="whitespace-nowrap px-4 py-2.5 align-middle">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="font-mono text-[13px] tabular-nums text-gray-700">{getDisplayOrderNumber(order)}</span>
+                        <span className={`inline-flex rounded-full px-2 py-0.5 font-sans text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                          {order.channel === 'onsite' ? 'Onsite' : 'Online'}
+                        </span>
+                        {order.deliveryType === 'priority' && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-600 px-2 py-0.5 font-sans text-[10px] font-bold uppercase tracking-wide text-white"><Flame size={11} /> PRIORITY</span>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-5 py-3 font-medium align-middle">{order.customerName || 'Customer'}</td>
-                    <td className="px-5 py-3 text-gray-500 whitespace-nowrap align-middle">
-                      {formatDate(order.created_at)}
+                    <td className="px-4 py-2.5 align-middle">
+                      <p className="font-medium text-[var(--oppa-text)]">{order.customerName || 'Customer'}</p>
                     </td>
-                    <td className="px-5 py-3 align-middle">
-                      <span className="text-gray-500">{order.items?.length || 0} items</span>
+                    <td className="hidden px-4 py-2.5 align-middle text-gray-500 xl:table-cell">
+                      <OrderDateTime date={order.created_at} />
                     </td>
-                    <td className="px-5 py-3 align-middle">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[order.status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700'}`}>
-                        {order.status}
-                      </span>
+                    <td className="whitespace-nowrap px-4 py-2.5 align-middle">
+                      <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">{order.items?.length || 0} {(order.items?.length || 0) === 1 ? 'item' : 'items'}</span>
                     </td>
-                    <td className="px-5 py-3 flex justify-end gap-2 align-middle">
+                    <td className="px-4 py-2.5 align-middle">
+                      <StatusBadge status={order.status} />
+                    </td>
+                    <td className="w-[1%] whitespace-nowrap px-4 py-2.5 align-middle">
+                      <div className="flex justify-end gap-2">
                       <button 
                         onClick={() => setSelectedOrder(order)}
-                        className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center gap-1 text-xs font-medium"
+                        className="flex items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--oppa-text)] transition hover:bg-[var(--oppa-cream)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
                       >
                         <Eye size={14} /> Details
                       </button>
@@ -299,8 +334,10 @@ const KitchenDashboardPage: React.FC = () => {
                           <CheckCircle size={14} /> Done
                         </button>
                       )}
+                      </div>
                     </td>
                   </tr>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

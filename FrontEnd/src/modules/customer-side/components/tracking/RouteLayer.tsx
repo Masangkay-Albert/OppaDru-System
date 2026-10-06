@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { getRouteOSRM, getRouteFromGoogle } from '../../../../services/geocodingService';
@@ -15,21 +15,36 @@ const RouteLayer: React.FC<RouteLayerProps> = ({ start, end, progress, onRouteLo
   const [loading, setLoading] = useState(true);
   const [usingFallback, setUsingFallback] = useState(false);
   const map = useMap();
+  const onRouteLoadedRef = useRef(onRouteLoaded);
 
   useEffect(() => {
+    onRouteLoadedRef.current = onRouteLoaded;
+  }, [onRouteLoaded]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
     const fetchRoute = async () => {
       setLoading(true);
       setUsingFallback(false);
 
-      let points = await getRouteOSRM(start, end);
+      let points = await getRouteOSRM(
+        { lat: start.lat, lng: start.lng },
+        { lat: end.lat, lng: end.lng }
+      );
 
       if (!points || points.length === 0) {
-        points = await getRouteFromGoogle(start, end);
+        points = await getRouteFromGoogle(
+          { lat: start.lat, lng: start.lng },
+          { lat: end.lat, lng: end.lng }
+        );
       }
+
+      if (isCancelled) return;
 
       if (points && points.length > 0) {
         setFullRoute(points);
-        onRouteLoaded?.(points);
+        onRouteLoadedRef.current?.(points);
         map.fitBounds(L.latLngBounds(points), { padding: [50, 50] });
       } else {
         const fallbackPoints: [number, number][] = [
@@ -38,13 +53,17 @@ const RouteLayer: React.FC<RouteLayerProps> = ({ start, end, progress, onRouteLo
           [end.lat, end.lng]
         ];
         setFullRoute(fallbackPoints);
-        onRouteLoaded?.(fallbackPoints);
+        onRouteLoadedRef.current?.(fallbackPoints);
         setUsingFallback(true);
       }
       setLoading(false);
     };
     fetchRoute();
-  }, [start, end, map, onRouteLoaded]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [start.lat, start.lng, end.lat, end.lng, map]);
 
   const traveledRoute = useMemo(() => {
     if (!fullRoute.length) return [];

@@ -77,10 +77,10 @@ const OrderTrackingPage: React.FC = () => {
 
   const handleRouteLoaded = useCallback((points: [number, number][]) => {
     setRoutePoints(points);
-    if (points.length > 0 && !isSimulating && order?.status === ORDER_STATUS.ON_THE_WAY) {
+    if (points.length > 0 && order?.status === ORDER_STATUS.ON_THE_WAY) {
       setIsSimulating(true);
     }
-  }, [isSimulating, order]);
+  }, [order?.status]);
 
   // Fetch specific order from backend if passed as requestedOrderId but not found locally
   useEffect(() => {
