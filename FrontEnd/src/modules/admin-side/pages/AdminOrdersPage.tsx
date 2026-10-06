@@ -413,7 +413,7 @@ const AdminOrdersPage: React.FC = () => {
             className="h-full w-full max-w-2xl overflow-y-auto border-l border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-2xl sm:p-7"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-5 flex items-start justify-between border-b border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-5 py-4 sm:-mx-7 sm:-mt-7 sm:px-7">
+            <div className="sticky top-0 z-20 -mx-5 mb-5 flex items-start justify-between border-b border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-5 py-4 sm:-mx-7 sm:px-7">
               <div className="min-w-0">
                 <h2 className="font-serif text-xl font-semibold text-[var(--oppa-text)]">Order Details</h2>
                 <p className="truncate font-mono text-xs text-[var(--oppa-text-muted)]">{selectedOrder.order_number || selectedOrder.id}</p>
@@ -422,7 +422,7 @@ const AdminOrdersPage: React.FC = () => {
                 onClick={() => setSelectedOrder(null)}
                 aria-label="Close order details"
                 title="Close order details"
-                className="ml-3 inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-text)]"
+                className="ml-3 inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-cream)] text-[var(--oppa-text)] shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
               >
                 <X size={18} />
               </button>
