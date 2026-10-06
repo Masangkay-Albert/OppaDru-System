@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiUser, FiCalendar, FiSave, FiCheckCircle, FiUpload } from 'react-icons/fi';
+import { FiUser, FiCalendar, FiSave, FiCheckCircle, FiUpload, FiClock, FiTrash2, FiX, FiShield } from 'react-icons/fi';
 import { useSettings } from '../../../../contexts/SettingsContext';
 import { useAuth } from '../../../../contexts/Authcontext';
 
@@ -26,6 +26,7 @@ const DiscountSection: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const activeDiscount = getActiveDiscount();
@@ -40,6 +41,15 @@ const DiscountSection: React.FC = () => {
       expiryDate: discountInfo.expiryDate || '',
     }));
   }, [discountInfo]);
+
+  useEffect(() => {
+    if (!showRemoveConfirm) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isRemoving) setShowRemoveConfirm(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showRemoveConfirm, isRemoving]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -132,8 +142,6 @@ const DiscountSection: React.FC = () => {
   };
 
   const handleRemove = async () => {
-    if (!window.confirm('Are you sure you want to remove your discount request?')) return;
-
     const token = getAuthToken();
     if (!token) {
       setMessage({ type: 'error', text: 'Your session is expired. Please log in again.' });
@@ -160,6 +168,7 @@ const DiscountSection: React.FC = () => {
       });
       setMessage({ type: 'success', text: 'Discount request removed successfully!' });
       setIsEditing(false);
+      setShowRemoveConfirm(false);
     } catch (error: any) {
       setMessage({ type: 'error', text: error?.message || 'Failed to remove discount request' });
     } finally {
@@ -186,44 +195,57 @@ const DiscountSection: React.FC = () => {
         )}
       </div>
 
-      {message && (
-        <div className={`p-4 rounded-xl mb-6 ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+      {message && !(isPendingReview && message.type === 'success') && (
+        <div role={message.type === 'error' ? 'alert' : 'status'} className={`mb-6 flex items-start gap-3 rounded-xl border p-4 text-sm ${message.type === 'success' ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+          <FiCheckCircle className="mt-0.5 shrink-0" size={17} />
           {message.text}
         </div>
       )}
 
       {isPendingReview && !isEditing ? (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-6">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <FiCheckCircle className="text-amber-600" size={20} />
-              <div>
-                <p className="text-sm text-amber-700">Pending review</p>
-                <p className="font-medium text-gray-800">Your discount request is currently under admin review.</p>
+        <div className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-4 bg-gradient-to-r from-amber-50 via-orange-50 to-white p-5 sm:flex-row sm:items-center sm:p-6">
+            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-800 ring-1 ring-amber-200">
+              <FiClock size={23} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-serif text-lg font-bold text-gray-900">Request under review</h3>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-white px-2.5 py-1 text-xs font-semibold text-amber-800">
+                  <span className="size-1.5 animate-pulse rounded-full bg-amber-500" /> Pending
+                </span>
+              </div>
+              <p className="mt-1 text-sm leading-relaxed text-gray-600">Your discount details have been submitted. We’ll update your account once they’ve been reviewed.</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-6">
+            <div className="flex min-w-0 items-start gap-3 rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-[var(--oppa-green)] shadow-sm"><FiUser size={17} /></span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Full name</p>
+                <p className="mt-1 truncate text-sm font-semibold text-gray-900">{discountInfo.fullName || 'Not provided'}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <FiUser className="text-amber-600" size={20} />
-              <div>
-                <p className="text-sm text-gray-500">Full Name</p>
-                <p className="font-medium text-gray-800">{discountInfo.fullName}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <FiCalendar className="text-amber-600" size={20} />
-              <div>
-                <p className="text-sm text-gray-500">ID Number</p>
-                <p className="font-medium text-gray-800">{discountInfo.idNumber}</p>
+            <div className="flex min-w-0 items-start gap-3 rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-[var(--oppa-green)] shadow-sm"><FiShield size={17} /></span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">ID number</p>
+                <p className="mt-1 break-all text-sm font-semibold text-gray-900">{discountInfo.idNumber || 'Not provided'}</p>
               </div>
             </div>
           </div>
-          <div className="mt-6 flex gap-3 pt-6 border-t border-amber-200">
+
+          <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <p className="text-xs leading-relaxed text-gray-500">Need to change your details? Remove this request and submit a new one.</p>
             <button
-              onClick={handleRemove}
+              type="button"
+              onClick={() => setShowRemoveConfirm(true)}
               disabled={isRemoving}
-              className="px-6 py-2.5 border-2 border-red-300 text-red-600 rounded-xl font-semibold hover:bg-red-50 transition"
+              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-start rounded-xl border border-red-200 bg-white px-4 text-sm font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
             >
-              {isRemoving ? 'Removing...' : 'Remove Request'}
+              <FiTrash2 size={15} />
+              Remove request
             </button>
           </div>
         </div>
@@ -281,13 +303,15 @@ const DiscountSection: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="flex gap-3 mt-6 pt-6 border-t border-[#2d6a4f]/20">
+          <div className="flex gap-3 mt-6 border-t border-[#2d6a4f]/20 pt-6">
             <button
-              onClick={handleRemove}
+              type="button"
+              onClick={() => setShowRemoveConfirm(true)}
               disabled={isRemoving}
-              className="flex-1 px-6 py-2.5 border-2 border-red-300 text-red-600 rounded-xl font-semibold hover:bg-red-50 transition disabled:opacity-50"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 px-5 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
             >
-              {isRemoving ? 'Removing...' : 'Remove Discount'}
+              <FiTrash2 size={15} />
+              Remove Discount
             </button>
           </div>
         </div>
@@ -414,6 +438,66 @@ const DiscountSection: React.FC = () => {
             </button>
           </div>
         </form>
+      )}
+
+      {showRemoveConfirm && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !isRemoving) setShowRemoveConfirm(false);
+          }}
+        >
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="remove-discount-title"
+            aria-describedby="remove-discount-description"
+            className="w-full max-w-md rounded-2xl border border-white/70 bg-white p-6 shadow-2xl"
+          >
+            <div className="flex items-start gap-4">
+              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-red-50 text-red-700">
+                <FiTrash2 size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h3 id="remove-discount-title" className="font-serif text-lg font-bold text-gray-900">
+                  Remove discount {isPendingReview ? 'request' : 'approval'}?
+                </h3>
+                <p id="remove-discount-description" className="mt-2 text-sm leading-relaxed text-gray-600">
+                  {isPendingReview
+                    ? 'Your application will be withdrawn. You can submit a new request later.'
+                    : 'Your approved discount will be removed from your account.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRemoveConfirm(false)}
+                disabled={isRemoving}
+                aria-label="Close confirmation"
+                className="grid size-9 shrink-0 place-items-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowRemoveConfirm(false)}
+                disabled={isRemoving}
+                className="min-h-11 rounded-xl border border-gray-200 px-5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                Keep request
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRemove()}
+                disabled={isRemoving}
+                className="min-h-11 rounded-xl bg-red-700 px-5 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-wait disabled:opacity-60"
+              >
+                {isRemoving ? 'Removing…' : 'Yes, remove'}
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );
