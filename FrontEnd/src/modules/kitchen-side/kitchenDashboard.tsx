@@ -1,188 +1,316 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, CheckCircle, Clock, Eye, X, ArrowDownUp, Flame, ClipboardList, ChevronDown } from 'lucide-react';
-
+import {
+  ArrowDownUp, CalendarClock, CheckCircle, ChefHat, ChevronDown, ClipboardList, Eye, Flame,
+} from 'lucide-react';
 import { sortOrders } from '../../utils/dashboardOrders';
 import { OrderDateTime, StatusBadge, UserChip } from '../shared/components/DashboardPrimitives';
-import KitchenLayout from './components/kitchenLayout'; 
-import { API_URL } from '../../services/apiConfig'; 
+import { API_URL } from '../../services/apiConfig';
+import KitchenLayout from './components/kitchenLayout';
+import OrderDetailsModal from './components/OrderDetailsModal';
+import type { KitchenOrder, KitchenSort, KitchenTab, ScheduledDateFilter } from './kitchenOrderTypes';
+import { formatKitchenManilaDateTime, getKitchenScheduleState } from './kitchenSchedule';
 
-const chipBase = 'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition whitespace-nowrap motion-reduce:transition-none';
-const chipPrimary = `${chipBase} bg-[var(--oppa-green)] text-white shadow-sm hover:bg-[#245f37] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2 cursor-pointer`;
-const chipSuccess = `${chipBase} bg-[var(--oppa-green)] text-white shadow-sm hover:bg-[#245f37] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2 cursor-pointer`;
-const chipDisabled = 'inline-flex h-8 items-center gap-1 rounded-lg bg-gray-100 px-2 text-[11px] font-medium text-gray-500 whitespace-nowrap cursor-default';
+const chipBase = 'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition whitespace-nowrap';
+const chipPrimary = `${chipBase} bg-[var(--oppa-green)] text-white shadow-sm hover:bg-[#245f37] disabled:cursor-not-allowed disabled:opacity-50`;
+const chipSuccess = `${chipBase} bg-[var(--oppa-green)] text-white shadow-sm hover:bg-[#245f37]`;
+const chipDisabled = `${chipBase} bg-gray-100 text-gray-500`;
+const tabs: KitchenTab[] = ['pending', 'scheduled', 'preparing', 'history'];
+const tabLabels: Record<KitchenTab, string> = {
+  pending: 'New Orders',
+  scheduled: 'Scheduled',
+  preparing: 'Currently Preparing',
+  history: 'History',
+};
 
-export interface KitchenOrder {
-  id: string;
-  order_number?: string;
-  customerName: string; 
-  channel?: 'online' | 'onsite';
-  status: string;
-  items: any[]; 
-  scheduleDisplay?: string;
-  deliveryType?: string;
-  created_at: string;
-}
+const manilaDate = (timestamp: number) => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date(timestamp));
 
-type TabView = 'pending' | 'preparing' | 'history';
-type SortOrder = 'desc' | 'asc';
-
-// Helper function to format the database date into a readable string
-const formatDate = (dateString: string) => {
-  if (!dateString) return 'Unknown date';
-  const date = new Date(dateString);
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
+const shiftDate = (date: string, days: number) => {
+  const [year, month, day] = date.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return shifted.toISOString().slice(0, 10);
 };
 
 const KitchenDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabView>('pending');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc'); // 'desc' = Latest, 'asc' = Oldest
-  const [staffName, setStaffName] = useState<string>("Kitchen Staff");
-  const ordersFetchInFlightRef = useRef(false);
-  
+  const [activeTab, setActiveTab] = useState<KitchenTab>('pending');
+  const [sortOrder, setSortOrder] = useState<KitchenSort>('desc');
+  const [staffName, setStaffName] = useState('Kitchen Staff');
+  const [scheduledCount, setScheduledCount] = useState(0);
+  const [newCount, setNewCount] = useState(0);
+  const [scheduledDateFilter, setScheduledDateFilter] = useState<ScheduledDateFilter>('all');
+  const [customDate, setCustomDate] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+  const [promotionNotice, setPromotionNotice] = useState<string | null>(null);
+  const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
-  const getDisplayOrderNumber = (order: KitchenOrder) => order.order_number || order.id;
+  const ordersFetchInFlightRef = useRef(false);
+  const activeTabRef = useRef<KitchenTab>('pending');
+  const mutationVersionRef = useRef(0);
+  const knownPromotedOrdersRef = useRef<Set<string> | null>(null);
+  const promotionNoticeTimerRef = useRef<number | null>(null);
 
-  // Security bouncer
   useEffect(() => {
-    const authData = localStorage.getItem("employee_auth");
-    const token = localStorage.getItem("employee_token");
-
+    const authData = localStorage.getItem('employee_auth');
+    const token = localStorage.getItem('employee_token');
     if (!token || !authData) {
       navigate('/staff/login', { replace: true });
-      return; 
+      return;
     }
-
+    let employee: { fullName?: string; name?: string };
     try {
-      const employee = JSON.parse(authData);
-      setStaffName(employee.fullName || employee.name || "Kitchen Staff");
-    } catch (error) {
-      navigate('/staff/login', { replace: true }); 
+      employee = JSON.parse(authData);
+    } catch {
+      navigate('/staff/login', { replace: true });
+      return;
     }
+    const timer = window.setTimeout(() => setStaffName(employee.fullName || employee.name || 'Kitchen Staff'), 0);
+    return () => window.clearTimeout(timer);
   }, [navigate]);
 
-  
-  const fetchOrders = async (showLoading = true) => {
+  const fetchOrders = useCallback(async (showLoading = true) => {
     if (ordersFetchInFlightRef.current) return;
     ordersFetchInFlightRef.current = true;
     const requestedTab = activeTab;
+    const requestedMutationVersion = mutationVersionRef.current;
     if (showLoading) setLoading(true);
     try {
-      const token = localStorage.getItem("employee_token");
-      const response = await fetch(`${API_URL}/kitchen/orders?tab=${requestedTab}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch orders');
-      
-      const data = await response.json();
-      if (requestedTab === activeTab) {
-        setOrders((current) => JSON.stringify(current) === JSON.stringify(data) ? current : data);
+      const token = localStorage.getItem('employee_token');
+      const headers = { Authorization: `Bearer ${token || ''}`, Accept: 'application/json' };
+      const [response, countsResponse] = await Promise.all([
+        fetch(`${API_URL}/kitchen/orders?tab=${requestedTab}`, { headers }),
+        fetch(`${API_URL}/kitchen/orders/counts`, { headers }),
+      ]);
+      if (!response.ok || !countsResponse.ok) {
+        throw new Error('Failed to fetch kitchen orders or scheduled order counts.');
       }
+      const [data, counts] = await Promise.all([response.json(), countsResponse.json()]);
+      if (requestedTab !== activeTabRef.current || requestedMutationVersion !== mutationVersionRef.current) return;
+
+      setOrders((current) => JSON.stringify(current) === JSON.stringify(data) ? current : data);
+      setScheduledCount(Number(counts.scheduled_count || 0));
+      setNewCount(Number(counts.new_count || 0));
+      const promotedOrders = counts.promoted_orders as KitchenOrder[];
+      const promotedIds = new Set(promotedOrders.filter((order) => order.isScheduled).map((order) => order.id));
+      if (knownPromotedOrdersRef.current) {
+        const newlyPromotedIds = [...promotedIds].filter((id) => !knownPromotedOrdersRef.current?.has(id));
+        if (newlyPromotedIds.length > 0) {
+          const promotedOrder = promotedOrders.find((order) => order.id === newlyPromotedIds[0]);
+          setPromotionNotice(`Scheduled order ${promotedOrder?.order_number || newlyPromotedIds[0]} is ready to prepare.`);
+          if (promotionNoticeTimerRef.current) window.clearTimeout(promotionNoticeTimerRef.current);
+          promotionNoticeTimerRef.current = window.setTimeout(() => setPromotionNotice(null), 7000);
+          try {
+            const audio = new AudioContext();
+            const oscillator = audio.createOscillator();
+            const gain = audio.createGain();
+            oscillator.frequency.value = 880;
+            gain.gain.value = 0.08;
+            oscillator.connect(gain);
+            gain.connect(audio.destination);
+            oscillator.start();
+            oscillator.stop(audio.currentTime + 0.18);
+            oscillator.onended = () => void audio.close();
+          } catch (error) {
+            console.info('Kitchen alert sound is unavailable; visual alert remains active.', error);
+          }
+        }
+      }
+      knownPromotedOrdersRef.current = promotedIds;
     } catch (error) {
-      console.error("Error fetching orders:", error);
+      console.error('Error fetching kitchen orders:', error);
     } finally {
       ordersFetchInFlightRef.current = false;
-      if (showLoading && requestedTab === activeTab) setLoading(false);
+      if (showLoading && requestedTab === activeTabRef.current) setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    void fetchOrders();
-    const interval = window.setInterval(() => {
-      void fetchOrders(false);
-    }, 5000);
-
-    return () => window.clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // Update order status in Laravel API
-  const updateOrderStatus = async (orderId: string, newStatus: string, nextTab: TabView) => {
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+    const initialFetch = window.setTimeout(() => void fetchOrders(), 0);
+    const interval = window.setInterval(() => void fetchOrders(false), 5000);
+    return () => {
+      window.clearTimeout(initialFetch);
+      window.clearInterval(interval);
+    };
+  }, [activeTab, fetchOrders]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      window.clearInterval(timer);
+      if (promotionNoticeTimerRef.current) window.clearTimeout(promotionNoticeTimerRef.current);
+    };
+  }, []);
+
+  const updateOrderStatus = async (
+    orderId: string,
+    status: string,
+    nextTab: KitchenTab | null,
+    startEarly = false,
+  ) => {
+    setBusyOrderId(orderId);
     try {
-      const token = localStorage.getItem("employee_token");
+      const token = localStorage.getItem('employee_token');
       const response = await fetch(`${API_URL}/kitchen/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token || ''}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          Accept: 'application/json',
         },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status, start_early: startEarly }),
       });
-
-      if (!response.ok) throw new Error('Failed to update status');
-
-      setActiveTab(nextTab);
-      if (activeTab === nextTab) fetchOrders(); 
+      if (!response.ok) {
+        const failure = await response.json().catch(() => ({}));
+        throw new Error(failure.message || 'Failed to update order status.');
+      }
+      mutationVersionRef.current += 1;
+      setOrders((current) => current.filter((order) => order.id !== orderId));
+      if (nextTab) setActiveTab(nextTab);
+      setSelectedOrder(null);
+      if (!nextTab || nextTab === activeTab) await fetchOrders(false);
     } catch (error) {
-      console.error("Error updating status:", error);
-      alert("Failed to update order status. Please try again.");
+      console.error('Error updating kitchen order:', error);
+      window.alert(error instanceof Error ? error.message : 'Failed to update order status.');
+    } finally {
+      setBusyOrderId(null);
     }
   };
 
-  // Sort the orders safely, handling missing or weird dates
-  const sortedOrders = sortOrders(orders, sortOrder);
-  const priorityOrdersCount = sortedOrders.filter((order) => order.deliveryType === 'priority').length;
+  const rescheduleOrder = async (order: KitchenOrder, scheduledFor: string) => {
+    setBusyOrderId(order.id);
+    try {
+      const token = localStorage.getItem('employee_token');
+      const response = await fetch(`${API_URL}/kitchen/orders/${order.id}/schedule`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token || ''}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ scheduled_for: scheduledFor }),
+      });
+      if (!response.ok) {
+        const failure = await response.json().catch(() => ({}));
+        throw new Error(failure.message || failure.errors?.scheduled_for?.[0] || 'Failed to reschedule order.');
+      }
+      const result = await response.json();
+      const rescheduledOrder = result.order as KitchenOrder;
+      mutationVersionRef.current += 1;
+      setOrders((current) => {
+        if (rescheduledOrder.prepStartTime && new Date(rescheduledOrder.prepStartTime).getTime() <= Date.now()) {
+          return current.filter((currentOrder) => currentOrder.id !== order.id);
+        }
+        return current.map((currentOrder) => currentOrder.id === order.id ? rescheduledOrder : currentOrder);
+      });
+      setSelectedOrder(null);
+      await fetchOrders(false);
+    } catch (error) {
+      console.error('Error rescheduling kitchen order:', error);
+      window.alert(error instanceof Error ? error.message : 'Failed to reschedule order.');
+    } finally {
+      setBusyOrderId(null);
+    }
+  };
+
+  const isAutoPriority = (order: KitchenOrder) => Boolean(
+    order.isScheduled && order.scheduledFor
+    && new Date(order.scheduledFor).getTime() - now <= 15 * 60_000
+    && new Date(order.scheduledFor).getTime() >= now,
+  );
+  const isLate = (order: KitchenOrder) => Boolean(
+    order.isScheduled && order.scheduledFor
+    && new Date(order.scheduledFor).getTime() < now
+    && order.status === 'pending',
+  );
+  const isPriority = (order: KitchenOrder) => order.deliveryType === 'priority' || isAutoPriority(order);
+  const today = manilaDate(now);
+  const weekdayNumber = ({ Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 } as Record<string, number>)[
+    new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', weekday: 'short' }).format(new Date(now))
+  ];
+  const weekStart = shiftDate(today, -((weekdayNumber + 6) % 7));
+  const weekEnd = shiftDate(weekStart, 7);
+  const matchesScheduledDate = (order: KitchenOrder) => {
+    if (!order.scheduledFor || scheduledDateFilter === 'all') return true;
+    const date = manilaDate(new Date(order.scheduledFor).getTime());
+    if (scheduledDateFilter === 'today') return date === today;
+    if (scheduledDateFilter === 'tomorrow') return date === shiftDate(today, 1);
+    if (scheduledDateFilter === 'week') return date >= weekStart && date < weekEnd;
+    return !customDate || date === customDate;
+  };
+  const visibleOrders = activeTab === 'scheduled' ? orders.filter(matchesScheduledDate) : orders;
+  const sortedOrders = sortOrder === 'due'
+    ? [...visibleOrders].sort((left, right) => {
+      const priorityDifference = Number(isPriority(right)) - Number(isPriority(left));
+      if (priorityDifference) return priorityDifference;
+      return new Date(left.scheduledFor || left.created_at).getTime()
+        - new Date(right.scheduledFor || right.created_at).getTime();
+    })
+    : sortOrders(visibleOrders, sortOrder);
+  const renderBadges = (order: KitchenOrder) => (
+    <div className="mt-1 flex flex-wrap gap-1">
+      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+        {order.channel === 'onsite' ? 'Onsite' : 'Online'}
+      </span>
+      {order.isScheduled && <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-900"><CalendarClock size={11} /> Scheduled</span>}
+      {order.rescheduledFrom && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">Rescheduled</span>}
+      {isPriority(order) && <span className="inline-flex items-center gap-1 rounded-full bg-orange-600 px-2 py-0.5 text-[10px] font-bold text-white"><Flame size={11} /> PRIORITY</span>}
+      {isLate(order) && <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800">LATE</span>}
+    </div>
+  );
 
   return (
     <KitchenLayout>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="font-serif text-3xl font-bold leading-tight tracking-tight text-[var(--oppa-text)] sm:text-4xl">
-            Kitchen Dashboard
-          </h1>
+          <h1 className="font-serif text-3xl font-bold leading-tight tracking-tight text-[var(--oppa-text)] sm:text-4xl">Kitchen Dashboard</h1>
         </div>
-        <div className="pb-1">
-          <UserChip name={staffName} />
-        </div>
+        <UserChip name={staffName} />
       </div>
 
-      {/* Tabs and Sort Controls */}
+      {promotionNotice && (
+        <div role="status" aria-live="assertive" className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 font-semibold text-emerald-950 shadow-sm">
+          <span className="grid size-9 place-items-center rounded-full bg-emerald-100"><ChefHat size={18} /></span>
+          <span className="flex-1">{promotionNotice}</span>
+          <button type="button" onClick={() => setPromotionNotice(null)} aria-label="Dismiss order alert" className="rounded-lg p-2 hover:bg-emerald-100">×</button>
+        </div>
+      )}
+
       <div className="relative z-20 mb-4 flex min-h-10 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {/* Tabs */}
         <div className="inline-flex min-h-10 flex-wrap gap-1 rounded-2xl border border-[var(--oppa-border)] bg-white/70 p-1 shadow-sm">
-          {(['pending', 'preparing', 'history'] as TabView[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2 ${
-                activeTab === tab ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'bg-transparent text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'
-              }`}
-            >
-              {tab === 'pending' ? 'New Orders' : tab === 'preparing' ? 'Currently Preparing' : 'History'}
+          {tabs.map((tab) => (
+            <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] ${activeTab === tab ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}>
+              {tabLabels[tab]}
+              {tab === 'scheduled' && <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${activeTab === tab ? 'bg-white/20' : 'bg-violet-100 text-violet-900'}`}>{scheduledCount}</span>}
+              {tab === 'pending' && <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${activeTab === tab ? 'bg-white/20' : 'bg-emerald-100 text-emerald-900'}`}>{newCount}</span>}
             </button>
           ))}
         </div>
-
-        {/* Sort Dropdown (Always visible now) */}
-        <div className="flex h-10 w-max items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-white px-3 text-sm text-[var(--oppa-text-muted)] shadow-sm ring-1 ring-black/[0.02]">
-          <ArrowDownUp size={16} className="text-[var(--oppa-green)]" />
-          <span className="font-medium">Sort by:</span>
-          <span className="relative inline-flex items-center">
-          <select
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-            className="relative z-20 w-auto cursor-pointer appearance-none bg-transparent py-1 pr-4 font-semibold text-[var(--oppa-text)] outline-none focus-visible:rounded focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"
-          >
-            <option value="desc">Latest First</option>
-            <option value="asc">Oldest First</option>
-          </select>
-          <ChevronDown size={14} className="pointer-events-none absolute right-1 text-[var(--oppa-text-muted)]" />
-          </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {activeTab === 'scheduled' && (
+            <>
+              <select aria-label="Filter scheduled orders by date" value={scheduledDateFilter}
+                onChange={(event) => setScheduledDateFilter(event.target.value as ScheduledDateFilter)}
+                className="h-10 rounded-xl border border-[var(--oppa-border)] bg-white px-3 text-sm font-medium">
+                <option value="all">All dates</option><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="week">This Week</option><option value="custom">Custom</option>
+              </select>
+              {scheduledDateFilter === 'custom' && <input aria-label="Choose scheduled date" type="date" value={customDate} onChange={(event) => setCustomDate(event.target.value)} className="h-10 rounded-xl border border-[var(--oppa-border)] bg-white px-3 text-sm" />}
+            </>
+          )}
+          <div className="flex h-10 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-white px-3 text-sm text-[var(--oppa-text-muted)] shadow-sm">
+            <ArrowDownUp size={16} className="text-[var(--oppa-green)]" /><span className="font-medium">Sort:</span>
+            <span className="relative inline-flex items-center">
+              <select aria-label="Sort orders" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as KitchenSort)}
+                className="appearance-none bg-transparent py-1 pr-5 font-semibold text-[var(--oppa-text)] outline-none">
+                <option value="desc">Latest First</option><option value="asc">Oldest First</option><option value="due">Due Soonest</option>
+              </select><ChevronDown size={14} className="pointer-events-none absolute right-0" />
+            </span>
+          </div>
         </div>
       </div>
 
@@ -192,208 +320,83 @@ const KitchenDashboardPage: React.FC = () => {
         <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-10 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">
           <ClipboardList className="mx-auto mb-3 text-[var(--oppa-green)]/60" size={30} />
           <p className="font-medium text-[var(--oppa-text)]">
-          {activeTab === 'pending' ? 'No new orders to prepare.' 
-           : activeTab === 'preparing' ? 'You are not preparing any orders right now.' 
-           : 'No completed orders yet.'}
+            {activeTab === 'pending' ? 'No new orders to prepare.' : activeTab === 'scheduled' ? 'No scheduled orders for this date.' : activeTab === 'preparing' ? 'You are not preparing any orders right now.' : 'No completed orders yet.'}
           </p>
-          <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">Orders will appear here when they are ready for this tab.</p>
+          <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">Orders and schedule changes update automatically.</p>
         </div>
       ) : (
         <>
-          {/* Mobile View */}
           <div className="space-y-2 md:hidden">
-            {sortedOrders.map((order, index) => (
-              <React.Fragment key={order.id}>
-              {index === 0 && priorityOrdersCount > 0 && (
-                <p className="py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-orange-800">Priority orders</p>
-              )}
-              {index === priorityOrdersCount && priorityOrdersCount > 0 && priorityOrdersCount < sortedOrders.length && (
-                <p className="pt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--oppa-text-muted)]">Other orders</p>
-              )}
-              {index === 0 && priorityOrdersCount === 0 && (
-                <p className="py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--oppa-text-muted)]">Other orders</p>
-              )}
-              <div className={`relative overflow-hidden rounded-2xl border border-[var(--oppa-border)] p-3 shadow-sm transition-shadow motion-reduce:transition-none hover:shadow-md ${order.deliveryType === 'priority' ? 'border-l-4 border-l-orange-500 bg-gradient-to-r from-orange-50 to-white' : 'bg-white'}`}>
-                {order.deliveryType === 'priority' && (
-                  <div className="mb-3 flex w-fit items-center gap-1 rounded-full bg-orange-100 px-2.5 py-1 text-[10px] font-bold tracking-wider text-orange-800">
-                    <Flame size={12} /> PRIORITY
+            {sortedOrders.map((order) => {
+              const scheduleState = order.isScheduled && order.prepStartTime && order.scheduledFor
+                ? getKitchenScheduleState(order.prepStartTime, order.scheduledFor, now) : null;
+              const mayStart = !order.isScheduled || !order.prepStartTime || new Date(order.prepStartTime).getTime() <= now;
+              return (
+                <article key={order.id} className={`rounded-2xl border border-[var(--oppa-border)] p-3 shadow-sm ${isPriority(order) ? 'border-l-4 border-l-orange-500 bg-orange-50/60' : 'bg-white'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <StatusBadge status={order.status} />
+                      <p className="mt-2 font-mono text-xs text-gray-700">{order.order_number || order.id}</p>
+                      <p className="font-medium text-[var(--oppa-text)]">{order.customerName}</p>
+                      {renderBadges(order)}
+                    </div>
+                    <button type="button" onClick={() => setSelectedOrder(order)} aria-label={`Details for ${order.order_number || order.id}`} className="rounded-lg border p-2 text-gray-600 hover:bg-gray-50"><Eye size={16} /></button>
                   </div>
-                )}
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <StatusBadge status={order.status} />
-                    <p className="mt-2 font-mono text-[13px] tabular-nums text-gray-700">{getDisplayOrderNumber(order)}</p>
-                    <p className="font-medium text-[var(--oppa-text)]">{order.customerName}</p>
-                    <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
-                      {order.channel === 'onsite' ? 'Onsite' : 'Online'}
-                    </span>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(order.created_at)}</p>
+                  <p className="mt-2 text-xs text-gray-500">{order.isScheduled && order.scheduledFor ? `Due ${formatKitchenManilaDateTime(order.scheduledFor, { year: undefined })}` : <OrderDateTime date={order.created_at} />}</p>
+                  {scheduleState && <p className="mt-1 text-xs font-semibold text-violet-900">{scheduleState.label} · {scheduleState.detail}</p>}
+                  <div className="mt-3 border-t border-gray-100 pt-2">
+                    {activeTab === 'pending' && <button type="button" disabled={!mayStart || busyOrderId === order.id} onClick={() => void updateOrderStatus(order.id, 'preparing', 'preparing')} className={`${chipPrimary} w-full`}><ChefHat size={14} /> Start Preparing</button>}
+                    {activeTab === 'preparing' && <button type="button" onClick={() => void updateOrderStatus(order.id, 'prepared', 'history')} className={`${chipSuccess} w-full`}><CheckCircle size={14} /> Done Preparing</button>}
+                    {activeTab === 'history' && <span className={`${chipDisabled} w-full`}><CheckCircle size={14} /> {order.status === 'delivered' ? 'Delivered' : order.status === 'cancelled' ? 'Cancelled' : 'Ready'}</span>}
                   </div>
-                  <button 
-                    onClick={() => setSelectedOrder(order)}
-                    aria-label="Details"
-                    title="Details"
-                    className="rounded-lg border border-[var(--oppa-border)] bg-white p-2 text-gray-600 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"
-                  >
-                    <Eye size={16} />
-                  </button>
-                </div>
-                
-                {/* Status Actions */}
-                <div className="mt-3 flex items-center gap-2 border-t border-[var(--oppa-border)] pt-2">
-                  {activeTab === 'pending' ? (
-                    <button onClick={() => updateOrderStatus(order.id, 'preparing', 'preparing')} className={chipPrimary + " w-full justify-center"}>
-                      <ChefHat size={14} /> Start Preparing
-                    </button>
-                  ) : activeTab === 'preparing' ? (
-                    <button onClick={() => updateOrderStatus(order.id, 'prepared', 'history')} className={chipSuccess + " w-full justify-center"}>
-                      <CheckCircle size={14} /> Done Preparing
-                    </button>
-                  ) : (
-                    <span className={chipDisabled + " w-full justify-center"}>
-                      <CheckCircle size={14} /> {order.status === 'delivered' ? 'Delivered' : 'Ready'}
-                    </span>
-                  )}
-                </div>
-              </div>
-              </React.Fragment>
-            ))}
+                </article>
+              );
+            })}
           </div>
 
-          {/* Desktop View */}
-          <div className="relative z-0 hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
-            <table className="w-full min-w-[1080px] table-auto text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="border-b border-[var(--oppa-border)] bg-[#eaf3eb] text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">
-                  <th className="w-[1%] whitespace-nowrap px-4 py-2.5">Order ID</th>
-                  <th className="w-[180px] px-4 py-2.5">Customer</th>
-                  <th className="hidden w-[190px] whitespace-nowrap px-4 py-2.5 xl:table-cell">Date Ordered</th>
-                  <th className="w-[100px] px-4 py-2.5">Items</th>
-                  <th className="w-[135px] whitespace-nowrap px-4 py-2.5">Status</th>
-                  <th className="w-[190px] whitespace-nowrap px-4 py-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedOrders.map((order, index) => (
-                  <React.Fragment key={order.id}>
-                  {index === 0 && priorityOrdersCount > 0 && (
-                    <tr className="bg-orange-50/60">
-                      <td colSpan={6} className="border-b border-orange-100 px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-orange-800">Priority orders</td>
-                    </tr>
-                  )}
-                  {index === priorityOrdersCount && priorityOrdersCount > 0 && priorityOrdersCount < sortedOrders.length && (
-                    <tr className="bg-[var(--oppa-cream)]/80">
-                      <td colSpan={6} className="border-b border-[var(--oppa-border)] px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--oppa-text-muted)]">Other orders</td>
-                    </tr>
-                  )}
-                  {index === 0 && priorityOrdersCount === 0 && (
-                    <tr className="bg-[var(--oppa-cream)]/80">
-                      <td colSpan={6} className="border-b border-[var(--oppa-border)] px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--oppa-text-muted)]">Other orders</td>
-                    </tr>
-                  )}
-                  <tr className={`border-b border-[var(--oppa-border)]/60 transition-colors duration-150 motion-reduce:transition-none last:border-0 hover:bg-emerald-50/70 ${order.deliveryType === 'priority' ? 'bg-gradient-to-r from-orange-50 to-white shadow-[inset_4px_0_0_0_#f97316] hover:from-orange-100' : ''}`}>
-                    <td className="whitespace-nowrap px-4 py-2.5 align-middle">
-                      <div className="flex flex-wrap items-center gap-1">
-                        <span className="font-mono text-[13px] tabular-nums text-gray-700">{getDisplayOrderNumber(order)}</span>
-                        <span className={`inline-flex rounded-full px-2 py-0.5 font-sans text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
-                          {order.channel === 'onsite' ? 'Onsite' : 'Online'}
-                        </span>
-                        {order.deliveryType === 'priority' && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-600 px-2 py-0.5 font-sans text-[10px] font-bold uppercase tracking-wide text-white"><Flame size={11} /> PRIORITY</span>
-                        )}
-                      </div>
+          <div className="hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
+            <table className="w-full min-w-[1000px] text-sm">
+              <thead><tr className="border-b bg-[#eaf3eb] text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                <th className="px-4 py-3">Order ID</th><th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">{activeTab === 'scheduled' ? 'Scheduled For' : 'Date Ordered'}</th>
+                <th className="px-4 py-3">Items</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th>
+              </tr></thead>
+              <tbody>{sortedOrders.map((order) => {
+                const scheduleState = order.isScheduled && order.prepStartTime && order.scheduledFor
+                  ? getKitchenScheduleState(order.prepStartTime, order.scheduledFor, now) : null;
+                const mayStart = !order.isScheduled || !order.prepStartTime || new Date(order.prepStartTime).getTime() <= now;
+                return (
+                  <tr key={order.id} className={`border-b border-gray-100 last:border-0 hover:bg-emerald-50/60 ${isPriority(order) ? 'bg-orange-50/50' : ''}`}>
+                    <td className="px-4 py-3 align-middle"><span className="font-mono text-xs">{order.order_number || order.id}</span>{renderBadges(order)}</td>
+                    <td className="px-4 py-3 font-medium">{order.customerName || 'Customer'}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {order.isScheduled && order.scheduledFor ? <><strong className="block text-gray-800">{formatKitchenManilaDateTime(order.scheduledFor)}</strong>{scheduleState && <span className="text-xs">{scheduleState.detail}</span>}</> : <OrderDateTime date={order.created_at} />}
                     </td>
-                    <td className="px-4 py-2.5 align-middle">
-                      <p className="font-medium text-[var(--oppa-text)]">{order.customerName || 'Customer'}</p>
-                    </td>
-                    <td className="hidden px-4 py-2.5 align-middle text-gray-500 xl:table-cell">
-                      <OrderDateTime date={order.created_at} />
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 align-middle">
-                      <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">{order.items?.length || 0} {(order.items?.length || 0) === 1 ? 'item' : 'items'}</span>
-                    </td>
-                    <td className="px-4 py-2.5 align-middle">
-                      <StatusBadge status={order.status} />
-                    </td>
-                    <td className="w-[1%] whitespace-nowrap px-4 py-2.5 align-middle">
-                      <div className="flex justify-end gap-2">
-                      <button 
-                        onClick={() => setSelectedOrder(order)}
-                        className="flex items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--oppa-text)] transition hover:bg-[var(--oppa-cream)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
-                      >
-                        <Eye size={14} /> Details
-                      </button>
-                      
-                      {activeTab === 'pending' && (
-                        <button onClick={() => updateOrderStatus(order.id, 'preparing', 'preparing')} className={chipPrimary}>
-                          <ChefHat size={14} /> Start
-                        </button>
-                      )}
-                      {activeTab === 'preparing' && (
-                        <button onClick={() => updateOrderStatus(order.id, 'prepared', 'history')} className={chipSuccess}>
-                          <CheckCircle size={14} /> Done
-                        </button>
-                      )}
-                      </div>
-                    </td>
+                    <td className="px-4 py-3">{order.items?.length || 0} {(order.items?.length || 0) === 1 ? 'item' : 'items'}</td>
+                    <td className="px-4 py-3"><StatusBadge status={order.status} /></td>
+                    <td className="px-4 py-3"><div className="flex justify-end gap-2">
+                      <button type="button" onClick={() => setSelectedOrder(order)} className="inline-flex min-h-10 items-center gap-1 rounded-lg border px-3 text-xs font-semibold hover:bg-gray-50"><Eye size={14} /> Details</button>
+                      {activeTab === 'pending' && <button type="button" disabled={!mayStart || busyOrderId === order.id} onClick={() => void updateOrderStatus(order.id, 'preparing', 'preparing')} className={chipPrimary}><ChefHat size={14} /> Start</button>}
+                      {activeTab === 'preparing' && <button type="button" onClick={() => void updateOrderStatus(order.id, 'prepared', 'history')} className={chipSuccess}><CheckCircle size={14} /> Done</button>}
+                    </div></td>
                   </tr>
-                  </React.Fragment>
-                ))}
-              </tbody>
+                );
+              })}</tbody>
             </table>
           </div>
         </>
       )}
 
-      {/* Order Details Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl overflow-y-auto max-h-[90vh]">
-            <div className="flex items-start justify-between mb-4 border-b pb-4">
-              <div>
-                <h2 className="text-xl font-bold">Order Details</h2>
-                <p className="text-sm text-gray-500 font-mono">{getDisplayOrderNumber(selectedOrder)}</p>
-              </div>
-              <button onClick={() => setSelectedOrder(null)} className="rounded-full p-2 hover:bg-gray-100 transition">
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Customer</p>
-                  <p className="font-medium">{selectedOrder.customerName}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Date Ordered</p>
-                  <p className="font-medium text-sm">{formatDate(selectedOrder.created_at)}</p>
-                </div>
-              </div>
-              
-              <div>
-                <p className="text-sm text-gray-500 mb-2">Items to Prepare</p>
-                <ul className="space-y-2 bg-gray-50 p-4 rounded-xl">
-                  {selectedOrder.items?.map((item: any, idx: number) => (
-                    <li key={idx} className="flex justify-between border-b last:border-0 pb-2 last:pb-0">
-                      <span className="font-medium">
-                        <span className="text-[var(--oppa-green)] mr-1">{item.quantity}x</span>
-                        {item.name || item.product_name || item.title || 'Item'} 
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {selectedOrder.scheduleDisplay && (
-                 <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
-                   <Clock size={16} />
-                   <span>Scheduled: {selectedOrder.scheduleDisplay}</span>
-                 </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <OrderDetailsModal
+          order={selectedOrder}
+          busy={busyOrderId === selectedOrder.id}
+          onClose={() => setSelectedOrder(null)}
+          onStart={(order, startEarly = false) => void updateOrderStatus(order.id, 'preparing', 'preparing', startEarly)}
+          onComplete={(order) => void updateOrderStatus(order.id, 'prepared', 'history')}
+          onReschedule={(order, scheduledFor) => void rescheduleOrder(order, scheduledFor)}
+          onCancel={(order) => void updateOrderStatus(order.id, 'cancelled', null)}
+        />
       )}
     </KitchenLayout>
   );

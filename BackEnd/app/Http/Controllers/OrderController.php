@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\User;
 use App\Services\Order\OrderDataService;
+use App\Services\Order\ScheduleService;
 use App\Services\FranchiseInventoryService;
 use App\Services\PricingService;
 use App\Support\DatabaseImage;
@@ -22,6 +23,7 @@ class OrderController extends Controller
     public function __construct(
         private readonly OrderDataService $orderDataService,
         private readonly FranchiseInventoryService $franchiseInventoryService,
+        private readonly ScheduleService $scheduleService,
     )
     {
     }
@@ -143,6 +145,7 @@ class OrderController extends Controller
             'delivery_address' => 'required|string',
             'payment_method' => 'required|string|in:cash_on_delivery,gcash,credit_card',
             'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
+            'fulfillment_type' => 'nullable|string|in:pickup,delivery',
             'scheduled_at' => 'nullable|date',
             'scheduled_date' => 'nullable|date',
             'scheduled_time' => 'nullable|string',
@@ -222,6 +225,18 @@ class OrderController extends Controller
             $scheduledData = $this->resolveScheduledDelivery($request);
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['errors' => ['scheduled_at' => [$exception->getMessage()]]], 422);
+        }
+        if ($scheduledData['scheduled_at'] !== null) {
+            $franchise = $request->filled('franchise_id')
+                ? \App\Models\Franchise::find($request->input('franchise_id'))
+                : null;
+            $hoursError = $this->scheduleService->operatingHoursError(
+                $franchise,
+                Carbon::parse($scheduledData['scheduled_at'], 'Asia/Manila')
+            );
+            if ($hoursError) {
+                return response()->json(['errors' => ['scheduled_at' => [$hoursError]]], 422);
+            }
         }
 
         $discountType = trim((string) $request->input('discount_type', ''));
@@ -318,6 +333,13 @@ class OrderController extends Controller
             'schedule_window' => $scheduledData['schedule_window'],
             'payment_reference' => $payment?->reference,
             'payment_status' => $payment ? 'paid' : 'pending',
+            'is_scheduled' => $scheduledData['scheduled_at'] !== null,
+            'scheduled_for' => $scheduledData['scheduled_at'],
+            'fulfillment_type' => $request->input(
+                'fulfillment_type',
+                strtolower((string) $request->input('delivery_type')) === 'onsite' ? 'pickup' : 'delivery'
+            ),
+            'special_instructions' => trim(collect($orderItems)->pluck('special_instructions')->filter()->implode("\n")) ?: null,
             'discount_type' => $discountType !== '' ? $discountType : null,
             'discount_rate' => $discountType !== '' ? $discountRate : null,
             'discount_amount' => $discountType !== '' ? $discountAmount : null,

@@ -125,7 +125,9 @@ Route::get('/settings/pricing', [SettingController::class, 'index']);
 /// KITCHEN
 Route::middleware(['employee.access:kitchen_staff'])->group(function () {
     Route::get('/kitchen/orders', [KitchenOrderController::class, 'index']);
+    Route::get('/kitchen/orders/counts', [KitchenOrderController::class, 'counts']);
     Route::patch('/kitchen/orders/{id}/status', [KitchenOrderController::class, 'updateStatus']);
+    Route::patch('/kitchen/orders/{id}/schedule', [KitchenOrderController::class, 'reschedule']);
 });
 
 //drivers

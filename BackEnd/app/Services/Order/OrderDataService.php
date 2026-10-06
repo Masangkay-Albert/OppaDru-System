@@ -80,6 +80,13 @@ class OrderDataService
             'discount_requested_at' => $order->discount_requested_at ? $this->convertToPhilippineTime($order->discount_requested_at) : null,
             'discount_reviewed_at' => $order->discount_reviewed_at ? $this->convertToPhilippineTime($order->discount_reviewed_at) : null,
             'scheduled_at' => $order->scheduled_at ? $this->convertToPhilippineTime($order->scheduled_at) : null,
+            'is_scheduled' => (bool) ($order->is_scheduled ?? ($order->delivery_type === 'scheduled')),
+            'scheduled_for' => $order->scheduled_for
+                ? $this->convertToPhilippineTime($order->scheduled_for)
+                : ($order->scheduled_at ? $this->convertToPhilippineTime($order->scheduled_at) : null),
+            'fulfillment_type' => $order->fulfillment_type ?? 'delivery',
+            'special_instructions' => $order->special_instructions,
+            'rescheduled_from' => $order->rescheduled_from ? $this->convertToPhilippineTime($order->rescheduled_from) : null,
             'scheduled_date' => $order->scheduled_date,
             'scheduled_time' => $order->scheduled_time,
             'schedule_display' => $order->schedule_display,
