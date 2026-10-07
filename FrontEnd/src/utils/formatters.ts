@@ -16,6 +16,16 @@ export const formatCurrency = (amount: NumericValue): string => {
   }).format(Math.round(safeAmount));
 };
 
+export const formatPeso = (amount: NumericValue): string => {
+  const safeAmount = toFiniteNumber(amount);
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(safeAmount);
+};
+
 export const formatDate = (date: Date): string => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };

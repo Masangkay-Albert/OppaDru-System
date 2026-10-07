@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import type { AdminOrder } from '../../../../services/adminOrderService';
-import { formatCurrency } from '../../../../utils/formatters';
+import { formatPeso } from '../../../../utils/formatters';
 import { FiPrinter, FiCheckCircle, FiX } from 'react-icons/fi';
 
 interface POSReceiptModalProps {
@@ -87,7 +87,7 @@ const POSReceiptModal: React.FC<POSReceiptModalProps> = ({ order, onClose, onNew
               <span>AMOUNT</span>
             </div>
 
-            {order.items.map((item: any, idx: number) => {
+            {order.items.map((item, idx: number) => {
               const itemTotal = Number(item.price || item.product_price || 0) * Number(item.quantity || 1);
               return (
                 <div key={idx} className="space-y-0.5">
@@ -96,14 +96,14 @@ const POSReceiptModal: React.FC<POSReceiptModalProps> = ({ order, onClose, onNew
                       {item.quantity}x {item.name || item.product_name}
                       {item.selectedSize ? ` (${item.selectedSize})` : ''}
                     </span>
-                    <span>{formatCurrency(itemTotal)}</span>
+                    <span className="tabular-nums">{formatPeso(itemTotal)}</span>
                   </div>
                   {item.selectedAddons && item.selectedAddons.length > 0 && (
                     <div className="pl-3 text-[10px] text-gray-500 space-y-0.5">
-                      {item.selectedAddons.map((addon: any, aIdx: number) => (
+                      {item.selectedAddons.map((addon, aIdx: number) => (
                         <div key={aIdx} className="flex justify-between">
                           <span>+ {addon.name}</span>
-                          <span>{formatCurrency(Number(addon.price || 0))}</span>
+                          <span className="tabular-nums">{formatPeso(Number(addon.price || 0))}</span>
                         </div>
                       ))}
                     </div>
@@ -116,7 +116,7 @@ const POSReceiptModal: React.FC<POSReceiptModalProps> = ({ order, onClose, onNew
           <div className="border-t border-dashed border-gray-300 pt-2 space-y-1 text-xs">
             <div className="flex justify-between font-bold text-sm text-gray-900 pt-1 border-t border-gray-200">
               <span>TOTAL DUE:</span>
-              <span>{formatCurrency(order.total || 0)}</span>
+              <span className="tabular-nums">{formatPeso(order.total || 0)}</span>
             </div>
             <div className="flex justify-between text-gray-600 text-[11px] pt-1">
               <span>Payment Method:</span>
@@ -126,11 +126,11 @@ const POSReceiptModal: React.FC<POSReceiptModalProps> = ({ order, onClose, onNew
               <>
                 <div className="flex justify-between text-gray-600 text-[11px]">
                   <span>Cash Tendered:</span>
-                  <span>{formatCurrency(order.cashTendered)}</span>
+                  <span className="tabular-nums">{formatPeso(order.cashTendered)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-emerald-700 text-xs">
                   <span>Change:</span>
-                  <span>{formatCurrency(order.changeDue || 0)}</span>
+                  <span className="tabular-nums">{formatPeso(order.changeDue || 0)}</span>
                 </div>
               </>
             )}

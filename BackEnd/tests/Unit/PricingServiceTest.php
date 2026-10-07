@@ -13,6 +13,23 @@ class PricingServiceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_onsite_pos_senior_discount_applies_twenty_percent_to_vat_exempt_base(): void
+    {
+        $totals = app(PricingService::class)->calculatePosDiscount(1120, true);
+
+        $this->assertSame(1000.0, $totals['vatExemptBase']);
+        $this->assertSame(200.0, $totals['discountAmount']);
+        $this->assertSame(800.0, $totals['total']);
+    }
+
+    public function test_onsite_pos_regular_total_is_unchanged(): void
+    {
+        $totals = app(PricingService::class)->calculatePosDiscount(1120, false);
+
+        $this->assertSame(0.0, $totals['discountAmount']);
+        $this->assertSame(1120.0, $totals['total']);
+    }
+
     public function test_delivery_charge_applies_based_on_distance_not_subtotal(): void
     {
         $pricing = $this->calculateFor(999);

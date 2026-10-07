@@ -40,7 +40,7 @@ const EmployeeLoginPage: React.FC<EmployeeLoginPageProps> = ({ portal = "employe
           employeeAuth.logout();
           setError(isKitchenPortal
             ? "This account is not registered as kitchen staff."
-            : "This account is not registered as an employee.");
+            : "This account is not registered as a cashier.");
         }
       } else {
         employeeAuth.logout();
@@ -54,7 +54,7 @@ const EmployeeLoginPage: React.FC<EmployeeLoginPageProps> = ({ portal = "employe
   return (
     <div className="min-h-screen bg-[var(--oppa-cream)] lg:grid lg:grid-cols-2">
       <LoginBrandPanel
-        title={isKitchenPortal ? "Kitchen Team" : "Employee Portal"}
+        title={isKitchenPortal ? "Kitchen Team" : "Cashier Portal"}
         description="Sauced, tossed, and straight-up obsessed."
       />
 
@@ -66,10 +66,10 @@ const EmployeeLoginPage: React.FC<EmployeeLoginPageProps> = ({ portal = "employe
               <span className="text-xl font-semibold">Oppa Dru</span>
             </div>
             <h1 className="mb-2 font-serif text-2xl font-semibold text-[var(--oppa-green)]">
-              {isKitchenPortal ? "Kitchen Staff Login" : "Employee Login"}
+              {isKitchenPortal ? "Kitchen Staff Login" : "Cashier Login"}
             </h1>
             <p className="text-sm text-[var(--oppa-text-muted)]">
-              {isKitchenPortal ? "Sign in to manage kitchen orders" : "Sign in to access your employee account"}
+              {isKitchenPortal ? "Sign in to manage kitchen orders" : "Sign in to access your cashier account"}
             </p>
           </div>
 
@@ -101,9 +101,9 @@ const EmployeeLoginPage: React.FC<EmployeeLoginPageProps> = ({ portal = "employe
           </form>
 
           <div className="mt-6 flex items-center justify-center gap-2 text-sm text-[var(--oppa-text-muted)]">
-            <span>{isKitchenPortal ? "Employee instead?" : "Kitchen staff?"}</span>
-            <button type="button" onClick={() => navigate(isKitchenPortal ? "/employee/login" : "/kitchen/login")} className="font-semibold text-[var(--oppa-green)] hover:underline">
-              {isKitchenPortal ? "Employee login" : "Kitchen login"}
+            <span>{isKitchenPortal ? "Cashier instead?" : "Kitchen staff?"}</span>
+            <button type="button" onClick={() => navigate(isKitchenPortal ? "/cashier/login" : "/kitchen/login")} className="font-semibold text-[var(--oppa-green)] hover:underline">
+              {isKitchenPortal ? "Cashier login" : "Kitchen login"}
             </button>
           </div>
 

@@ -48,11 +48,11 @@ export const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
-export const OrderDateTime: React.FC<{ date: string }> = ({ date }) => {
+export const OrderDateTime: React.FC<{ date: string; stacked?: boolean }> = ({ date, stacked = false }) => {
   if (!date) return <span className="text-[var(--oppa-text-muted)]">Unknown date</span>;
   const parsedDate = new Date(date);
   return (
-    <span className="inline-flex flex-col gap-0.5 whitespace-nowrap xl:flex-row xl:items-center xl:gap-2">
+    <span className={`inline-flex whitespace-nowrap ${stacked ? 'flex-col gap-0.5' : 'flex-col gap-0.5 xl:flex-row xl:items-center xl:gap-2'}`}>
       <span className="inline-flex items-center gap-1.5 text-[var(--oppa-text)]">
         <CalendarDays size={13} className="text-[var(--oppa-text-muted)]" />
         {parsedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

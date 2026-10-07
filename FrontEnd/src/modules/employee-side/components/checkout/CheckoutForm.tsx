@@ -1,7 +1,7 @@
 import React from 'react';
 import DiningOptionSelector from '../pos/DiningOptionSelector';
 import POSCashCalculator from '../pos/POSCashCalculator';
-import { CreditCard, DollarSign, Smartphone } from 'lucide-react';
+import { Check, CreditCard, Smartphone } from 'lucide-react';
 
 interface CheckoutFormProps {
   diningOption: 'dine_in' | 'takeout';
@@ -160,40 +160,46 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         <div className="grid grid-cols-3 gap-3">
           <button
             type="button"
+            aria-pressed={paymentMethod === 'cash'}
             onClick={() => setPaymentMethod('cash')}
-            className={`flex flex-col items-center justify-center p-3.5 rounded-xl border transition ${
+            className={`relative flex flex-col items-center justify-center p-3.5 rounded-xl border transition ${
               paymentMethod === 'cash'
                 ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] font-bold shadow-sm'
                 : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
-            <DollarSign size={22} className="mb-1" />
+            <span aria-hidden="true" className="mb-1 flex size-7 items-center justify-center rounded-full border-2 border-current text-lg font-bold leading-none">₱</span>
+            {paymentMethod === 'cash' && <Check size={14} className="absolute right-2 top-2" aria-hidden="true" />}
             <span className="text-xs font-semibold">Cash</span>
           </button>
 
           <button
             type="button"
+            aria-pressed={paymentMethod === 'gcash'}
             onClick={() => setPaymentMethod('gcash')}
-            className={`flex flex-col items-center justify-center p-3.5 rounded-xl border transition ${
+            className={`relative flex flex-col items-center justify-center p-3.5 rounded-xl border transition ${
               paymentMethod === 'gcash'
                 ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] font-bold shadow-sm'
                 : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
             <Smartphone size={22} className="mb-1 text-blue-500" />
+            {paymentMethod === 'gcash' && <Check size={14} className="absolute right-2 top-2" aria-hidden="true" />}
             <span className="text-xs font-semibold">GCash</span>
           </button>
 
           <button
             type="button"
+            aria-pressed={paymentMethod === 'credit_card'}
             onClick={() => setPaymentMethod('credit_card')}
-            className={`flex flex-col items-center justify-center p-3.5 rounded-xl border transition ${
+            className={`relative flex flex-col items-center justify-center p-3.5 rounded-xl border transition ${
               paymentMethod === 'credit_card'
                 ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] font-bold shadow-sm'
                 : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
             <CreditCard size={22} className="mb-1 text-purple-500" />
+            {paymentMethod === 'credit_card' && <Check size={14} className="absolute right-2 top-2" aria-hidden="true" />}
             <span className="text-xs font-semibold">Card / Terminal</span>
           </button>
         </div>
@@ -226,4 +232,3 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
 };
 
 export default CheckoutForm;
-

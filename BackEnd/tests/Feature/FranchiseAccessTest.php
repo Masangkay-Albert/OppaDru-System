@@ -495,6 +495,23 @@ class FranchiseAccessTest extends TestCase
             'id' => $response->json('order.id'),
             'franchise_id' => $branch->id,
         ]);
+
+        $discountedResponse = $this->postJson('/api/franchise/pos/orders', [
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'dining_option' => 'takeout',
+            'payment_method' => 'cash',
+            'cash_tendered' => 100,
+            'discount_type' => 'Senior Citizen',
+            'discount_id_number' => 'SC-12345',
+            'discount_cardholder_name' => 'Senior Guest',
+        ], [
+            'Authorization' => 'Bearer ' . $token,
+        ])->assertCreated();
+
+        $this->assertSame(57.0, (float) $discountedResponse->json('order.total'));
+        $this->assertSame(14.0, (float) $discountedResponse->json('order.discount_amount'));
+        $this->assertSame(0.0, (float) $discountedResponse->json('order.vat'));
+        $this->assertSame(43.0, (float) $discountedResponse->json('change_due'));
     }
 
     public function test_branch_inventory_stock_is_initializable_consumed_and_isolated(): void

@@ -419,12 +419,13 @@ const AdminOrdersPage: React.FC = () => {
                 <p className="truncate font-mono text-xs text-[var(--oppa-text-muted)]">{selectedOrder.order_number || selectedOrder.id}</p>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedOrder(null)}
                 aria-label="Close order details"
                 title="Close order details"
-                className="ml-3 inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-cream)] text-[var(--oppa-text)] shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
+                className="ml-3 inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-white text-[var(--oppa-text)] shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
               >
-                <X size={18} />
+                <X size={20} strokeWidth={2.5} />
               </button>
             </div>
 

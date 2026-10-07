@@ -398,7 +398,7 @@ const DriverDashboardPage: React.FC = () => {
                       )}
                     </td>
                     <td className="min-w-0 px-3 py-2.5 align-middle text-gray-500">
-                      <OrderDateTime date={order.created_at} />
+                      <OrderDateTime date={order.created_at} stacked />
                     </td>
                     <td className="min-w-0 px-3 py-2.5 align-middle">
                       <p className="font-medium text-[var(--oppa-text)]">{order.customerName || 'Customer'}</p>

@@ -9,6 +9,27 @@ use App\Models\SystemSetting;
 
 class PricingService
 {
+    public function calculatePosDiscount(float $subtotal, bool $discountEligible): array
+    {
+        $roundedSubtotal = max(0, round($subtotal));
+        if (!$discountEligible) {
+            return [
+                'vatExemptBase' => 0.0,
+                'discountAmount' => 0.0,
+                'total' => $roundedSubtotal,
+            ];
+        }
+
+        $vatExemptBase = round($roundedSubtotal / 1.12);
+        $discountAmount = round($vatExemptBase * 0.20);
+
+        return [
+            'vatExemptBase' => $vatExemptBase,
+            'discountAmount' => $discountAmount,
+            'total' => max(0, $vatExemptBase - $discountAmount),
+        ];
+    }
+
     public function settings(): array
     {
         return [

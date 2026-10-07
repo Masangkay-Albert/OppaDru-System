@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatCurrency } from '../../../../utils/formatters';
+import { formatPeso } from '../../../../utils/formatters';
 
 interface POSCashCalculatorProps {
   totalDue: number;
@@ -16,11 +16,12 @@ const POSCashCalculator: React.FC<POSCashCalculatorProps> = ({
   const isInsufficient = cashTendered > 0 && cashTendered < totalDue;
 
   const quickAmounts = [
-    { label: 'Exact', value: Math.ceil(totalDue) },
-    { label: formatCurrency(100), value: 100 },
-    { label: formatCurrency(200), value: 200 },
-    { label: formatCurrency(500), value: 500 },
-    { label: formatCurrency(1000), value: 1000 },
+    { label: 'Exact', value: Math.ceil(totalDue * 100) / 100 },
+    ...[50, 100, 500, 1000, 1500, 2000]
+      .map((value) => Math.ceil(totalDue / value) * value)
+      .filter((value, index, values) => value > totalDue && values.indexOf(value) === index)
+      .slice(0, 4)
+      .map((value) => ({ label: formatPeso(value), value })),
   ];
 
   return (
@@ -30,7 +31,7 @@ const POSCashCalculator: React.FC<POSCashCalculatorProps> = ({
           Cash Tendered (₱)
         </label>
         <span className="text-xs text-gray-500">
-          Amount Due: <strong className="text-gray-800">{formatCurrency(totalDue)}</strong>
+          Amount Due: <strong className="tabular-nums text-gray-800">{formatPeso(totalDue)}</strong>
         </span>
       </div>
 
@@ -40,6 +41,7 @@ const POSCashCalculator: React.FC<POSCashCalculatorProps> = ({
         </span>
         <input
           type="number"
+          inputMode="decimal"
           step="any"
           min="0"
           value={cashTendered === 0 ? '' : cashTendered}
@@ -80,8 +82,8 @@ const POSCashCalculator: React.FC<POSCashCalculatorProps> = ({
           }`}
         >
           {isInsufficient
-            ? `Short by ${formatCurrency(totalDue - cashTendered)}`
-            : formatCurrency(changeDue)}
+            ? `Insufficient: ${formatPeso(totalDue - cashTendered)} short`
+            : formatPeso(changeDue)}
         </span>
       </div>
     </div>

@@ -23,6 +23,13 @@ const positionStyle = (position: string) => {
   return 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]';
 };
 
+const formatPositionLabel = (position: string) => {
+  const normalized = position.trim().toLowerCase().replaceAll('_', ' ');
+  if (normalized === 'cashier') return 'Cashier';
+  if (normalized === 'kitchen' || normalized === 'kitchen staff') return 'Kitchen Staff';
+  return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
 const AdminEmployeesPage: React.FC = () => {
   const [employees, setEmployees] = useState<EmployeeAccount[]>([]);
   const [selected, setSelected] = useState<EmployeeAccount | null>(null);
@@ -118,7 +125,7 @@ const AdminEmployeesPage: React.FC = () => {
       <PageHeader title="Registered Employees" subtitle="Manage employee accounts and information." actions={<button onClick={() => { setShowModal(true); setSubmitError(''); }} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><UserPlus size={16} />Add Employee</button>} />
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
         <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={17} aria-hidden="true" /><input aria-label="Search employees by name or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email…" className="admin-embedded-input w-full text-sm" /></label>
-        <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]">Position<select aria-label="Filter employees by position" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} className="admin-embedded-input max-w-36 font-medium text-[var(--oppa-text)]"><option value="all">All positions</option>{positions.map((position) => <option key={position} value={position}>{position}</option>)}</select></label>
+        <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]">Position<select aria-label="Filter employees by position" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} className="admin-embedded-input max-w-36 font-medium text-[var(--oppa-text)]"><option value="all">All positions</option>{positions.map((position) => <option key={position} value={position}>{formatPositionLabel(position)}</option>)}</select></label>
       </div>
       {filtered.length === 0 ? <div className="admin-card"><EmptyState title={search || positionFilter !== 'all' ? 'No employees match these filters' : 'No registered employees yet'} description={search || positionFilter !== 'all' ? 'Try another name, email, or position.' : 'New employee accounts will appear here.'} /></div> :
         <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-[var(--shadow-card)]">
@@ -126,7 +133,7 @@ const AdminEmployeesPage: React.FC = () => {
             <thead><tr className="sticky top-0 border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-left text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]"><th className="px-5 py-3">Employee</th><th className="px-5 py-3">Position</th><th className="px-5 py-3">Joined</th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
             <tbody>{filtered.map((employee) => <tr key={employee.id} className="border-b border-[var(--oppa-border)]/70 last:border-0 hover:bg-[var(--oppa-cream)]">
               <td data-label="Employee" className="px-5 py-3"><div className="flex min-w-0 items-center gap-3"><Avatar name={employee.fullName} /><div className="min-w-0"><p className="truncate font-semibold text-[var(--oppa-text)]">{employee.fullName}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{employee.email}</p></div></div></td>
-              <td data-label="Position" className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${positionStyle(employee.position || '')}`}>{(employee.position || '—').replaceAll('_', ' ')}</span></td>
+              <td data-label="Position" className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${positionStyle(employee.position || '')}`}>{employee.position ? formatPositionLabel(employee.position) : '—'}</span></td>
               <td data-label="Joined" className="px-5 py-3 text-[var(--oppa-text-muted)]"><AdminDate value={employee.created_at} /></td>
               <td data-label="Actions" className="px-5 py-3"><div className="flex justify-end"><RowActionsMenu label={employee.fullName} items={[{ label: 'View details', onSelect: () => setSelected(employee) }, { label: 'Reset password', onSelect: () => setResetTarget(employee) }, { label: 'Delete employee', destructive: true, onSelect: () => setDeleteTarget({ id: employee.id, fullName: employee.fullName }) }]} /></div></td>
             </tr>)}</tbody>

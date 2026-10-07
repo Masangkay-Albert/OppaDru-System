@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CartItem } from '../../../../types/product.types';
-import { formatCurrency } from '../../../../utils/formatters';
+import { formatPeso } from '../../../../utils/formatters';
 import { calculateItemTotal, calculateSubtotal } from '../../../../services/cartService';
 
 interface CheckoutSummaryProps {
@@ -70,14 +70,14 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
                     <span className="text-xs text-gray-400 block">{item.selectedSize}</span>
                   )}
                 </div>
-                <span className="font-semibold text-gray-800">{formatCurrency(itemTotal)}</span>
+                <span className="tabular-nums font-semibold text-gray-800">{formatPeso(itemTotal)}</span>
               </div>
               {item.selectedAddons && item.selectedAddons.length > 0 && (
                 <div className="text-xs text-gray-500 ml-4 mt-0.5 space-y-0.5">
                   {item.selectedAddons.map((a) => (
                     <div key={a.id} className="flex justify-between text-[11px]">
                       <span>+ {a.name}</span>
-                      <span>{formatCurrency(Number(a.price))}</span>
+                      <span className="tabular-nums">{formatPeso(Number(a.price))}</span>
                     </div>
                   ))}
                 </div>
@@ -98,24 +98,24 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
       <div className="border-t border-gray-100 pt-4 space-y-2 text-sm">
         <div className="flex justify-between text-gray-600">
           <span>Subtotal</span>
-          <span>{formatCurrency(subtotal)}</span>
+          <span className="tabular-nums">{formatPeso(subtotal)}</span>
         </div>
 
         {calculatedDiscount > 0 && (
           <div className="flex justify-between text-emerald-600 font-medium">
             <span>Special Discount</span>
-            <span>-{formatCurrency(calculatedDiscount)}</span>
+            <span className="tabular-nums">−{formatPeso(calculatedDiscount)}</span>
           </div>
         )}
 
         <div className="flex justify-between text-gray-500 text-xs">
           <span>VAT (12% inclusive)</span>
-          <span>{formatCurrency(vat)}</span>
+          <span className="tabular-nums">{formatPeso(vat)}</span>
         </div>
 
         <div className="flex justify-between items-center text-lg font-bold text-gray-900 pt-3 border-t border-gray-200">
           <span>Total</span>
-          <span className="text-[var(--oppa-green)] text-xl font-extrabold">{formatCurrency(finalTotal)}</span>
+          <span className="tabular-nums text-[var(--oppa-green)] text-xl font-extrabold">{formatPeso(finalTotal)}</span>
         </div>
       </div>
 
@@ -124,11 +124,10 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         disabled={isPlacingOrder || !hasItems}
         className="w-full mt-6 py-3.5 bg-[var(--oppa-green)] text-white font-bold rounded-xl shadow-lg hover:bg-[var(--oppa-green-dark)] transition-all disabled:opacity-60 disabled:cursor-not-allowed text-center text-base"
       >
-        {isPlacingOrder ? 'Processing Sale...' : `Charge ${formatCurrency(finalTotal)}`}
+        {isPlacingOrder ? 'Processing Sale...' : `Charge ${formatPeso(finalTotal)}`}
       </button>
     </div>
   );
 };
 
 export default CheckoutSummary;
-

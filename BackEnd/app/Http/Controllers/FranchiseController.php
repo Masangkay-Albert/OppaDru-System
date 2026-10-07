@@ -161,6 +161,7 @@ class FranchiseController extends Controller
             'cash_tendered' => 'nullable|numeric|min:0',
             'discount_type' => 'nullable|string|in:PWD,Senior Citizen',
             'discount_id_number' => 'required_with:discount_type|nullable|string|max:100',
+            'discount_cardholder_name' => 'nullable|string|max:255',
             'notes' => 'nullable|string|max:500',
             'include_cutlery' => 'nullable|boolean',
         ]);
@@ -236,19 +237,7 @@ class FranchiseController extends Controller
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
-        $sizeAdjustments = collect($items)->sum(function (array $item) use ($products) {
-            $product = $products->get($item['product_id']);
-            if (!in_array(strtolower($product->category), ['fruity-soda-milk', 'fresh-lemonade'], true)) {
-                return 0;
-            }
-
-            return match ($item['selected_size']) {
-                'Small' => -10 * $item['quantity'],
-                'Large' => 20 * $item['quantity'],
-                default => 0,
-            };
-        });
-        $subtotal = max(0, round($pricing['subtotal'] + $sizeAdjustments));
+        $subtotal = max(0, round($pricing['subtotal']));
         foreach ($items as $index => $item) {
             $basePrice = (float) $products->get($item['product_id'])->price;
             $sizeAdjustment = match ($item['selected_size']) {
@@ -260,8 +249,9 @@ class FranchiseController extends Controller
         }
         $discountType = $request->input('discount_type');
         $discountRate = $discountType ? 0.20 : 0;
-        $discountAmount = round($subtotal * $discountRate);
-        $total = max(0, round($subtotal - $discountAmount));
+        $posTotals = app(PricingService::class)->calculatePosDiscount($subtotal, (bool) $discountType);
+        $discountAmount = $posTotals['discountAmount'];
+        $total = $posTotals['total'];
         $paymentMethod = $request->input('payment_method');
         $cashTendered = (float) $request->input('cash_tendered', 0);
 
@@ -346,12 +336,15 @@ class FranchiseController extends Controller
                         : ($paymentMethod === 'gcash' ? $gatewayPayment->reference : $request->input('terminal_reference')),
                     'phone' => $request->input('phone', ''),
                     'items' => $orderItems,
-                    'vat' => round($total * 0.12),
+                    'vat' => $discountType ? 0 : round($total * 0.12),
                     'discount_type' => $discountType,
                     'discount_rate' => $discountType ? $discountRate : null,
                     'discount_amount' => $discountType ? $discountAmount : null,
                     'discount_status' => $discountType ? 'approved' : 'not_requested',
-                    'discount_proof_image' => $discountType ? 'Verified ID: ' . $request->input('discount_id_number') : null,
+                    'discount_proof_image' => $discountType
+                        ? 'Verified ID: ' . trim((string) $request->input('discount_cardholder_name')) . ' (' . $request->input('discount_id_number') . ')'
+                        : null,
+                    'special_instructions' => $request->input('notes'),
                     'discount_requested_at' => $discountType ? now() : null,
                     'discount_reviewed_at' => $discountType ? now() : null,
                 ]);
@@ -371,7 +364,7 @@ class FranchiseController extends Controller
             'order' => $order->refresh(),
             'subtotal' => round($subtotal),
             'discount_amount' => $discountAmount,
-            'change_due' => $paymentMethod === 'cash' ? round($cashTendered - $total) : 0,
+            'change_due' => $paymentMethod === 'cash' ? round($cashTendered - $total, 2) : 0,
             'message' => 'Franchise POS order placed successfully.',
         ], 201);
     }
@@ -448,20 +441,9 @@ class FranchiseController extends Controller
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
-        $sizeAdjustment = collect($items)->sum(function (array $item) use ($products) {
-            if (!in_array(strtolower($products->get($item['product_id'])->category), ['fruity-soda-milk', 'fresh-lemonade'], true)) {
-                return 0;
-            }
-
-            return match ($item['selected_size']) {
-                'Small' => -10 * $item['quantity'],
-                'Large' => 20 * $item['quantity'],
-                default => 0,
-            };
-        });
-        $subtotal = max(0, round($pricing['subtotal'] + $sizeAdjustment));
-        $discountAmount = $request->filled('discount_type') ? round($subtotal * 0.20) : 0;
-        $amount = max(0, round($subtotal - $discountAmount));
+        $subtotal = max(0, round($pricing['subtotal']));
+        $posTotals = app(PricingService::class)->calculatePosDiscount($subtotal, $request->filled('discount_type'));
+        $amount = $posTotals['total'];
 
         $secretKey = config('services.paymongo.secret_key');
         if (!$secretKey) {
