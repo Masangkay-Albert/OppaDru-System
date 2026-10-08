@@ -21,7 +21,9 @@ class FranchiseAuthController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $franchiseUser = FranchiseUser::where('email', strtolower(trim((string) $request->email)))->first();
+        $franchiseUser = FranchiseUser::with(['franchise', 'franchiseAccount'])
+            ->where('email', strtolower(trim((string) $request->email)))
+            ->first();
 
         if (!$franchiseUser || !Hash::check($request->password, $franchiseUser->password)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
@@ -29,6 +31,9 @@ class FranchiseAuthController extends Controller
 
         if (!$franchiseUser->is_active) {
             return response()->json(['message' => 'Franchise account inactive'], 403);
+        }
+        if (!$franchiseUser->franchise || !$franchiseUser->franchise->isOperationallyActive()) {
+            return response()->json(['message' => 'This branch is not currently active'], 403);
         }
 
         $token = Str::random(60);
@@ -65,7 +70,7 @@ class FranchiseAuthController extends Controller
         }
 
         return response()->json([
-            'data' => $franchiseUser->load('franchise')->makeHidden(['password', 'api_token']),
+            'data' => $franchiseUser->load(['franchise', 'franchiseAccount'])->makeHidden(['password', 'api_token']),
         ]);
     }
 }

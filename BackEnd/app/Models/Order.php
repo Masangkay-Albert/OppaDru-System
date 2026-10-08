@@ -23,6 +23,7 @@ class Order extends Model
         'user_id',
         'driver_id',
         'cashier_employee_id',
+        'franchise_user_id',
         'include_cutlery',
         'order_number',
         'total',
@@ -183,6 +184,11 @@ class Order extends Model
         return $this->belongsTo(User::class, 'user_id', 'id');
     }
 
+    public function franchise()
+    {
+        return $this->belongsTo(Franchise::class, 'franchise_id', 'id');
+    }
+
     public function driver()
     {
         return $this->belongsTo(Driver::class, 'driver_id', 'id');
@@ -191,6 +197,11 @@ class Order extends Model
     public function cashier()
     {
         return $this->belongsTo(Employee::class, 'cashier_employee_id', 'id');
+    }
+
+    public function franchiseOperator()
+    {
+        return $this->belongsTo(FranchiseUser::class, 'franchise_user_id', 'id');
     }
 
     public function payment()

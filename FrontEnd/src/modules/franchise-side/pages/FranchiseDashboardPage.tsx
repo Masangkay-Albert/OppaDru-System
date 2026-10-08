@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, DollarSign, Package2, ShoppingCart, Users } from 'lucide-react';
+import { Activity, ArrowRight, Boxes, DollarSign, MapPin, ShoppingCart, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
@@ -33,6 +33,10 @@ interface DashboardState {
   branch_users?: number;
   available_products?: number;
   available_items?: number;
+  inventory_items?: number;
+  tracked_inventory_items?: number;
+  pos_activity_count?: number;
+  pos_sales?: number;
   pending_orders?: number;
   preparing_orders?: number;
   ready_orders?: number;
@@ -113,11 +117,33 @@ const FranchiseDashboardPage: React.FC = () => {
         )}
         {isLoading && <p className="mb-4 text-sm text-[var(--oppa-text-muted)]">Loading branch dashboard...</p>}
 
-        <section className="mb-4 grid gap-3 sm:grid-cols-4">
+        <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <StatCard icon={ShoppingCart} label="Branch orders" value={dashboard.total_orders ?? dashboard.orders ?? 0} tone="default" />
           <StatCard icon={DollarSign} label="Branch revenue" value={money.format(dashboard.total_revenue ?? 0)} tone="success" />
-          <StatCard icon={Package2} label="Available products" value={dashboard.available_products ?? 0} tone="default" />
-          <StatCard icon={Users} label="Branch users" value={dashboard.branch_users ?? 0} tone="warning" />
+          <StatCard icon={Users} label="Branch staff" value={dashboard.branch_users ?? 0} tone="warning" />
+          <StatCard icon={Boxes} label="Inventory items" value={dashboard.inventory_items ?? dashboard.available_products ?? 0} tone="default" />
+          <StatCard icon={Activity} label="POS activity" value={dashboard.pos_activity_count ?? 0} tone="warning" />
+        </section>
+
+        <section className="mb-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-sm font-semibold"><MapPin size={17} className="text-[var(--oppa-green)]" /> Assigned location</div>
+            <p className="mt-2 text-sm text-[var(--oppa-text)]">{branchName}</p>
+            <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{dashboard.branch_address || franchiseUser?.franchise?.address || 'Address not provided'} · <span className="capitalize">{dashboard.branch_status || franchiseUser?.franchise?.status || 'active'}</span></p>
+          </div>
+          <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-sm font-semibold"><Activity size={17} className="text-[var(--oppa-green)]" /> POS sales</div>
+            <p className="mt-2 text-xl font-semibold text-[var(--oppa-green)]">{money.format(dashboard.pos_sales ?? 0)}</p>
+            <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{dashboard.tracked_inventory_items ?? 0} inventory items with tracked stock</p>
+            <button onClick={() => navigate('/franchise/pos/activity')} className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-[var(--oppa-green)] hover:underline">View POS activity <ArrowRight size={14} /></button>
+          </div>
+        </section>
+
+        <section className="mb-5 flex flex-wrap gap-2">
+          <button onClick={() => navigate('/franchise/orders')} className="rounded-xl border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium">Manage orders</button>
+          <button onClick={() => navigate('/franchise/users')} className="rounded-xl border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium">Manage staff</button>
+          <button onClick={() => navigate('/franchise/inventory')} className="rounded-xl border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-medium">Manage inventory</button>
+          {franchiseUser?.can_process_pos && <button onClick={() => navigate('/franchise/pos')} className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">Open POS</button>}
         </section>
 
         <section className="rounded-3xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">

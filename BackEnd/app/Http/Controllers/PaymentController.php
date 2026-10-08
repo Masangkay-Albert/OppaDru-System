@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\Addon;
+use App\Models\Franchise;
+use App\Services\FranchiseInventoryService;
 use App\Services\Payment\PaymentHelperService;
 use App\Services\PricingService;
 use Illuminate\Http\Request;
@@ -24,7 +27,12 @@ class PaymentController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'amount' => 'required|numeric|min:0.01',
+            'franchise_id' => 'nullable|string|exists:franchises,id',
             'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|string|exists:products,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.selected_addons' => 'nullable|array',
+            'items.*.selected_addons.*.id' => 'required|integer|exists:addons,id',
             'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
             'delivery_coordinates' => 'nullable|array',
@@ -34,6 +42,34 @@ class PaymentController extends Controller
 
         if ($validator->fails()) {
             return ['success' => false, 'message' => $validator->errors()->first(), 'status' => 422];
+        }
+
+        $franchiseId = $request->input('franchise_id');
+        if ($franchiseId) {
+            $franchise = Franchise::with('franchiseAccount')->find($franchiseId);
+            if (!$franchise || !$franchise->isOperationallyActive()) {
+                return ['success' => false, 'message' => 'The selected branch is not currently accepting orders.', 'status' => 422];
+            }
+
+            $catalogIds = app(FranchiseInventoryService::class)
+                ->catalog((string) $franchiseId, true)
+                ->pluck('id')
+                ->all();
+            $productIds = collect($request->input('items'))->pluck('product_id')->unique();
+            if ($productIds->diff($catalogIds)->isNotEmpty()) {
+                return ['success' => false, 'message' => 'One or more items are not available from the selected branch.', 'status' => 422];
+            }
+
+            $addonIds = collect($request->input('items'))
+                ->flatMap(fn (array $item) => collect($item['selected_addons'] ?? [])->pluck('id'))
+                ->unique();
+            $addons = Addon::with('group')->whereIn('id', $addonIds)->get();
+            if ($addons->count() !== $addonIds->count()
+                || $addons->contains(fn (Addon $addon) => !$addon->is_active || !$addon->group || !$addon->group->is_active
+                    || ($addon->franchise_id !== null && (string) $addon->franchise_id !== (string) $franchiseId)
+                    || ($addon->group->franchise_id !== null && (string) $addon->group->franchise_id !== (string) $franchiseId))) {
+                return ['success' => false, 'message' => 'One or more add-ons are unavailable from the selected branch.', 'status' => 422];
+            }
         }
 
         try {
@@ -48,7 +84,7 @@ class PaymentController extends Controller
                 return ['success' => false, 'message' => 'The checkout total has changed. Please review your order.', 'status' => 422];
             }
 
-            return ['success' => true, 'amount' => $pricing['total']];
+            return ['success' => true, 'amount' => $pricing['total'], 'franchise_id' => $franchiseId];
         } catch (\InvalidArgumentException $exception) {
             return ['success' => false, 'message' => $exception->getMessage(), 'status' => 422];
         }
@@ -70,7 +106,11 @@ class PaymentController extends Controller
                 'amount' => $amount,
                 'status' => 'pending',
                 'expires_at' => now()->addMinutes(5),
-                'metadata' => ['sandbox' => true, 'checkout_url' => null],
+                'metadata' => [
+                    'sandbox' => true,
+                    'checkout_url' => null,
+                    'franchise_id' => $validated['franchise_id'],
+                ],
             ]);
 
             return response()->json([
@@ -107,7 +147,11 @@ class PaymentController extends Controller
             'amount' => $amount,
             'status' => 'pending',
             'expires_at' => now()->addMinutes(5),
-            'metadata' => ['source_status' => $attributes['status'] ?? 'pending', 'checkout_url' => $attributes['redirect']['checkout_url'] ?? null],
+            'metadata' => [
+                'source_status' => $attributes['status'] ?? 'pending',
+                'checkout_url' => $attributes['redirect']['checkout_url'] ?? null,
+                'franchise_id' => $validated['franchise_id'],
+            ],
         ]);
 
         return response()->json([
@@ -215,7 +259,11 @@ class PaymentController extends Controller
             'status' => $status === 'succeeded' ? 'paid' : 'failed',
             'paid_at' => $status === 'succeeded' ? now() : null,
             'failure_reason' => $status === 'succeeded' ? null : 'PayMongo sandbox declined the card.',
-            'metadata' => ['sandbox' => true, 'payment_method_id' => $method->json('data.id')],
+            'metadata' => [
+                'sandbox' => true,
+                'payment_method_id' => $method->json('data.id'),
+                'franchise_id' => $pricing['franchise_id'],
+            ],
         ]);
 
         return response()->json([

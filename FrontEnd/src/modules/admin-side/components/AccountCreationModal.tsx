@@ -18,6 +18,7 @@ interface AccountCreationModalProps {
   onSubmit: (values: AccountCreationValues) => Promise<void> | void;
   isSubmitting?: boolean;
   submitError?: string;
+  extraFields?: React.ReactNode;
 }
 
 const defaultValues: AccountCreationValues = {
@@ -70,6 +71,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
   onSubmit,
   isSubmitting = false,
   submitError,
+  extraFields,
 }) => {
   const [form, setForm] = useState<AccountCreationValues>(defaultValues);
   const [errors, setErrors] = useState<Partial<Record<keyof AccountCreationValues, string>>>({});
@@ -159,6 +161,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4" noValidate>
+          {extraFields}
           <div>
             <label htmlFor="account-full-name" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">
               Full Name
@@ -216,6 +219,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                 >
                   <option value="cashier">Cashier</option>
                   <option value="kitchen staff">Kitchen Staff</option>
+                  <option value="staff">Staff</option>
                 </select>
               </div>
               {errors.position && <p className={errorClass}>{errors.position}</p>}

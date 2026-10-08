@@ -62,4 +62,5 @@ class Employee extends Authenticatable
     {
         return $this->belongsTo(Franchise::class, 'franchise_id', 'id');
     }
+
 }

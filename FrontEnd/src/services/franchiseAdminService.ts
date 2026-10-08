@@ -17,6 +17,8 @@ export interface FranchiseSummary {
 
 export interface FranchiseAdminUser {
   id: string | number;
+  franchise_id?: string | null;
+  franchise_account_id?: string | null;
   full_name: string;
   email: string;
   phone?: string | null;
@@ -38,6 +40,129 @@ export interface FranchiseApplication {
   reviewed_at?: string;
   created_at?: string;
 }
+
+export interface FranchiseAccount {
+  id: string;
+  name: string;
+  slug: string;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  status: string;
+  locations_count?: number;
+  managers_count?: number;
+  total_orders?: number;
+  total_sales?: number;
+  locations?: Array<{
+    id: string;
+    name: string;
+    address?: string | null;
+    status: string;
+  }>;
+}
+
+export interface FranchiseAdminActivity {
+  id: string;
+  order_number?: string | null;
+  franchise_id: string;
+  franchise_account_id: string;
+  franchise_name?: string | null;
+  location_name?: string | null;
+  total: number;
+  status: string;
+  created_at: string;
+}
+
+export interface FranchiseAdminDashboard {
+  accounts: FranchiseAccount[];
+  recent_activity: FranchiseAdminActivity[];
+}
+
+export interface FranchiseAccountOverview {
+  account: FranchiseAccount;
+  locations: NonNullable<FranchiseAccount['locations']>;
+  managers: FranchiseAdminUser[];
+  staff: Array<{
+    id: string;
+    franchise_id: string;
+    name: string;
+    email: string;
+    role: string;
+    is_active: boolean;
+  }>;
+  performance: {
+    total_locations: number;
+    total_managers: number;
+    total_staff: number;
+    total_orders: number;
+    total_sales: number;
+    average_order_value: number;
+    locations: Array<{
+      franchise_id: string;
+      location_name: string;
+      total_orders: number;
+      total_sales: number;
+      inventory_items: number;
+    }>;
+  };
+}
+
+export const getFranchiseAccounts = async (): Promise<FranchiseAdminDashboard> => {
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-accounts`);
+  if (!response.ok) {
+    throw new Error('Unable to load franchises');
+  }
+
+  const body = await response.json().catch(() => ({}));
+  return {
+    accounts: Array.isArray(body?.data) ? body.data : [],
+    recent_activity: Array.isArray(body?.recent_activity) ? body.recent_activity : [],
+  };
+};
+
+export const createFranchiseAccount = (data: Pick<FranchiseAccount, 'name' | 'email' | 'phone' | 'address' | 'status'>) =>
+  franchiseAdminRequest<FranchiseAccount>(`${API_URL}/admin/franchise-accounts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+export const getFranchiseAccountOverview = async (id: string): Promise<FranchiseAccountOverview> => {
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-accounts/${id}`);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body?.message || 'Unable to load franchise details');
+  }
+  return body?.data as FranchiseAccountOverview;
+};
+
+export const updateFranchiseAccount = (id: string, data: Partial<Pick<FranchiseAccount, 'name' | 'email' | 'phone' | 'address' | 'status'>>) =>
+  franchiseAdminRequest<FranchiseAccount>(`${API_URL}/admin/franchise-accounts/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+export const createFranchiseLocation = (id: string, data: { name: string; email?: string; phone?: string; address?: string; status?: string }) =>
+  franchiseAdminRequest<NonNullable<FranchiseAccount['locations']>[number]>(`${API_URL}/admin/franchise-accounts/${id}/locations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+export const createAccountFranchiseManager = (id: string, data: {
+  franchise_id: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  password: string;
+  can_process_pos?: boolean;
+}) =>
+  franchiseAdminRequest<FranchiseAdminUser>(`${API_URL}/admin/franchise-accounts/${id}/managers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
 
 export const getFranchises = async (): Promise<FranchiseSummary[]> => {
   const response = await fetchWithAdminAuth(`${API_URL}/admin/franchises`);

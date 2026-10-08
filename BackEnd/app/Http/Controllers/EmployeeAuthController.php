@@ -31,7 +31,7 @@ class EmployeeAuthController extends Controller
         if (!$employee->is_active) {
             return response()->json(['message' => 'Employee account is inactive. Please contact the branch manager.'], 403);
         }
-        if ($employee->franchise_id && (!$employee->franchise || $employee->franchise->status !== 'active')) {
+        if ($employee->franchise_id && (!$employee->franchise || !$employee->franchise->isOperationallyActive())) {
             return response()->json(['message' => 'This branch is not currently active.'], 403);
         }
     

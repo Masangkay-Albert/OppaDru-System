@@ -18,6 +18,7 @@ class FranchiseUser extends Authenticatable
 
     protected $fillable = [
         'id',
+        'franchise_account_id',
         'franchise_id',
         'full_name',
         'email',
@@ -57,5 +58,10 @@ class FranchiseUser extends Authenticatable
     public function franchise()
     {
         return $this->belongsTo(Franchise::class, 'franchise_id', 'id');
+    }
+
+    public function franchiseAccount()
+    {
+        return $this->belongsTo(FranchiseAccount::class, 'franchise_account_id', 'id');
     }
 }

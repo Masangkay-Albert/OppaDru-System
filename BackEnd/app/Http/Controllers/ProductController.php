@@ -218,8 +218,8 @@ class ProductController extends Controller
         $franchiseId = $request->query('franchise_id');
 
         if ($franchiseId !== null) {
-            $franchise = Franchise::where('id', $franchiseId)->where('status', 'active')->first();
-            if (!$franchise) {
+            $franchise = Franchise::with('franchiseAccount')->where('id', $franchiseId)->first();
+            if (!$franchise || !$franchise->isOperationallyActive()) {
                 return response()->json(['message' => 'The selected branch is unavailable.'], 404);
             }
 

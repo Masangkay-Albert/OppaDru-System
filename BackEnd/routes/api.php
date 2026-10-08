@@ -24,6 +24,7 @@ use App\Http\Controllers\ProofImageController;
 use App\Http\Controllers\FranchiseApplicationController;
 use App\Http\Controllers\FranchiseAuthController;
 use App\Http\Controllers\FranchiseController;
+use App\Http\Controllers\FranchiseAccountController;
 use Illuminate\Http\Request;
 
 
@@ -54,6 +55,7 @@ Route::prefix('franchise')->group(function () {
 
     Route::middleware(['franchise.access'])->group(function () {
         Route::get('/me', [FranchiseAuthController::class, 'me']);
+        Route::get('/management', [FranchiseController::class, 'managementInformation']);
         Route::get('/dashboard', [FranchiseController::class, 'dashboard']);
         Route::get('/summary', [FranchiseController::class, 'branchSummary']);
         Route::get('/inventory', [FranchiseController::class, 'inventorySummary']);
@@ -63,6 +65,7 @@ Route::prefix('franchise')->group(function () {
         Route::get('/users', [FranchiseController::class, 'branchUsers']);
         Route::post('/users', [FranchiseController::class, 'storeBranchUser']);
         Route::patch('/users/{type}/{id}/status', [FranchiseController::class, 'updateBranchUserStatus']);
+        Route::patch('/users/employee/{id}', [FranchiseController::class, 'updateBranchEmployee']);
         Route::get('/settings', [FranchiseController::class, 'branchSettings']);
         Route::put('/settings', [FranchiseController::class, 'updateBranchSettings']);
         Route::get('/addon-groups', [AddonController::class, 'index']);
@@ -75,6 +78,7 @@ Route::prefix('franchise')->group(function () {
         Route::get('/orders/{id}', [FranchiseController::class, 'showOrder']);
         Route::patch('/orders/{id}/status', [FranchiseController::class, 'updateOrderStatus']);
         Route::post('/pos/orders', [FranchiseController::class, 'storePosOrder']);
+        Route::get('/pos/orders', [FranchiseController::class, 'franchisePosOrders']);
         Route::post('/pos/payments/gcash', [FranchiseController::class, 'createPosPayment']);
     });
 
@@ -91,6 +95,7 @@ Route::middleware(['employee.access:cashier'])->group(function () {
 Route::middleware(['admin.access'])->group(function () {
     Route::get('/employees', [EmployeeController::class, 'index']);
     Route::post('/employees', [EmployeeController::class, 'store']);
+    Route::put('/employees/{id}', [EmployeeController::class, 'update']);
     Route::delete('/employees/{id}', [EmployeeController::class, 'destroy']);
     Route::put('/employees/{id}/reset-password', [EmployeeController::class, 'resetPassword']);
     Route::get('/drivers', [DriverController::class, 'index']);
@@ -219,4 +224,11 @@ Route::prefix('admin')->group(function () {
     Route::get('/franchise-applications', [FranchiseApplicationController::class, 'index']);
     Route::get('/franchise-applications/stats', [FranchiseApplicationController::class, 'stats']);
     Route::patch('/franchise-applications/{id}', [FranchiseApplicationController::class, 'review']);
+
+    Route::get('/franchise-accounts', [FranchiseAccountController::class, 'index']);
+    Route::post('/franchise-accounts', [FranchiseAccountController::class, 'store']);
+    Route::get('/franchise-accounts/{id}', [FranchiseAccountController::class, 'show']);
+    Route::put('/franchise-accounts/{id}', [FranchiseAccountController::class, 'update']);
+    Route::post('/franchise-accounts/{id}/locations', [FranchiseAccountController::class, 'storeLocation']);
+    Route::post('/franchise-accounts/{id}/managers', [FranchiseAccountController::class, 'storeManager']);
 });

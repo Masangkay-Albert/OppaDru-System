@@ -29,7 +29,7 @@ class EnsureEmployeeAccess
             return response()->json(['message' => 'This role is not allowed to access this resource.'], 403);
         }
 
-        if ($employee->franchise_id && (!$employee->franchise || $employee->franchise->status !== 'active')) {
+        if ($employee->franchise_id && (!$employee->franchise || !$employee->franchise->isOperationallyActive())) {
             return response()->json(['message' => 'This branch is not currently active.'], 403);
         }
 

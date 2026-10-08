@@ -50,7 +50,14 @@ class AddonController extends Controller
                 });
             })
             ->when(!$productId && $category, fn ($query) => $query->whereJsonContains('applicable_categories', $category))
-            ->with(['addons' => fn ($addons) => $isAdmin ? $addons : $addons->where('is_active', true)])
+            ->with(['addons' => fn ($addons) => $isAdmin ? $addons : $addons
+                ->where('is_active', true)
+                ->where(function ($scope) use ($franchiseId) {
+                    $scope->whereNull('franchise_id');
+                    if ($franchiseId !== null) {
+                        $scope->orWhere('franchise_id', $franchiseId);
+                    }
+                })])
             ->orderBy('sort_order')
             ->get();
 

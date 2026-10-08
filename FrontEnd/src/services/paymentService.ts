@@ -170,6 +170,7 @@ class PaymentService {
     voucherDiscount: number;
     discountRate: number;
     deliveryCoordinates?: { lat: number; lng: number };
+    franchiseId?: string | null;
   }): Promise<PaymentResult> {
     try {
       const response = await fetch(`${API_URL}/payment/card/process`, {
@@ -196,6 +197,7 @@ class PaymentService {
           voucher_discount: data.voucherDiscount,
           discount_rate: data.discountRate,
           delivery_coordinates: data.deliveryCoordinates,
+          franchise_id: data.franchiseId || null,
         }),
       });
 

@@ -15,7 +15,7 @@ class DeliveryProofController extends Controller
         if (!$driver) {
             return response()->json(['message' => 'Unauthenticated driver.'], 401);
         }
-        if (!$driver->isActive || ($driver->franchise_id && (!$driver->franchise || $driver->franchise->status !== 'active'))) {
+        if (!$driver->isActive || ($driver->franchise_id && (!$driver->franchise || !$driver->franchise->isOperationallyActive()))) {
             return response()->json(['message' => 'Driver account or branch is inactive.'], 403);
         }
 

@@ -415,6 +415,203 @@ class OrderPlacementTest extends TestCase
         ])->assertUnprocessable();
     }
 
+    public function test_franchise_customer_order_links_branch_payment_to_exact_order(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'Payment Link Branch',
+            'email' => 'payment-link@example.com',
+            'phone' => '09170000008',
+            'address' => 'Payment Link St',
+            'status' => 'active',
+        ]);
+        $product = Product::create([
+            'name' => 'Payment Link Meal',
+            'description' => 'Branch payment link test',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'franchise_id' => $branch->id,
+            'is_available' => true,
+        ]);
+        $customer = User::create([
+            'full_name' => 'Payment Link Customer',
+            'email' => 'payment-link-customer@example.com',
+            'phone' => '09171234567',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $payment = Payment::create([
+            'reference' => 'BRANCH-CUSTOMER-PAYMENT',
+            'provider' => 'sandbox',
+            'amount' => 263,
+            'status' => 'paid',
+            'metadata' => ['franchise_id' => $branch->id],
+        ]);
+        $login = $this->postJson('/api/login', [
+            'email' => $customer->email,
+            'password' => 'password123',
+        ])->assertOk();
+        $payload = [
+            'email' => $customer->email,
+            'franchise_id' => $branch->id,
+            'items' => [[
+                'product_id' => $product->id,
+                'product_name' => $product->name,
+                'product_price' => 1,
+                'quantity' => 1,
+            ]],
+            'total' => 1,
+            'delivery_address' => 'Payment Link St',
+            'payment_method' => 'gcash',
+            'payment_reference' => $payment->reference,
+            'phone' => $customer->phone,
+        ];
+
+        $this->postJson('/api/orders', $payload, [
+            'Authorization' => 'Bearer '.$login->json('token'),
+        ])
+            ->assertCreated()
+            ->assertJsonPath('order.franchise_id', $branch->id);
+        $orderId = Order::where('payment_reference', $payment->reference)->value('id');
+        $this->assertNotNull($orderId);
+        $this->assertDatabaseHas('payments', [
+            'id' => $payment->id,
+            'order_id' => $orderId,
+        ]);
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'franchise_id' => $branch->id,
+            'payment_reference' => $payment->reference,
+        ]);
+    }
+
+    public function test_customer_cannot_apply_payment_created_for_another_franchise(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'Payment Target Branch',
+            'email' => 'payment-target@example.com',
+            'phone' => '09170000009',
+            'address' => 'Target St',
+            'status' => 'active',
+        ]);
+        $otherBranch = Franchise::create([
+            'name' => 'Payment Origin Branch',
+            'email' => 'payment-origin@example.com',
+            'phone' => '09170000010',
+            'address' => 'Origin St',
+            'status' => 'active',
+        ]);
+        $product = Product::create([
+            'name' => 'Payment Target Meal',
+            'description' => 'Branch payment scope test',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'franchise_id' => $branch->id,
+            'is_available' => true,
+        ]);
+        $payment = Payment::create([
+            'reference' => 'WRONG-BRANCH-PAYMENT',
+            'provider' => 'sandbox',
+            'amount' => 263,
+            'status' => 'paid',
+            'metadata' => ['franchise_id' => $otherBranch->id],
+        ]);
+        $customer = User::create([
+            'full_name' => 'Payment Scope Customer',
+            'email' => 'payment-scope-customer@example.com',
+            'phone' => '09171234568',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $login = $this->postJson('/api/login', [
+            'email' => $customer->email,
+            'password' => 'password123',
+        ])->assertOk();
+
+        $this->postJson('/api/orders', [
+            'email' => $customer->email,
+            'franchise_id' => $branch->id,
+            'items' => [[
+                'product_id' => $product->id,
+                'product_name' => $product->name,
+                'product_price' => 199,
+                'quantity' => 1,
+            ]],
+            'delivery_address' => 'Target St',
+            'payment_method' => 'gcash',
+            'payment_reference' => $payment->reference,
+            'phone' => '09171234568',
+        ], [
+            'Authorization' => 'Bearer '.$login->json('token'),
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseHas('payments', [
+            'id' => $payment->id,
+            'order_id' => null,
+        ]);
+        $this->assertDatabaseMissing('orders', ['payment_reference' => $payment->reference]);
+    }
+
+    public function test_customer_branch_gateway_payment_is_bound_to_selected_branch_catalog(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'Gateway Branch',
+            'email' => 'gateway-branch@example.com',
+            'phone' => '09170000011',
+            'address' => 'Gateway St',
+            'status' => 'active',
+        ]);
+        $otherBranch = Franchise::create([
+            'name' => 'Other Gateway Branch',
+            'email' => 'other-gateway-branch@example.com',
+            'phone' => '09170000012',
+            'address' => 'Other Gateway St',
+            'status' => 'active',
+        ]);
+        $product = Product::create([
+            'name' => 'Gateway Branch Meal',
+            'description' => 'Branch checkout payment test',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'franchise_id' => $branch->id,
+            'is_available' => true,
+        ]);
+        $otherProduct = Product::create([
+            'name' => 'Other Gateway Meal',
+            'description' => 'Must not be chargeable for another branch',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'franchise_id' => $otherBranch->id,
+            'is_available' => true,
+        ]);
+
+        $response = $this->postJson('/api/payment/gcash/create', [
+            'amount' => 263,
+            'franchise_id' => $branch->id,
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'delivery_type' => 'standard',
+            'voucher_discount' => 0,
+            'discount_rate' => 0,
+        ])->assertCreated();
+
+        $payment = Payment::where('reference', $response->json('reference'))->firstOrFail();
+        $this->assertSame($branch->id, data_get($payment->metadata, 'franchise_id'));
+
+        $this->postJson('/api/payment/gcash/create', [
+            'amount' => 263,
+            'franchise_id' => $branch->id,
+            'items' => [['product_id' => $otherProduct->id, 'quantity' => 1]],
+            'delivery_type' => 'standard',
+            'voucher_discount' => 0,
+            'discount_rate' => 0,
+        ])->assertUnprocessable();
+    }
+
     public function test_customer_can_place_a_scheduled_order(): void
     {
         $user = User::create([

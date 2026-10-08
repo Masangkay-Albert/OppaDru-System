@@ -31,8 +31,34 @@ class FranchiseController extends Controller
     {
         return response()->json([
             'data' => Franchise::where('status', 'active')
+                ->where(function ($query) {
+                    $query->whereNull('franchise_account_id')
+                        ->orWhereHas('franchiseAccount', fn ($accountQuery) => $accountQuery->where('status', 'active'));
+                })
                 ->orderBy('name')
                 ->get(['id', 'name', 'address']),
+        ]);
+    }
+
+    public function managementInformation(Request $request)
+    {
+        $user = $request->user();
+        if (!$user instanceof FranchiseUser) {
+            return response()->json(['message' => 'Franchise manager access required.'], 403);
+        }
+
+        $user->load(['franchise', 'franchiseAccount.locations']);
+        $locations = $user->franchiseAccount
+            ? $user->franchiseAccount->locations->sortBy('name')->values()
+            : collect([$user->franchise])->filter()->values();
+
+        return response()->json([
+            'data' => [
+                'franchise' => $user->franchiseAccount,
+                'assigned_location' => $user->franchise,
+                'locations' => $locations,
+                'manager' => $user->makeHidden(['password', 'api_token']),
+            ],
         ]);
     }
 
@@ -143,6 +169,7 @@ class FranchiseController extends Controller
             return response()->json(['message' => 'Cashier access or explicit POS permission is required.'], 403);
         }
         $cashierEmployeeId = $user instanceof Employee ? $user->id : null;
+        $franchiseUserId = $user instanceof FranchiseUser ? $user->id : null;
 
         $validator = Validator::make($request->all(), [
             'items' => 'required|array|min:1',
@@ -203,6 +230,8 @@ class FranchiseController extends Controller
         $addons = Addon::with('group')->whereIn('id', $addonIds)->get()->keyBy('id');
         if ($addonIds->isNotEmpty() && ($addons->count() !== $addonIds->count()
             || $addons->contains(fn (Addon $addon) => !$addon->group
+                || !$addon->is_active
+                || ($addon->franchise_id !== null && (string) $addon->franchise_id !== (string) $user->franchise_id)
                 || ($addon->group->franchise_id !== null && (string) $addon->group->franchise_id !== (string) $user->franchise_id)))) {
             return response()->json(['message' => 'One or more add-ons are not available at this branch.'], 422);
         }
@@ -268,6 +297,7 @@ class FranchiseController extends Controller
                 || data_get($gatewayPayment->metadata, 'purpose') !== 'franchise_pos'
                 || (string) data_get($gatewayPayment->metadata, 'franchise_id') !== (string) $user->franchise_id
                 || data_get($gatewayPayment->metadata, 'cashier_employee_id') !== $cashierEmployeeId
+                || data_get($gatewayPayment->metadata, 'franchise_user_id') !== $franchiseUserId
                 || round((float) $gatewayPayment->amount) !== $total) {
                 return response()->json(['message' => 'Payment must be confirmed by the payment gateway for the exact POS total before completing this order.'], 422);
             }
@@ -302,7 +332,8 @@ class FranchiseController extends Controller
                 $discountRate,
                 $discountAmount,
                 $gatewayPayment,
-                $cashierEmployeeId
+                $cashierEmployeeId,
+                $franchiseUserId
             ) {
                 $inventoryService->consume((string) $user->franchise_id, $items);
                 if ($gatewayPayment) {
@@ -311,6 +342,7 @@ class FranchiseController extends Controller
                         || data_get($gatewayPayment->metadata, 'purpose') !== 'franchise_pos'
                         || (string) data_get($gatewayPayment->metadata, 'franchise_id') !== (string) $user->franchise_id
                         || data_get($gatewayPayment->metadata, 'cashier_employee_id') !== $cashierEmployeeId
+                        || data_get($gatewayPayment->metadata, 'franchise_user_id') !== $franchiseUserId
                         || round((float) $gatewayPayment->amount) !== $total) {
                         throw new \InvalidArgumentException('This payment is no longer available for this order.');
                     }
@@ -318,6 +350,7 @@ class FranchiseController extends Controller
                 $order = Order::create([
                     'franchise_id' => $user->franchise_id,
                     'cashier_employee_id' => $cashierEmployeeId,
+                    'franchise_user_id' => $franchiseUserId,
                     'include_cutlery' => $request->boolean('include_cutlery'),
                     'email' => $user->email,
                     'total' => $total,
@@ -418,6 +451,7 @@ class FranchiseController extends Controller
         $addons = Addon::with('group')->whereIn('id', $addonIds)->get()->keyBy('id');
         if ($addons->count() !== $addonIds->count()
             || $addons->contains(fn (Addon $addon) => !$addon->group || !$addon->group->is_active
+                || ($addon->franchise_id !== null && (string) $addon->franchise_id !== (string) $user->franchise_id)
                 || ($addon->group->franchise_id !== null && (string) $addon->group->franchise_id !== (string) $user->franchise_id))) {
             return response()->json(['message' => 'One or more add-ons are not available at this branch.'], 422);
         }
@@ -481,6 +515,7 @@ class FranchiseController extends Controller
                 'purpose' => 'franchise_pos',
                 'franchise_id' => (string) $user->franchise_id,
                 'cashier_employee_id' => $user instanceof Employee ? $user->id : null,
+                'franchise_user_id' => $user instanceof FranchiseUser ? $user->id : null,
                 'source_status' => $attributes['status'] ?? 'pending',
                 'checkout_url' => $attributes['redirect']['checkout_url'] ?? null,
             ],
@@ -535,7 +570,112 @@ class FranchiseController extends Controller
                 ->where('delivery_type', 'onsite')
                 ->orderByDesc('created_at')
                 ->limit(100)
-                ->get(['id', 'order_number', 'total', 'payment_method', 'status', 'created_at']),
+                ->get(['id', 'order_number', 'total', 'payment_method', 'payment_status', 'payment_reference', 'status', 'created_at']),
+        ]);
+    }
+
+    public function franchisePosOrders(Request $request)
+    {
+        $user = $request->user();
+        if (!$user instanceof FranchiseUser || !$user->franchise_id) {
+            return response()->json(['message' => 'Franchise manager access required.'], 403);
+        }
+
+        $validator = Validator::make($request->query(), [
+            'from' => 'nullable|date',
+            'to' => 'nullable|date|after_or_equal:from',
+            'payment_method' => 'nullable|string|in:cash,gcash,credit_card',
+            'cashier_id' => 'nullable|string|exists:employees,id',
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:10|max:100',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'The POS activity filters are invalid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $query = Order::where('franchise_id', $user->franchise_id)
+            ->where('delivery_type', 'onsite')
+            ->with([
+                'franchise.franchiseAccount:id,name',
+                'cashier:id,fullName,email',
+                'franchiseOperator:id,full_name,email',
+                'payment:id,order_id,reference,status,paid_at',
+            ]);
+        if ($request->filled('from')) {
+            $query->whereDate('created_at', '>=', $request->query('from'));
+        }
+        if ($request->filled('to')) {
+            $query->whereDate('created_at', '<=', $request->query('to'));
+        }
+        if ($request->filled('payment_method')) {
+            $query->where('payment_method', $request->query('payment_method'));
+        }
+        if ($request->filled('cashier_id')) {
+            $query->where('cashier_employee_id', $request->query('cashier_id'));
+        }
+
+        $salesQuery = (clone $query)->countedAsRevenue();
+        $salesCount = (clone $salesQuery)->count();
+        $salesTotal = (float) (clone $salesQuery)->sum('total');
+        $averageSale = (float) (clone $salesQuery)->avg('total');
+        $orders = $query
+            ->orderByDesc('created_at')
+            ->paginate((int) $request->query('per_page', 50));
+        $rows = $orders->getCollection();
+
+        return response()->json([
+            'data' => $rows->map(fn (Order $order) => [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'franchise_id' => $order->franchise_id,
+                'franchise' => $order->franchise?->franchiseAccount ? [
+                    'id' => $order->franchise->franchiseAccount->id,
+                    'name' => $order->franchise->franchiseAccount->name,
+                ] : null,
+                'location' => [
+                    'id' => $order->franchise_id,
+                    'name' => $order->franchise?->name,
+                ],
+                'location_name' => $order->franchise?->name,
+                'cashier_employee_id' => $order->cashier_employee_id,
+                'franchise_user_id' => $order->franchise_user_id,
+                'operator_email' => $order->email,
+                'cashier' => $order->cashier ? [
+                    'id' => $order->cashier->id,
+                    'name' => $order->cashier->fullName,
+                    'email' => $order->cashier->email,
+                ] : null,
+                'franchise_operator' => $order->franchiseOperator ? [
+                    'id' => $order->franchiseOperator->id,
+                    'name' => $order->franchiseOperator->full_name,
+                    'email' => $order->franchiseOperator->email,
+                ] : null,
+                'total' => (float) $order->total,
+                'payment_method' => $order->payment_method,
+                'payment_status' => $order->payment_status,
+                'payment_reference' => $order->payment_reference,
+                'gateway_payment' => $order->payment ? [
+                    'reference' => $order->payment->reference,
+                    'status' => $order->payment->status,
+                    'paid_at' => $order->payment->paid_at,
+                ] : null,
+                'status' => $order->status,
+                'created_at' => $order->created_at,
+            ]),
+            'summary' => [
+                'transaction_count' => $orders->total(),
+                'sales_count' => $salesCount,
+                'total_sales' => $salesTotal,
+                'average_transaction_value' => $averageSale,
+            ],
+            'pagination' => [
+                'current_page' => $orders->currentPage(),
+                'last_page' => $orders->lastPage(),
+                'per_page' => $orders->perPage(),
+            ],
         ]);
     }
 
@@ -629,7 +769,7 @@ class FranchiseController extends Controller
             ]);
         $employees = Employee::where('franchise_id', $user->franchise_id)
             ->orderByDesc('created_at')
-            ->get(['id', 'fullName', 'email', 'position', 'is_active', 'created_at'])
+            ->get(['id', 'franchise_id', 'fullName', 'email', 'position', 'is_active', 'created_at'])
             ->map(fn (Employee $employee) => [
                 'id' => $employee->id,
                 'name' => $employee->fullName,
@@ -638,6 +778,7 @@ class FranchiseController extends Controller
                 'role' => str_replace(' ', '_', strtolower($employee->position)),
                 'status' => $employee->is_active ? 'active' : 'inactive',
                 'user_type' => 'employee',
+                'franchise_id' => $employee->franchise_id,
                 'created_at' => $employee->created_at,
             ]);
         $drivers = Driver::where('franchise_id', $user->franchise_id)
@@ -669,7 +810,7 @@ class FranchiseController extends Controller
             'email' => 'required|string|email|max:255',
             'phone' => 'nullable|string|max:50',
             'password' => 'required|string|min:8',
-            'role' => 'required|string|in:cashier,kitchen_staff,driver',
+            'role' => 'required|string|in:cashier,kitchen_staff,staff,driver',
             'vehicle_type' => 'required_if:role,driver|nullable|string|max:100',
         ]);
         if ($validator->fails()) {
@@ -710,7 +851,11 @@ class FranchiseController extends Controller
                 'fullName' => $request->name,
                 'email' => $email,
                 'password' => (string) $request->password,
-                'position' => $request->role === 'kitchen_staff' ? 'kitchen staff' : 'cashier',
+                'position' => match ($request->role) {
+                    'kitchen_staff' => 'kitchen staff',
+                    'staff' => 'staff',
+                    default => 'cashier',
+                },
                 'is_active' => true,
             ]);
             $data = [
@@ -749,6 +894,43 @@ class FranchiseController extends Controller
         $staff->save();
 
         return response()->json(['message' => 'Branch staff status updated.']);
+    }
+
+    public function updateBranchEmployee(Request $request, string $id)
+    {
+        $user = $request->user();
+        if (!$user instanceof FranchiseUser || !$user->franchise_id) {
+            return response()->json(['message' => 'Franchise access required'], 403);
+        }
+
+        $employee = Employee::where('franchise_id', $user->franchise_id)->findOrFail($id);
+        $validated = $request->validate([
+            'position' => 'sometimes|required|in:cashier,kitchen staff,staff',
+            'is_active' => 'sometimes|boolean',
+        ]);
+        if ($validated === []) {
+            return response()->json(['message' => 'Provide a staff role or status to update.'], 422);
+        }
+
+        if (array_key_exists('position', $validated)) {
+            $employee->position = $validated['position'];
+        }
+        if (array_key_exists('is_active', $validated)) {
+            $employee->is_active = $validated['is_active'];
+        }
+        $employee->save();
+
+        return response()->json([
+            'data' => [
+                'id' => $employee->id,
+                'franchise_id' => $employee->franchise_id,
+                'name' => $employee->fullName,
+                'email' => $employee->email,
+                'role' => str_replace(' ', '_', strtolower($employee->position)),
+                'status' => $employee->is_active ? 'active' : 'inactive',
+            ],
+            'message' => 'Branch staff updated.',
+        ]);
     }
 
     public function branchSettings(Request $request)
@@ -1177,6 +1359,7 @@ class FranchiseController extends Controller
         $salesOrders = fn () => Order::where('franchise_id', $branchId)->countedAsRevenue();
         $inventory = app(FranchiseInventoryService::class)->catalog($branchId);
         $franchise = Franchise::findOrFail($branchId);
+        $posOrders = fn () => $branchOrders()->where('delivery_type', 'onsite');
 
         return response()->json([
             'data' => [
@@ -1189,12 +1372,16 @@ class FranchiseController extends Controller
                 'shared_products' => Product::whereNull('franchise_id')->count(),
                 'available_products' => $inventory->where('branch_available', true)->count(),
                 'available_items' => $inventory->where('branch_available', true)->count(),
+                'inventory_items' => $inventory->count(),
+                'tracked_inventory_items' => $inventory->where('branch_stock_tracked', true)->count(),
                 'orders' => $branchOrders()->count(),
                 'total_orders' => $branchOrders()->count(),
                 'branch_users' => FranchiseUser::where('franchise_id', $branchId)->count()
                     + Employee::where('franchise_id', $branchId)->count(),
                 'total_revenue' => (float) $salesOrders()->sum('total'),
                 'average_order_value' => (float) $salesOrders()->avg('total'),
+                'pos_activity_count' => $posOrders()->count(),
+                'pos_sales' => (float) $posOrders()->countedAsRevenue()->sum('total'),
                 'pending_orders' => $branchOrders()->where('status', 'pending')->count(),
                 'preparing_orders' => $branchOrders()->whereIn('status', ['confirmed', 'preparing'])->count(),
                 'ready_orders' => $branchOrders()->whereIn('status', ['ready', 'prepared'])->count(),

@@ -17,6 +17,7 @@ interface GCashPaymentModalProps {
   voucherDiscount: number;
   discountRate: number;
   deliveryCoordinates?: { lat: number; lng: number };
+  franchiseId?: string | null;
   onPaymentComplete: (result: PaymentResult) => void;
   onPaymentConfirmed?: () => void;
   onPaymentCreated?: (reference: string) => void;
@@ -31,6 +32,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   voucherDiscount,
   discountRate,
   deliveryCoordinates,
+  franchiseId,
   onPaymentComplete,
   onPaymentCreated,
 }) => {
@@ -53,6 +55,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
     voucherDiscount,
     discountRate,
     deliveryCoordinates,
+    franchiseId,
     onPaymentComplete,
     onPaymentCreated,
   });

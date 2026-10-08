@@ -15,6 +15,7 @@ class Franchise extends Model
 
     protected $fillable = [
         'id',
+        'franchise_account_id',
         'name',
         'slug',
         'email',
@@ -47,5 +48,16 @@ class Franchise extends Model
     public function users()
     {
         return $this->hasMany(FranchiseUser::class, 'franchise_id', 'id');
+    }
+
+    public function franchiseAccount()
+    {
+        return $this->belongsTo(FranchiseAccount::class, 'franchise_account_id', 'id');
+    }
+
+    public function isOperationallyActive(): bool
+    {
+        return $this->status === 'active'
+            && (!$this->franchise_account_id || $this->franchiseAccount?->status === 'active');
     }
 }

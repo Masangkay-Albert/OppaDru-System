@@ -32,7 +32,7 @@ class DriverAuthController extends Controller
         if (!$driver->isActive) {
             return response()->json(['message' => 'Account is inactive. Please contact admin.'], 403);
         }
-        if ($driver->franchise_id && (!$driver->franchise || $driver->franchise->status !== 'active')) {
+        if ($driver->franchise_id && (!$driver->franchise || !$driver->franchise->isOperationallyActive())) {
             return response()->json(['message' => 'This branch is not currently active.'], 403);
         }
 

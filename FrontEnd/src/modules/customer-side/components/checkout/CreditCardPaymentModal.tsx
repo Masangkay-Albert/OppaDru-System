@@ -29,6 +29,7 @@ interface CreditCardPaymentModalProps {
   voucherDiscount: number;
   discountRate: number;
   deliveryCoordinates?: { lat: number; lng: number };
+  franchiseId?: string | null;
   onPaymentComplete: (result: PaymentResult) => void;
 }
 
@@ -39,7 +40,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
   onPaymentComplete,
   items,
   deliveryType
-  , voucherDiscount, discountRate, deliveryCoordinates
+  , voucherDiscount, discountRate, deliveryCoordinates, franchiseId
 }) => {
   const [form, setForm] = useState({
     cardNumber: '',
@@ -97,6 +98,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
       deliveryType
       , voucherDiscount, discountRate
       , deliveryCoordinates
+      , franchiseId
     });
     setIsLoading(false);
     if (response?.success) {

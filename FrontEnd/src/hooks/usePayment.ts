@@ -72,6 +72,7 @@ export const usePayment = () => {
     voucherDiscount: number;
     discountRate: number;
     deliveryCoordinates?: { lat: number; lng: number };
+    franchiseId?: string | null;
   }) => {
     setIsProcessing(true);
     setError(null);

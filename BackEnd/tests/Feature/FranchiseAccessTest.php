@@ -290,7 +290,7 @@ class FranchiseAccessTest extends TestCase
         ]);
 
         $summaryResponse->assertOk();
-        $this->assertSame(150.0, round((float) $summaryResponse->json('data.total_revenue'), 1));
+        $this->assertSame(0.0, round((float) $summaryResponse->json('data.total_revenue'), 1));
 
         $inventoryResponse = $this->getJson('/api/franchise/inventory', [
             'Authorization' => 'Bearer ' . $token,
@@ -369,7 +369,7 @@ class FranchiseAccessTest extends TestCase
 
         $summaryAdminResponse->assertOk();
         $this->assertSame(2, $summaryAdminResponse->json('data.total_users'));
-        $this->assertSame(150.0, round((float) $summaryAdminResponse->json('data.total_revenue'), 1));
+        $this->assertSame(0.0, round((float) $summaryAdminResponse->json('data.total_revenue'), 1));
 
         $branchInventoryResponse = $this->getJson('/api/admin/franchises/' . $franchiseA->id . '/inventory', [
             'Authorization' => 'Bearer ' . $adminToken,
@@ -450,7 +450,7 @@ class FranchiseAccessTest extends TestCase
             'address' => '101 West St',
             'status' => 'active',
         ]);
-        FranchiseUser::create([
+        $manager = FranchiseUser::create([
             'franchise_id' => $branch->id,
             'full_name' => 'West Manager',
             'email' => 'west.manager@example.com',
@@ -494,6 +494,7 @@ class FranchiseAccessTest extends TestCase
         $this->assertDatabaseHas('orders', [
             'id' => $response->json('order.id'),
             'franchise_id' => $branch->id,
+            'franchise_user_id' => $manager->id,
         ]);
 
         $discountedResponse = $this->postJson('/api/franchise/pos/orders', [
@@ -625,7 +626,7 @@ class FranchiseAccessTest extends TestCase
             'address' => 'Other Options St',
             'status' => 'active',
         ]);
-        FranchiseUser::create([
+        $manager = FranchiseUser::create([
             'franchise_id' => $branch->id,
             'full_name' => 'Options Manager',
             'email' => 'options.manager@example.com',
@@ -718,7 +719,12 @@ class FranchiseAccessTest extends TestCase
             'amount' => 135,
             'status' => 'paid',
             'paid_at' => now(),
-            'metadata' => ['purpose' => 'franchise_pos', 'franchise_id' => $branch->id],
+            'metadata' => [
+                'purpose' => 'franchise_pos',
+                'franchise_id' => $branch->id,
+                'cashier_employee_id' => null,
+                'franchise_user_id' => $manager->id,
+            ],
         ]);
         $paymentPayload['payment_reference'] = $payment->reference;
         $this->postJson('/api/franchise/pos/orders', $paymentPayload, $headers)->assertCreated();
@@ -750,7 +756,7 @@ class FranchiseAccessTest extends TestCase
             'address' => 'Payment St',
             'status' => 'active',
         ]);
-        FranchiseUser::create([
+        $manager = FranchiseUser::create([
             'franchise_id' => $branch->id,
             'full_name' => 'Payment Manager',
             'email' => 'payment.manager@example.com',
@@ -810,6 +816,7 @@ class FranchiseAccessTest extends TestCase
         ]);
         $this->assertSame('franchise_pos', data_get(Payment::where('reference', $reference)->first()->metadata, 'purpose'));
         $this->assertSame($branch->id, data_get(Payment::where('reference', $reference)->first()->metadata, 'franchise_id'));
+        $this->assertSame($manager->id, data_get(Payment::where('reference', $reference)->first()->metadata, 'franchise_user_id'));
     }
 
     public function test_franchise_manager_can_edit_only_branch_phone_and_operating_hours(): void

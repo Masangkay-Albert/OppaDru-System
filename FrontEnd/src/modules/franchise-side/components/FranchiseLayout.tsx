@@ -18,7 +18,9 @@ import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 
 const navigation = [
   { to: '/franchise/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/franchise/management', label: 'My Franchise', icon: Store },
   { to: '/franchise/pos', label: 'POS', icon: ShoppingCart },
+  { to: '/franchise/pos/activity', label: 'POS Activity', icon: ClipboardList },
   { to: '/franchise/orders', label: 'Orders', icon: ClipboardList },
   { to: '/franchise/inventory', label: 'Inventory', icon: Boxes },
   { to: '/franchise/reports', label: 'Reports', icon: BarChart3 },

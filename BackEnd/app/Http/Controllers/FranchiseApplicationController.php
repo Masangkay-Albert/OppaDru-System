@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Franchise;
+use App\Models\FranchiseAccount;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
 use App\Traits\AdminAuthTrait;
@@ -86,9 +87,26 @@ class FranchiseApplicationController extends Controller
                 ]
             );
 
-            FranchiseUser::firstOrCreate(
+            $account = FranchiseAccount::firstOrCreate(
+                ['slug' => $slug],
+                [
+                    'id' => 'OPPA-FA-' . strtoupper(Str::random(8)),
+                    'name' => $application->franchise_name,
+                    'email' => $application->email,
+                    'phone' => $application->phone,
+                    'address' => $application->location,
+                    'status' => 'active',
+                ]
+            );
+            if (!$franchise->franchise_account_id) {
+                $franchise->franchise_account_id = $account->id;
+                $franchise->save();
+            }
+
+            $franchiseUser = FranchiseUser::firstOrCreate(
                 ['email' => strtolower(trim((string) $application->email))],
                 [
+                    'franchise_account_id' => $account->id,
                     'franchise_id' => $franchise->id,
                     'full_name' => $application->contact_name,
                     'phone' => $application->phone,
@@ -96,6 +114,11 @@ class FranchiseApplicationController extends Controller
                     'is_active' => true,
                 ]
             );
+            if (!$franchiseUser->franchise_account_id) {
+                $franchiseUser->franchise_account_id = $account->id;
+                $franchiseUser->franchise_id = $franchise->id;
+                $franchiseUser->save();
+            }
 
             $application->status = 'approved';
             $application->admin_notes = $request->input('admin_notes');

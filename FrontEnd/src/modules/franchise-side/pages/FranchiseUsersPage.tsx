@@ -12,6 +12,7 @@ interface BranchUser {
   role: string;
   status: string;
   user_type?: 'employee' | 'driver';
+  franchise_id?: string;
   created_at: string | null;
 }
 
@@ -90,6 +91,23 @@ const FranchiseUsersPage: React.FC = () => {
     }
   };
 
+  const updateEmployeeRole = async (user: BranchUser, role: string) => {
+    setError('');
+    try {
+      const position = role === 'kitchen_staff' ? 'kitchen staff' : role;
+      const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/users/employee/${user.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ position }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Could not update staff role.');
+      setLoading(true);
+      setReload((value) => value + 1);
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Could not update staff role.');
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="mx-auto max-w-[1500px]">
@@ -101,7 +119,7 @@ const FranchiseUsersPage: React.FC = () => {
         <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
           <div className="border-b border-[var(--oppa-border)] px-4 py-4"><h2 className="font-semibold text-[var(--oppa-text)]">Team members</h2><p className="mt-1 text-xs text-gray-500">{users.length} account{users.length === 1 ? '' : 's'} assigned to this location</p></div>
           {loading ? <p className="p-10 text-center text-sm text-gray-500">Loading branch users...</p> : users.length === 0 ? <p className="p-10 text-center text-sm text-gray-500">No staff accounts are assigned to this branch yet.</p> : (
-            <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-[#edf5ef] text-xs uppercase text-gray-500"><tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Date added</th><th className="px-4 py-3">Access</th></tr></thead><tbody className="divide-y divide-gray-100">{users.map((user) => <tr key={`${user.user_type || user.role}-${user.id}`} className="transition hover:bg-[#fbfcfa]"><td className="px-4 py-3.5 font-medium">{user.name}</td><td className="px-4 py-3.5">{user.email}</td><td className="px-4 py-3.5 capitalize">{user.role.replaceAll('_', ' ')}</td><td className="px-4 py-3.5"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>{user.status}</span></td><td className="px-4 py-3.5 text-gray-500">{user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</td><td className="px-4 py-3.5">{user.user_type && <button onClick={() => void toggleStatus(user)} className="rounded-lg border px-3 py-1.5 text-xs font-medium">{user.status === 'active' ? 'Deactivate' : 'Activate'}</button>}</td></tr>)}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-[#edf5ef] text-xs uppercase text-gray-500"><tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Date added</th><th className="px-4 py-3">Access</th></tr></thead><tbody className="divide-y divide-gray-100">{users.map((user) => <tr key={`${user.user_type || user.role}-${user.id}`} className="transition hover:bg-[#fbfcfa]"><td className="px-4 py-3.5 font-medium">{user.name}</td><td className="px-4 py-3.5">{user.email}</td><td className="px-4 py-3.5">{user.user_type === 'employee' ? <select aria-label={`Change ${user.name}'s role`} value={user.role} onChange={(event) => void updateEmployeeRole(user, event.target.value)} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs capitalize"><option value="cashier">Cashier</option><option value="kitchen_staff">Kitchen staff</option><option value="staff">Staff</option></select> : <span className="capitalize">{user.role.replaceAll('_', ' ')}</span>}</td><td className="px-4 py-3.5"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>{user.status}</span></td><td className="px-4 py-3.5 text-gray-500">{user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</td><td className="px-4 py-3.5">{user.user_type && <button onClick={() => void toggleStatus(user)} className="rounded-lg border px-3 py-1.5 text-xs font-medium">{user.status === 'active' ? 'Deactivate' : 'Activate'}</button>}</td></tr>)}</tbody></table></div>
           )}
         </section>
         <p className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">Staff accounts created here are automatically limited to this branch. Branch managers cannot create or manage HQ-level manager accounts.</p>
@@ -110,7 +128,7 @@ const FranchiseUsersPage: React.FC = () => {
         <form onSubmit={addStaff} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
           <div className="mb-5 flex items-start justify-between"><div className="flex items-center gap-3"><span className="rounded-xl bg-[var(--oppa-green-soft)] p-2 text-[var(--oppa-green)]"><Users size={20} /></span><div><h2 className="font-semibold">Add branch staff</h2><p className="text-sm text-gray-500">This account can only access this branch.</p></div></div><button type="button" aria-label="Close dialog" onClick={() => setShowAdd(false)} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={18} /></button></div>
           <div className="space-y-3">
-            <label className="block text-sm font-medium">Role<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"><option value="cashier">Cashier</option><option value="kitchen_staff">Kitchen staff</option><option value="driver">Driver</option></select></label>
+            <label className="block text-sm font-medium">Role<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"><option value="cashier">Cashier</option><option value="staff">Staff</option><option value="kitchen_staff">Kitchen staff</option><option value="driver">Driver</option></select></label>
             <label className="block text-sm font-medium">Full name<input required maxLength={255} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
             <label className="block text-sm font-medium">Email<input required type="email" maxLength={255} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
             <label className="block text-sm font-medium">Phone<input maxLength={50} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>

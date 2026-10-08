@@ -15,6 +15,7 @@ interface UseGCashPaymentFlowProps {
   voucherDiscount: number;
   discountRate: number;
   deliveryCoordinates?: { lat: number; lng: number };
+  franchiseId?: string | null;
   onPaymentComplete: (result: PaymentResult) => void;
   onPaymentCreated?: (reference: string) => void;
 }
@@ -27,6 +28,7 @@ export const useGCashPaymentFlow = ({
   voucherDiscount,
   discountRate,
   deliveryCoordinates,
+  franchiseId,
   onPaymentComplete,
   onPaymentCreated,
 }: UseGCashPaymentFlowProps) => {
@@ -91,6 +93,7 @@ export const useGCashPaymentFlow = ({
         voucher_discount: voucherDiscount,
         discount_rate: discountRate,
         delivery_coordinates: deliveryCoordinates,
+        franchise_id: franchiseId || null,
         items: items.map((item) => ({
           product_id: item.id,
           quantity: item.quantity,
@@ -135,7 +138,7 @@ export const useGCashPaymentFlow = ({
       if (pollRef.current) clearInterval(pollRef.current);
       if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
     };
-  }, [amount, deliveryCoordinates, deliveryType, discountRate, isOpen, items, onPaymentCreated, voucherDiscount]);
+  }, [amount, deliveryCoordinates, deliveryType, discountRate, franchiseId, isOpen, items, onPaymentCreated, voucherDiscount]);
 
   useEffect(() => {
     if (!isOpen || !referenceNumber) return;

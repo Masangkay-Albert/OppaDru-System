@@ -6,6 +6,8 @@ import AccountCreationModal, { type AccountCreationValues } from '../components/
 import { useToast } from '../../customer-side/components/ToastProvider';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithAdminAuth } from '../../../services/adminAuthService';
+import { getFranchises } from '../../../services/franchiseAdminService';
+import type { FranchiseSummary } from '../../../services/franchiseAdminService';
 import { AdminDate, Avatar, ConfirmDialog, EmptyState, PageHeader, RowActionsMenu } from '../components/AdminUI';
 
 export interface EmployeeAccount {
@@ -13,6 +15,9 @@ export interface EmployeeAccount {
   fullName: string;
   email: string;
   position: string;
+  franchise_id?: string | null;
+  franchise?: { id: string; name: string; franchiseAccount?: { name: string } | null } | null;
+  is_active?: boolean;
   created_at?: string;
 }
 
@@ -40,6 +45,9 @@ const AdminEmployeesPage: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; fullName: string } | null>(null);
   const [search, setSearch] = useState('');
   const [positionFilter, setPositionFilter] = useState('all');
+  const [locationFilter, setLocationFilter] = useState('all');
+  const [locations, setLocations] = useState<FranchiseSummary[]>([]);
+  const [newEmployeeLocationId, setNewEmployeeLocationId] = useState('');
   const { showToast } = useToast();
 
   const refresh = async () => {
@@ -55,6 +63,11 @@ const AdminEmployeesPage: React.FC = () => {
     const timeout = window.setTimeout(() => { void refresh(); }, 0);
     return () => window.clearTimeout(timeout);
   }, []);
+  useEffect(() => {
+    void getFranchises().then(setLocations).catch((error: unknown) => {
+      console.error('Failed to fetch franchise locations:', error);
+    });
+  }, []);
 
   const handleAdd = async (values: AccountCreationValues) => {
     setIsLoading(true);
@@ -63,19 +76,44 @@ const AdminEmployeesPage: React.FC = () => {
       const response = await fetchWithAdminAuth(`${API_URL}/employees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ fullName: values.fullName, email: values.email, password: values.password, position: values.position || 'cashier' }),
+        body: JSON.stringify({
+          fullName: values.fullName,
+          email: values.email,
+          password: values.password,
+          position: values.position || 'cashier',
+          franchise_id: newEmployeeLocationId || null,
+        }),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || 'Unable to create the account. Please try again.');
       }
       setShowModal(false);
+      setNewEmployeeLocationId('');
       await refresh();
       showToast('Employee account created successfully.', 'success');
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Unable to create the account. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const updateEmployee = async (employee: EmployeeAccount, values: { position?: string; franchise_id?: string | null; is_active?: boolean }) => {
+    try {
+      const response = await fetchWithAdminAuth(`${API_URL}/employees/${employee.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(values),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || 'Unable to update employee.');
+      }
+      await refresh();
+      showToast('Employee assignment updated.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to update employee.', 'error');
     }
   };
 
@@ -117,23 +155,28 @@ const AdminEmployeesPage: React.FC = () => {
   const positions = useMemo(() => [...new Set(employees.map((employee) => employee.position).filter(Boolean))].sort(), [employees]);
   const filtered = useMemo(() => employees.filter((employee) =>
     `${employee.fullName} ${employee.email}`.toLowerCase().includes(search.trim().toLowerCase()) &&
-    (positionFilter === 'all' || employee.position === positionFilter)
-  ), [employees, positionFilter, search]);
+    (positionFilter === 'all' || employee.position === positionFilter) &&
+    (locationFilter === 'all' || (locationFilter === 'main' ? !employee.franchise_id : employee.franchise_id === locationFilter))
+  ), [employees, locationFilter, positionFilter, search]);
 
   return (
     <AdminLayout>
       <PageHeader title="Registered Employees" subtitle="Manage employee accounts and information." actions={<button onClick={() => { setShowModal(true); setSubmitError(''); }} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><UserPlus size={16} />Add Employee</button>} />
+      <p className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">Franchise managers use the existing franchise manager accounts. Assign cashiers and staff to a store below; their location assignment controls branch access.</p>
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
         <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={17} aria-hidden="true" /><input aria-label="Search employees by name or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email…" className="admin-embedded-input w-full text-sm" /></label>
         <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]">Position<select aria-label="Filter employees by position" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} className="admin-embedded-input max-w-36 font-medium text-[var(--oppa-text)]"><option value="all">All positions</option>{positions.map((position) => <option key={position} value={position}>{formatPositionLabel(position)}</option>)}</select></label>
+        <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]">Location<select aria-label="Filter employees by franchise location" value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)} className="admin-embedded-input max-w-48 font-medium text-[var(--oppa-text)]"><option value="all">All locations</option><option value="main">Main system</option>{locations.map((location) => <option key={String(location.id)} value={String(location.id)}>{location.name}</option>)}</select></label>
       </div>
-      {filtered.length === 0 ? <div className="admin-card"><EmptyState title={search || positionFilter !== 'all' ? 'No employees match these filters' : 'No registered employees yet'} description={search || positionFilter !== 'all' ? 'Try another name, email, or position.' : 'New employee accounts will appear here.'} /></div> :
+      {filtered.length === 0 ? <div className="admin-card"><EmptyState title={search || positionFilter !== 'all' || locationFilter !== 'all' ? 'No employees match these filters' : 'No registered employees yet'} description={search || positionFilter !== 'all' || locationFilter !== 'all' ? 'Try another name, email, position, or location.' : 'New employee accounts will appear here.'} /></div> :
         <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-[var(--shadow-card)]">
           <table className="admin-table w-full text-sm">
-            <thead><tr className="sticky top-0 border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-left text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]"><th className="px-5 py-3">Employee</th><th className="px-5 py-3">Position</th><th className="px-5 py-3">Joined</th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
+            <thead><tr className="sticky top-0 border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-left text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]"><th className="px-5 py-3">Employee</th><th className="px-5 py-3">Position</th><th className="px-5 py-3">Location</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Joined</th><th className="px-5 py-3 text-right">Actions</th></tr></thead>
             <tbody>{filtered.map((employee) => <tr key={employee.id} className="border-b border-[var(--oppa-border)]/70 last:border-0 hover:bg-[var(--oppa-cream)]">
               <td data-label="Employee" className="px-5 py-3"><div className="flex min-w-0 items-center gap-3"><Avatar name={employee.fullName} /><div className="min-w-0"><p className="truncate font-semibold text-[var(--oppa-text)]">{employee.fullName}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{employee.email}</p></div></div></td>
-              <td data-label="Position" className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${positionStyle(employee.position || '')}`}>{employee.position ? formatPositionLabel(employee.position) : '—'}</span></td>
+              <td data-label="Position" className="px-5 py-3"><select aria-label={`Change ${employee.fullName}'s role`} value={employee.position} onChange={(event) => void updateEmployee(employee, { position: event.target.value })} className={`rounded-full border-0 px-2.5 py-1 text-xs font-semibold ${positionStyle(employee.position || '')}`}><option value="cashier">Cashier</option><option value="kitchen staff">Kitchen Staff</option><option value="staff">Staff</option></select></td>
+              <td data-label="Location" className="px-5 py-3"><select aria-label={`Assign ${employee.fullName} to a location`} value={employee.franchise_id || ''} onChange={(event) => void updateEmployee(employee, { franchise_id: event.target.value || null })} className="max-w-48 rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-1.5 text-xs"><option value="">Main system</option>{locations.map((location) => <option key={String(location.id)} value={String(location.id)}>{location.name}</option>)}</select></td>
+              <td data-label="Status" className="px-5 py-3"><button onClick={() => void updateEmployee(employee, { is_active: !employee.is_active })} className={`rounded-full px-2.5 py-1 text-xs font-semibold ${employee.is_active === false ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-800'}`}>{employee.is_active === false ? 'Inactive' : 'Active'}</button></td>
               <td data-label="Joined" className="px-5 py-3 text-[var(--oppa-text-muted)]"><AdminDate value={employee.created_at} /></td>
               <td data-label="Actions" className="px-5 py-3"><div className="flex justify-end"><RowActionsMenu label={employee.fullName} items={[{ label: 'View details', onSelect: () => setSelected(employee) }, { label: 'Reset password', onSelect: () => setResetTarget(employee) }, { label: 'Delete employee', destructive: true, onSelect: () => setDeleteTarget({ id: employee.id, fullName: employee.fullName }) }]} /></div></td>
             </tr>)}</tbody>
@@ -141,7 +184,15 @@ const AdminEmployeesPage: React.FC = () => {
         </div>}
       {deleteTarget && <ConfirmDialog title={`Delete ${deleteTarget.fullName}?`} description="This action will remove the employee account from the system." confirmLabel="Delete" onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDeleteEmployee()} />}
       {resetTarget && <ConfirmDialog title={`Reset ${resetTarget.fullName}’s password?`} description="Continue to the password reset form for this employee." confirmLabel="Continue" onCancel={() => setResetTarget(null)} onConfirm={() => { setSelected(resetTarget); setResetTarget(null); }} />}
-      <AccountCreationModal mode="employee" isOpen={showModal} onClose={() => setShowModal(false)} onSubmit={handleAdd} isSubmitting={isLoading} submitError={submitError} />
+      <AccountCreationModal
+        mode="employee"
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSubmit={handleAdd}
+        isSubmitting={isLoading}
+        submitError={submitError}
+        extraFields={<label className="block text-sm font-medium text-[var(--oppa-text)]">Assign location<select value={newEmployeeLocationId} onChange={(event) => setNewEmployeeLocationId(event.target.value)} className="mt-1 w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2.5 text-sm"><option value="">Main system (no franchise)</option>{locations.map((location) => <option key={String(location.id)} value={String(location.id)}>{location.name}</option>)}</select></label>}
+      />
       {selected && <AccountModal account={selected} onClose={() => setSelected(null)} onResetPassword={handleReset} />}
     </AdminLayout>
   );

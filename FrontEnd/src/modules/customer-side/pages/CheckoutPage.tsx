@@ -383,6 +383,7 @@ const CheckoutPage: React.FC = () => {
         voucherDiscount={voucherDiscount}
         discountRate={activeDiscount.discountRate}
         deliveryCoordinates={deliveryCoordinates}
+        franchiseId={selectedBranchId}
         onPaymentComplete={handlePaymentComplete}
         onPaymentCreated={setGCashReference}
       />
@@ -396,6 +397,7 @@ const CheckoutPage: React.FC = () => {
         voucherDiscount={voucherDiscount}
         discountRate={activeDiscount.discountRate}
         deliveryCoordinates={deliveryCoordinates}
+        franchiseId={selectedBranchId}
         onPaymentComplete={handlePaymentComplete}
       />
     </div>

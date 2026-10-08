@@ -167,10 +167,8 @@ class OrderController extends Controller
         $validator->after(function ($validator) use ($request) {
             $franchiseId = $request->input('franchise_id');
             if ($franchiseId) {
-                $activeBranch = \App\Models\Franchise::where('id', $franchiseId)
-                    ->where('status', 'active')
-                    ->exists();
-                if (!$activeBranch) {
+                $activeBranch = \App\Models\Franchise::with('franchiseAccount')->find($franchiseId);
+                if (!$activeBranch || !$activeBranch->isOperationallyActive()) {
                     $validator->errors()->add('franchise_id', 'The selected branch is not currently accepting orders.');
                 }
 
@@ -184,6 +182,19 @@ class OrderController extends Controller
                     if (!$isInBranchCatalog) {
                         $validator->errors()->add("items.{$index}.product_id", 'This item is not available from the selected branch.');
                     }
+                }
+
+                $addonIds = collect((array) $request->input('items', []))
+                    ->flatMap(fn (array $item) => collect($item['selected_addons'] ?? [])->pluck('id'))
+                    ->filter()
+                    ->unique();
+                $addons = \App\Models\Addon::with('group')->whereIn('id', $addonIds)->get();
+                if ($addons->count() !== $addonIds->count()
+                    || $addons->contains(fn (\App\Models\Addon $addon) => !$addon->is_active
+                        || !$addon->group || !$addon->group->is_active
+                        || ($addon->franchise_id !== null && (string) $addon->franchise_id !== (string) $franchiseId)
+                        || ($addon->group->franchise_id !== null && (string) $addon->group->franchise_id !== (string) $franchiseId))) {
+                    $validator->errors()->add('items', 'One or more add-ons are unavailable from the selected branch.');
                 }
             }
 
@@ -257,7 +268,10 @@ class OrderController extends Controller
         $payment = null;
         if (in_array($request->payment_method, ['gcash', 'credit_card'], true)) {
             $payment = Payment::where('reference', $request->payment_reference)->first();
-            if (!$payment || $payment->status !== 'paid' || round((float) $payment->amount) !== $total) {
+            $franchiseId = $request->input('franchise_id');
+            if (!$payment || $payment->status !== 'paid'
+                || round((float) $payment->amount) !== $total
+                || ($franchiseId !== null && (string) data_get($payment->metadata, 'franchise_id') !== (string) $franchiseId)) {
                 return response()->json(['message' => 'Payment is not confirmed for this order.'], 422);
             }
 
@@ -267,6 +281,9 @@ class OrderController extends Controller
                     'order' => $existingOrder,
                     'message' => 'Order was already placed.'
                 ]);
+            }
+            if ($payment->order_id !== null) {
+                return response()->json(['message' => 'Payment is not available for this order.'], 422);
             }
         }
 
@@ -298,11 +315,19 @@ class OrderController extends Controller
                 $discountType,
                 $discountRate,
                 $discountAmount,
-                $discountProofData
+                $discountProofData,
             ) {
                 $franchiseId = $request->input('franchise_id');
                 if ($franchiseId) {
                     $this->franchiseInventoryService->consume((string) $franchiseId, $request->input('items'));
+                }
+                if ($payment) {
+                    $lockedPayment = Payment::whereKey($payment->id)->lockForUpdate()->first();
+                    if (!$lockedPayment || $lockedPayment->status !== 'paid' || $lockedPayment->order_id !== null
+                        || round((float) $lockedPayment->amount) !== $total
+                        || ($franchiseId !== null && (string) data_get($lockedPayment->metadata, 'franchise_id') !== (string) $franchiseId)) {
+                        throw new \InvalidArgumentException('Payment is not available for this order.');
+                    }
                 }
 
                 $order = Order::create([
@@ -352,6 +377,9 @@ class OrderController extends Controller
                 ]);
 
                 $this->orderDataService->syncOrderItems($order, $orderItems);
+                if ($payment) {
+                    $lockedPayment->update(['order_id' => $order->id]);
+                }
                 return $order;
             });
         } catch (\InvalidArgumentException $exception) {
@@ -373,7 +401,6 @@ class OrderController extends Controller
             ]);
         }
 
-        $payment?->update(['order_id' => $order->id]);
         $order->refresh();
 
         return response()->json([
