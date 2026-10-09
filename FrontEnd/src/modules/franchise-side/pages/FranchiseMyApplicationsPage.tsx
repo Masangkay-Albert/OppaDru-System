@@ -21,6 +21,25 @@ const workflow = [
   'active',
 ];
 const title = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+const formatPhilippineDateTime = (value: string) => new Intl.DateTimeFormat('en-PH', {
+  dateStyle: 'long',
+  timeStyle: 'short',
+  timeZone: 'Asia/Manila',
+}).format(new Date(value));
+
+const uniqueTimelineEvents = (
+  events: NonNullable<ApplicantFranchiseApplication['events']>,
+  hasCurrentInterview: boolean,
+) => {
+  const seen = new Set<string>();
+  return [...events].reverse().filter((event) => {
+    if (hasCurrentInterview && event.title === 'Interview scheduled') return false;
+    const signature = `${event.status || ''}|${event.title}|${event.message || ''}`;
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  }).reverse();
+};
 
 const FranchiseMyApplicationsPage: React.FC = () => {
   const [applications, setApplications] = useState<ApplicantFranchiseApplication[]>([]);
@@ -156,7 +175,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                     <section className="mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
                       <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>
                       <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
-                      {application.interview_at && <p className="mt-3 rounded-xl bg-white p-3 text-sm font-medium">Interview: {new Date(application.interview_at).toLocaleString()}</p>}
+                      {application.interview_at && <p className="mt-3 rounded-xl bg-white p-3 text-sm font-medium">Interview (Philippine time): {formatPhilippineDateTime(application.interview_at)}</p>}
                     </section>
 
                     {currentStatus === 'additional_information_required' && (
@@ -188,7 +207,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
 
                     <section>
                       <h3 className="mb-3 text-sm font-semibold">Application timeline</h3>
-                      {!application.events?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No timeline updates yet.</p> : <ol className="space-y-4">{application.events.map((event) => <li key={event.id} className="relative border-l border-[var(--oppa-border)] pl-4"><p className="text-sm font-semibold">{event.title}</p>{event.message && <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[var(--oppa-text-muted)]">{event.message}</p>}<p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{new Date(event.created_at).toLocaleString()}</p></li>)}</ol>}
+                      {!application.events?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No timeline updates yet.</p> : <ol className="space-y-4">{uniqueTimelineEvents(application.events, Boolean(application.interview_at)).map((event) => <li key={event.id} className="relative border-l border-[var(--oppa-border)] pl-4"><p className="text-sm font-semibold">{event.title}</p>{event.message && <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[var(--oppa-text-muted)]">{event.message}</p>}<p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{formatPhilippineDateTime(event.created_at)}</p></li>)}</ol>}
                     </section>
 
                     {canWithdraw && <div className="mt-5 border-t border-[var(--oppa-border)] pt-4"><button type="button" onClick={() => void handleWithdraw(application)} disabled={busyId === application.id} className="inline-flex items-center gap-2 text-xs font-medium text-red-700 hover:underline disabled:opacity-60"><RotateCcw size={14} />Withdraw this application</button></div>}

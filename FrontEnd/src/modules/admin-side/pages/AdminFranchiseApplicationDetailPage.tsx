@@ -27,6 +27,26 @@ const transitions: Record<string, string[]> = {
 
 const statusTitle = (status: string) => status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const money = (amount?: string | number) => amount === undefined || amount === null ? 'Not provided' : `₱${Number(amount).toLocaleString('en-PH')}`;
+const manilaTimeZone = 'Asia/Manila';
+
+const toManilaDateTimeInput = (value: string): string => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: manilaTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((valuePart) => valuePart.type === type)?.value || '';
+  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
+};
+
+const manilaDateTimeInputToIso = (value: string): string =>
+  value ? new Date(`${value}:00+08:00`).toISOString() : '';
 
 const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -53,7 +73,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       setApplication(data);
       setStatus(data.status === 'pending' ? 'submitted' : data.status || 'submitted');
       setInstructions(data.next_step_instructions || '');
-      setInterviewAt(data.interview_at ? new Date(data.interview_at).toISOString().slice(0, 16) : '');
+      setInterviewAt(data.interview_at ? toManilaDateTimeInput(data.interview_at) : '');
       setInterviewNotes(data.interview_notes || '');
       setAssessmentResult(data.location_assessment?.result || '');
       setAssessmentNotes(data.location_assessment?.notes || '');
@@ -84,7 +104,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
         status,
         admin_notes: adminNotes,
         next_step_instructions: instructions,
-        interview_at: interviewAt ? new Date(interviewAt).toISOString() : '',
+        interview_at: manilaDateTimeInputToIso(interviewAt),
         interview_notes: interviewNotes,
         location_assessment: {
           ...(assessmentResult ? { result: assessmentResult } : {}),
@@ -164,7 +184,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
               <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
               <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or the additional information needed." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
               <div className="rounded-xl border border-[var(--oppa-border)] p-3">
-                <h3 className="mb-3 text-sm font-semibold">Interview record</h3>
+                <h3 className="mb-3 text-sm font-semibold">Interview record (Philippine time)</h3>
                 <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Date and time<input type="datetime-local" value={interviewAt} onChange={(event) => setInterviewAt(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
                 <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Internal interview notes<textarea value={interviewNotes} onChange={(event) => setInterviewNotes(event.target.value)} rows={2} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
               </div>

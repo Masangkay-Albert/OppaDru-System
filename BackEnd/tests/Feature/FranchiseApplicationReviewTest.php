@@ -77,19 +77,28 @@ class FranchiseApplicationReviewTest extends TestCase
             'status' => 'for_interview',
         ], $headers)->assertUnprocessable();
 
-        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+        $interviewReview = [
             'status' => 'for_interview',
             'interview_at' => '2026-11-01T10:00:00+08:00',
             'interview_notes' => 'Bring the operating plan.',
             'next_step_instructions' => 'Your interview is scheduled. Please check your account email.',
-        ], $headers)->assertOk()
+        ];
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, $interviewReview, $headers)->assertOk()
             ->assertJsonPath('data.status', 'for_interview');
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, $interviewReview, $headers)->assertOk();
 
         $this->assertDatabaseHas('franchise_application_events', [
             'application_id' => $application->id,
             'title' => 'Interview scheduled',
+            'message' => 'Interview scheduled for November 1, 2026 10:00 AM (Philippine time).',
             'is_internal' => false,
         ]);
+        $this->assertSame(
+            1,
+            FranchiseApplicationEvent::where('application_id', $application->id)
+                ->where('title', 'Interview scheduled')
+                ->count(),
+        );
         $this->assertDatabaseHas('franchise_application_events', [
             'application_id' => $application->id,
             'title' => 'Interview notes added',
