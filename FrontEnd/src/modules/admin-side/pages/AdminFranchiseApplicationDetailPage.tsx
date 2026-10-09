@@ -28,18 +28,6 @@ const transitions: Record<string, string[]> = {
 const statusTitle = (status: string) => status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const money = (amount?: string | number) => amount === undefined || amount === null ? 'Not provided' : `₱${Number(amount).toLocaleString('en-PH')}`;
 const manilaTimeZone = 'Asia/Manila';
-const applicationStages = [
-  'submitted',
-  'under_review',
-  'additional_information_required',
-  'for_interview',
-  'location_assessment',
-  'conditionally_approved',
-  'agreement_pending',
-  'requirements_pending',
-  'approved_for_opening',
-  'active',
-];
 
 const toManilaDateTimeInput = (value: string): string => {
   const date = new Date(value);
@@ -108,7 +96,6 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   }, []);
 
   const currentStatus = application?.status === 'pending' ? 'submitted' : application?.status || 'submitted';
-  const currentStageIndex = applicationStages.indexOf(currentStatus);
   const availableStatuses = useMemo(() => {
     const options = transitions[currentStatus] || [];
     return options.includes(status) ? [status, ...options.filter((option) => option !== status)] : options;
@@ -181,35 +168,6 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             <div><p className="font-mono text-xs text-[var(--oppa-text-muted)]">{application.reference_number || 'Legacy application'}</p><h1 className="mt-1 font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">{application.contact_name}</h1><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">{application.email} · {application.phone || 'No phone number'}</p></div>
             <span className="w-fit rounded-full bg-amber-50 px-3 py-1.5 text-sm font-semibold capitalize text-amber-800">{statusTitle(currentStatus)}</span>
           </header>
-
-          <section aria-label="Application progress" className="mb-5 overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
-            {['rejected', 'withdrawn'].includes(currentStatus) ? (
-              <p className="text-sm font-semibold text-red-700">Application {currentStatus}. The review workflow has ended.</p>
-            ) : currentStatus === 'on_hold' ? (
-              <p className="text-sm font-semibold text-amber-800">Application is on hold. Resume review to continue the workflow.</p>
-            ) : (
-              <ol className="flex min-w-[760px] items-start">
-                {applicationStages.map((stage, index) => {
-                  const complete = index < currentStageIndex;
-                  const current = index === currentStageIndex;
-                  return (
-                    <li key={stage} aria-current={current ? 'step' : undefined} className="flex min-w-0 flex-1 flex-col items-center text-center">
-                      <span className={`flex size-7 items-center justify-center rounded-full border text-xs font-semibold ${
-                        current
-                          ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white'
-                          : complete
-                            ? 'border-[var(--oppa-green)] bg-green-50 text-[var(--oppa-green)]'
-                            : 'border-[var(--oppa-border)] bg-white text-[var(--oppa-text-muted)]'
-                      }`}>{index + 1}</span>
-                      <span className={`mt-1.5 max-w-20 text-[10px] leading-tight ${
-                        current || complete ? 'font-semibold text-[var(--oppa-green)]' : 'text-[var(--oppa-text-muted)]'
-                      }`}>{statusTitle(stage)}</span>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </section>
 
           <div className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
             <div className="space-y-5">
@@ -352,11 +310,11 @@ const RequirementsTrackingForm: React.FC<{ application: FranchiseApplication; on
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const eligible = ['conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening'].includes(application.status || '');
+  const canEditRequirements = !['active', 'rejected', 'withdrawn'].includes(application.status || '');
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!eligible) return;
+    if (!canEditRequirements) return;
     if (agreementStatus === 'signed' && !window.confirm('Confirm that the franchise agreement has actually been signed?')) return;
     if (feeStatus === 'paid' && !window.confirm('Confirm the recorded franchise fee has been received and matched to the payment reference?')) return;
     setSaving(true);
@@ -397,9 +355,12 @@ const RequirementsTrackingForm: React.FC<{ application: FranchiseApplication; on
       <div className="mb-4"><h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Franchise requirements and agreement</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Only record requirements that apply. “Pending” or “not configured” will continue to block activation.</p></div>
       {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {message && <p role="status" className="mb-4 rounded-xl bg-green-50 p-3 text-sm text-green-800">{message}</p>}
-      {!eligible && <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Requirements tracking becomes available after the application is conditionally approved.</p>}
+      <p className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+        Admins may prepare this checklist at any review stage. Saving it does not change the application status or approve the applicant. Activation remains blocked until the application is approved for opening and every applicable requirement is complete.
+      </p>
+      {!canEditRequirements && <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Requirements are read-only for active, rejected, or withdrawn applications.</p>}
       <form onSubmit={handleSave} className="grid gap-5 lg:grid-cols-2">
-        <fieldset disabled={!eligible || saving} className="contents">
+        <fieldset disabled={!canEditRequirements || saving} className="contents">
           <div className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4">
             <h3 className="text-sm font-semibold">Agreement</h3>
             <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Preparation and signing status<select value={agreementStatus} onChange={(event) => setAgreementStatus(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]"><option value="not_started">Not started</option><option value="drafting">Drafting</option><option value="sent">Sent for signing</option><option value="signed">Signed</option></select></label>
@@ -436,7 +397,7 @@ const RequirementsTrackingForm: React.FC<{ application: FranchiseApplication; on
           </div>
 
           <label className="block text-xs font-medium text-[var(--oppa-text-muted)] lg:col-span-2">Internal note (for audit trail)<textarea value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} rows={2} maxLength={5000} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-          <div className="lg:col-span-2"><p className="text-xs text-[var(--oppa-text-muted)]">{application.requirements_reviewed_at ? `Last reviewed: ${new Date(application.requirements_reviewed_at).toLocaleString()}` : 'Requirements have not yet been reviewed.'}</p><button type="submit" disabled={!eligible || saving} className="mt-3 inline-flex items-center justify-center rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save agreement and requirements'}</button></div>
+          <div className="lg:col-span-2"><p className="text-xs text-[var(--oppa-text-muted)]">{application.requirements_reviewed_at ? `Last reviewed: ${new Date(application.requirements_reviewed_at).toLocaleString()}` : 'Requirements have not yet been reviewed.'}</p><button type="submit" disabled={!canEditRequirements || saving} className="mt-3 inline-flex items-center justify-center rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save agreement and requirements'}</button></div>
         </fieldset>
       </form>
     </section>

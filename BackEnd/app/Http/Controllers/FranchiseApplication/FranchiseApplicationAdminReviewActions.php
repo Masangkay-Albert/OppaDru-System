@@ -207,13 +207,10 @@ trait FranchiseApplicationAdminReviewActions
         $admin = Admin::where('api_token', hash('sha256', $request->bearerToken() ?? ''))->first();
         $application = DB::transaction(function () use ($id, $request, $admin) {
             $application = FranchiseApplication::whereKey($id)->lockForUpdate()->firstOrFail();
-            if (! in_array($application->status, [
-                'conditionally_approved',
-                'agreement_pending',
-                'requirements_pending',
-                'approved_for_opening',
-            ], true)) {
-                abort(response()->json(['message' => 'Agreement and opening requirements can only be tracked after conditional approval.'], 409));
+            if (in_array($application->status, ['active', 'rejected', 'withdrawn'], true)) {
+                abort(response()->json([
+                    'message' => 'Requirements cannot be changed for active, rejected, or withdrawn applications.',
+                ], 409));
             }
 
             foreach ([
@@ -234,9 +231,6 @@ trait FranchiseApplicationAdminReviewActions
             $application->requirements_reviewed_at = now();
             $application->reviewed_by_admin_id = $admin?->id;
             $application->reviewed_at = now();
-            if ($application->status === 'conditionally_approved') {
-                $application->status = 'agreement_pending';
-            }
             $application->save();
 
             $this->recordEvent(

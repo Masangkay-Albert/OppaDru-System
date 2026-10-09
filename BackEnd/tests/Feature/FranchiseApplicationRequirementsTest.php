@@ -22,7 +22,11 @@ class FranchiseApplicationRequirementsTest extends TestCase
         $headers = ['Authorization' => 'Bearer '.$adminToken];
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id.'/requirements', $this->requirementsData(), $headers)
-            ->assertStatus(409);
+            ->assertOk()
+            ->assertJsonPath('data.status', 'submitted')
+            ->assertJsonPath('data.agreement_status', 'drafting');
+
+        $this->assertSame('submitted', $application->fresh()->status);
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'under_review',
@@ -35,7 +39,7 @@ class FranchiseApplicationRequirementsTest extends TestCase
         $this->patchJson('/api/admin/franchise-applications/'.$application->id.'/requirements', $this->requirementsData(), $headers)
             ->assertOk()
             ->assertJsonPath('data.agreement_status', 'drafting')
-            ->assertJsonPath('data.status', 'agreement_pending')
+            ->assertJsonPath('data.status', 'conditionally_approved')
             ->assertJsonPath('data.franchise_fee_payment_status', 'not_configured');
 
         $this->assertDatabaseHas('franchise_applications', [
