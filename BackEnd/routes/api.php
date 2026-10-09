@@ -46,7 +46,7 @@ Route::get('/storage/{path}', function (string $path) {
 })->where('path', '.*');
 
 Route::get('/settings/pricing', [SettingController::class, 'index']);
-Route::post('/franchise-applications', [FranchiseApplicationController::class, 'store']);
+Route::get('/franchise-opportunities', [FranchiseApplicationController::class, 'opportunities']);
 Route::get('/franchises/active', [FranchiseController::class, 'activeBranches']);
 
 Route::prefix('franchise')->group(function () {
@@ -176,6 +176,12 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::post('/payment/card/process', [PaymentController::class, 'processCard']);
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 
+    Route::post('/franchise-applications', [FranchiseApplicationController::class, 'store']);
+    Route::get('/franchise-applications/me', [FranchiseApplicationController::class, 'myApplications']);
+    Route::get('/franchise-applications/me/{id}', [FranchiseApplicationController::class, 'showMine']);
+    Route::post('/franchise-applications/me/{id}/response', [FranchiseApplicationController::class, 'respond']);
+    Route::patch('/franchise-applications/me/{id}/withdraw', [FranchiseApplicationController::class, 'withdraw']);
+    Route::get('/franchise-applications/{id}/documents/{document}', [FranchiseApplicationController::class, 'downloadDocument']);
 });
 
 Route::prefix('admin')->group(function () {
@@ -223,7 +229,12 @@ Route::prefix('admin')->group(function () {
     Route::delete('/franchises/{id}', [FranchiseController::class, 'destroy']);
     Route::get('/franchise-applications', [FranchiseApplicationController::class, 'index']);
     Route::get('/franchise-applications/stats', [FranchiseApplicationController::class, 'stats']);
+    Route::get('/franchise-applications/{id}', [FranchiseApplicationController::class, 'showAdmin']);
     Route::patch('/franchise-applications/{id}', [FranchiseApplicationController::class, 'review']);
+    Route::patch('/franchise-applications/{id}/requirements', [FranchiseApplicationController::class, 'updateRequirements']);
+    Route::post('/franchise-applications/{id}/activate', [FranchiseApplicationController::class, 'activate']);
+    Route::get('/franchise-applications/{id}/documents/{document}', [FranchiseApplicationController::class, 'downloadDocument']);
+    Route::put('/franchise-opportunities', [FranchiseApplicationController::class, 'updateOpportunitySettings']);
 
     Route::get('/franchise-accounts', [FranchiseAccountController::class, 'index']);
     Route::post('/franchise-accounts', [FranchiseAccountController::class, 'store']);

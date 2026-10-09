@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
 import { UserPlus, Eye, EyeOff, Phone, Mail, Lock, User } from "lucide-react";
 import heroSectionImg from "../../../assets/herosection.png";
 
 const RegistrationPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { register } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -143,7 +144,8 @@ const RegistrationPage: React.FC = () => {
       });
 
       if (success) {
-        navigate("/login?registered=1");
+        const returnTo = new URLSearchParams(location.search).get("returnTo");
+        navigate(`/login?registered=1${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`);
       } else {
         setError("Email already exists or registration failed");
         setIsLoading(false);

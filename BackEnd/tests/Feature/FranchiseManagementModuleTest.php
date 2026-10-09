@@ -8,6 +8,7 @@ use App\Models\FranchiseAccount;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
 use App\Models\Order;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -137,7 +138,7 @@ class FranchiseManagementModuleTest extends TestCase
         $this->getJson('/api/franchise/management', $headers)->assertForbidden();
     }
 
-    public function test_approved_application_is_connected_to_the_new_franchise_account(): void
+    public function test_conditional_approval_does_not_activate_or_create_franchise_access(): void
     {
         $adminToken = $this->createAdminToken();
         $application = FranchiseApplication::create([
@@ -146,21 +147,62 @@ class FranchiseManagementModuleTest extends TestCase
             'email' => 'cedar.manager@test',
             'phone' => '09170000001',
             'location' => 'Cedar Avenue',
-            'status' => 'pending',
+            'status' => 'submitted',
         ]);
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
-            'action' => 'approve',
+            'status' => 'under_review',
+        ], ['Authorization' => 'Bearer '.$adminToken])->assertOk();
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'conditionally_approved',
         ], ['Authorization' => 'Bearer '.$adminToken])->assertOk();
 
-        $account = FranchiseAccount::where('slug', 'cedar-kitchen')->firstOrFail();
-        $location = Franchise::where('slug', 'cedar-kitchen')->firstOrFail();
-        $this->assertSame($account->id, $location->franchise_account_id);
-        $this->assertDatabaseHas('franchise_users', [
-            'email' => 'cedar.manager@test',
-            'franchise_account_id' => $account->id,
-            'franchise_id' => $location->id,
+        $this->assertSame('conditionally_approved', $application->fresh()->status);
+        $this->assertSame(0, FranchiseAccount::count());
+        $this->assertSame(0, Franchise::count());
+        $this->assertSame(0, FranchiseUser::count());
+    }
+
+    public function test_duplicate_application_is_rejected_and_admin_decision_is_recorded(): void
+    {
+        $adminToken = $this->createAdminToken();
+        $applicantToken = 'franchise-management-applicant-token';
+        User::create([
+            'full_name' => 'Maple Manager',
+            'email' => 'maple.manager@test',
+            'phone' => '09170000033',
+            'password' => Hash::make('Applicant@123'),
+            'api_token' => hash('sha256', $applicantToken),
+            'email_verified_at' => now(),
         ]);
+        $applicantHeaders = ['Authorization' => 'Bearer '.$applicantToken];
+        $payload = [
+            'franchise_name' => 'Maple Grove Kitchen',
+            'contact_name' => 'Maple Manager',
+            'email' => 'maple.manager@test',
+            'phone' => '09170000033',
+            'location' => 'Maple Street',
+            'applicant_address' => 'Maple Street, Cebu',
+            'business_experience' => 'Five years in retail operations.',
+            'investment_capacity' => 2000000,
+            'has_proposed_property' => false,
+            'opening_timeline' => '6_to_12_months',
+            'notes' => 'Interested in a neighborhood branch.',
+        ];
+
+        $this->postJson('/api/franchise-applications', $payload, $applicantHeaders)->assertCreated();
+        $this->postJson('/api/franchise-applications', $payload, $applicantHeaders)->assertStatus(409);
+
+        $application = FranchiseApplication::firstOrFail();
+        $admin = Admin::where('api_token', hash('sha256', $adminToken))->firstOrFail();
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'under_review',
+            'admin_notes' => 'Standard review passed.',
+        ], ['Authorization' => 'Bearer '.$adminToken])->assertOk();
+
+        $this->assertSame($admin->id, $application->fresh()->reviewed_by_admin_id);
+        $this->assertSame('under_review', $application->fresh()->status);
     }
 
     public function test_migration_links_existing_locations_and_managers_without_changing_their_ids(): void

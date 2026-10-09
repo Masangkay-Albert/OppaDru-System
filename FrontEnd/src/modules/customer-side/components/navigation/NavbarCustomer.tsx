@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../../contexts/Authcontext";
 import { useFavorites } from "../../../../contexts/FavoritesContext";
-import { Heart, ChevronDown, Package, LogOut, Settings } from "lucide-react";
+import { BriefcaseBusiness, Heart, ChevronDown, Package, LogOut, Settings } from "lucide-react";
 import oppaLogo from "../../../../assets/oppadrulogo.jpg";
 
 const NavbarCustomer: React.FC = () => {
@@ -100,6 +100,16 @@ const NavbarCustomer: React.FC = () => {
                       >
                         <Package size={16} className="text-gray-500" />
                         <span>My Orders</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowDropdown(false);
+                          navigate("/franchise/my-applications");
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors duration-150 font-sans"
+                      >
+                        <BriefcaseBusiness size={16} className="text-gray-500" />
+                        <span>My Applications</span>
                       </button>
                       <button
                         onClick={() => {

@@ -42,6 +42,7 @@ const AdminFranchisesPage = lazy(() => import("./modules/admin-side/pages/AdminF
 const AdminFranchiseDetailPage = lazy(() => import("./modules/admin-side/pages/AdminFranchiseDetailPage"));
 const AdminFranchiseAccountDetailPage = lazy(() => import("./modules/admin-side/pages/AdminFranchiseAccountDetailPage"));
 const AdminFranchiseApplicationsPage = lazy(() => import("./modules/admin-side/pages/AdminFranchiseApplicationsPage"));
+const AdminFranchiseApplicationDetailPage = lazy(() => import("./modules/admin-side/pages/AdminFranchiseApplicationDetailPage"));
 
 // ============ FRANCHISE PAGES ============
 const FranchiseLoginPage = lazy(() => import("./modules/franchise-side/pages/FranchiseLoginPage"));
@@ -55,6 +56,8 @@ const FranchiseUsersPage = lazy(() => import("./modules/franchise-side/pages/Fra
 const FranchiseSettingsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseSettingsPage"));
 const FranchiseManagementPage = lazy(() => import("./modules/franchise-side/pages/FranchiseManagementPage"));
 const FranchiseApplicationPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicationPage"));
+const FranchiseOpportunitiesPage = lazy(() => import("./modules/franchise-side/pages/FranchiseOpportunitiesPage"));
+const FranchiseMyApplicationsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseMyApplicationsPage"));
 const CashierTransactionsPage = lazy(() => import("./modules/employee-side/pages/CashierTransactionsPage"));
 import ProtectedFranchiseRoute from "./modules/franchise-side/components/ProtectedFranchiseRoute";
 
@@ -93,7 +96,9 @@ function App() {
                       <Route path="/" element={<LandingPage />} />
                       <Route path="/login" element={<LoginPage />} />
                       <Route path="/register" element={<RegistrationPage />} />
+                      <Route path="/franchise-opportunities" element={<FranchiseOpportunitiesPage />} />
                       <Route path="/franchise/apply" element={<FranchiseApplicationPage />} />
+                      <Route path="/franchise/my-applications" element={<ProtectedRoute><FranchiseMyApplicationsPage /></ProtectedRoute>} />
                       <Route path="/franchise/login" element={<FranchiseLoginPage />} />
 
                       {/* ===== CUSTOMER ROUTES ===== */}
@@ -123,6 +128,7 @@ function App() {
                       <Route path="/admin/franchise-accounts/:id" element={<ProtectedAdminRoute><AdminFranchiseAccountDetailPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/franchises/:id" element={<ProtectedAdminRoute><AdminFranchiseDetailPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/franchise-applications" element={<ProtectedAdminRoute><AdminFranchiseApplicationsPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/franchise-applications/:id" element={<ProtectedAdminRoute><AdminFranchiseApplicationDetailPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/kitchen" element={<ProtectedAdminRoute><AdminKitchenPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/settings/pricing" element={<ProtectedAdminRoute><AdminPricingSettingsPage /></ProtectedAdminRoute>} />
 

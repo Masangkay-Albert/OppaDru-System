@@ -29,16 +29,57 @@ export interface FranchiseAdminUser {
 
 export interface FranchiseApplication {
   id: string | number;
+  reference_number?: string;
+  user_id?: string | null;
   franchise_name: string;
   contact_name: string;
   email: string;
   phone?: string;
   location?: string;
+  applicant_address?: string;
+  business_experience?: string;
+  investment_capacity?: string | number;
+  has_proposed_property?: boolean;
+  opening_timeline?: string;
+  business_information?: string;
+  documents?: Array<{ name: string; size: number; mime_type: string }>;
   notes?: string;
   status?: string;
   admin_notes?: string;
+  next_step_instructions?: string;
+  interview_at?: string | null;
+  interview_notes?: string | null;
+  location_assessment?: { result?: string; notes?: string } | null;
+  agreement_status?: string;
+  agreement_prepared_at?: string | null;
+  agreement_signed_at?: string | null;
+  franchise_fee_amount?: string | number | null;
+  franchise_fee_payment_status?: string;
+  franchise_fee_payment_reference?: string | null;
+  required_documents?: Array<{ label: string; required: boolean; status: string }>;
+  requirements_reviewed_at?: string | null;
+  location_readiness?: string;
+  permit_compliance_status?: string;
+  training_status?: string;
+  operational_preparation_status?: string;
   reviewed_at?: string;
   created_at?: string;
+  franchise_account_id?: string | null;
+  franchise_id?: string | null;
+  activated_at?: string | null;
+  events?: Array<{
+    id: number;
+    actor_type: string;
+    status?: string;
+    title: string;
+    message?: string | null;
+    is_internal: boolean;
+    created_at: string;
+  }>;
+}
+
+export interface FranchiseOpportunitySettings {
+  investment: { minimum: string | null; maximum: string | null } | null;
 }
 
 export interface FranchiseAccount {
@@ -251,14 +292,59 @@ export const getFranchiseApplications = async (): Promise<FranchiseApplication[]
   return Array.isArray(body?.data) ? body.data : [];
 };
 
-export const reviewFranchiseApplication = async (id: string | number, action: 'approve' | 'reject', adminNotes?: string) => {
+export const getFranchiseOpportunitySettings = async (): Promise<FranchiseOpportunitySettings> => {
+  const response = await fetch(`${API_URL}/franchise-opportunities`, { headers: { Accept: 'application/json' } });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body?.message || 'Unable to load franchise opportunity settings.');
+  return body?.data as FranchiseOpportunitySettings;
+};
+
+export const updateFranchiseOpportunitySettings = async (data: { investment_minimum: string | null; investment_maximum: string | null }) => {
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-opportunities`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const validationMessages = body.errors ? Object.values(body.errors).flat().join(' ') : '';
+    throw new Error(validationMessages || body.message || 'Unable to update franchise opportunity settings.');
+  }
+  return body?.data as FranchiseOpportunitySettings;
+};
+
+export const getFranchiseApplication = async (id: string | number): Promise<FranchiseApplication> => {
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications/${id}`);
+  if (response.ok) {
+    const body = await response.json().catch(() => ({}));
+    return body?.data ?? body;
+  }
+
+  if (response.status === 405) {
+    const applications = await getFranchiseApplications();
+    const application = applications.find((item) => String(item.id) === String(id));
+    if (application) return application;
+  }
+
+  const body = await response.json().catch(() => ({}));
+  throw new Error(body?.message || 'Unable to load this franchise application.');
+};
+
+export const reviewFranchiseApplication = async (id: string | number, data: {
+  status: string;
+  admin_notes?: string;
+  next_step_instructions?: string;
+  interview_at?: string;
+  interview_notes?: string;
+  location_assessment?: { result?: string; notes?: string };
+}) => {
   const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications/${id}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
-    body: JSON.stringify({ action, admin_notes: adminNotes || '' }),
+    body: JSON.stringify(data),
   });
 
   if (!response.ok) {
@@ -267,4 +353,60 @@ export const reviewFranchiseApplication = async (id: string | number, action: 'a
   }
 
   return response.json().catch(() => ({}));
+};
+
+export const downloadFranchiseApplicationDocument = async (id: string | number, document: number): Promise<Blob> => {
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications/${id}/documents/${document}`);
+  if (!response.ok) {
+    throw new Error('Unable to download the supporting document.');
+  }
+  return response.blob();
+};
+
+export const updateFranchiseApplicationRequirements = async (id: string | number, data: {
+  agreement_status: string;
+  agreement_prepared_at?: string;
+  agreement_signed_at?: string;
+  franchise_fee_amount?: string;
+  franchise_fee_payment_status: string;
+  franchise_fee_payment_reference?: string;
+  required_documents: Array<{ label: string; required: boolean; status: string }>;
+  location_readiness: string;
+  permit_compliance_status: string;
+  training_status: string;
+  operational_preparation_status: string;
+  internal_notes?: string;
+}) => {
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications/${id}/requirements`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const validationMessages = body.errors ? Object.values(body.errors).flat().join(' ') : '';
+    throw new Error(validationMessages || body.message || 'Unable to save franchise requirements.');
+  }
+  return body;
+};
+
+export const activateFranchiseApplication = async (id: string | number, data: {
+  manager_full_name: string;
+  manager_email: string;
+  manager_phone?: string;
+  manager_password: string;
+  can_process_pos: boolean;
+}) => {
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications/${id}/activate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const validationMessages = body.errors ? Object.values(body.errors).flat().join(' ') : '';
+    const requirements = Array.isArray(body.requirements) ? body.requirements.join(' ') : '';
+    throw new Error(validationMessages || requirements || body.message || 'Unable to activate the franchise.');
+  }
+  return body;
 };

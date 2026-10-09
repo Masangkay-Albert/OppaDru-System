@@ -106,6 +106,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setOrders([]);
       return;
     }
+    if (!authService.getToken()) return;
 
     if (showLoading) setIsLoading(true);
     try {
@@ -182,7 +183,11 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
       return;
     } catch (error) {
-      console.error('Failed to fetch orders:', error);
+      if (error instanceof Error && error.message.includes('(401)')) {
+        console.warn('Your customer session is no longer valid. Sign in again to refresh your order history.');
+      } else {
+        console.error('Failed to fetch orders:', error);
+      }
     } finally {
       if (showLoading) setIsLoading(false);
     }

@@ -158,7 +158,9 @@ class OrderService {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to fetch orders');
+            throw new Error(response.status === 401
+                ? 'Order history request was unauthorized (401).'
+                : 'Failed to fetch orders');
         }
 
         return response.json();

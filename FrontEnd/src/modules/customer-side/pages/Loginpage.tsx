@@ -33,7 +33,8 @@ const LoginPage: React.FC = () => {
     try {
       const success = await login(email, password);
       if (success) {
-        navigate("/customer");
+        const returnTo = new URLSearchParams(location.search).get("returnTo");
+        navigate(returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/customer");
       } else {
         setError("Invalid email or password.");
       }

@@ -198,16 +198,22 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     let isActive = true;
     let isRequestInFlight = false;
+    let authorizationFailed = false;
 
     const syncDiscountApplication = async () => {
       const token = localStorage.getItem('auth_token');
-      if (!token || isRequestInFlight) return;
+      if (!token || isRequestInFlight || authorizationFailed) return;
 
       isRequestInFlight = true;
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/discount/applications/me`, {
           headers: { Authorization: ['Bearer', token].join(' ') },
         });
+        if (response.status === 401) {
+          authorizationFailed = true;
+          console.warn('Your customer session is no longer valid. Sign in again to refresh discount information.');
+          return;
+        }
         if (!response.ok) {
           throw new Error(`Failed to refresh discount status (${response.status}).`);
         }
@@ -259,13 +265,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     void syncDiscountApplication();
-    const interval = window.setInterval(refreshWhenVisible, 5000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
       isActive = false;
-      window.clearInterval(interval);
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
