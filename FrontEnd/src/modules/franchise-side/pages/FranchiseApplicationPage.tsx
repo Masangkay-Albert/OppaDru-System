@@ -66,7 +66,13 @@ const FranchiseApplicationPage: React.FC = () => {
   const { user } = useAuth();
   const [form, setForm] = useState<ApplicationForm>(() => {
     const saved = sessionStorage.getItem(draftKey);
-    return saved ? { ...initialForm, ...JSON.parse(saved) } : initialForm;
+    if (!saved) return initialForm;
+    const savedDraft = JSON.parse(saved) as Partial<ApplicationForm> & { contactEmailEntered?: boolean };
+    return {
+      ...initialForm,
+      ...savedDraft,
+      email: savedDraft.contactEmailEntered ? savedDraft.email || '' : '',
+    };
   });
   const [documents, setDocuments] = useState<File[]>([]);
   const [step, setStep] = useState(0);
@@ -80,7 +86,10 @@ const FranchiseApplicationPage: React.FC = () => {
   const handleChange = (field: keyof ApplicationForm, value: string) => {
     const updated = { ...form, [field]: value };
     setForm(updated);
-    sessionStorage.setItem(draftKey, JSON.stringify(updated));
+    sessionStorage.setItem(draftKey, JSON.stringify({
+      ...updated,
+      contactEmailEntered: field === 'email' || form.email.length > 0,
+    }));
   };
 
   const handleDocumentSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,7 +151,7 @@ const FranchiseApplicationPage: React.FC = () => {
     const body = new FormData();
     body.append('franchise_name', form.franchise_name);
     body.append('contact_name', form.contact_name);
-    body.append('email', form.email || user?.email || '');
+    body.append('email', form.email);
     body.append('phone', form.phone);
     body.append('applicant_address', form.applicant_address);
     body.append('business_experience', form.business_experience);
@@ -261,7 +270,7 @@ const FranchiseApplicationPage: React.FC = () => {
                 <input required maxLength={255} autoComplete="name" value={form.contact_name} onChange={(event) => handleChange('contact_name', event.target.value)} placeholder="Your full legal name" className={inputClass} />
               </Field>
               <Field label="Contact email" icon={<Mail size={16} />}>
-                <input required maxLength={255} type="email" autoComplete="email" value={form.email || user?.email || ''} onChange={(event) => handleChange('email', event.target.value)} placeholder="you@example.com" className={inputClass} />
+                <input required maxLength={255} type="email" autoComplete="email" value={form.email} onChange={(event) => handleChange('email', event.target.value)} placeholder="you@example.com" className={inputClass} />
               </Field>
               <Field label="Contact number" icon={<Phone size={16} />}>
                 <input required maxLength={50} type="tel" autoComplete="tel" value={form.phone} onChange={(event) => handleChange('phone', event.target.value)} placeholder="09XX XXX XXXX" className={inputClass} />
@@ -329,7 +338,7 @@ const FranchiseApplicationPage: React.FC = () => {
               <p className="text-sm leading-6 text-[var(--oppa-text-muted)]">Review all your information and open each supporting file below before confirming. Nothing is submitted until you press “Confirm and submit application”.</p>
               <div className="grid gap-3 rounded-2xl bg-[var(--oppa-cream)] p-5 sm:grid-cols-2">
                 <ReviewItem label="Full name" value={form.contact_name} />
-                <ReviewItem label="Contact email" value={form.email || user?.email || 'Not provided'} />
+                <ReviewItem label="Contact email" value={form.email || 'Not provided'} />
                 <ReviewItem label="Contact number" value={form.phone} />
                 <ReviewItem label="Address" value={form.applicant_address} />
                 <ReviewItem label="Proposed location" value={form.location} />
