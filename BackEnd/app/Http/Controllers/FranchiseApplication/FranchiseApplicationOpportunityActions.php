@@ -16,6 +16,7 @@ trait FranchiseApplicationOpportunityActions
             'franchise_investment_maximum',
             'franchise_program_fee',
             'franchise_program_requirements',
+            'franchise_program_locations',
             'franchise_program_qualifications',
             'franchise_program_business_rules',
             'franchise_program_support',
@@ -39,6 +40,7 @@ trait FranchiseApplicationOpportunityActions
                     'A realistic investment plan and willingness to complete the review process.',
                     'Commitment to required training, permits, and operating standards before opening.',
                 ]),
+                'available_locations' => $this->programList($settings->get('franchise_program_locations'), []),
                 'qualifications' => $this->programList($settings->get('franchise_program_qualifications'), [
                     'Business or leadership experience relevant to operating a restaurant.',
                     'Financial readiness for the agreed investment and location-specific costs.',
@@ -55,15 +57,12 @@ trait FranchiseApplicationOpportunityActions
                     'Guidance through location assessment and opening readiness.',
                 ]),
                 'steps' => [
-                    'The franchisor publishes the current program, fees, qualifications, requirements, business rules, and support.',
-                    'The applicant submits personal and business information with a proposed location.',
-                    'The franchise team reviews financial readiness, experience, and site suitability; interviews or more information may be requested.',
-                    'The franchisor approves conditionally or rejects the application after due diligence.',
-                    'Both parties review and sign the franchise agreement.',
-                    'The franchisee completes applicable payments, permits, location work, equipment, and staffing.',
-                    'The franchisee and staff complete required training and system setup.',
-                    'The franchisor inspects opening readiness and issues opening approval.',
-                    'An authorized administrator activates the franchise; operations and compliance are monitored thereafter.',
+                    'Gumawa ang original owner o admin ng franchise opportunity at ilagay ang requirements, fees, at available locations.',
+                    'Mag-register ang aplikante, punan ang application form, at isumite ang business details at proposed location.',
+                    'Susuriin ng original owner ang application at magbibigay ng status na Approved o Rejected.',
+                    'Ayusin ang franchise agreement, payment verification, at iba pang requirements bago mag-operate.',
+                    'Gumawa o i-activate ang franchise branch at italaga ang franchise manager at staff nito.',
+                    'Mag-operate gamit ang sariling POS, orders, staff accounts, inventory, at sales records ng franchise branch.',
                 ],
                 'faqs' => [
                     [
@@ -94,6 +93,7 @@ trait FranchiseApplicationOpportunityActions
             'investment_maximum' => 'sometimes|nullable|numeric|min:0|max:9999999999.99',
             'franchise_fee' => 'sometimes|nullable|numeric|min:0|max:9999999999.99',
             'requirements' => 'sometimes|nullable|string|max:10000',
+            'available_locations' => 'sometimes|nullable|string|max:10000',
             'qualifications' => 'sometimes|nullable|string|max:10000',
             'business_rules' => 'sometimes|nullable|string|max:10000',
             'support' => 'sometimes|nullable|string|max:10000',
@@ -126,6 +126,7 @@ trait FranchiseApplicationOpportunityActions
 
             foreach ([
                 'requirements' => 'franchise_program_requirements',
+                'available_locations' => 'franchise_program_locations',
                 'qualifications' => 'franchise_program_qualifications',
                 'business_rules' => 'franchise_program_business_rules',
                 'support' => 'franchise_program_support',

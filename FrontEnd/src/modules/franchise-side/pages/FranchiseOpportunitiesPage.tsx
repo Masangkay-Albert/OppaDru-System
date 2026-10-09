@@ -7,6 +7,7 @@ interface FranchiseOpportunityInfo {
   investment: { minimum: string | null; maximum: string | null } | null;
   franchise_fee?: string | null;
   requirements: string[];
+  available_locations?: string[];
   qualifications?: string[];
   business_rules?: string[];
   support?: string[];
@@ -59,7 +60,14 @@ const FranchiseOpportunitiesPage: React.FC = () => {
           </section>
 
           <section className="rounded-3xl border border-[var(--oppa-border)] bg-white p-6 shadow-sm sm:p-8">
-            <div className="mb-5 flex items-center gap-3"><span className="rounded-xl bg-[var(--oppa-green)]/10 p-2.5 text-[var(--oppa-green)]"><ClipboardCheck size={21} /></span><div><h2 className="font-serif text-2xl font-bold">Application process</h2><p className="text-sm text-[var(--oppa-text-muted)]">Clear stages from submission through opening readiness.</p></div></div>
+            <div className="mb-5 flex items-center gap-3"><span className="rounded-xl bg-[var(--oppa-green)]/10 p-2.5 text-[var(--oppa-green)]"><Building2 size={21} /></span><div><h2 className="font-serif text-2xl font-bold">Available franchise locations</h2><p className="text-sm text-[var(--oppa-text-muted)]">Proposed locations are subject to review and approval.</p></div></div>
+            {!info ? <p className="text-sm text-[var(--oppa-text-muted)]">Loading available locations…</p> : info.available_locations?.length ? (
+              <ul className="space-y-3">{info.available_locations.map((location) => <li key={location} className="flex gap-3 text-sm leading-6"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-[var(--oppa-green)]" />{location}</li>)}</ul>
+            ) : <p className="text-sm leading-6 text-[var(--oppa-text-muted)]">Specific locations have not been published yet. You may still submit a proposed location for review.</p>}
+          </section>
+
+          <section className="rounded-3xl border border-[var(--oppa-border)] bg-white p-6 shadow-sm sm:p-8">
+            <div className="mb-5 flex items-center gap-3"><span className="rounded-xl bg-[var(--oppa-green)]/10 p-2.5 text-[var(--oppa-green)]"><ClipboardCheck size={21} /></span><div><h2 className="font-serif text-2xl font-bold">Proseso ng franchise</h2><p className="text-sm text-[var(--oppa-text-muted)]">Mula opportunity hanggang sa operasyon ng franchise branch.</p></div></div>
             <ol className="space-y-4">
               {(info?.steps || []).map((description, index) => <li key={description} className="flex gap-4"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--oppa-cream)] text-sm font-bold text-[var(--oppa-green)]">{index + 1}</span><p className="pt-1 text-sm leading-6">{description}</p></li>)}
             </ol>

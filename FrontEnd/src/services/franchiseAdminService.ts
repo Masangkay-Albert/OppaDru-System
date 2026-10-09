@@ -83,6 +83,7 @@ export interface FranchiseOpportunitySettings {
   investment: { minimum: string | null; maximum: string | null } | null;
   franchise_fee: string | null;
   requirements: string[];
+  available_locations: string[];
   qualifications: string[];
   business_rules: string[];
   support: string[];
@@ -310,6 +311,7 @@ export const updateFranchiseOpportunitySettings = async (data: {
   investment_maximum: string | null;
   franchise_fee: string | null;
   requirements: string;
+  available_locations: string;
   qualifications: string;
   business_rules: string;
   support: string;

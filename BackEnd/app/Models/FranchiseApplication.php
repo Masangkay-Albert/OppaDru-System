@@ -168,7 +168,7 @@ class FranchiseApplication extends Model
             'additional_information_required' => 'Please submit the additional information requested below.',
             'for_interview' => 'Please attend the interview at the scheduled Philippine time and follow the instructions below.',
             'location_assessment' => 'The franchise team is evaluating your proposed location. Follow any site-assessment instructions below.',
-            'conditionally_approved' => 'Your application is conditionally approved. Review the proposed terms and complete the agreement and due-diligence steps.',
+            'conditionally_approved' => 'Your application has been approved. Complete the franchise agreement and required due-diligence steps before operations can be activated.',
             'agreement_pending' => 'Review and sign the franchise agreement. The next setup stage cannot begin until the agreement is recorded as signed.',
             'requirements_pending' => 'Complete the agreed payment, location, permits, construction/equipment, staffing, training, and system setup requirements that apply to your franchise.',
             'approved_for_opening' => 'Opening readiness is approved. Await final authorized activation before beginning operations.',

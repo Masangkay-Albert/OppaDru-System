@@ -126,6 +126,7 @@ const FranchiseProgramSettingsForm: React.FC = () => {
   const [investmentMaximum, setInvestmentMaximum] = useState('');
   const [franchiseFee, setFranchiseFee] = useState('');
   const [requirements, setRequirements] = useState('');
+  const [availableLocations, setAvailableLocations] = useState('');
   const [qualifications, setQualifications] = useState('');
   const [businessRules, setBusinessRules] = useState('');
   const [support, setSupport] = useState('');
@@ -142,6 +143,7 @@ const FranchiseProgramSettingsForm: React.FC = () => {
         setInvestmentMaximum(current.investment?.maximum || '');
         setFranchiseFee(current.franchise_fee || '');
         setRequirements(lines(current.requirements));
+        setAvailableLocations(lines(current.available_locations));
         setQualifications(lines(current.qualifications));
         setBusinessRules(lines(current.business_rules));
         setSupport(lines(current.support));
@@ -161,6 +163,7 @@ const FranchiseProgramSettingsForm: React.FC = () => {
         investment_maximum: investmentMaximum || null,
         franchise_fee: franchiseFee || null,
         requirements,
+        available_locations: availableLocations,
         qualifications,
         business_rules: businessRules,
         support,
@@ -185,6 +188,7 @@ const FranchiseProgramSettingsForm: React.FC = () => {
         <label className="text-sm font-medium">Estimated maximum investment<input type="number" min="0" step="0.01" value={investmentMaximum} onChange={(event) => setInvestmentMaximum(event.target.value)} placeholder="Not published" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
         <label className="text-sm font-medium">Published franchise fee (optional)<input type="number" min="0" step="0.01" value={franchiseFee} onChange={(event) => setFranchiseFee(event.target.value)} placeholder="Not published" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
         <label className="text-sm font-medium">Applicant requirements<textarea rows={4} maxLength={10000} value={requirements} onChange={(event) => setRequirements(event.target.value)} placeholder="One requirement per line" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
+        <label className="text-sm font-medium">Available franchise locations<textarea rows={4} maxLength={10000} value={availableLocations} onChange={(event) => setAvailableLocations(event.target.value)} placeholder="One city, area, or region per line" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
         <label className="text-sm font-medium">Applicant qualifications<textarea rows={4} maxLength={10000} value={qualifications} onChange={(event) => setQualifications(event.target.value)} placeholder="One qualification per line" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
         <label className="text-sm font-medium">Business rules<textarea rows={4} maxLength={10000} value={businessRules} onChange={(event) => setBusinessRules(event.target.value)} placeholder="One rule per line" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
         <label className="text-sm font-medium">Franchisor support<textarea rows={4} maxLength={10000} value={support} onChange={(event) => setSupport(event.target.value)} placeholder="One support item per line" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
