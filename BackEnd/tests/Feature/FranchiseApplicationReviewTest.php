@@ -83,6 +83,12 @@ class FranchiseApplicationReviewTest extends TestCase
             'interview_notes' => 'Bring the operating plan.',
             'next_step_instructions' => 'Your interview is scheduled. Please check your account email.',
         ];
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            ...$interviewReview,
+            'interview_at' => now()->subDay()->toIso8601String(),
+        ], $headers)->assertUnprocessable()
+            ->assertJsonPath('errors.interview_at.0', 'Choose a current or future interview date and time.');
+
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, $interviewReview, $headers)->assertOk()
             ->assertJsonPath('data.status', 'for_interview');
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, $interviewReview, $headers)->assertOk();

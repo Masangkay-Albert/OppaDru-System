@@ -80,6 +80,17 @@ trait FranchiseApplicationAdminReviewActions
             $requestedInterviewAt = $request->filled('interview_at')
                 ? CarbonImmutable::parse((string) $request->input('interview_at'))
                 : null;
+            $interviewDateChanged = $requestedInterviewAt
+                && (! $application->interview_at || ! $requestedInterviewAt->equalTo($application->interview_at));
+            if (
+                $requestedInterviewAt?->isPast()
+                && ($targetStatus === 'for_interview' || $interviewDateChanged)
+            ) {
+                abort(response()->json([
+                    'message' => 'Interview date and time must be current or in the future.',
+                    'errors' => ['interview_at' => ['Choose a current or future interview date and time.']],
+                ], 422));
+            }
 
             $application->status = $targetStatus;
             $application->reviewed_by_admin_id = $admin?->id;

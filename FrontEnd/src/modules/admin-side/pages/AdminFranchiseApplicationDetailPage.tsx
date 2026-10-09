@@ -28,6 +28,18 @@ const transitions: Record<string, string[]> = {
 const statusTitle = (status: string) => status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const money = (amount?: string | number) => amount === undefined || amount === null ? 'Not provided' : `₱${Number(amount).toLocaleString('en-PH')}`;
 const manilaTimeZone = 'Asia/Manila';
+const applicationStages = [
+  'submitted',
+  'under_review',
+  'additional_information_required',
+  'for_interview',
+  'location_assessment',
+  'conditionally_approved',
+  'agreement_pending',
+  'requirements_pending',
+  'approved_for_opening',
+  'active',
+];
 
 const toManilaDateTimeInput = (value: string): string => {
   const date = new Date(value);
@@ -48,6 +60,9 @@ const toManilaDateTimeInput = (value: string): string => {
 const manilaDateTimeInputToIso = (value: string): string =>
   value ? new Date(`${value}:00+08:00`).toISOString() : '';
 
+const minimumManilaDateTime = (): string =>
+  toManilaDateTimeInput(new Date(Date.now() + 60_000).toISOString());
+
 const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [application, setApplication] = useState<FranchiseApplication | null>(null);
@@ -55,6 +70,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const [adminNotes, setAdminNotes] = useState('');
   const [instructions, setInstructions] = useState('');
   const [interviewAt, setInterviewAt] = useState('');
+  const [minimumInterviewAt, setMinimumInterviewAt] = useState(minimumManilaDateTime);
   const [interviewNotes, setInterviewNotes] = useState('');
   const [assessmentResult, setAssessmentResult] = useState('');
   const [assessmentNotes, setAssessmentNotes] = useState('');
@@ -86,7 +102,13 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
   useEffect(() => { void load(); }, [id]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => setMinimumInterviewAt(minimumManilaDateTime()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const currentStatus = application?.status === 'pending' ? 'submitted' : application?.status || 'submitted';
+  const currentStageIndex = applicationStages.indexOf(currentStatus);
   const availableStatuses = useMemo(() => {
     const options = transitions[currentStatus] || [];
     return options.includes(status) ? [status, ...options.filter((option) => option !== status)] : options;
@@ -95,6 +117,14 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!id) return;
+    const savedInterviewAt = application?.interview_at ? toManilaDateTimeInput(application.interview_at) : '';
+    const interviewChanged = interviewAt !== savedInterviewAt;
+    const interviewAtIso = interviewAt ? manilaDateTimeInputToIso(interviewAt) : '';
+    const interviewIsPast = Boolean(interviewAtIso) && new Date(interviewAtIso).getTime() < Date.now();
+    if ((status === 'for_interview' || (interviewAt && interviewChanged)) && (!interviewAt || interviewIsPast)) {
+      setError('Choose a current or future interview date and time.');
+      return;
+    }
     if ((status === 'conditionally_approved' || status === 'rejected') && !window.confirm(`Confirm ${statusTitle(status).toLowerCase()} for this application?`)) return;
     setSaving(true);
     setError('');
@@ -104,7 +134,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
         status,
         admin_notes: adminNotes,
         next_step_instructions: instructions,
-        interview_at: manilaDateTimeInputToIso(interviewAt),
+        ...(interviewAt && (status === 'for_interview' || interviewChanged) ? { interview_at: interviewAtIso } : {}),
         interview_notes: interviewNotes,
         location_assessment: {
           ...(assessmentResult ? { result: assessmentResult } : {}),
@@ -152,6 +182,35 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             <span className="w-fit rounded-full bg-amber-50 px-3 py-1.5 text-sm font-semibold capitalize text-amber-800">{statusTitle(currentStatus)}</span>
           </header>
 
+          <section aria-label="Application progress" className="mb-5 overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
+            {['rejected', 'withdrawn'].includes(currentStatus) ? (
+              <p className="text-sm font-semibold text-red-700">Application {currentStatus}. The review workflow has ended.</p>
+            ) : currentStatus === 'on_hold' ? (
+              <p className="text-sm font-semibold text-amber-800">Application is on hold. Resume review to continue the workflow.</p>
+            ) : (
+              <ol className="flex min-w-[760px] items-start">
+                {applicationStages.map((stage, index) => {
+                  const complete = index < currentStageIndex;
+                  const current = index === currentStageIndex;
+                  return (
+                    <li key={stage} aria-current={current ? 'step' : undefined} className="flex min-w-0 flex-1 flex-col items-center text-center">
+                      <span className={`flex size-7 items-center justify-center rounded-full border text-xs font-semibold ${
+                        current
+                          ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white'
+                          : complete
+                            ? 'border-[var(--oppa-green)] bg-green-50 text-[var(--oppa-green)]'
+                            : 'border-[var(--oppa-border)] bg-white text-[var(--oppa-text-muted)]'
+                      }`}>{index + 1}</span>
+                      <span className={`mt-1.5 max-w-20 text-[10px] leading-tight ${
+                        current || complete ? 'font-semibold text-[var(--oppa-green)]' : 'text-[var(--oppa-text-muted)]'
+                      }`}>{statusTitle(stage)}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </section>
+
           <div className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
             <div className="space-y-5">
               <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
@@ -179,13 +238,14 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
               </section>
             </div>
 
-            <form onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+            <form noValidate onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
               <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Each status change is recorded. Approval does not create access; franchise activation is a separate gated action.</p></div>
               <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
               <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or the additional information needed." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
               <div className="rounded-xl border border-[var(--oppa-border)] p-3">
                 <h3 className="mb-3 text-sm font-semibold">Interview record (Philippine time)</h3>
-                <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Date and time<input type="datetime-local" value={interviewAt} onChange={(event) => setInterviewAt(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
+                <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Date and time<input type="datetime-local" min={minimumInterviewAt} value={interviewAt} onChange={(event) => setInterviewAt(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
+                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Past dates and times are unavailable. Choose today or a future date.</p>
                 <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Internal interview notes<textarea value={interviewNotes} onChange={(event) => setInterviewNotes(event.target.value)} rows={2} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
               </div>
               <div className="rounded-xl border border-[var(--oppa-border)] p-3">
