@@ -259,7 +259,22 @@ trait FranchiseApplicationApplicantActions
             abort(404);
         }
 
-        return Storage::disk('local')->download($file['path'], $file['name'] ?? 'supporting-document');
+        $stream = Storage::disk('local')->readStream($file['path']);
+        if (! is_resource($stream)) {
+            abort(404);
+        }
+
+        return response()->streamDownload(
+            function () use ($stream): void {
+                try {
+                    fpassthru($stream);
+                } finally {
+                    fclose($stream);
+                }
+            },
+            $file['name'] ?? 'supporting-document',
+            ['Content-Type' => $file['mime_type'] ?? 'application/octet-stream'],
+        );
     }
 
     private function applicantApplication(FranchiseApplication $application): array
