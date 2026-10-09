@@ -48,6 +48,17 @@ const toManilaDateTimeInput = (value: string): string => {
 const manilaDateTimeInputToIso = (value: string): string =>
   value ? new Date(`${value}:00+08:00`).toISOString() : '';
 
+const todayInManila = (): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: manilaTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((valuePart) => valuePart.type === type)?.value || '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+};
+
 const minimumManilaDateTime = (): string =>
   toManilaDateTimeInput(new Date(Date.now() + 60_000).toISOString());
 
@@ -364,8 +375,8 @@ const RequirementsTrackingForm: React.FC<{ application: FranchiseApplication; on
           <div className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4">
             <h3 className="text-sm font-semibold">Agreement</h3>
             <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Preparation and signing status<select value={agreementStatus} onChange={(event) => setAgreementStatus(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]"><option value="not_started">Not started</option><option value="drafting">Drafting</option><option value="sent">Sent for signing</option><option value="signed">Signed</option></select></label>
-            <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Agreement prepared on<input type="date" value={agreementPreparedAt} onChange={(event) => setAgreementPreparedAt(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-            <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Agreement signed on<input type="date" value={agreementSignedAt} onChange={(event) => setAgreementSignedAt(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
+            <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Agreement prepared on<input type="date" min={todayInManila()} value={agreementPreparedAt} onChange={(event) => setAgreementPreparedAt(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
+            <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Agreement signed on<input type="date" min={todayInManila()} value={agreementSignedAt} onChange={(event) => setAgreementSignedAt(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
           </div>
 
           <div className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4">
@@ -378,7 +389,7 @@ const RequirementsTrackingForm: React.FC<{ application: FranchiseApplication; on
           <div className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4 lg:col-span-2">
             <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Required documents for this application</h3><button type="button" onClick={addDocument} className="rounded-lg border border-[var(--oppa-border)] px-3 py-1.5 text-xs font-semibold">Add requirement</button></div>
             {!requiredDocuments.length && <p className="text-xs leading-5 text-[var(--oppa-text-muted)]">No extra documents listed. Add only items that apply; activation still requires you to save this review explicitly.</p>}
-            {requiredDocuments.map((document, index) => <div key={`${index}-${document.label}`} className="grid gap-2 rounded-lg bg-[var(--oppa-cream)] p-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
+            {requiredDocuments.map((document, index) => <div key={index} className="grid gap-2 rounded-lg bg-[var(--oppa-cream)] p-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
               <input required aria-label="Required document name" value={document.label} onChange={(event) => updateDocument(index, 'label', event.target.value)} placeholder="e.g. Business registration" className="rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm" />
               <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={document.required} onChange={(event) => updateDocument(index, 'required', event.target.checked)} />Required</label>
               <select aria-label="Document verification status" value={document.status} onChange={(event) => updateDocument(index, 'status', event.target.value)} className="rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2 text-xs"><option value="pending">Pending</option><option value="received">Received</option><option value="verified">Verified</option><option value="not_applicable">Not applicable</option></select>

@@ -53,7 +53,8 @@ class FranchiseApplicationReviewTest extends TestCase
     public function test_admin_can_request_information_and_schedule_an_interview(): void
     {
         $adminToken = $this->createAdminToken();
-        $application = $this->submitApplication($this->createVerifiedApplicant());
+        $applicant = $this->createVerifiedApplicant();
+        $application = $this->submitApplication($applicant);
         $headers = ['Authorization' => 'Bearer '.$adminToken];
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
@@ -92,6 +93,12 @@ class FranchiseApplicationReviewTest extends TestCase
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, $interviewReview, $headers)->assertOk()
             ->assertJsonPath('data.status', 'for_interview');
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, $interviewReview, $headers)->assertOk();
+
+        Auth::forgetGuards();
+        $applicantView = $this->getJson('/api/franchise-applications/me', [
+            'Authorization' => 'Bearer '.$applicant['token'],
+        ])->assertOk();
+        $this->assertNotEmpty($applicantView->json('data.0.interview_at'));
 
         $this->assertDatabaseHas('franchise_application_events', [
             'application_id' => $application->id,

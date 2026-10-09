@@ -133,8 +133,8 @@ class FranchiseApplicationActivationTest extends TestCase
     {
         return [
             'agreement_status' => 'signed',
-            'agreement_prepared_at' => '2026-10-01',
-            'agreement_signed_at' => '2026-10-08',
+            'agreement_prepared_at' => now('Asia/Manila')->toDateString(),
+            'agreement_signed_at' => now('Asia/Manila')->toDateString(),
             'franchise_fee_amount' => null,
             'franchise_fee_payment_status' => 'not_applicable',
             'franchise_fee_payment_reference' => null,

@@ -21,6 +21,12 @@ class FranchiseApplicationRequirementsTest extends TestCase
         $application = $this->createFranchiseApplication();
         $headers = ['Authorization' => 'Bearer '.$adminToken];
 
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id.'/requirements', array_merge(
+            $this->requirementsData(),
+            ['agreement_prepared_at' => now('Asia/Manila')->subDay()->toDateString()],
+        ), $headers)->assertUnprocessable()
+            ->assertJsonPath('errors.agreement_prepared_at.0', 'Choose today or a future date.');
+
         $this->patchJson('/api/admin/franchise-applications/'.$application->id.'/requirements', $this->requirementsData(), $headers)
             ->assertOk()
             ->assertJsonPath('data.status', 'submitted')
@@ -129,7 +135,7 @@ class FranchiseApplicationRequirementsTest extends TestCase
     {
         return [
             'agreement_status' => 'drafting',
-            'agreement_prepared_at' => '2026-10-09',
+            'agreement_prepared_at' => now('Asia/Manila')->toDateString(),
             'agreement_signed_at' => null,
             'franchise_fee_amount' => null,
             'franchise_fee_payment_status' => 'not_configured',

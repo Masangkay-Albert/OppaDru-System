@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock3, Download, FileText, Loader2, RotateCcw, Send } from 'lucide-react';
+import { AlertCircle, Clock3, Download, FileText, Loader2, RotateCcw, Send } from 'lucide-react';
 import {
   downloadMyFranchiseApplicationDocument,
   getMyFranchiseApplications,
@@ -8,18 +8,6 @@ import {
   type ApplicantFranchiseApplication,
 } from '../../../services/franchiseApplicationService';
 
-const workflow = [
-  'submitted',
-  'under_review',
-  'additional_information_required',
-  'for_interview',
-  'location_assessment',
-  'conditionally_approved',
-  'agreement_pending',
-  'requirements_pending',
-  'approved_for_opening',
-  'active',
-];
 const title = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const formatPhilippineDateTime = (value: string) => new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'long',
@@ -141,8 +129,6 @@ const FranchiseMyApplicationsPage: React.FC = () => {
           <div className="space-y-6">
             {applications.map((application) => {
               const currentStatus = application.status || 'submitted';
-              const currentIndex = workflow.indexOf(currentStatus === 'pending' ? 'submitted' : currentStatus);
-              const terminal = ['rejected', 'withdrawn'].includes(currentStatus);
               const canWithdraw = ['submitted', 'pending', 'under_review', 'additional_information_required', 'for_interview', 'location_assessment', 'on_hold'].includes(currentStatus);
               return (
                 <article key={application.id} className="overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
@@ -152,22 +138,6 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                   </header>
 
                   <div className="p-5 sm:p-6">
-                    {!terminal && (
-                      <section aria-label="Application progress" className="mb-6 overflow-x-auto pb-2">
-                        <ol className="flex min-w-[760px] items-start">
-                          {workflow.map((stage, index) => {
-                            const complete = index < currentIndex || currentStatus === 'active';
-                            const current = index === currentIndex;
-                            return <li key={stage} className="relative flex w-full flex-col items-center text-center">
-                              {index > 0 && <span className={`absolute right-1/2 top-3 h-0.5 w-full ${complete ? 'bg-[var(--oppa-green)]' : 'bg-[var(--oppa-border)]'}`} />}
-                              <span className={`relative z-10 flex size-6 items-center justify-center rounded-full border text-[10px] font-bold ${complete ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white' : current ? 'border-[var(--oppa-green)] bg-white text-[var(--oppa-green)] ring-4 ring-[var(--oppa-green)]/10' : 'border-[var(--oppa-border)] bg-white text-[var(--oppa-text-muted)]'}`}>{complete ? <CheckCircle2 size={13} /> : index + 1}</span>
-                              <span className={`mt-2 max-w-20 text-[10px] leading-4 ${current ? 'font-bold text-[var(--oppa-green)]' : 'text-[var(--oppa-text-muted)]'}`}>{title(stage)}</span>
-                            </li>;
-                          })}
-                        </ol>
-                      </section>
-                    )}
-
                     {currentStatus === 'on_hold' && <p className="mb-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">Your application is temporarily on hold. Please follow the instructions below or contact the franchise team if clarification is needed.</p>}
                     {currentStatus === 'rejected' && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">This application was not approved. Any applicant-visible update from the team is shown in the timeline below.</p>}
                     {currentStatus === 'withdrawn' && <p className="mb-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">You withdrew this application.</p>}
@@ -190,7 +160,8 @@ const FranchiseMyApplicationsPage: React.FC = () => {
 
                     {(application.agreement_status || application.required_documents?.length || application.location_readiness) && (
                       <section className="mb-5 rounded-2xl border border-[var(--oppa-border)] p-4">
-                        <h3 className="mb-3 font-semibold">Agreement and opening readiness</h3>
+                        <h3 className="mb-1 font-semibold">Agreement and opening readiness</h3>
+                        <p className="mb-3 text-xs text-[var(--oppa-text-muted)]">Read-only updates from the franchise review team. Contact the team if you have questions about a requirement.</p>
                         <div className="grid gap-2 text-sm sm:grid-cols-2">
                           {application.agreement_status && <p>Agreement: <span className="font-medium">{title(application.agreement_status)}</span></p>}
                           {application.franchise_fee_payment_status && application.franchise_fee_payment_status !== 'not_configured' && <p>Fee status: <span className="font-medium">{title(application.franchise_fee_payment_status)}</span>{application.franchise_fee_amount ? ` · ₱${Number(application.franchise_fee_amount).toLocaleString('en-PH')}` : ''}</p>}

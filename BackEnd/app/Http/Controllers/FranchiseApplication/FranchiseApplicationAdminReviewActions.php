@@ -213,6 +213,22 @@ trait FranchiseApplicationAdminReviewActions
                 ], 409));
             }
 
+            $today = CarbonImmutable::now('Asia/Manila')->toDateString();
+            foreach (['agreement_prepared_at', 'agreement_signed_at'] as $dateField) {
+                if (! $request->filled($dateField)) {
+                    continue;
+                }
+
+                $requestedDate = CarbonImmutable::parse((string) $request->input($dateField))->toDateString();
+                $savedDate = $application->{$dateField}?->toDateString();
+                if ($requestedDate < $today && $requestedDate !== $savedDate) {
+                    abort(response()->json([
+                        'message' => 'Agreement dates cannot be in the past.',
+                        'errors' => [$dateField => ['Choose today or a future date.']],
+                    ], 422));
+                }
+            }
+
             foreach ([
                 'agreement_status',
                 'agreement_prepared_at',
