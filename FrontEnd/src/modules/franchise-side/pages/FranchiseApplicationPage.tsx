@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Building2, Check, CheckCircle2, FileText, Mail, MapPin, Phone, UserRound } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../../contexts/Authcontext';
+import { Link } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { authService } from '../../../services/authService';
 
@@ -53,6 +52,13 @@ const getReferenceNumber = (value: unknown): string => {
     || getReferenceNumber(payload.result);
 };
 
+const getApplicationUserId = (value: unknown): string | number | null => {
+  const payload = asPayload(value);
+  if (!payload) return null;
+  if (typeof payload.user_id === 'string' || typeof payload.user_id === 'number') return payload.user_id;
+  return getApplicationUserId(payload.data) || getApplicationUserId(payload.application) || getApplicationUserId(payload.result);
+};
+
 const timelineLabels: Record<string, string> = {
   within_6_months: 'Within 6 months',
   '6_to_12_months': '6–12 months',
@@ -62,8 +68,6 @@ const timelineLabels: Record<string, string> = {
 };
 
 const FranchiseApplicationPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
   const [form, setForm] = useState<ApplicationForm>(() => {
     const saved = sessionStorage.getItem(draftKey);
     if (!saved) return initialForm;
@@ -80,8 +84,8 @@ const FranchiseApplicationPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [submissionConfirmed, setSubmissionConfirmed] = useState(false);
+  const [canTrackInPortal, setCanTrackInPortal] = useState(false);
   const activeFieldsRef = useRef<HTMLDivElement>(null);
-  const isVerified = Boolean(user?.email_verified_at);
 
   const handleChange = (field: keyof ApplicationForm, value: string) => {
     const updated = { ...form, [field]: value };
@@ -138,15 +142,6 @@ const FranchiseApplicationPage: React.FC = () => {
   const handleSubmit = async () => {
     if (step !== steps.length - 1 || isSubmitting) return;
     setError('');
-    if (!user || !authService.getToken()) {
-      setError('Sign in or create an account to securely submit and track your application.');
-      return;
-    }
-    if (!isVerified) {
-      setError('Verify your account email before submitting your application.');
-      return;
-    }
-
     setIsSubmitting(true);
     const body = new FormData();
     body.append('franchise_name', form.franchise_name);
@@ -166,16 +161,20 @@ const FranchiseApplicationPage: React.FC = () => {
     try {
       const response = await fetch(`${API_URL}/franchise-applications`, {
         method: 'POST',
-        headers: { Accept: 'application/json', Authorization: `Bearer ${authService.getToken()}` },
+        headers: {
+          Accept: 'application/json',
+          ...(authService.getToken() ? { Authorization: `Bearer ${authService.getToken()}` } : {}),
+        },
         body,
       });
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
       if (!response.ok) {
         const validationMessages = result.errors ? Object.values(result.errors).flat().join(' ') : '';
         throw new Error(validationMessages || result.message || 'Unable to submit your application.');
       }
       let reference = getReferenceNumber(result);
-      if (!reference) {
+      const linkedUserId = getApplicationUserId(result);
+      if (!reference && linkedUserId) {
         const applicationsResponse = await fetch(`${API_URL}/franchise-applications/me`, {
           headers: { Accept: 'application/json', Authorization: `Bearer ${authService.getToken()}` },
         });
@@ -198,6 +197,7 @@ const FranchiseApplicationPage: React.FC = () => {
       }
       sessionStorage.removeItem(draftKey);
       setReferenceNumber(reference);
+      setCanTrackInPortal(Boolean(linkedUserId));
       setSubmissionConfirmed(true);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Unable to submit your application. Please try again.');
@@ -214,7 +214,7 @@ const FranchiseApplicationPage: React.FC = () => {
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--oppa-green)]">Application received</p>
           <h1 className="mt-2 font-serif text-3xl font-bold text-[var(--oppa-text)]">Thank you, {form.contact_name}</h1>
           <p className="mt-3 text-sm leading-6 text-[var(--oppa-text-muted)]">
-            Your application has been submitted for review. Keep this reference number for your records. Our team will contact you using the contact email provided.
+            Your application has been submitted for review. Keep this reference number for your records. You do not need an account to apply.
           </p>
           {referenceNumber ? (
             <div className="mt-6 rounded-2xl bg-[var(--oppa-cream)] p-5">
@@ -226,11 +226,11 @@ const FranchiseApplicationPage: React.FC = () => {
             </div>
           ) : (
             <p role="status" className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-              Your application was received. You can find its reference number and status in My Applications. Please do not submit it again.
+              Your application was received. Keep your reference number; the franchise team can use the contact email you provided for updates. Please do not submit it again.
             </p>
           )}
           <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <Link to="/franchise/my-applications" className="rounded-xl bg-[var(--oppa-green)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">View My Applications</Link>
+            {canTrackInPortal && <Link to="/franchise/my-applications" className="rounded-xl bg-[var(--oppa-green)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">View My Applications</Link>}
             <Link to="/franchise-opportunities" className="rounded-xl border border-[var(--oppa-border)] px-5 py-3 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Back to opportunities</Link>
           </div>
         </section>
@@ -363,16 +363,7 @@ const FranchiseApplicationPage: React.FC = () => {
                   </div>
                 )) : <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-sm text-[var(--oppa-text-muted)]">No supporting documents attached.</p>}
               </section>
-              {!user && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                  Sign in or create an account to submit securely and track this application.
-                  <div className="mt-3 flex gap-3 font-semibold">
-                    <button type="button" onClick={() => navigate('/login?returnTo=%2Ffranchise%2Fapply')} className="underline">Sign in</button>
-                    <button type="button" onClick={() => navigate('/register?returnTo=%2Ffranchise%2Fapply')} className="underline">Create account</button>
-                  </div>
-                </div>
-              )}
-              {user && !isVerified && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Verify {user.email} before submitting. Your draft will stay in this browser.</p>}
+              <p className="rounded-xl bg-[var(--oppa-cream)] p-4 text-sm text-[var(--oppa-text-muted)]">No account or sign-in is required. Enter an email address you can access so the franchise team can contact you about this application.</p>
             </div>
           )}
 
@@ -385,7 +376,7 @@ const FranchiseApplicationPage: React.FC = () => {
                 {step === 1 ? 'Review application' : 'Continue'} <ArrowRight size={16} />
               </button>
             ) : (
-              <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting || !user || !isVerified} className="rounded-xl bg-[var(--oppa-green)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-55">
+              <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting} className="rounded-xl bg-[var(--oppa-green)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-55">
                 {isSubmitting ? 'Submitting application…' : 'Confirm and submit application'}
               </button>
             )}

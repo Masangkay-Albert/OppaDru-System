@@ -45,6 +45,7 @@ export interface FranchiseApplication {
   documents?: Array<{ name: string; size: number; mime_type: string }>;
   notes?: string;
   status?: string;
+  allowed_transitions?: string[];
   admin_notes?: string;
   next_step_instructions?: string;
   interview_at?: string | null;
@@ -80,6 +81,11 @@ export interface FranchiseApplication {
 
 export interface FranchiseOpportunitySettings {
   investment: { minimum: string | null; maximum: string | null } | null;
+  franchise_fee: string | null;
+  requirements: string[];
+  qualifications: string[];
+  business_rules: string[];
+  support: string[];
 }
 
 export interface FranchiseAccount {
@@ -299,7 +305,15 @@ export const getFranchiseOpportunitySettings = async (): Promise<FranchiseOpport
   return body?.data as FranchiseOpportunitySettings;
 };
 
-export const updateFranchiseOpportunitySettings = async (data: { investment_minimum: string | null; investment_maximum: string | null }) => {
+export const updateFranchiseOpportunitySettings = async (data: {
+  investment_minimum: string | null;
+  investment_maximum: string | null;
+  franchise_fee: string | null;
+  requirements: string;
+  qualifications: string;
+  business_rules: string;
+  support: string;
+}) => {
   const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-opportunities`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -349,7 +363,8 @@ export const reviewFranchiseApplication = async (id: string | number, data: {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body?.message || 'Unable to review franchise application');
+    const requirements = Array.isArray(body?.requirements) ? body.requirements.join(' ') : '';
+    throw new Error(requirements || body?.message || 'Unable to review franchise application');
   }
 
   return response.json().catch(() => ({}));

@@ -37,11 +37,13 @@ class FranchiseApplicationActivationTest extends TestCase
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'approved_for_opening',
             'next_step_instructions' => 'Opening requirements are complete. Await final activation.',
-        ], $headers)->assertOk();
+        ], $headers)->assertStatus(409)
+            ->assertJsonPath('requirements.0', 'Required document not verified: Business registration.');
 
         $this->assertSame(0, Franchise::count());
         $this->assertSame(0, FranchiseAccount::count());
         $this->assertSame(0, FranchiseUser::count());
+        $application->forceFill(['status' => 'approved_for_opening'])->save();
         $this->postJson('/api/franchise/login', [
             'email' => 'branch.manager@example.test',
             'password' => 'BranchManagerPass123!',
@@ -168,6 +170,9 @@ class FranchiseApplicationActivationTest extends TestCase
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'conditionally_approved',
             'next_step_instructions' => 'Complete the agreement and applicable opening requirements.',
+        ], $headers)->assertOk();
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'agreement_pending',
         ], $headers)->assertOk();
     }
 

@@ -24,8 +24,8 @@ class FranchiseApplicationRequirementsTest extends TestCase
         $this->patchJson('/api/admin/franchise-applications/'.$application->id.'/requirements', array_merge(
             $this->requirementsData(),
             ['agreement_prepared_at' => now('Asia/Manila')->subDay()->toDateString()],
-        ), $headers)->assertUnprocessable()
-            ->assertJsonPath('errors.agreement_prepared_at.0', 'Choose today or a future date.');
+        ), $headers)->assertOk()
+            ->assertJsonPath('data.agreement_status', 'drafting');
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id.'/requirements', $this->requirementsData(), $headers)
             ->assertOk()
@@ -41,11 +41,22 @@ class FranchiseApplicationRequirementsTest extends TestCase
             'status' => 'conditionally_approved',
             'next_step_instructions' => 'Please review the agreement and outstanding pre-opening requirements.',
         ], $headers)->assertOk();
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'requirements_pending',
+        ], $headers)->assertStatus(409)
+            ->assertJsonPath('message', 'The application cannot move from conditionally_approved to requirements_pending.');
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'agreement_pending',
+        ], $headers)->assertOk();
+        $this->assertSame(
+            FranchiseApplication::defaultInstructionsFor('agreement_pending'),
+            $application->fresh()->next_step_instructions,
+        );
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id.'/requirements', $this->requirementsData(), $headers)
             ->assertOk()
             ->assertJsonPath('data.agreement_status', 'drafting')
-            ->assertJsonPath('data.status', 'conditionally_approved')
+            ->assertJsonPath('data.status', 'agreement_pending')
             ->assertJsonPath('data.franchise_fee_payment_status', 'not_configured');
 
         $this->assertDatabaseHas('franchise_applications', [
@@ -95,6 +106,7 @@ class FranchiseApplicationRequirementsTest extends TestCase
         $this->postJson('/api/franchise-applications/me/'.$application->id.'/response', [
             'response' => 'I have attached the updated plan.',
         ], ['Authorization' => 'Bearer '.$applicant['token']])->assertOk();
+        $this->assertSame('under_review', $application->fresh()->status);
 
         $this->assertDatabaseHas('franchise_application_events', [
             'application_id' => $application->id,
@@ -109,16 +121,24 @@ class FranchiseApplicationRequirementsTest extends TestCase
         $this->assertSame('withdrawn', $application->fresh()->status);
     }
 
-    public function test_admin_can_configure_public_investment_estimates(): void
+    public function test_admin_can_configure_the_public_franchise_program(): void
     {
         $adminToken = $this->createAdminToken();
 
         $this->putJson('/api/admin/franchise-opportunities', [
             'investment_minimum' => 1500000,
             'investment_maximum' => 3500000,
+            'franchise_fee' => 500000,
+            'requirements' => "Business plan\nProposed location",
+            'qualifications' => 'Restaurant experience',
+            'business_rules' => 'Follow brand standards',
+            'support' => "Initial training\nOpening support",
         ], ['Authorization' => 'Bearer '.$adminToken])->assertOk()
             ->assertJsonPath('data.investment.minimum', '1500000.00')
-            ->assertJsonPath('data.investment.maximum', '3500000.00');
+            ->assertJsonPath('data.investment.maximum', '3500000.00')
+            ->assertJsonPath('data.franchise_fee', '500000.00')
+            ->assertJsonPath('data.requirements.0', 'Business plan')
+            ->assertJsonPath('data.support.1', 'Opening support');
 
         $this->putJson('/api/admin/franchise-opportunities', [
             'investment_minimum' => 3500000,
@@ -155,6 +175,9 @@ class FranchiseApplicationRequirementsTest extends TestCase
         ], $headers)->assertOk();
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'conditionally_approved',
+        ], $headers)->assertOk();
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'agreement_pending',
         ], $headers)->assertOk();
     }
 

@@ -24,6 +24,11 @@ class FranchiseApplicationReviewTest extends TestCase
         $adminToken = $this->createAdminToken();
         $applicant = $this->createVerifiedApplicant();
         $application = $this->submitApplication($applicant);
+        $this->getJson('/api/admin/franchise-applications/'.$application->id, [
+            'Authorization' => 'Bearer '.$adminToken,
+        ])->assertOk()
+            ->assertJsonPath('data.allowed_transitions.0', 'submitted')
+            ->assertJsonPath('data.allowed_transitions.1', 'under_review');
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'under_review',

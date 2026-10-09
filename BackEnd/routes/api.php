@@ -151,6 +151,9 @@ Route::post('/payment/gcash/create', [PaymentController::class, 'createGCashPaym
 Route::post('/payment/gcash/webhook', [PaymentController::class, 'webhook']);
 Route::get('/payment/status/{reference}', [PaymentController::class, 'getPaymentStatus']);
 
+Route::post('/franchise-applications', [FranchiseApplicationController::class, 'store'])
+    ->middleware('throttle:5,1');
+
 Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
@@ -176,7 +179,6 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::post('/payment/card/process', [PaymentController::class, 'processCard']);
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 
-    Route::post('/franchise-applications', [FranchiseApplicationController::class, 'store']);
     Route::get('/franchise-applications/me', [FranchiseApplicationController::class, 'myApplications']);
     Route::get('/franchise-applications/me/{id}', [FranchiseApplicationController::class, 'showMine']);
     Route::post('/franchise-applications/me/{id}/response', [FranchiseApplicationController::class, 'respond']);

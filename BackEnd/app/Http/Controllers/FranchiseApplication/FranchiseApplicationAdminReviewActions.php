@@ -18,11 +18,15 @@ trait FranchiseApplicationAdminReviewActions
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        return response()->json([
-            'data' => FranchiseApplication::with(['applicant:id,full_name,email'])
-                ->orderBy('created_at', 'desc')
-                ->get(),
-        ]);
+        $applications = FranchiseApplication::with(['applicant:id,full_name,email'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+        $applications->each(fn (FranchiseApplication $application) => $application->setAttribute(
+            'allowed_transitions',
+            $application->allowedTransitions(),
+        ));
+
+        return response()->json(['data' => $applications]);
     }
 
     public function showAdmin(Request $request, string $id)
@@ -33,6 +37,7 @@ trait FranchiseApplicationAdminReviewActions
 
         $application = FranchiseApplication::with(['applicant:id,full_name,email', 'events'])
             ->findOrFail($id);
+        $application->setAttribute('allowed_transitions', $application->allowedTransitions());
 
         return response()->json(['data' => $application]);
     }
@@ -61,7 +66,7 @@ trait FranchiseApplicationAdminReviewActions
         $application = DB::transaction(function () use ($id, $request, $targetStatus, $admin) {
             $application = FranchiseApplication::whereKey($id)->lockForUpdate()->firstOrFail();
             $currentStatus = $application->status === 'pending' ? 'submitted' : $application->status;
-            if (! $this->canTransition($currentStatus, $targetStatus)) {
+            if (! $application->canTransitionTo($targetStatus)) {
                 abort(response()->json([
                     'message' => "The application cannot move from {$currentStatus} to {$targetStatus}.",
                 ], 409));
@@ -71,6 +76,23 @@ trait FranchiseApplicationAdminReviewActions
             }
             if ($targetStatus === 'for_interview' && ! $request->filled('interview_at')) {
                 abort(response()->json(['message' => 'Set an interview date and time before moving this application to For Interview.'], 422));
+            }
+            if ($currentStatus !== $targetStatus
+                && $targetStatus === 'requirements_pending'
+                && ($application->agreement_status !== 'signed' || ! $application->agreement_signed_at)) {
+                abort(response()->json([
+                    'message' => 'Record the signed franchise agreement before moving to payment and business setup.',
+                    'requirements' => ['A signed franchise agreement and its actual signing date are required.'],
+                ], 409));
+            }
+            if ($currentStatus !== $targetStatus && $targetStatus === 'approved_for_opening') {
+                $issues = $application->activationReadinessIssues();
+                if ($issues !== []) {
+                    abort(response()->json([
+                        'message' => 'Complete opening readiness checks before approving the franchise for opening.',
+                        'requirements' => $issues,
+                    ], 409));
+                }
             }
 
             $previousStatus = $currentStatus;
@@ -97,6 +119,11 @@ trait FranchiseApplicationAdminReviewActions
             $application->reviewed_at = now();
             if ($request->has('next_step_instructions')) {
                 $application->next_step_instructions = $request->input('next_step_instructions');
+            }
+            if ($previousStatus !== $targetStatus
+                && (! $request->filled('next_step_instructions')
+                    || $request->input('next_step_instructions') === $previousInstructions)) {
+                $application->next_step_instructions = FranchiseApplication::defaultInstructionsFor($targetStatus);
             }
             if ($request->has('interview_at')) {
                 $application->interview_at = $requestedInterviewAt;
@@ -213,22 +240,6 @@ trait FranchiseApplicationAdminReviewActions
                 ], 409));
             }
 
-            $today = CarbonImmutable::now('Asia/Manila')->toDateString();
-            foreach (['agreement_prepared_at', 'agreement_signed_at'] as $dateField) {
-                if (! $request->filled($dateField)) {
-                    continue;
-                }
-
-                $requestedDate = CarbonImmutable::parse((string) $request->input($dateField))->toDateString();
-                $savedDate = $application->{$dateField}?->toDateString();
-                if ($requestedDate < $today && $requestedDate !== $savedDate) {
-                    abort(response()->json([
-                        'message' => 'Agreement dates cannot be in the past.',
-                        'errors' => [$dateField => ['Choose today or a future date.']],
-                    ], 422));
-                }
-            }
-
             foreach ([
                 'agreement_status',
                 'agreement_prepared_at',
@@ -315,28 +326,5 @@ trait FranchiseApplicationAdminReviewActions
                 'recent_applications' => FranchiseApplication::orderBy('created_at', 'desc')->limit(10)->get(),
             ],
         ]);
-    }
-
-    private function canTransition(string $current, string $target): bool
-    {
-        if ($current === $target && ! in_array($current, ['active', 'rejected', 'withdrawn'], true)) {
-            return true;
-        }
-
-        $transitions = [
-            'submitted' => ['under_review', 'on_hold', 'rejected'],
-            'pending' => ['under_review', 'on_hold', 'rejected'],
-            'under_review' => ['additional_information_required', 'for_interview', 'location_assessment', 'conditionally_approved', 'on_hold', 'rejected'],
-            'additional_information_required' => ['under_review', 'on_hold', 'rejected'],
-            'for_interview' => ['under_review', 'location_assessment', 'conditionally_approved', 'on_hold', 'rejected'],
-            'location_assessment' => ['under_review', 'conditionally_approved', 'on_hold', 'rejected'],
-            'conditionally_approved' => ['agreement_pending', 'requirements_pending', 'on_hold', 'rejected'],
-            'agreement_pending' => ['requirements_pending', 'on_hold', 'rejected'],
-            'requirements_pending' => ['agreement_pending', 'approved_for_opening', 'on_hold', 'rejected'],
-            'approved_for_opening' => ['requirements_pending', 'on_hold'],
-            'on_hold' => ['under_review', 'for_interview', 'location_assessment', 'conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening', 'rejected'],
-        ];
-
-        return in_array($target, $transitions[$current] ?? [], true);
     }
 }

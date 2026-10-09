@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Clock3, Download, FileText, Loader2, RotateCcw, Send } from 'lucide-react';
 import {
   downloadMyFranchiseApplicationDocument,
@@ -7,8 +7,9 @@ import {
   withdrawFranchiseApplication,
   type ApplicantFranchiseApplication,
 } from '../../../services/franchiseApplicationService';
+import { FRANCHISE_APPLICATION_STAGES, franchiseStageIndex, franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 
-const title = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+const title = franchiseStatusLabel;
 const formatPhilippineDateTime = (value: string) => new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'long',
   timeStyle: 'short',
@@ -37,20 +38,43 @@ const FranchiseMyApplicationsPage: React.FC = () => {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const requestInFlight = useRef(false);
+  const mounted = useRef(false);
 
-  const load = async () => {
-    setLoading(true);
-    setError('');
+  const load = useCallback(async (showLoading = true) => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    if (showLoading) setLoading(true);
     try {
-      setApplications(await getMyFranchiseApplications());
+      const data = await getMyFranchiseApplications();
+      if (mounted.current) {
+        setApplications(data);
+        setError('');
+      }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load your applications.');
+      if (mounted.current) setError(loadError instanceof Error ? loadError.message : 'Unable to load your applications.');
     } finally {
-      setLoading(false);
+      requestInFlight.current = false;
+      if (mounted.current && showLoading) setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    mounted.current = true;
+    void load();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void load(false);
+    };
+    const interval = window.setInterval(refreshWhenVisible, 15000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      mounted.current = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [load]);
 
   const handleResponse = async (application: ApplicantFranchiseApplication) => {
     const response = responses[application.id]?.trim() || '';
@@ -66,7 +90,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
       setResponses((current) => ({ ...current, [application.id]: '' }));
       setResponseFiles((current) => ({ ...current, [application.id]: [] }));
       setMessage(`Your response for ${application.reference_number} has been sent.`);
-      await load();
+      await load(false);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : 'Unable to send your response.');
     } finally {
@@ -82,7 +106,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
     try {
       await withdrawFranchiseApplication(application.id);
       setMessage(`Application ${application.reference_number} was withdrawn.`);
-      await load();
+      await load(false);
     } catch (withdrawError) {
       setError(withdrawError instanceof Error ? withdrawError.message : 'Unable to withdraw the application.');
     } finally {
@@ -129,6 +153,8 @@ const FranchiseMyApplicationsPage: React.FC = () => {
           <div className="space-y-6">
             {applications.map((application) => {
               const currentStatus = application.status || 'submitted';
+              const currentStageIndex = franchiseStageIndex(application);
+              const showProgress = currentStatus !== 'rejected' && currentStatus !== 'withdrawn';
               const canWithdraw = ['submitted', 'pending', 'under_review', 'additional_information_required', 'for_interview', 'location_assessment', 'on_hold'].includes(currentStatus);
               return (
                 <article key={application.id} className="overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
@@ -141,6 +167,21 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                     {currentStatus === 'on_hold' && <p className="mb-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">Your application is temporarily on hold. Please follow the instructions below or contact the franchise team if clarification is needed.</p>}
                     {currentStatus === 'rejected' && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">This application was not approved. Any applicant-visible update from the team is shown in the timeline below.</p>}
                     {currentStatus === 'withdrawn' && <p className="mb-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">You withdrew this application.</p>}
+
+                    {showProgress && (
+                      <section aria-label="Application progress" className="mb-5 rounded-2xl border border-[var(--oppa-border)] p-4">
+                        <h3 className="mb-3 text-sm font-semibold">Franchise process</h3>
+                        <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          {FRANCHISE_APPLICATION_STAGES.map((stage, index) => {
+                            const complete = index < currentStageIndex;
+                            const current = index === currentStageIndex;
+                            return <li key={stage.status} aria-current={current ? 'step' : undefined} className={`rounded-xl p-3 text-xs ${current ? 'bg-[var(--oppa-green)] text-white' : complete ? 'bg-green-50 text-green-800' : 'bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)]'}`}><span className="font-semibold">{index + 1}. {stage.label}</span><span className="mt-1 block">{current ? `Current: ${title(currentStatus)}` : complete ? 'Completed' : 'Next stage'}</span></li>;
+                          })}
+                        </ol>
+                      </section>
+                    )}
+
+                    {currentStatus === 'active' && <p className="mb-5 rounded-xl bg-green-50 p-3 text-sm text-green-800">Your franchise is active. Authorized franchise operations, sales reporting, and compliance monitoring are now managed through the franchise portal.</p>}
 
                     <section className="mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
                       <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>

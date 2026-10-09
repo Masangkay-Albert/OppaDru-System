@@ -5,6 +5,7 @@ namespace App\Http\Controllers\FranchiseApplication;
 use App\Models\FranchiseApplication;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -15,7 +16,7 @@ trait FranchiseApplicationApplicantActions
 {
     public function store(Request $request)
     {
-        $user = $request->user();
+        $user = Auth::guard('api')->user();
         $validator = Validator::make($request->all(), [
             'franchise_name' => 'nullable|string|max:255',
             'contact_name' => 'required|string|max:255',
@@ -36,14 +37,30 @@ trait FranchiseApplicationApplicantActions
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
+        if (! $user && ! $request->filled('email')) {
+            return response()->json([
+                'message' => 'A contact email is required so the franchise team can respond to your application.',
+                'errors' => ['email' => ['Enter a contact email address.']],
+            ], 422);
+        }
 
         $storedPaths = [];
 
         try {
             $application = DB::transaction(function () use ($request, $user, &$storedPaths) {
-                $lockedUser = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+                $lockedUser = $user ? User::whereKey($user->id)->lockForUpdate()->firstOrFail() : null;
+                $email = strtolower(trim((string) (
+                    $request->filled('email') ? $request->input('email') : $lockedUser?->email
+                )));
                 $hasOpenApplication = FranchiseApplication::query()
-                    ->where('user_id', $lockedUser->id)
+                    ->where(function ($query) use ($lockedUser, $email) {
+                        if ($lockedUser) {
+                            $query->where('user_id', $lockedUser->id)
+                                ->orWhere('email', $email);
+                        } else {
+                            $query->where('email', $email);
+                        }
+                    })
                     ->where(function ($query) {
                         $query->whereNull('status')
                             ->orWhereNotIn('status', ['rejected', 'withdrawn']);
@@ -52,19 +69,17 @@ trait FranchiseApplicationApplicantActions
 
                 if ($hasOpenApplication) {
                     abort(response()->json([
-                        'message' => 'You already have an application under review. You can follow its progress from My Applications.',
+                        'message' => 'An application using this applicant account or contact email is already in progress. Contact the franchise team if you need help with it.',
                     ], 409));
                 }
 
                 $location = trim((string) $request->input('location'));
                 $application = FranchiseApplication::create([
-                    'user_id' => $lockedUser->id,
+                    'user_id' => $lockedUser?->id,
                     'franchise_name' => trim((string) $request->input('franchise_name'))
                         ?: 'Oppa Dru - '.$location,
                     'contact_name' => trim((string) $request->input('contact_name')),
-                    'email' => strtolower(trim((string) (
-                        $request->filled('email') ? $request->input('email') : $lockedUser->email
-                    ))),
+                    'email' => $email,
                     'phone' => trim((string) $request->input('phone')),
                     'location' => $location,
                     'applicant_address' => trim((string) $request->input('applicant_address')),
@@ -100,7 +115,7 @@ trait FranchiseApplicationApplicantActions
                 $this->recordEvent(
                     $application,
                     'applicant',
-                    $lockedUser->id,
+                    $lockedUser?->id,
                     'submitted',
                     'Application submitted',
                     'Your application was received and is waiting for review.',
@@ -185,12 +200,14 @@ trait FranchiseApplicationApplicantActions
                 }
 
                 $application->documents = $documents;
+                $application->status = 'under_review';
+                $application->next_step_instructions = 'Your response was received. The franchise team will review the information you provided.';
                 $application->save();
                 $this->recordEvent(
                     $application,
                     'applicant',
                     $userId,
-                    $application->status,
+                    'under_review',
                     'Additional information submitted',
                     trim((string) $request->input('response')),
                 );

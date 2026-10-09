@@ -51,17 +51,32 @@ class FranchiseApplicationSubmissionTest extends TestCase
             ->assertJsonPath('data.user_id', $applicant['user']->id);
     }
 
-    public function test_guest_and_unverified_users_cannot_submit_an_application(): void
+    public function test_guest_can_submit_with_contact_email_and_unverified_account_does_not_block_submission(): void
     {
+        $guestSubmission = $this->postJson('/api/franchise-applications', array_merge(
+            $this->applicationData(),
+            ['email' => 'guest@example.test'],
+        ))->assertCreated()
+            ->assertJsonPath('data.user_id', null)
+            ->assertJsonPath('data.email', 'guest@example.test');
+
+        $this->assertMatchesRegularExpression('/^OPPA-\d{4}-[A-Z0-9]{8}$/', $guestSubmission->json('reference_number'));
         $this->postJson('/api/franchise-applications', $this->applicationData())
-            ->assertUnauthorized();
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.email.0', 'Enter a contact email address.');
 
         $unverified = $this->createApplicant(false);
         $this->postJson('/api/franchise-applications', $this->applicationData(), [
             'Authorization' => 'Bearer '.$unverified['token'],
-        ])->assertForbidden();
+        ])->assertCreated()
+            ->assertJsonPath('data.user_id', $unverified['user']->id);
 
-        $this->assertDatabaseCount('franchise_applications', 0);
+        $this->assertDatabaseCount('franchise_applications', 2);
+    }
+
+    public function test_guest_cannot_access_authenticated_application_tracking(): void
+    {
+        $this->getJson('/api/franchise-applications/me')->assertUnauthorized();
     }
 
     public function test_only_the_applicant_can_view_or_download_their_application_documents(): void

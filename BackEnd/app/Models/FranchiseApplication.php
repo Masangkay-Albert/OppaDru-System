@@ -26,7 +26,22 @@ class FranchiseApplication extends Model
         'on_hold',
     ];
 
+    public const STATUS_TRANSITIONS = [
+        'pending' => ['under_review', 'on_hold', 'rejected'],
+        'submitted' => ['under_review', 'on_hold', 'rejected'],
+        'under_review' => ['additional_information_required', 'for_interview', 'location_assessment', 'conditionally_approved', 'on_hold', 'rejected'],
+        'additional_information_required' => ['under_review', 'on_hold', 'rejected'],
+        'for_interview' => ['under_review', 'location_assessment', 'conditionally_approved', 'on_hold', 'rejected'],
+        'location_assessment' => ['under_review', 'conditionally_approved', 'on_hold', 'rejected'],
+        'conditionally_approved' => ['agreement_pending', 'on_hold', 'rejected'],
+        'agreement_pending' => ['requirements_pending', 'on_hold', 'rejected'],
+        'requirements_pending' => ['agreement_pending', 'approved_for_opening', 'on_hold', 'rejected'],
+        'approved_for_opening' => ['requirements_pending', 'on_hold'],
+        'on_hold' => ['under_review', 'for_interview', 'location_assessment', 'conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening', 'rejected'],
+    ];
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -93,14 +108,14 @@ class FranchiseApplication extends Model
 
         static::creating(function ($model) {
             if (empty($model->id)) {
-                $model->id = 'OPPA-FAPP-' . strtoupper(Str::random(8));
+                $model->id = 'OPPA-FAPP-'.strtoupper(Str::random(8));
             }
 
             if (empty($model->reference_number)) {
-                $reference = 'OPPA-' . date('Y') . '-' . strtoupper(Str::random(8));
+                $reference = 'OPPA-'.date('Y').'-'.strtoupper(Str::random(8));
 
                 while (static::where('reference_number', $reference)->exists()) {
-                    $reference = 'OPPA-' . date('Y') . '-' . strtoupper(Str::random(8));
+                    $reference = 'OPPA-'.date('Y').'-'.strtoupper(Str::random(8));
                 }
 
                 $model->reference_number = $reference;
@@ -126,5 +141,78 @@ class FranchiseApplication extends Model
     public function franchise()
     {
         return $this->belongsTo(Franchise::class, 'franchise_id', 'id');
+    }
+
+    public function allowedTransitions(): array
+    {
+        $currentStatus = $this->status === 'pending' ? 'submitted' : ($this->status ?: 'submitted');
+        $transitions = self::STATUS_TRANSITIONS[$currentStatus] ?? [];
+
+        if (! in_array($currentStatus, ['active', 'rejected', 'withdrawn'], true)) {
+            array_unshift($transitions, $currentStatus);
+        }
+
+        return array_values(array_unique($transitions));
+    }
+
+    public function canTransitionTo(string $targetStatus): bool
+    {
+        return in_array($targetStatus, $this->allowedTransitions(), true);
+    }
+
+    public static function defaultInstructionsFor(string $status): string
+    {
+        return [
+            'submitted' => 'Your application has been submitted and is waiting for review.',
+            'under_review' => 'The franchise team is reviewing your experience, financial readiness, and proposed location.',
+            'additional_information_required' => 'Please submit the additional information requested below.',
+            'for_interview' => 'Please attend the interview at the scheduled Philippine time and follow the instructions below.',
+            'location_assessment' => 'The franchise team is evaluating your proposed location. Follow any site-assessment instructions below.',
+            'conditionally_approved' => 'Your application is conditionally approved. Review the proposed terms and complete the agreement and due-diligence steps.',
+            'agreement_pending' => 'Review and sign the franchise agreement. The next setup stage cannot begin until the agreement is recorded as signed.',
+            'requirements_pending' => 'Complete the agreed payment, location, permits, construction/equipment, staffing, training, and system setup requirements that apply to your franchise.',
+            'approved_for_opening' => 'Opening readiness is approved. Await final authorized activation before beginning operations.',
+            'active' => 'Your franchise is active. Follow the operations, reporting, and compliance instructions in the franchise portal.',
+            'rejected' => 'The franchise team has completed its review and this application was not approved.',
+            'withdrawn' => 'This application has been withdrawn.',
+            'on_hold' => 'Your application is temporarily on hold. Follow the instructions below or contact the franchise team.',
+        ][$status] ?? 'Follow the latest instructions from the franchise team.';
+    }
+
+    public function activationReadinessIssues(): array
+    {
+        $issues = [];
+        if ($this->agreement_status !== 'signed' || ! $this->agreement_signed_at) {
+            $issues[] = 'The franchise agreement must be recorded as signed with its actual signing date.';
+        }
+        if (! in_array($this->franchise_fee_payment_status, ['paid', 'waived', 'not_applicable'], true)) {
+            $issues[] = 'The applicable franchise fee must be paid, waived with a recorded reason, or explicitly marked not applicable.';
+        }
+        if ($this->franchise_fee_payment_status === 'paid'
+            && (! $this->franchise_fee_amount || ! $this->franchise_fee_payment_reference)) {
+            $issues[] = 'The paid franchise fee must include its amount and payment reference.';
+        }
+        if (! $this->requirements_reviewed_at) {
+            $issues[] = 'An administrator must review and save the requirements checklist.';
+        }
+        foreach ($this->required_documents ?? [] as $document) {
+            if (($document['required'] ?? false) && ! in_array($document['status'] ?? null, ['verified', 'not_applicable'], true)) {
+                $issues[] = 'Required document not verified: '.($document['label'] ?? 'Unnamed document').'.';
+            }
+        }
+        if (! in_array($this->location_readiness, ['ready', 'not_applicable'], true)) {
+            $issues[] = 'Location readiness must be confirmed or explicitly marked not applicable.';
+        }
+        if (! in_array($this->permit_compliance_status, ['verified', 'not_applicable'], true)) {
+            $issues[] = 'Permit and compliance checks must be verified or explicitly marked not applicable.';
+        }
+        if (! in_array($this->training_status, ['complete', 'not_applicable'], true)) {
+            $issues[] = 'Required training must be complete or explicitly marked not applicable.';
+        }
+        if (! in_array($this->operational_preparation_status, ['complete', 'not_applicable'], true)) {
+            $issues[] = 'Operational preparation must be complete or explicitly marked not applicable.';
+        }
+
+        return $issues;
     }
 }

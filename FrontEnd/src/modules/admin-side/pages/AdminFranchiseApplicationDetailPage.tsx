@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Download, FileText, Loader2, Save } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
@@ -10,22 +10,9 @@ import {
   updateFranchiseApplicationRequirements,
   type FranchiseApplication,
 } from '../../../services/franchiseAdminService';
+import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 
-const transitions: Record<string, string[]> = {
-  pending: ['under_review', 'on_hold', 'rejected'],
-  submitted: ['under_review', 'on_hold', 'rejected'],
-  under_review: ['additional_information_required', 'for_interview', 'location_assessment', 'conditionally_approved', 'on_hold', 'rejected'],
-  additional_information_required: ['under_review', 'on_hold', 'rejected'],
-  for_interview: ['under_review', 'location_assessment', 'conditionally_approved', 'on_hold', 'rejected'],
-  location_assessment: ['under_review', 'conditionally_approved', 'on_hold', 'rejected'],
-  conditionally_approved: ['agreement_pending', 'requirements_pending', 'on_hold', 'rejected'],
-  agreement_pending: ['requirements_pending', 'on_hold', 'rejected'],
-  requirements_pending: ['agreement_pending', 'approved_for_opening', 'on_hold', 'rejected'],
-  approved_for_opening: ['requirements_pending', 'on_hold'],
-  on_hold: ['under_review', 'for_interview', 'location_assessment', 'conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening', 'rejected'],
-};
-
-const statusTitle = (status: string) => status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+const statusTitle = franchiseStatusLabel;
 const money = (amount?: string | number) => amount === undefined || amount === null ? 'Not provided' : `₱${Number(amount).toLocaleString('en-PH')}`;
 const manilaTimeZone = 'Asia/Manila';
 
@@ -48,19 +35,103 @@ const toManilaDateTimeInput = (value: string): string => {
 const manilaDateTimeInputToIso = (value: string): string =>
   value ? new Date(`${value}:00+08:00`).toISOString() : '';
 
-const todayInManila = (): string => {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: manilaTimeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((valuePart) => valuePart.type === type)?.value || '';
-  return `${part('year')}-${part('month')}-${part('day')}`;
-};
-
 const minimumManilaDateTime = (): string =>
   toManilaDateTimeInput(new Date(Date.now() + 60_000).toISOString());
+
+type FranchiseRequirementDocument = { label: string; required: boolean; status: string };
+
+const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; onSaved: () => Promise<void> }> = ({ application, onSaved }) => {
+  const [agreementStatus, setAgreementStatus] = useState(application.agreement_status || 'not_started');
+  const [agreementPreparedAt, setAgreementPreparedAt] = useState(application.agreement_prepared_at?.slice(0, 10) || '');
+  const [agreementSignedAt, setAgreementSignedAt] = useState(application.agreement_signed_at?.slice(0, 10) || '');
+  const [feeAmount, setFeeAmount] = useState(application.franchise_fee_amount ? String(application.franchise_fee_amount) : '');
+  const [feeStatus, setFeeStatus] = useState(application.franchise_fee_payment_status || 'not_configured');
+  const [feeReference, setFeeReference] = useState(application.franchise_fee_payment_reference || '');
+  const [documents, setDocuments] = useState<FranchiseRequirementDocument[]>(application.required_documents || []);
+  const [locationReadiness, setLocationReadiness] = useState(application.location_readiness || 'pending');
+  const [permitStatus, setPermitStatus] = useState(application.permit_compliance_status || 'pending');
+  const [trainingStatus, setTrainingStatus] = useState(application.training_status || 'pending');
+  const [operationsStatus, setOperationsStatus] = useState(application.operational_preparation_status || 'pending');
+  const [internalNotes, setInternalNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (agreementStatus === 'signed' && !agreementSignedAt) {
+      setError('Record the actual agreement signing date before marking it signed.');
+      return;
+    }
+    if (feeStatus === 'paid' && !window.confirm('Confirm the recorded franchise fee has actually been received?')) return;
+    if (['waived', 'not_applicable'].includes(feeStatus) && !internalNotes.trim()) {
+      setError('Explain why the franchise fee is waived or not applicable in the internal note.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await updateFranchiseApplicationRequirements(application.id, {
+        agreement_status: agreementStatus,
+        agreement_prepared_at: agreementPreparedAt,
+        agreement_signed_at: agreementSignedAt,
+        franchise_fee_amount: feeAmount,
+        franchise_fee_payment_status: feeStatus,
+        franchise_fee_payment_reference: feeReference,
+        required_documents: documents,
+        location_readiness: locationReadiness,
+        permit_compliance_status: permitStatus,
+        training_status: trainingStatus,
+        operational_preparation_status: operationsStatus,
+        internal_notes: internalNotes,
+      });
+      setInternalNotes('');
+      await onSaved();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save agreement and opening requirements.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateDocument = (index: number, patch: Partial<FranchiseRequirementDocument>) =>
+    setDocuments((current) => current.map((document, position) => position === index ? { ...document, ...patch } : document));
+  const selectClass = 'mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm';
+  const dateClass = 'mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm';
+
+  return (
+    <section className="mt-6 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:p-6">
+      <div className="mb-4"><h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Agreement, payment, and opening readiness</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Record only terms agreed for this application. The applicant sees saved updates; opening approval remains blocked until every applicable check is complete.</p></div>
+      {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      <form onSubmit={save} className="grid gap-4 md:grid-cols-2">
+        <label className="text-sm font-medium">Agreement status<select value={agreementStatus} onChange={(event) => setAgreementStatus(event.target.value)} className={selectClass}><option value="not_started">Not started</option><option value="drafting">Drafting</option><option value="sent">Sent for review/signing</option><option value="signed">Signed</option></select></label>
+        <label className="text-sm font-medium">Agreement prepared date<input type="date" value={agreementPreparedAt} onChange={(event) => setAgreementPreparedAt(event.target.value)} className={dateClass} /></label>
+        <label className="text-sm font-medium">Actual agreement signing date<input type="date" value={agreementSignedAt} onChange={(event) => setAgreementSignedAt(event.target.value)} className={dateClass} /></label>
+        <label className="text-sm font-medium">Agreed franchise fee<input type="number" min="0" step="0.01" value={feeAmount} onChange={(event) => setFeeAmount(event.target.value)} placeholder="Not configured" className={dateClass} /></label>
+        <label className="text-sm font-medium">Fee payment status<select value={feeStatus} onChange={(event) => setFeeStatus(event.target.value)} className={selectClass}><option value="not_configured">Not configured</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="waived">Waived</option><option value="not_applicable">Not applicable</option></select></label>
+        <label className="text-sm font-medium">Payment receipt/reference<input value={feeReference} onChange={(event) => setFeeReference(event.target.value)} maxLength={255} className={dateClass} /></label>
+
+        <fieldset className="space-y-2 rounded-xl border border-[var(--oppa-border)] p-4 md:col-span-2">
+          <legend className="px-1 text-sm font-semibold">Application-specific required documents</legend>
+          {documents.map((document, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_auto_160px_auto] sm:items-center">
+            <input aria-label="Required document name" required value={document.label} onChange={(event) => updateDocument(index, { label: event.target.value })} placeholder="Document name" className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" />
+            <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={document.required} onChange={(event) => updateDocument(index, { required: event.target.checked })} />Required</label>
+            <select aria-label="Document verification status" value={document.status} onChange={(event) => updateDocument(index, { status: event.target.value })} className="rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2 text-xs"><option value="pending">Pending</option><option value="received">Received</option><option value="verified">Verified</option><option value="not_applicable">Not applicable</option></select>
+            <button type="button" onClick={() => setDocuments((current) => current.filter((_, position) => position !== index))} className="text-xs font-semibold text-red-700">Remove</button>
+          </div>)}
+          <button type="button" onClick={() => setDocuments((current) => [...current, { label: '', required: true, status: 'pending' }])} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold">Add required document</button>
+        </fieldset>
+
+        <label className="text-sm font-medium">Location readiness<select value={locationReadiness} onChange={(event) => setLocationReadiness(event.target.value)} className={selectClass}><option value="pending">Pending</option><option value="ready">Ready</option><option value="not_applicable">Not applicable</option></select></label>
+        <label className="text-sm font-medium">Permits and compliance<select value={permitStatus} onChange={(event) => setPermitStatus(event.target.value)} className={selectClass}><option value="pending">Pending</option><option value="verified">Verified</option><option value="not_applicable">Not applicable</option></select></label>
+        <label className="text-sm font-medium">Training<select value={trainingStatus} onChange={(event) => setTrainingStatus(event.target.value)} className={selectClass}><option value="pending">Pending</option><option value="scheduled">Scheduled</option><option value="complete">Complete</option><option value="not_applicable">Not applicable</option></select></label>
+        <label className="text-sm font-medium">System and operational preparation<select value={operationsStatus} onChange={(event) => setOperationsStatus(event.target.value)} className={selectClass}><option value="pending">Pending</option><option value="in_progress">In progress</option><option value="complete">Complete</option><option value="not_applicable">Not applicable</option></select></label>
+        <label className="text-sm font-medium md:col-span-2">Internal note<textarea value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} rows={2} maxLength={5000} placeholder="Explain waivers, not-applicable items, or audit details." className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" /></label>
+        <button type="submit" disabled={saving} className="rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 md:col-span-2">{saving ? 'Saving review…' : 'Save agreement and readiness'}</button>
+        <p className="text-xs text-[var(--oppa-text-muted)] md:col-span-2">{application.requirements_reviewed_at ? `Last reviewed ${new Date(application.requirements_reviewed_at).toLocaleString()}.` : 'Not yet reviewed. Saving records the current checklist and review.'}</p>
+      </form>
+    </section>
+  );
+};
 
 const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -78,28 +149,54 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const [downloading, setDownloading] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const formDirty = useRef(false);
+  const requestInFlight = useRef(false);
+  const mounted = useRef(false);
 
-  const load = async () => {
-    if (!id) return;
-    setLoading(true);
-    setError('');
+  const load = async (showLoading = true) => {
+    if (!id || requestInFlight.current) return;
+    requestInFlight.current = true;
+    if (showLoading) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const data = await getFranchiseApplication(id);
+      if (!mounted.current) return;
       setApplication(data);
-      setStatus(data.status === 'pending' ? 'submitted' : data.status || 'submitted');
-      setInstructions(data.next_step_instructions || '');
-      setInterviewAt(data.interview_at ? toManilaDateTimeInput(data.interview_at) : '');
-      setInterviewNotes(data.interview_notes || '');
-      setAssessmentResult(data.location_assessment?.result || '');
-      setAssessmentNotes(data.location_assessment?.notes || '');
+      if (showLoading || !formDirty.current) {
+        setStatus(data.status === 'pending' ? 'submitted' : data.status || 'submitted');
+        setInstructions(data.next_step_instructions || '');
+        setInterviewAt(data.interview_at ? toManilaDateTimeInput(data.interview_at) : '');
+        setInterviewNotes(data.interview_notes || '');
+        setAssessmentResult(data.location_assessment?.result || '');
+        setAssessmentNotes(data.location_assessment?.notes || '');
+        formDirty.current = false;
+      }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load the application.');
+      if (mounted.current && showLoading) setError(loadError instanceof Error ? loadError.message : 'Unable to load the application.');
     } finally {
-      setLoading(false);
+      requestInFlight.current = false;
+      if (mounted.current && showLoading) setLoading(false);
     }
   };
 
-  useEffect(() => { void load(); }, [id]);
+  useEffect(() => {
+    mounted.current = true;
+    void load();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void load(false);
+    };
+    const interval = window.setInterval(refreshWhenVisible, 15000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      mounted.current = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [id]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setMinimumInterviewAt(minimumManilaDateTime()), 30_000);
@@ -108,9 +205,9 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
   const currentStatus = application?.status === 'pending' ? 'submitted' : application?.status || 'submitted';
   const availableStatuses = useMemo(() => {
-    const options = transitions[currentStatus] || [];
-    return options.includes(status) ? [status, ...options.filter((option) => option !== status)] : options;
-  }, [currentStatus, status]);
+    const options = application?.allowed_transitions || [currentStatus];
+    return options.includes(status) ? options : [status, ...options];
+  }, [application?.allowed_transitions, currentStatus, status]);
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -139,6 +236,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
           ...(assessmentNotes ? { notes: assessmentNotes } : {}),
         },
       });
+      formDirty.current = false;
       setAdminNotes('');
       setMessage('Review updates saved.');
       await load();
@@ -201,13 +299,9 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                 {!application.documents?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No supporting documents were provided.</p> : <ul className="space-y-2">{application.documents.map((file, index) => <li key={`${file.name}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-[var(--oppa-cream)] p-3"><span className="flex min-w-0 items-center gap-2 text-sm"><FileText size={17} className="shrink-0 text-[var(--oppa-green)]" /><span className="truncate">{file.name}</span></span><button type="button" onClick={() => void downloadDocument(index, file.name)} disabled={downloading === index} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-1.5 text-xs font-semibold disabled:opacity-60"><Download size={14} />{downloading === index ? 'Loading…' : 'Download'}</button></li>)}</ul>}
               </section>
 
-              <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-                <h2 className="mb-4 font-semibold text-[var(--oppa-text)]">Application timeline</h2>
-                {!application.events?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No review events have been recorded.</p> : <ol className="space-y-4">{application.events.map((event) => <li key={event.id} className="relative border-l border-[var(--oppa-border)] pl-4"><p className="text-sm font-semibold">{event.title} {event.is_internal && <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-600">Internal</span>}</p>{event.message && <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--oppa-text-muted)]">{event.message}</p>}<p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{new Date(event.created_at).toLocaleString()}</p></li>)}</ol>}
-              </section>
             </div>
 
-            <form noValidate onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+            <form noValidate onChange={() => { formDirty.current = true; }} onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
               <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Each status change is recorded. Approval does not create access; franchise activation is a separate gated action.</p></div>
               <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
               <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or the additional information needed." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
@@ -227,7 +321,9 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             </form>
           </div>
 
-          <RequirementsTrackingForm application={application} onSaved={load} />
+          {['conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening'].includes(currentStatus) && (
+            <FranchiseRequirementsForm application={application} onSaved={load} />
+          )}
           <FranchiseActivationPanel application={application} onActivated={load} />
         </>
       )}
@@ -293,123 +389,6 @@ const FranchiseActivationPanel: React.FC<{ application: FranchiseApplication; on
         <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={canProcessPos} onChange={(event) => setCanProcessPos(event.target.checked)} />Authorize this manager to process POS transactions</label>
         <div className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)] md:col-span-2">No franchise record or dashboard/POS access is created until you confirm activation. Staff and cashier access remains subject to authorized setup for the activated location.</div>
         <button type="submit" disabled={saving} className="rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60 md:col-span-2">{saving ? 'Activating…' : 'Confirm and activate franchise'}</button>
-      </form>
-    </section>
-  );
-};
-
-const requirementStatuses: Record<string, string[]> = {
-  location_readiness: ['pending', 'ready', 'not_applicable'],
-  permit_compliance_status: ['pending', 'verified', 'not_applicable'],
-  training_status: ['pending', 'scheduled', 'complete', 'not_applicable'],
-  operational_preparation_status: ['pending', 'in_progress', 'complete', 'not_applicable'],
-};
-
-const RequirementsTrackingForm: React.FC<{ application: FranchiseApplication; onSaved: () => Promise<void> }> = ({ application, onSaved }) => {
-  const [agreementStatus, setAgreementStatus] = useState(application.agreement_status || 'not_started');
-  const [agreementPreparedAt, setAgreementPreparedAt] = useState(application.agreement_prepared_at?.slice(0, 10) || '');
-  const [agreementSignedAt, setAgreementSignedAt] = useState(application.agreement_signed_at?.slice(0, 10) || '');
-  const [feeAmount, setFeeAmount] = useState(application.franchise_fee_amount ? String(application.franchise_fee_amount) : '');
-  const [feeStatus, setFeeStatus] = useState(application.franchise_fee_payment_status || 'not_configured');
-  const [feeReference, setFeeReference] = useState(application.franchise_fee_payment_reference || '');
-  const [requiredDocuments, setRequiredDocuments] = useState(application.required_documents || []);
-  const [locationReadiness, setLocationReadiness] = useState(application.location_readiness || 'pending');
-  const [permitStatus, setPermitStatus] = useState(application.permit_compliance_status || 'pending');
-  const [trainingStatus, setTrainingStatus] = useState(application.training_status || 'pending');
-  const [operationsStatus, setOperationsStatus] = useState(application.operational_preparation_status || 'pending');
-  const [internalNotes, setInternalNotes] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const canEditRequirements = !['active', 'rejected', 'withdrawn'].includes(application.status || '');
-
-  const handleSave = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!canEditRequirements) return;
-    if (agreementStatus === 'signed' && !window.confirm('Confirm that the franchise agreement has actually been signed?')) return;
-    if (feeStatus === 'paid' && !window.confirm('Confirm the recorded franchise fee has been received and matched to the payment reference?')) return;
-    setSaving(true);
-    setError('');
-    setMessage('');
-    try {
-      await updateFranchiseApplicationRequirements(application.id, {
-        agreement_status: agreementStatus,
-        agreement_prepared_at: agreementPreparedAt,
-        agreement_signed_at: agreementSignedAt,
-        franchise_fee_amount: feeAmount,
-        franchise_fee_payment_status: feeStatus,
-        franchise_fee_payment_reference: feeReference,
-        required_documents: requiredDocuments,
-        location_readiness: locationReadiness,
-        permit_compliance_status: permitStatus,
-        training_status: trainingStatus,
-        operational_preparation_status: operationsStatus,
-        internal_notes: internalNotes,
-      });
-      setInternalNotes('');
-      setMessage('Agreement and requirements saved. No item was marked complete unless you selected and confirmed it.');
-      await onSaved();
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to save requirements.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const addDocument = () => setRequiredDocuments((current) => [...current, { label: '', required: true, status: 'pending' }]);
-  const updateDocument = (index: number, field: 'label' | 'required' | 'status', value: string | boolean) => {
-    setRequiredDocuments((current) => current.map((document, position) => position === index ? { ...document, [field]: value } : document));
-  };
-
-  return (
-    <section className="mt-6 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-4"><h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Franchise requirements and agreement</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Only record requirements that apply. “Pending” or “not configured” will continue to block activation.</p></div>
-      {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      {message && <p role="status" className="mb-4 rounded-xl bg-green-50 p-3 text-sm text-green-800">{message}</p>}
-      <p className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-        Admins may prepare this checklist at any review stage. Saving it does not change the application status or approve the applicant. Activation remains blocked until the application is approved for opening and every applicable requirement is complete.
-      </p>
-      {!canEditRequirements && <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Requirements are read-only for active, rejected, or withdrawn applications.</p>}
-      <form onSubmit={handleSave} className="grid gap-5 lg:grid-cols-2">
-        <fieldset disabled={!canEditRequirements || saving} className="contents">
-          <div className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4">
-            <h3 className="text-sm font-semibold">Agreement</h3>
-            <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Preparation and signing status<select value={agreementStatus} onChange={(event) => setAgreementStatus(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]"><option value="not_started">Not started</option><option value="drafting">Drafting</option><option value="sent">Sent for signing</option><option value="signed">Signed</option></select></label>
-            <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Agreement prepared on<input type="date" min={todayInManila()} value={agreementPreparedAt} onChange={(event) => setAgreementPreparedAt(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-            <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Agreement signed on<input type="date" min={todayInManila()} value={agreementSignedAt} onChange={(event) => setAgreementSignedAt(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4">
-            <h3 className="text-sm font-semibold">Applicable franchise fee</h3>
-            <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Amount (PHP)<input type="number" min="0" step="0.01" value={feeAmount} onChange={(event) => setFeeAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-            <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Payment status<select value={feeStatus} onChange={(event) => setFeeStatus(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]"><option value="not_configured">Not configured</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="waived">Waived</option><option value="not_applicable">Not applicable</option></select></label>
-            <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Payment reference (required if paid)<input value={feeReference} onChange={(event) => setFeeReference(event.target.value)} maxLength={255} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4 lg:col-span-2">
-            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Required documents for this application</h3><button type="button" onClick={addDocument} className="rounded-lg border border-[var(--oppa-border)] px-3 py-1.5 text-xs font-semibold">Add requirement</button></div>
-            {!requiredDocuments.length && <p className="text-xs leading-5 text-[var(--oppa-text-muted)]">No extra documents listed. Add only items that apply; activation still requires you to save this review explicitly.</p>}
-            {requiredDocuments.map((document, index) => <div key={index} className="grid gap-2 rounded-lg bg-[var(--oppa-cream)] p-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
-              <input required aria-label="Required document name" value={document.label} onChange={(event) => updateDocument(index, 'label', event.target.value)} placeholder="e.g. Business registration" className="rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm" />
-              <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={document.required} onChange={(event) => updateDocument(index, 'required', event.target.checked)} />Required</label>
-              <select aria-label="Document verification status" value={document.status} onChange={(event) => updateDocument(index, 'status', event.target.value)} className="rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2 text-xs"><option value="pending">Pending</option><option value="received">Received</option><option value="verified">Verified</option><option value="not_applicable">Not applicable</option></select>
-              <button type="button" onClick={() => setRequiredDocuments((current) => current.filter((_, position) => position !== index))} className="text-xs font-semibold text-red-700">Remove</button>
-            </div>)}
-          </div>
-
-          <div className="grid gap-3 rounded-xl border border-[var(--oppa-border)] p-4 lg:col-span-2 sm:grid-cols-2">
-            <h3 className="text-sm font-semibold sm:col-span-2">Opening preparation checks</h3>
-            {([
-              ['location_readiness', 'Location readiness', locationReadiness, setLocationReadiness],
-              ['permit_compliance_status', 'Permits and compliance', permitStatus, setPermitStatus],
-              ['training_status', 'Training', trainingStatus, setTrainingStatus],
-              ['operational_preparation_status', 'Operational preparation', operationsStatus, setOperationsStatus],
-            ] as const).map(([key, label, value, setter]) => <label key={key} className="text-xs font-medium text-[var(--oppa-text-muted)]">{label}<select value={value} onChange={(event) => setter(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm text-[var(--oppa-text)]">{requirementStatuses[key].map((option) => <option key={option} value={option}>{option.replaceAll('_', ' ')}</option>)}</select></label>)}
-          </div>
-
-          <label className="block text-xs font-medium text-[var(--oppa-text-muted)] lg:col-span-2">Internal note (for audit trail)<textarea value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} rows={2} maxLength={5000} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-          <div className="lg:col-span-2"><p className="text-xs text-[var(--oppa-text-muted)]">{application.requirements_reviewed_at ? `Last reviewed: ${new Date(application.requirements_reviewed_at).toLocaleString()}` : 'Requirements have not yet been reviewed.'}</p><button type="submit" disabled={!canEditRequirements || saving} className="mt-3 inline-flex items-center justify-center rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save agreement and requirements'}</button></div>
-        </fieldset>
       </form>
     </section>
   );

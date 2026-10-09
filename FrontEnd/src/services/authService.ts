@@ -149,7 +149,8 @@ class AuthService {
   }
 
   getToken(): string | null {
-    return localStorage.getItem(this.tokenKey);
+    const token = localStorage.getItem(this.tokenKey)?.trim();
+    return token && token !== 'null' && token !== 'undefined' ? token : null;
   }
 
   getUserFromStorage(): User | null {

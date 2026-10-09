@@ -5,7 +5,11 @@ import { API_URL } from '../../../services/apiConfig';
 
 interface FranchiseOpportunityInfo {
   investment: { minimum: string | null; maximum: string | null } | null;
+  franchise_fee?: string | null;
   requirements: string[];
+  qualifications?: string[];
+  business_rules?: string[];
+  support?: string[];
   steps: string[];
   faqs: Array<{ question: string; answer: string }>;
 }
@@ -60,17 +64,39 @@ const FranchiseOpportunitiesPage: React.FC = () => {
               {(info?.steps || []).map((description, index) => <li key={description} className="flex gap-4"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--oppa-cream)] text-sm font-bold text-[var(--oppa-green)]">{index + 1}</span><p className="pt-1 text-sm leading-6">{description}</p></li>)}
             </ol>
           </section>
+
+          {!!info?.qualifications?.length && (
+            <section className="rounded-3xl border border-[var(--oppa-border)] bg-white p-6 shadow-sm sm:p-8">
+              <h2 className="mb-4 font-serif text-2xl font-bold">Applicant qualifications</h2>
+              <ul className="space-y-3">{info.qualifications.map((qualification) => <li key={qualification} className="flex gap-3 text-sm leading-6"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-[var(--oppa-green)]" />{qualification}</li>)}</ul>
+            </section>
+          )}
+
+          {!!info?.support?.length && (
+            <section className="rounded-3xl border border-[var(--oppa-border)] bg-white p-6 shadow-sm sm:p-8">
+              <h2 className="mb-4 font-serif text-2xl font-bold">Franchisor support</h2>
+              <ul className="space-y-3">{info.support.map((item) => <li key={item} className="flex gap-3 text-sm leading-6"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-[var(--oppa-green)]" />{item}</li>)}</ul>
+            </section>
+          )}
+
+          {!!info?.business_rules?.length && (
+            <section className="rounded-3xl border border-[var(--oppa-border)] bg-white p-6 shadow-sm sm:p-8">
+              <h2 className="mb-4 font-serif text-2xl font-bold">Program terms</h2>
+              <ul className="space-y-3">{info.business_rules.map((rule) => <li key={rule} className="flex gap-3 text-sm leading-6"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-[var(--oppa-green)]" />{rule}</li>)}</ul>
+            </section>
+          )}
         </div>
 
         <aside className="space-y-8">
           <section className="rounded-3xl border border-[var(--oppa-border)] bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3"><span className="rounded-xl bg-[var(--oppa-green)]/10 p-2.5 text-[var(--oppa-green)]"><HandCoins size={21} /></span><h2 className="font-serif text-xl font-bold">Investment planning</h2></div>
-            {!info?.investment ? (
+            {!info?.investment && !info?.franchise_fee ? (
               <p className="text-sm leading-6 text-[var(--oppa-text-muted)]">Investment figures have not been published. Share your estimated capacity in the application; our team will discuss applicable costs during review.</p>
             ) : (
               <div className="space-y-2 text-sm">
-                {info.investment.minimum && <p><span className="text-[var(--oppa-text-muted)]">Estimated minimum:</span> <strong>₱{Number(info.investment.minimum).toLocaleString('en-PH')}</strong></p>}
-                {info.investment.maximum && <p><span className="text-[var(--oppa-text-muted)]">Estimated maximum:</span> <strong>₱{Number(info.investment.maximum).toLocaleString('en-PH')}</strong></p>}
+                {info.investment?.minimum && <p><span className="text-[var(--oppa-text-muted)]">Estimated minimum:</span> <strong>₱{Number(info.investment.minimum).toLocaleString('en-PH')}</strong></p>}
+                {info.investment?.maximum && <p><span className="text-[var(--oppa-text-muted)]">Estimated maximum:</span> <strong>₱{Number(info.investment.maximum).toLocaleString('en-PH')}</strong></p>}
+                {info.franchise_fee && <p><span className="text-[var(--oppa-text-muted)]">Published franchise fee:</span> <strong>₱{Number(info.franchise_fee).toLocaleString('en-PH')}</strong></p>}
                 <p className="pt-2 text-xs leading-5 text-[var(--oppa-text-muted)]">Published estimates are informational and may not include all location-specific costs. Confirm current fees and terms directly with the franchise team.</p>
               </div>
             )}

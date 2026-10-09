@@ -46,7 +46,7 @@ trait FranchiseApplicationActivationActions
             return response()->json(['message' => 'A unique manager account and secure initial password are required.', 'errors' => $validator->errors()], 422);
         }
 
-        $issues = $this->activationReadinessIssues($application);
+        $issues = $application->activationReadinessIssues();
         if ($issues !== []) {
             return response()->json([
                 'message' => 'The franchise is not ready for activation. Complete or explicitly mark every applicable requirement before continuing.',
@@ -71,7 +71,7 @@ trait FranchiseApplicationActivationActions
                 abort(response()->json(['message' => 'The application must be approved for opening before activation.'], 409));
             }
 
-            $issues = $this->activationReadinessIssues($application);
+            $issues = $application->activationReadinessIssues();
             if ($issues !== []) {
                 abort(response()->json([
                     'message' => 'The franchise is not ready for activation.',
@@ -147,43 +147,6 @@ trait FranchiseApplicationActivationActions
             'message' => 'Franchise activated and manager access configured.',
             'data' => $activated,
         ], 201);
-    }
-
-    private function activationReadinessIssues(FranchiseApplication $application): array
-    {
-        $issues = [];
-        if ($application->agreement_status !== 'signed' || ! $application->agreement_signed_at) {
-            $issues[] = 'The franchise agreement must be recorded as signed with its actual signing date.';
-        }
-        if (! in_array($application->franchise_fee_payment_status, ['paid', 'waived', 'not_applicable'], true)) {
-            $issues[] = 'The applicable franchise fee must be paid, waived with a recorded reason, or explicitly marked not applicable.';
-        }
-        if ($application->franchise_fee_payment_status === 'paid'
-            && (! $application->franchise_fee_amount || ! $application->franchise_fee_payment_reference)) {
-            $issues[] = 'The paid franchise fee must include its amount and payment reference.';
-        }
-        if (! $application->requirements_reviewed_at) {
-            $issues[] = 'An administrator must review and save the requirements checklist.';
-        }
-        foreach ($application->required_documents ?? [] as $document) {
-            if (($document['required'] ?? false) && ! in_array($document['status'] ?? null, ['verified', 'not_applicable'], true)) {
-                $issues[] = 'Required document not verified: '.($document['label'] ?? 'Unnamed document').'.';
-            }
-        }
-        if (! in_array($application->location_readiness, ['ready', 'not_applicable'], true)) {
-            $issues[] = 'Location readiness must be confirmed or explicitly marked not applicable.';
-        }
-        if (! in_array($application->permit_compliance_status, ['verified', 'not_applicable'], true)) {
-            $issues[] = 'Permit and compliance checks must be verified or explicitly marked not applicable.';
-        }
-        if (! in_array($application->training_status, ['complete', 'not_applicable'], true)) {
-            $issues[] = 'Required training must be complete or explicitly marked not applicable.';
-        }
-        if (! in_array($application->operational_preparation_status, ['complete', 'not_applicable'], true)) {
-            $issues[] = 'Operational preparation must be complete or explicitly marked not applicable.';
-        }
-
-        return $issues;
     }
 
     private function uniqueSlug(string $name, string $modelClass): string
