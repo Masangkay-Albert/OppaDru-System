@@ -69,9 +69,9 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const handleExit = () => { logout(); navigate('/admin/login'); };
 
   return (
-    <div className="flex h-dvh min-h-0 overflow-hidden bg-[var(--oppa-cream)]">
+    <div className="flex min-h-dvh bg-[var(--oppa-cream)]">
       <button aria-label="Close navigation" tabIndex={mobileOpen ? 0 : -1} className={`fixed inset-0 z-40 bg-black/55 transition-opacity md:hidden ${mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`} onClick={() => setMobileOpen(false)} />
-      <aside className={`bg-oppa-gradient fixed inset-y-0 left-0 z-50 flex w-72 flex-col shadow-xl transition-all duration-200 md:static md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'md:w-[76px]' : 'md:w-64'}`}>
+      <aside className={`bg-oppa-gradient fixed inset-y-0 left-0 z-50 flex w-72 flex-col shadow-xl transition-all duration-200 md:sticky md:top-0 md:h-dvh md:shrink-0 md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'md:w-[76px]' : 'md:w-64'}`}>
         <div className={`flex h-[76px] items-center gap-3 border-b border-white/15 px-4 ${collapsed ? 'md:justify-center md:px-2' : ''}`}>
           <img src={oppaDruLogo} alt="Oppa Dru" className="size-10 shrink-0 rounded-full border-2 border-white/30 object-cover" />
           <div className={`min-w-0 leading-tight ${collapsed ? 'md:hidden' : ''}`}>
@@ -106,8 +106,8 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       </aside>
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="relative z-30 flex min-h-[68px] items-center gap-3 border-b border-[var(--oppa-border)] bg-[var(--oppa-surface)]/95 px-4 backdrop-blur sm:px-6">
+      <main className="flex min-h-dvh min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex min-h-[68px] items-center gap-3 border-b border-[var(--oppa-border)] bg-[var(--oppa-surface)]/95 px-4 backdrop-blur sm:px-6">
           <button aria-label="Open navigation" onClick={() => setMobileOpen(true)} className="rounded-lg p-2 text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] md:hidden"><Menu size={20} /></button>
           <div className="hidden min-w-0 text-sm md:block"><span className="text-[var(--oppa-text-muted)]">Admin</span><span className="mx-2 text-[var(--oppa-border)]">/</span><span className="font-semibold text-[var(--oppa-text)]">{pageName}</span></div>
           <div className="relative ml-auto w-full max-w-sm">
@@ -139,8 +139,8 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </div>}
           </div>
         </header>
-        <div className="admin-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-          <div className="admin-page-enter mx-auto flex min-h-full w-full max-w-[1600px] flex-1 flex-col">
+        <div className="px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-6 sm:px-6 lg:px-8">
+          <div className="admin-page-enter mx-auto w-full max-w-[1600px]">
             <AdminErrorBoundary>{children}</AdminErrorBoundary>
           </div>
         </div>
