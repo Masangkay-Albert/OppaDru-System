@@ -253,9 +253,9 @@ class FranchiseApplicationReviewTest extends TestCase
             ->assertJsonPath('data.next_step_instructions', 'Your complete document packet was received. The franchise team will continue the site assessment and final review.')
             ->assertJsonCount(1, 'data.documents')
             ->assertJsonPath('data.documents.0.name', 'completed-property-application.pdf')
-            ->assertJsonPath('data.required_documents.0.status', 'received')
+            ->assertJsonPath('data.required_documents.0.status', 'submitted')
             ->assertJsonPath('data.required_documents.0.submitted_document_name', 'completed-property-application.pdf')
-            ->assertJsonFragment(['title' => 'Document packet submitted'])
+            ->assertJsonFragment(['title' => 'Documents submitted'])
             ->assertJsonMissingPath('data.required_documents.0.template_path');
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
@@ -339,7 +339,7 @@ class FranchiseApplicationReviewTest extends TestCase
             'Authorization' => 'Bearer '.$applicant['token'],
             'Accept' => 'application/json',
         ])->assertOk()
-            ->assertJsonPath('data.franchise_fee_payment_status', 'pending')
+            ->assertJsonPath('data.franchise_fee_payment_status', 'submitted')
             ->assertJsonPath('data.documents.0.name', 'payment-proof.png')
             ->assertJsonPath('data.documents.0.document_type', 'payment_proof')
             ->assertJsonMissingPath('data.documents.0.path');
@@ -432,7 +432,195 @@ class FranchiseApplicationReviewTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.status', 'location_assessment')
             ->assertJsonPath('data.documents.0.name', 'location-plan.pdf')
-            ->assertJsonPath('data.required_documents.0.status', 'received');
+            ->assertJsonPath('data.required_documents.0.status', 'submitted');
+    }
+
+    public function test_public_tracking_exposes_every_requirement_and_secures_template_document_and_payment_uploads(): void
+    {
+        $this->travel(2)->minutes();
+        Storage::fake('local');
+        $adminToken = $this->createAdminToken();
+        $applicant = $this->createVerifiedApplicant();
+        $application = $this->submitApplication($applicant);
+        $adminHeaders = ['Authorization' => 'Bearer '.$adminToken, 'Accept' => 'application/json'];
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'under_review',
+        ], $adminHeaders)->assertOk();
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'for_interview',
+            'interview_at' => now('Asia/Manila')->addDays(5)->toIso8601String(),
+        ], $adminHeaders)->assertOk();
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'location_assessment',
+        ], $adminHeaders)->assertOk();
+
+        $labels = ['docu one', 'docu two', 'docu 3'];
+        $requiredDocuments = array_map(
+            fn (string $label) => ['label' => $label, 'required' => true, 'status' => 'pending'],
+            $labels,
+        );
+        $templates = array_map(
+            fn (int $index) => UploadedFile::fake()->create("blank-form-$index.pdf", 100, 'application/pdf'),
+            array_keys($labels),
+        );
+        $this->post('/api/admin/franchise-applications/'.$application->id.'/requirements', [
+            '_method' => 'PATCH',
+            'agreement_status' => 'not_started',
+            'agreement_prepared_at' => '',
+            'agreement_signed_at' => '',
+            'franchise_fee_amount' => '500000',
+            'franchise_fee_payment_status' => 'pending',
+            'required_documents' => json_encode($requiredDocuments),
+            'required_document_templates' => $templates,
+            'location_readiness' => 'pending',
+            'permit_compliance_status' => 'pending',
+            'training_status' => 'pending',
+            'operational_preparation_status' => 'pending',
+            'internal_notes' => '',
+        ], $adminHeaders)->assertOk()
+            ->assertJsonPath('data.next_step_instructions', "Please complete and upload the following required documents together:\n- docu one\n- docu two\n- docu 3");
+
+        Auth::forgetGuards();
+        $trackingCredentials = [
+            'reference_number' => $application->fresh()->reference_number,
+            'email' => $applicant['applicant']->email,
+        ];
+        $this->postJson('/api/franchise-applications/track', $trackingCredentials)->assertOk()
+            ->assertJsonCount(3, 'data.required_documents')
+            ->assertJsonPath('data.required_documents.0.label', 'docu one')
+            ->assertJsonPath('data.required_documents.1.label', 'docu two')
+            ->assertJsonPath('data.required_documents.2.label', 'docu 3')
+            ->assertJsonMissingPath('data.admin_notes');
+
+        $this->postJson('/api/franchise-applications/track/document-template', [
+            ...$trackingCredentials,
+            'document' => 1,
+        ])->assertOk()->assertHeader('content-disposition');
+        $this->postJson('/api/franchise-applications/track/document-template', [
+            ...$trackingCredentials,
+            'email' => 'someone-else@example.test',
+            'document' => 1,
+        ])->assertNotFound();
+
+        $this->post('/api/franchise-applications/track/documents', [
+            ...$trackingCredentials,
+            'required_document_uploads' => [
+                0 => UploadedFile::fake()->create('not-a-document.exe', 100, 'application/octet-stream'),
+            ],
+        ], ['Accept' => 'application/json'])->assertUnprocessable()
+            ->assertJsonValidationErrors('required_document_uploads.0');
+
+        $this->post('/api/franchise-applications/track/documents', [
+            ...$trackingCredentials,
+            'required_document_uploads' => [
+                0 => UploadedFile::fake()->create('oversized-form.pdf', 10241, 'application/pdf'),
+            ],
+        ], ['Accept' => 'application/json'])->assertUnprocessable()
+            ->assertJsonValidationErrors('required_document_uploads.0');
+
+        $this->post('/api/franchise-applications/track/documents', [
+            ...$trackingCredentials,
+            'required_document_uploads' => [
+                0 => UploadedFile::fake()->create('completed-one.pdf', 100, 'application/pdf'),
+                1 => UploadedFile::fake()->create('completed-two.pdf', 100, 'application/pdf'),
+                2 => UploadedFile::fake()->create('completed-three.pdf', 100, 'application/pdf'),
+            ],
+        ], ['Accept' => 'application/json'])->assertOk()
+            ->assertJsonCount(3, 'data.required_documents')
+            ->assertJsonPath('data.required_documents.0.status', 'submitted')
+            ->assertJsonPath('data.required_documents.1.status', 'submitted')
+            ->assertJsonPath('data.required_documents.2.status', 'submitted')
+            ->assertJsonFragment(['title' => 'Documents submitted'])
+            ->assertJsonMissingPath('data.admin_notes');
+
+        $this->post('/api/franchise-applications/track/documents', [
+            'reference_number' => $trackingCredentials['reference_number'],
+            'email' => 'someone-else@example.test',
+        ], ['Accept' => 'application/json'])->assertNotFound();
+
+        $reviewedDocuments = $application->fresh()->required_documents;
+        $reviewedDocuments[0]['status'] = 'rejected';
+        $reviewedDocuments[0]['reject_reason'] = 'Please provide a signed copy.';
+        $this->post('/api/admin/franchise-applications/'.$application->id.'/requirements', [
+            '_method' => 'PATCH',
+            'agreement_status' => 'not_started',
+            'agreement_prepared_at' => '',
+            'agreement_signed_at' => '',
+            'franchise_fee_amount' => '500000',
+            'franchise_fee_payment_status' => 'pending',
+            'required_documents' => json_encode($reviewedDocuments),
+            'required_document_templates' => [],
+            'location_readiness' => 'pending',
+            'permit_compliance_status' => 'pending',
+            'training_status' => 'pending',
+            'operational_preparation_status' => 'pending',
+            'internal_notes' => 'Private review note.',
+        ], $adminHeaders)->assertOk()
+            ->assertJsonFragment(['title' => 'Document needs changes']);
+
+        $this->postJson('/api/franchise-applications/track', $trackingCredentials)->assertOk()
+            ->assertJsonPath('data.required_documents.0.status', 'rejected')
+            ->assertJsonPath('data.required_documents.0.reject_reason', 'Please provide a signed copy.')
+            ->assertJsonMissingPath('data.admin_notes')
+            ->assertJsonMissing(['Private review note.']);
+
+        $this->post('/api/franchise-applications/track/documents', [
+            ...$trackingCredentials,
+            'required_document_uploads' => [
+                0 => UploadedFile::fake()->create('corrected-one.pdf', 100, 'application/pdf'),
+                1 => UploadedFile::fake()->create('corrected-two.pdf', 100, 'application/pdf'),
+                2 => UploadedFile::fake()->create('corrected-three.pdf', 100, 'application/pdf'),
+            ],
+        ], ['Accept' => 'application/json'])->assertOk()
+            ->assertJsonPath('data.required_documents.0.status', 'submitted')
+            ->assertJsonMissing(['Please provide a signed copy.']);
+
+        $verifiedDocuments = $application->fresh()->required_documents;
+        foreach ($verifiedDocuments as &$document) {
+            $document['status'] = 'verified';
+            $document['reject_reason'] = null;
+        }
+        unset($document);
+        $this->post('/api/admin/franchise-applications/'.$application->id.'/requirements', [
+            '_method' => 'PATCH',
+            'agreement_status' => 'not_started',
+            'agreement_prepared_at' => '',
+            'agreement_signed_at' => '',
+            'franchise_fee_amount' => '500000',
+            'franchise_fee_payment_status' => 'pending',
+            'required_documents' => json_encode($verifiedDocuments),
+            'required_document_templates' => [],
+            'location_readiness' => 'pending',
+            'permit_compliance_status' => 'pending',
+            'training_status' => 'pending',
+            'operational_preparation_status' => 'pending',
+            'internal_notes' => '',
+        ], $adminHeaders)->assertOk()
+            ->assertJsonPath('data.required_documents.0.status', 'verified')
+            ->assertJsonFragment(['title' => 'Document verified']);
+
+        $this->post('/api/franchise-applications/track/payment-proof', [
+            ...$trackingCredentials,
+            'payment_reference' => 'PAY-BAD',
+            'proof' => UploadedFile::fake()->create('receipt.txt', 100, 'text/plain'),
+        ], ['Accept' => 'application/json'])->assertUnprocessable()
+            ->assertJsonValidationErrors('proof');
+
+        $this->post('/api/franchise-applications/track/payment-proof', [
+            ...$trackingCredentials,
+            'payment_reference' => 'PAY-12345',
+            'proof' => UploadedFile::fake()->create('receipt.pdf', 100, 'application/pdf'),
+        ], ['Accept' => 'application/json'])->assertOk()
+            ->assertJsonPath('data.franchise_fee_payment_status', 'submitted')
+            ->assertJsonPath('data.franchise_fee_payment_reference', 'PAY-12345');
+
+        $this->post('/api/franchise-applications/track/payment-proof', [
+            ...$trackingCredentials,
+            'email' => 'someone-else@example.test',
+            'payment_reference' => 'PAY-OTHER',
+            'proof' => UploadedFile::fake()->create('receipt.pdf', 100, 'application/pdf'),
+        ], ['Accept' => 'application/json'])->assertNotFound();
     }
 
     private function submitApplication(array $applicant): FranchiseApplication

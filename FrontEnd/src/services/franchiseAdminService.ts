@@ -60,12 +60,15 @@ export interface FranchiseApplication {
   franchise_fee_amount?: string | number | null;
   franchise_fee_payment_status?: string;
   franchise_fee_payment_reference?: string | null;
+  franchise_fee_payment_reject_reason?: string | null;
   required_documents?: Array<{
     label: string;
     required: boolean;
     status: string;
     template_name?: string | null;
     submitted_document_name?: string | null;
+    submitted_document_index?: number | null;
+    reject_reason?: string | null;
   }>;
   requirements_reviewed_at?: string | null;
   location_readiness?: string;
@@ -400,7 +403,14 @@ export const updateFranchiseApplicationRequirements = async (id: string | number
   franchise_fee_amount?: string;
   franchise_fee_payment_status: string;
   franchise_fee_payment_reference?: string;
-  required_documents: Array<{ label: string; required: boolean; status: string; template_name?: string | null }>;
+  franchise_fee_payment_reject_reason?: string;
+  required_documents: Array<{
+    label: string;
+    required: boolean;
+    status: string;
+    template_name?: string | null;
+    reject_reason?: string | null;
+  }>;
   location_readiness: string;
   permit_compliance_status: string;
   training_status: string;
@@ -415,6 +425,8 @@ export const updateFranchiseApplicationRequirements = async (id: string | number
     agreement_signed_at: data.agreement_signed_at,
     franchise_fee_amount: data.franchise_fee_amount,
     franchise_fee_payment_status: data.franchise_fee_payment_status,
+    franchise_fee_payment_reference: data.franchise_fee_payment_reference,
+    franchise_fee_payment_reject_reason: data.franchise_fee_payment_reject_reason,
     location_readiness: data.location_readiness,
     permit_compliance_status: data.permit_compliance_status,
     training_status: data.training_status,

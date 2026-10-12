@@ -79,6 +79,7 @@ class FranchiseApplication extends Model
         'franchise_fee_amount',
         'franchise_fee_payment_status',
         'franchise_fee_payment_reference',
+        'franchise_fee_payment_reject_reason',
         'required_documents',
         'requirements_reviewed_at',
         'location_readiness',

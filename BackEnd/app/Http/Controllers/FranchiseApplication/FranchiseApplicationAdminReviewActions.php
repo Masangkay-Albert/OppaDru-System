@@ -331,12 +331,14 @@ trait FranchiseApplicationAdminReviewActions
             'agreement_prepared_at' => 'nullable|date|after_or_equal:'.now('Asia/Manila')->toDateString(),
             'agreement_signed_at' => 'nullable|date|after_or_equal:'.now('Asia/Manila')->toDateString(),
             'franchise_fee_amount' => 'nullable|numeric|min:0|max:9999999999.99',
-            'franchise_fee_payment_status' => 'required|string|in:not_configured,pending,paid,waived,not_applicable',
+            'franchise_fee_payment_status' => 'required|string|in:not_configured,pending,submitted,paid,rejected,waived,not_applicable',
             'franchise_fee_payment_reference' => 'nullable|string|max:255',
+            'franchise_fee_payment_reject_reason' => 'nullable|string|max:2000',
             'required_documents' => 'present|array|max:8',
             'required_documents.*.label' => 'required|string|max:255|distinct',
             'required_documents.*.required' => 'required|boolean',
-            'required_documents.*.status' => 'required|string|in:pending,received,verified,not_applicable',
+            'required_documents.*.status' => 'required|string|in:pending,submitted,received,verified,rejected,not_applicable',
+            'required_documents.*.reject_reason' => 'nullable|string|max:2000',
             'required_documents.*.template_name' => 'nullable|string|max:255',
             'required_document_templates' => 'nullable|array|max:8',
             'required_document_templates.*' => 'file|mimes:pdf,doc,docx|max:10240',
@@ -349,6 +351,14 @@ trait FranchiseApplicationAdminReviewActions
         if ($validator->fails()) {
             return response()->json(['message' => 'Agreement and requirement details are invalid.', 'errors' => $validator->errors()], 422);
         }
+        foreach ($request->input('required_documents', []) as $index => $document) {
+            if (($document['status'] ?? null) === 'rejected' && ! trim((string) ($document['reject_reason'] ?? ''))) {
+                return response()->json([
+                    'message' => 'Provide a reason for each rejected document.',
+                    'errors' => ["required_documents.$index.reject_reason" => ['A rejection reason is required.']],
+                ], 422);
+            }
+        }
 
         $feeStatus = $request->input('franchise_fee_payment_status');
         if ($feeStatus === 'paid' && ! $request->filled('franchise_fee_amount')) {
@@ -356,6 +366,9 @@ trait FranchiseApplicationAdminReviewActions
         }
         if (in_array($feeStatus, ['waived', 'not_applicable'], true) && ! $request->filled('internal_notes')) {
             return response()->json(['message' => 'Explain the fee waiver or why no franchise fee applies.'], 422);
+        }
+        if ($feeStatus === 'rejected' && ! $request->filled('franchise_fee_payment_reject_reason')) {
+            return response()->json(['message' => 'Provide a reason for rejecting the payment proof.'], 422);
         }
         if (in_array($request->input('agreement_status'), ['drafting', 'sent', 'signed'], true) && ! $request->filled('agreement_prepared_at')) {
             return response()->json(['message' => 'Record the actual agreement preparation date.'], 422);
@@ -376,14 +389,15 @@ trait FranchiseApplicationAdminReviewActions
                         'message' => 'Requirements cannot be changed for active, rejected, or withdrawn applications.',
                     ], 409));
                 }
-                if ($feeStatus === 'paid'
+                if (in_array($feeStatus, ['submitted', 'paid', 'rejected'], true)
                     && ! collect($application->documents ?? [])->contains('document_type', 'payment_proof')) {
                     abort(response()->json([
-                        'message' => 'Review the applicant proof of payment before marking the franchise fee as paid.',
+                        'message' => 'Review the applicant proof of payment before changing the payment status.',
                     ], 409));
                 }
 
                 $previousDocuments = $application->required_documents ?? [];
+                $previousFeeStatus = $application->franchise_fee_payment_status;
                 $documents = $request->input('required_documents');
                 foreach ($documents as $index => &$document) {
                     $previous = collect($previousDocuments)->firstWhere('label', $document['label']);
@@ -440,6 +454,9 @@ trait FranchiseApplicationAdminReviewActions
                     $application->franchise_fee_payment_reference = $request->input('franchise_fee_payment_reference');
                 }
                 $application->required_documents = $documents;
+                $application->franchise_fee_payment_reject_reason = $feeStatus === 'rejected'
+                    ? trim((string) $request->input('franchise_fee_payment_reject_reason'))
+                    : null;
                 $application->requirements_reviewed_at = now();
                 $application->reviewed_by_admin_id = $admin?->id;
                 $application->reviewed_at = now();
@@ -453,6 +470,50 @@ trait FranchiseApplicationAdminReviewActions
                     'Agreement and opening requirements updated',
                     'Your agreement and opening requirements were updated by the franchise team.',
                 );
+                foreach ($documents as $index => $document) {
+                    $previous = collect($previousDocuments)->firstWhere('label', $document['label']);
+                    if (($document['status'] ?? null) === ($previous['status'] ?? null)) {
+                        continue;
+                    }
+                    if (($document['status'] ?? null) === 'verified') {
+                        $this->recordEvent(
+                            $application,
+                            'admin',
+                            $admin?->id,
+                            $application->status,
+                            'Document verified',
+                            'The franchise team verified your submitted document: '.($document['label'] ?? 'Required document').'.',
+                        );
+                    } elseif (($document['status'] ?? null) === 'rejected') {
+                        $this->recordEvent(
+                            $application,
+                            'admin',
+                            $admin?->id,
+                            $application->status,
+                            'Document needs changes',
+                            ($document['label'] ?? 'A required document').' needs changes. Reason: '.trim((string) ($document['reject_reason'] ?? 'Please review and resubmit.')),
+                        );
+                    }
+                }
+                if ($feeStatus === 'paid' && $previousFeeStatus !== 'paid') {
+                    $this->recordEvent(
+                        $application,
+                        'admin',
+                        $admin?->id,
+                        $application->status,
+                        'Payment verified',
+                        'The franchise team verified your payment.',
+                    );
+                } elseif ($feeStatus === 'rejected' && $previousFeeStatus !== 'rejected') {
+                    $this->recordEvent(
+                        $application,
+                        'admin',
+                        $admin?->id,
+                        $application->status,
+                        'Payment needs attention',
+                        'Your payment proof needs attention. Reason: '.trim((string) $request->input('franchise_fee_payment_reject_reason')),
+                    );
+                }
                 $packetRequested = $this->requestDocumentPacketIfReady($application, $admin);
                 if ($request->filled('internal_notes')) {
                     $this->recordEvent(
@@ -496,17 +557,51 @@ trait FranchiseApplicationAdminReviewActions
             ->filter(fn (array $document) => ($document['required'] ?? false)
                 && ($document['status'] ?? null) !== 'not_applicable')
             ->values();
-        if ($requiredDocuments->isEmpty()
-            || FranchiseApplicationEvent::query()
+        if ($requiredDocuments->isEmpty()) {
+            if (FranchiseApplicationEvent::query()
                 ->where('application_id', $application->id)
-                ->whereIn('title', ['Document packet requested', 'Document packet submitted', 'Additional information submitted'])
+                ->where('title', 'Document packet requested')
                 ->exists()) {
+                $application->next_step_instructions = FranchiseApplication::defaultInstructionsFor('location_assessment');
+                $application->save();
+            }
+
             return false;
         }
 
-        $labels = $requiredDocuments->pluck('label')->map(fn (string $label) => '- '.$label)->implode("\n");
-        $application->next_step_instructions = "Please complete and upload the following required documents together:\n".$labels;
+        $needsSubmission = $requiredDocuments->contains(fn (array $document) => in_array(
+            $document['status'] ?? 'pending',
+            ['pending', 'rejected'],
+            true,
+        ));
+        $outstandingDocuments = $requiredDocuments
+            ->filter(fn (array $document) => ! in_array($document['status'] ?? null, ['verified', 'not_applicable'], true));
+        if ($needsSubmission) {
+            $labels = $outstandingDocuments->pluck('label')->map(fn (string $label) => '- '.$label)->implode("\n");
+            $application->next_step_instructions = "Please complete and upload the following required documents together:\n".$labels;
+        } elseif ($outstandingDocuments->isNotEmpty()) {
+            $application->next_step_instructions = 'Your submitted documents are being reviewed by the franchise team. We will update you when the review is complete.';
+        } else {
+            $application->next_step_instructions = 'Your required documents have been verified. The franchise team is continuing the site assessment and final review.';
+        }
         $application->save();
+        if (! $needsSubmission) {
+            return false;
+        }
+        $latestRequestId = FranchiseApplicationEvent::query()
+            ->where('application_id', $application->id)
+            ->where('title', 'Document packet requested')
+            ->orderByDesc('id')
+            ->value('id');
+        $latestSubmissionId = FranchiseApplicationEvent::query()
+            ->where('application_id', $application->id)
+            ->whereIn('title', ['Additional information submitted', 'Document packet submitted', 'Documents submitted'])
+            ->orderByDesc('id')
+            ->value('id');
+        if ($latestRequestId && (! $latestSubmissionId || $latestRequestId > $latestSubmissionId)) {
+            return false;
+        }
+
         $this->recordEvent(
             $application,
             'admin',

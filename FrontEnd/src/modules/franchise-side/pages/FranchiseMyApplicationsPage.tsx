@@ -73,7 +73,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') void load(false);
     };
-    const interval = window.setInterval(refreshWhenVisible, 15000);
+    const interval = window.setInterval(refreshWhenVisible, 5000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {

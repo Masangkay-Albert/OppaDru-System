@@ -30,12 +30,16 @@ export interface ApplicantFranchiseApplication {
   agreement_signed_at?: string | null;
   franchise_fee_amount?: string | number | null;
   franchise_fee_payment_status?: string;
+  franchise_fee_payment_reference?: string | null;
+  franchise_fee_payment_reject_reason?: string | null;
+  requirements_reviewed_at?: string | null;
   required_documents?: Array<{
     label: string;
     required: boolean;
     status: string;
     template_name?: string | null;
     submitted_document_name?: string | null;
+    reject_reason?: string | null;
   }>;
   location_readiness?: string;
   permit_compliance_status?: string;
@@ -80,6 +84,66 @@ export const trackFranchiseApplication = async (referenceNumber: string, email: 
     throw new Error(validationMessages || body.message || 'Unable to find your franchise application.');
   }
   return body.data as ApplicantFranchiseApplication;
+};
+
+const trackedRequest = async (path: string, init: RequestInit) => {
+  const response = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...init.headers,
+    },
+  });
+  const body = response.status === 204 ? {} : await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const validationMessages = body.errors ? Object.values(body.errors).flat().join(' ') : '';
+    throw new Error(validationMessages || body.message || 'Unable to complete your application request.');
+  }
+  return body;
+};
+
+export const submitTrackedFranchiseDocuments = (
+  referenceNumber: string,
+  email: string,
+  files: Record<number, File>,
+) => {
+  const form = new FormData();
+  form.append('reference_number', referenceNumber);
+  form.append('email', email);
+  Object.entries(files).forEach(([index, file]) => form.append(`required_document_uploads[${index}]`, file));
+  return trackedRequest('/franchise-applications/track/documents', { method: 'POST', body: form });
+};
+
+export const downloadTrackedFranchiseDocumentTemplate = async (
+  referenceNumber: string,
+  email: string,
+  document: number,
+): Promise<Blob> => {
+  const response = await fetch(`${API_URL}/franchise-applications/track/document-template`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reference_number: referenceNumber, email, document }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.message || 'Unable to download this required document template.');
+  }
+  return response.blob();
+};
+
+export const submitTrackedFranchisePaymentProof = (
+  referenceNumber: string,
+  email: string,
+  paymentReference: string,
+  proof: File,
+) => {
+  const form = new FormData();
+  form.append('reference_number', referenceNumber);
+  form.append('email', email);
+  form.append('payment_reference', paymentReference);
+  form.append('proof', proof);
+  return trackedRequest('/franchise-applications/track/payment-proof', { method: 'POST', body: form });
 };
 
 export const respondToFranchiseApplication = (

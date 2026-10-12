@@ -47,14 +47,27 @@ const todayInManila = (): string =>
     day: '2-digit',
   }).format(new Date());
 
-type FranchiseRequirementDocument = { label: string; required: boolean; status: string; template_name?: string | null; submitted_document_name?: string | null };
+type FranchiseRequirementDocument = {
+  label: string;
+  required: boolean;
+  status: string;
+  template_name?: string | null;
+  submitted_document_name?: string | null;
+  submitted_document_index?: number | null;
+  reject_reason?: string | null;
+};
 
-const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; onSaved: () => Promise<void> }> = ({ application, onSaved }) => {
+const FranchiseRequirementsForm: React.FC<{
+  application: FranchiseApplication;
+  onSaved: () => Promise<void>;
+  onDownload: (index: number, name: string) => void;
+}> = ({ application, onSaved, onDownload }) => {
   const [agreementStatus, setAgreementStatus] = useState(application.agreement_status || 'not_started');
   const [agreementPreparedAt, setAgreementPreparedAt] = useState(application.agreement_prepared_at?.slice(0, 10) || '');
   const [agreementSignedAt, setAgreementSignedAt] = useState(application.agreement_signed_at?.slice(0, 10) || '');
   const [feeAmount, setFeeAmount] = useState(application.franchise_fee_amount ? String(application.franchise_fee_amount) : '');
   const [feeStatus, setFeeStatus] = useState(application.franchise_fee_payment_status || 'not_configured');
+  const [feeRejectReason, setFeeRejectReason] = useState(application.franchise_fee_payment_reject_reason || '');
   const [documents, setDocuments] = useState<FranchiseRequirementDocument[]>(application.required_documents || []);
   const [documentTemplates, setDocumentTemplates] = useState<Record<number, File>>({});
   const [locationReadiness, setLocationReadiness] = useState(application.location_readiness || 'pending');
@@ -92,6 +105,8 @@ const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; o
         agreement_signed_at: agreementSignedAt,
         franchise_fee_amount: feeAmount,
         franchise_fee_payment_status: feeStatus,
+        franchise_fee_payment_reference: application.franchise_fee_payment_reference || '',
+        franchise_fee_payment_reject_reason: feeRejectReason,
         required_documents: documents,
         required_document_templates: documentTemplates,
         location_readiness: locationReadiness,
@@ -125,23 +140,34 @@ const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; o
         <label className="text-sm font-medium">Agreement prepared date<input type="date" min={todayInManila()} value={agreementPreparedAt} onChange={(event) => setAgreementPreparedAt(event.target.value)} className={dateClass} /></label>
         <label className="text-sm font-medium">Actual agreement signing date<input type="date" min={todayInManila()} value={agreementSignedAt} onChange={(event) => setAgreementSignedAt(event.target.value)} className={dateClass} /></label>
         <label className="text-sm font-medium">Agreed franchise fee<input type="number" min="0" step="0.01" value={feeAmount} onChange={(event) => setFeeAmount(event.target.value)} placeholder="Not configured" className={dateClass} /></label>
-        <label className="text-sm font-medium">Fee payment status<select value={feeStatus} onChange={(event) => setFeeStatus(event.target.value)} className={selectClass}><option value="not_configured">Not configured</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="waived">Waived</option><option value="not_applicable">Not applicable</option></select></label>
-        <div className="text-sm"><span className="font-medium">Proof of payment</span><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{application.documents?.find((document) => document.document_type === 'payment_proof')?.name || 'No proof submitted yet. Review submitted images in Supporting documents above.'}</p></div>
+        <label className="text-sm font-medium">Fee payment status<select value={feeStatus} onChange={(event) => setFeeStatus(event.target.value)} className={selectClass}><option value="not_configured">Not configured</option><option value="pending">Pending</option><option value="submitted">Submitted</option><option value="paid">Verified</option><option value="rejected">Rejected</option><option value="waived">Waived</option><option value="not_applicable">Not applicable</option></select></label>
+        <div className="text-sm"><span className="font-medium">Payment reference</span><p className="mt-1 break-all text-xs text-[var(--oppa-text-muted)]">{application.franchise_fee_payment_reference || 'Not submitted'}</p><span className="mt-2 block font-medium">Proof of payment</span><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{application.documents?.find((document) => document.document_type === 'payment_proof')?.name || 'No proof submitted yet. Review submitted files in Supporting documents above.'}</p></div>
+        {feeStatus === 'rejected' && <label className="text-sm font-medium md:col-span-2">Payment rejection reason<textarea required value={feeRejectReason} onChange={(event) => setFeeRejectReason(event.target.value)} rows={2} maxLength={2000} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" /></label>}
 
         <fieldset className="space-y-2 rounded-xl border border-[var(--oppa-border)] p-4 md:col-span-2">
           <legend className="px-1 text-sm font-semibold">Application-specific required documents</legend>
-          {documents.map((document, index) => <div key={index} className="grid gap-2 rounded-lg bg-[var(--oppa-cream)] p-3 sm:grid-cols-[minmax(180px,1fr)_auto_160px_auto] sm:items-center">
+          {documents.map((document, index) => {
+            const submission = application.documents
+              ?.map((file, documentIndex) => ({ ...file, documentIndex }))
+              .reverse()
+              .find((file) => file.required_document_label === document.label);
+            const submittedName = submission?.name || document.submitted_document_name;
+            const submittedIndex = submission?.documentIndex ?? document.submitted_document_index;
+            return <div key={index} className="grid gap-2 rounded-lg bg-[var(--oppa-cream)] p-3 sm:grid-cols-[minmax(180px,1fr)_auto_160px_auto] sm:items-center">
             <input aria-label="Required document name" required value={document.label} onChange={(event) => updateDocument(index, { label: event.target.value })} placeholder="Document name" className="rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm" />
             <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={document.required} onChange={(event) => updateDocument(index, { required: event.target.checked })} />Required</label>
-            <select aria-label="Document verification status" value={document.status} onChange={(event) => updateDocument(index, { status: event.target.value })} className="rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2 text-xs"><option value="pending">Pending</option><option value="received">Received</option><option value="verified">Verified</option><option value="not_applicable">Not applicable</option></select>
+            <select aria-label="Document verification status" value={document.status} onChange={(event) => updateDocument(index, { status: event.target.value, reject_reason: event.target.value === 'rejected' ? document.reject_reason : null })} className="rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2 text-xs"><option value="pending">Pending</option><option value="submitted">Submitted</option><option value="received">Received</option><option value="verified">Verified</option><option value="rejected">Rejected</option><option value="not_applicable">Not applicable</option></select>
+            <div className="flex gap-2 sm:col-span-4"><button type="button" onClick={() => updateDocument(index, { status: 'verified', reject_reason: null })} className="rounded-lg bg-emerald-100 px-2.5 py-1.5 text-xs font-semibold text-emerald-800">Verify</button><button type="button" onClick={() => updateDocument(index, { status: 'rejected' })} className="rounded-lg bg-red-100 px-2.5 py-1.5 text-xs font-semibold text-red-800">Reject</button></div>
             <button type="button" onClick={() => { setDocuments((current) => current.filter((_, position) => position !== index)); setDocumentTemplates((current) => Object.fromEntries(Object.entries(current).filter(([key]) => Number(key) !== index).map(([key, file]) => [Number(key) > index ? String(Number(key) - 1) : key, file]))); }} className="text-xs font-semibold text-red-700">Remove</button>
             <div className="text-xs text-[var(--oppa-text-muted)] sm:col-span-4">
-              {document.submitted_document_name && <p>Applicant submission: <span className="font-medium text-[var(--oppa-text)]">{document.submitted_document_name}</span></p>}
+              {submittedName && <p>Applicant submission: <span className="font-medium text-[var(--oppa-text)]">{submittedName}</span>{typeof submittedIndex === 'number' && <button type="button" onClick={() => onDownload(submittedIndex, submittedName)} className="ml-2 font-semibold text-[var(--oppa-green)] underline">Download submitted file</button>}</p>}
+              {document.status === 'rejected' && <label className="mt-2 block font-medium">Reason for rejection<textarea required value={document.reject_reason || ''} onChange={(event) => updateDocument(index, { reject_reason: event.target.value })} rows={2} maxLength={2000} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-xs" /></label>}
               <label className="mt-2 block font-medium">Blank form/template for applicant<input type="file" accept=".pdf,.doc,.docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) { setDocumentTemplates((current) => ({ ...current, [index]: file })); updateDocument(index, { template_name: file.name }); } }} className="mt-1 block w-full text-xs" /></label>
               <p className="mt-1">{documentTemplates[index]?.name || document.template_name || 'No template attached'}</p>
               {(document.template_name || documentTemplates[index]) && <button type="button" onClick={() => { setDocumentTemplates((current) => { const next = { ...current }; delete next[index]; return next; }); updateDocument(index, { template_name: null }); }} className="mt-1 font-semibold text-red-700 hover:underline">Remove template</button>}
             </div>
-          </div>)}
+          </div>;
+          })}
           <button type="button" disabled={documents.length >= 8} onClick={() => setDocuments((current) => [...current, { label: '', required: true, status: 'pending' }])} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold disabled:opacity-50">Add required document</button>
           <p className="text-xs text-[var(--oppa-text-muted)]">Upload a blank PDF/DOC/DOCX form for each item. Applicants can download, fill out, and return all required files together (up to 8).</p>
         </fieldset>
@@ -368,7 +394,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
           </div>
 
           {['location_assessment', 'conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening'].includes(currentStatus) && (
-            <FranchiseRequirementsForm application={application} onSaved={load} />
+            <FranchiseRequirementsForm application={application} onSaved={load} onDownload={(index, name) => void downloadDocument(index, name)} />
           )}
           <FranchiseActivationPanel application={application} onActivated={load} />
         </>

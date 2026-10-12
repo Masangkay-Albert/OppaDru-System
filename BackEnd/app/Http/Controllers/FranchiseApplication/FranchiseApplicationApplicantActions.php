@@ -175,10 +175,12 @@ trait FranchiseApplicationApplicantActions
         return response()->json(['data' => $this->applicantApplication($application)]);
     }
 
-    public function respond(Request $request, string $id)
+    public function respond(Request $request, string $id = '')
     {
         $validator = Validator::make($request->all(), [
             'response' => 'nullable|string|max:5000',
+            'reference_number' => [$request->user() ? 'nullable' : 'required', 'string', 'max:32'],
+            'email' => [$request->user() ? 'nullable' : 'required', 'email', 'max:255'],
             'documents' => 'nullable|array|max:8',
             'documents.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240',
             'required_document_uploads' => 'nullable|array|max:8',
@@ -188,18 +190,25 @@ trait FranchiseApplicationApplicantActions
             return response()->json(['message' => 'Your response could not be submitted.', 'errors' => $validator->errors()], 422);
         }
 
-        $applicantId = $request->user()->id;
+        $applicantId = $request->user()?->id;
+        $referenceNumber = strtolower(trim((string) $request->input('reference_number')));
+        $contactEmail = strtolower(trim((string) $request->input('email')));
         $uploadedCount = count($request->file('documents', [])) + count($request->file('required_document_uploads', []));
         if ($uploadedCount > 8) {
             return response()->json(['message' => 'Submit no more than 8 documents in one response.'], 422);
         }
         $storedPaths = [];
         try {
-            $application = DB::transaction(function () use ($request, $id, $applicantId, &$storedPaths) {
-                $application = FranchiseApplication::where('franchise_applicant_id', $applicantId)
-                    ->whereKey($id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
+            $application = DB::transaction(function () use ($request, $id, $applicantId, $referenceNumber, $contactEmail, &$storedPaths) {
+                $applicationQuery = FranchiseApplication::query()->lockForUpdate();
+                if ($applicantId !== null) {
+                    $applicationQuery->where('franchise_applicant_id', $applicantId)->whereKey($id);
+                } else {
+                    $applicationQuery
+                        ->whereRaw('LOWER(reference_number) = ?', [$referenceNumber])
+                        ->whereRaw('LOWER(email) = ?', [$contactEmail]);
+                }
+                $application = $applicationQuery->firstOrFail();
                 $documents = $application->documents ?? [];
                 $requiredDocuments = $application->required_documents ?? [];
                 $latestPacketRequestId = FranchiseApplicationEvent::query()
@@ -209,7 +218,7 @@ trait FranchiseApplicationApplicantActions
                     ->value('id');
                 $latestPacketSubmissionId = FranchiseApplicationEvent::query()
                     ->where('application_id', $application->id)
-                    ->whereIn('title', ['Additional information submitted', 'Document packet submitted'])
+                    ->whereIn('title', ['Additional information submitted', 'Document packet submitted', 'Documents submitted'])
                     ->orderByDesc('id')
                     ->value('id');
                 $hasOpenPacketRequest = $latestPacketRequestId
@@ -235,7 +244,9 @@ trait FranchiseApplicationApplicantActions
                 if ($requestedForCombinedReview) {
                     $missingDocuments = [];
                     foreach ($requiredDocuments as $index => $requiredDocument) {
-                        if (($requiredDocument['required'] ?? false) && empty($requiredUploads[$index])) {
+                        if (($requiredDocument['required'] ?? false)
+                            && ! in_array($requiredDocument['status'] ?? null, ['verified', 'not_applicable'], true)
+                            && empty($requiredUploads[$index])) {
                             $missingDocuments[] = $requiredDocument['label'] ?? 'Required document';
                         }
                     }
@@ -274,7 +285,8 @@ trait FranchiseApplicationApplicantActions
                             }
                             $storedDocument['required_document_index'] = $requirementIndex;
                             $storedDocument['required_document_label'] = $requiredDocuments[$requirementIndex]['label'];
-                            $requiredDocuments[$requirementIndex]['status'] = 'received';
+                            $requiredDocuments[$requirementIndex]['status'] = 'submitted';
+                            unset($requiredDocuments[$requirementIndex]['reject_reason']);
                             $requiredDocuments[$requirementIndex]['submitted_document_name'] = $storedDocument['name'];
                             $requiredDocuments[$requirementIndex]['submitted_document_index'] = count($documents);
                         }
@@ -300,7 +312,7 @@ trait FranchiseApplicationApplicantActions
                     'applicant',
                     $applicantId,
                     $application->status,
-                    $hasOpenPacketRequest ? 'Document packet submitted' : 'Additional information submitted',
+                    $hasOpenPacketRequest || $isLocationAssessment ? 'Documents submitted' : 'Additional information submitted',
                     trim((string) $request->input('response'))
                         ?: 'The applicant submitted the requested document packet.',
                 );
@@ -350,31 +362,85 @@ trait FranchiseApplicationApplicantActions
         );
     }
 
-    public function submitPaymentProof(Request $request, string $id)
+    public function downloadTrackedRequiredDocumentTemplate(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'proof' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'reference_number' => 'required|string|max:32',
+            'email' => 'required|email|max:255',
+            'document' => 'required|integer|min:0|max:7',
         ]);
         if ($validator->fails()) {
+            return response()->json(['message' => 'Enter your application reference and contact email.', 'errors' => $validator->errors()], 422);
+        }
+
+        $application = FranchiseApplication::query()
+            ->whereRaw('LOWER(reference_number) = ?', [strtolower(trim((string) $request->input('reference_number')))])
+            ->whereRaw('LOWER(email) = ?', [strtolower(trim((string) $request->input('email')))])
+            ->firstOrFail();
+        $requiredDocument = $application->required_documents[$request->integer('document')] ?? null;
+        if (! is_array($requiredDocument)
+            || empty($requiredDocument['template_path'])
+            || ! Storage::disk('local')->exists($requiredDocument['template_path'])) {
+            abort(404);
+        }
+
+        $stream = Storage::disk('local')->readStream($requiredDocument['template_path']);
+        if (! is_resource($stream)) {
+            abort(404);
+        }
+
+        return response()->streamDownload(
+            function () use ($stream): void {
+                try {
+                    fpassthru($stream);
+                } finally {
+                    fclose($stream);
+                }
+            },
+            $requiredDocument['template_name'] ?? 'required-document-template',
+            ['Content-Type' => 'application/octet-stream'],
+        );
+    }
+
+    public function submitPaymentProof(Request $request, string $id = '')
+    {
+        $validator = Validator::make($request->all(), [
+            'reference_number' => [$request->user() ? 'nullable' : 'required', 'string', 'max:32'],
+            'email' => [$request->user() ? 'nullable' : 'required', 'email', 'max:255'],
+            'payment_reference' => 'nullable|string|max:255',
+            'proof' => 'required|mimes:jpg,jpeg,png,webp,pdf|max:5120',
+        ]);
+        $validator->after(function ($validator) use ($request) {
+            if (! $request->user() && ! trim((string) $request->input('payment_reference'))) {
+                $validator->errors()->add('payment_reference', 'Enter your payment reference number.');
+            }
+        });
+        if ($validator->fails()) {
             return response()->json([
-                'message' => 'Upload a JPG, PNG, or WEBP proof image up to 5 MB.',
+                'message' => 'Enter a payment reference and upload a JPG, PNG, WEBP, or PDF proof up to 5 MB.',
                 'errors' => $validator->errors(),
             ], 422);
         }
 
-        $applicantId = $request->user()->id;
+        $applicantId = $request->user()?->id;
+        $referenceNumber = strtolower(trim((string) $request->input('reference_number')));
+        $contactEmail = strtolower(trim((string) $request->input('email')));
         $file = $request->file('proof');
         $storedPath = null;
         $replacedPath = null;
 
         try {
-            $application = DB::transaction(function () use ($applicantId, $file, $id, &$storedPath, &$replacedPath) {
-                $application = FranchiseApplication::query()
-                    ->where('franchise_applicant_id', $applicantId)
-                    ->whereKey($id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-                if ($application->franchise_fee_payment_status !== 'pending'
+            $application = DB::transaction(function () use ($applicantId, $file, $id, $referenceNumber, $contactEmail, $request, &$storedPath, &$replacedPath) {
+                $applicationQuery = FranchiseApplication::query()->lockForUpdate();
+                if ($applicantId !== null) {
+                    $applicationQuery->where('franchise_applicant_id', $applicantId)->whereKey($id);
+                } else {
+                    $applicationQuery
+                        ->whereRaw('LOWER(reference_number) = ?', [$referenceNumber])
+                        ->whereRaw('LOWER(email) = ?', [$contactEmail]);
+                }
+                $application = $applicationQuery->firstOrFail();
+                if (! in_array($application->franchise_fee_payment_status, ['pending', 'rejected'], true)
                     || ! $application->franchise_fee_amount
                     || ! in_array($application->status, [
                         'location_assessment',
@@ -409,6 +475,10 @@ trait FranchiseApplicationApplicantActions
                     'document_type' => 'payment_proof',
                 ];
                 $application->documents = array_values($documents);
+                $application->franchise_fee_payment_reference = trim((string) $request->input('payment_reference'))
+                    ?: $application->franchise_fee_payment_reference;
+                $application->franchise_fee_payment_status = 'submitted';
+                $application->franchise_fee_payment_reject_reason = null;
                 $application->save();
 
                 $this->recordEvent(
@@ -416,7 +486,7 @@ trait FranchiseApplicationApplicantActions
                     'applicant',
                     $applicantId,
                     $application->status,
-                    'Proof of payment submitted',
+                    'Payment proof submitted',
                     'Your proof of payment was submitted to the franchise team for review.',
                 );
 
@@ -434,7 +504,7 @@ trait FranchiseApplicationApplicantActions
         }
 
         return response()->json([
-            'message' => 'Your proof of payment was submitted for review.',
+            'message' => 'Your payment reference and proof were submitted for review.',
             'data' => $this->applicantApplication($application),
         ]);
     }
