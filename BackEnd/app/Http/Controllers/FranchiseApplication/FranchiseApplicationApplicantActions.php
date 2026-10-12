@@ -200,17 +200,28 @@ trait FranchiseApplicationApplicantActions
                     ->whereKey($id)
                     ->lockForUpdate()
                     ->firstOrFail();
-                if ($application->status !== 'additional_information_required') {
-                    abort(response()->json(['message' => 'A response can only be sent when additional information has been requested.'], 409));
-                }
-
                 $documents = $application->documents ?? [];
                 $requiredDocuments = $application->required_documents ?? [];
+                $latestPacketRequestId = FranchiseApplicationEvent::query()
+                    ->where('application_id', $application->id)
+                    ->where('title', 'Document packet requested')
+                    ->orderByDesc('id')
+                    ->value('id');
+                $latestPacketSubmissionId = FranchiseApplicationEvent::query()
+                    ->where('application_id', $application->id)
+                    ->whereIn('title', ['Additional information submitted', 'Document packet submitted'])
+                    ->orderByDesc('id')
+                    ->value('id');
+                $hasOpenPacketRequest = $latestPacketRequestId
+                    && (! $latestPacketSubmissionId || $latestPacketRequestId > $latestPacketSubmissionId);
+                if ($application->status !== 'additional_information_required' && ! $hasOpenPacketRequest) {
+                    abort(response()->json(['message' => 'A document packet can only be submitted after the franchise team requests it.'], 409));
+                }
                 $requestedForCombinedReview = FranchiseApplicationEvent::query()
                     ->where('application_id', $application->id)
                     ->where('title', 'Status updated')
                     ->where('status', 'location_assessment')
-                    ->exists();
+                    ->exists() || (bool) $hasOpenPacketRequest;
                 $requiredUploads = $request->file('required_document_uploads', []);
                 if ($requestedForCombinedReview) {
                     $missingDocuments = [];
@@ -280,7 +291,7 @@ trait FranchiseApplicationApplicantActions
                     'applicant',
                     $applicantId,
                     $application->status,
-                    'Additional information submitted',
+                    $hasOpenPacketRequest ? 'Document packet submitted' : 'Additional information submitted',
                     trim((string) $request->input('response')),
                 );
 
@@ -327,6 +338,95 @@ trait FranchiseApplicationApplicantActions
             $requiredDocument['template_name'] ?? 'required-document-template',
             ['Content-Type' => 'application/octet-stream'],
         );
+    }
+
+    public function submitPaymentProof(Request $request, string $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'proof' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Upload a JPG, PNG, or WEBP proof image up to 5 MB.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $applicantId = $request->user()->id;
+        $file = $request->file('proof');
+        $storedPath = null;
+        $replacedPath = null;
+
+        try {
+            $application = DB::transaction(function () use ($applicantId, $file, $id, &$storedPath, &$replacedPath) {
+                $application = FranchiseApplication::query()
+                    ->where('franchise_applicant_id', $applicantId)
+                    ->whereKey($id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                if ($application->franchise_fee_payment_status !== 'pending'
+                    || ! $application->franchise_fee_amount
+                    || ! in_array($application->status, [
+                        'location_assessment',
+                        'conditionally_approved',
+                        'agreement_pending',
+                        'requirements_pending',
+                        'approved_for_opening',
+                    ], true)) {
+                    abort(response()->json([
+                        'message' => 'Proof of payment can be submitted only when the review team has configured a fee that is due.',
+                    ], 409));
+                }
+
+                $storedPath = Storage::disk('local')->putFile('franchise-application-payment-proofs/'.$application->id, $file);
+                if (! $storedPath) {
+                    throw new RuntimeException('The proof of payment could not be saved. Please try again.');
+                }
+
+                $documents = $application->documents ?? [];
+                foreach ($documents as $index => $document) {
+                    if (($document['document_type'] ?? null) === 'payment_proof') {
+                        $replacedPath = $document['path'] ?? $replacedPath;
+                        unset($documents[$index]);
+                    }
+                }
+                $documents[] = [
+                    'path' => $storedPath,
+                    'name' => basename($file->getClientOriginalName()),
+                    'mime_type' => $file->getMimeType(),
+                    'size' => $file->getSize(),
+                    'uploaded_at' => now()->toIso8601String(),
+                    'document_type' => 'payment_proof',
+                ];
+                $application->documents = array_values($documents);
+                $application->save();
+
+                $this->recordEvent(
+                    $application,
+                    'applicant',
+                    $applicantId,
+                    $application->status,
+                    'Proof of payment submitted',
+                    'Your proof of payment was submitted to the franchise team for review.',
+                );
+
+                return $application->fresh(['events' => fn ($query) => $query->where('is_internal', false)]);
+            });
+        } catch (Throwable $exception) {
+            if ($storedPath) {
+                Storage::disk('local')->delete($storedPath);
+            }
+            throw $exception;
+        }
+
+        if ($replacedPath) {
+            Storage::disk('local')->delete($replacedPath);
+        }
+
+        return response()->json([
+            'message' => 'Your proof of payment was submitted for review.',
+            'data' => $this->applicantApplication($application),
+        ]);
     }
 
     public function withdraw(Request $request, string $id)
@@ -408,7 +508,7 @@ trait FranchiseApplicationApplicantActions
             'location_assessment',
         ]);
         $application->documents = collect($application->documents ?? [])
-            ->map(fn (array $document) => collect($document)->only(['name', 'mime_type', 'size', 'uploaded_at', 'required_document_label'])->all())
+            ->map(fn (array $document) => collect($document)->only(['name', 'mime_type', 'size', 'uploaded_at', 'required_document_label', 'document_type'])->all())
             ->all();
         $application->required_documents = collect($application->required_documents ?? [])
             ->map(fn (array $document) => collect($document)->except(['template_path', 'submitted_document_index'])->all())

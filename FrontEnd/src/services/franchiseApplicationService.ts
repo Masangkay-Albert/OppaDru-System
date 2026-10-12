@@ -17,7 +17,7 @@ export interface ApplicantFranchiseApplication {
   interview_meeting_url?: string | null;
   created_at: string;
   updated_at: string;
-  documents?: Array<{ name: string; mime_type: string; size: number; uploaded_at?: string }>;
+  documents?: Array<{ name: string; mime_type: string; size: number; uploaded_at?: string; document_type?: string }>;
   events?: Array<{
     id: number;
     status?: string | null;
@@ -95,6 +95,12 @@ export const respondToFranchiseApplication = (
     form.append(`required_document_uploads[${index}]`, file);
   });
   return request(`/franchise-applications/me/${id}/response`, { method: 'POST', body: form });
+};
+
+export const submitFranchiseApplicationPaymentProof = (id: string, proof: File) => {
+  const form = new FormData();
+  form.append('proof', proof);
+  return request(`/franchise-applications/me/${id}/payment-proof`, { method: 'POST', body: form });
 };
 
 export const withdrawFranchiseApplication = (id: string) =>

@@ -7,6 +7,7 @@ import {
   downloadFranchiseRequiredDocumentTemplate,
   getMyFranchiseApplications,
   respondToFranchiseApplication,
+  submitFranchiseApplicationPaymentProof,
   withdrawFranchiseApplication,
   type ApplicantFranchiseApplication,
 } from '../../../services/franchiseApplicationService';
@@ -40,6 +41,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [responseFiles, setResponseFiles] = useState<Record<string, File[]>>({});
   const [requiredResponseFiles, setRequiredResponseFiles] = useState<Record<string, Record<number, File>>>({});
+  const [paymentProofFiles, setPaymentProofFiles] = useState<Record<string, File>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -90,7 +92,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
       .filter(({ document, index }) => document.required && document.status !== 'not_applicable' && !requiredFiles[index])
       .map(({ document }) => document.label);
     if (!response) {
-      setError('Write a response before sending additional information.');
+      setError('Write a response before submitting the requested documents.');
       return;
     }
     if (missingRequiredFiles.length) {
@@ -113,6 +115,31 @@ const FranchiseMyApplicationsPage: React.FC = () => {
       await load(false);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : 'Unable to send your response.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handlePaymentProof = async (application: ApplicantFranchiseApplication) => {
+    const proof = paymentProofFiles[application.id];
+    if (!proof) {
+      setError('Choose an image of your payment proof first.');
+      return;
+    }
+    setBusyId(application.id);
+    setError('');
+    setMessage('');
+    try {
+      await submitFranchiseApplicationPaymentProof(application.id, proof);
+      setPaymentProofFiles((current) => {
+        const next = { ...current };
+        delete next[application.id];
+        return next;
+      });
+      setMessage(`Your proof of payment for ${application.reference_number} has been sent for review.`);
+      await load(false);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Unable to submit proof of payment.');
     } finally {
       setBusyId(null);
     }
@@ -187,7 +214,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--oppa-green)]">Franchise partner portal</p>
             <h1 className="mt-1 font-serif text-3xl font-bold text-[var(--oppa-text)]">My Applications</h1>
-            <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">View your application status, next steps, interview updates, and information requests.</p>
+            <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">View your application status, next steps, interview updates, and document requests.</p>
           </div>
           <button type="button" onClick={handleLogout} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--oppa-text)] transition hover:border-red-200 hover:text-red-700">
             <LogOut size={16} aria-hidden="true" /> Sign out
@@ -210,6 +237,11 @@ const FranchiseMyApplicationsPage: React.FC = () => {
               const showProgress = currentStatus !== 'rejected' && currentStatus !== 'withdrawn';
               const hasEnteredCombinedReview = ['location_assessment', 'conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening', 'active'].includes(currentStatus)
                 || (currentStatus === 'additional_information_required' && application.events?.some((event) => event.title === 'Status updated' && event.status === 'location_assessment') === true);
+              const latestPacketRequest = [...(application.events || [])].reverse().find((event) => event.title === 'Document packet requested');
+              const latestPacketSubmission = [...(application.events || [])].reverse().find((event) => ['Additional information submitted', 'Document packet submitted'].includes(event.title));
+              const packetRequestOpen = currentStatus === 'additional_information_required'
+                || Boolean(latestPacketRequest && (!latestPacketSubmission || latestPacketRequest.id > latestPacketSubmission.id));
+              const paymentProof = application.documents?.find((document) => document.document_type === 'payment_proof');
               const canWithdraw = ['submitted', 'pending', 'under_review', 'additional_information_required', 'for_interview', 'location_assessment', 'on_hold'].includes(currentStatus);
               return (
                 <article key={application.id} className="overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
@@ -252,7 +284,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                     {currentStatus !== 'rejected' && <section className="mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
                       <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>
                       <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
-                      {(application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl bg-white p-3 text-sm">
+                      {currentStatus === 'for_interview' && (application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl bg-white p-3 text-sm">
                         {application.interview_at && <p className="font-medium">Interview (Philippine time): {formatPhilippineDateTime(application.interview_at)}</p>}
                         {application.interview_type && <p className="mt-1">Type: {application.interview_type === 'onsite' ? 'Onsite' : 'Online'}</p>}
                         {application.interview_location && <p className="mt-1">Location: {application.interview_location}</p>}
@@ -260,9 +292,9 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                       </div>}
                     </section>}
 
-                    {currentStatus === 'additional_information_required' && (
+                    {packetRequestOpen && (
                       <section className="mb-5 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-                        <h3 className="font-semibold text-[var(--oppa-text)]">Send additional information</h3>
+                        <h3 className="font-semibold text-[var(--oppa-text)]">Submit requested documents</h3>
                         <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Please include every requested document in one submission so the team can complete the combined site, financial, and final review.</p>
                         {application.required_documents?.some((document) => document.required) && <div className="mt-3 space-y-3">{application.required_documents.map((document, index) => document.required && document.status !== 'not_applicable' ? <label key={document.label} className="block rounded-xl border border-amber-200 bg-white p-3 text-sm">
                           <span className="font-semibold">{document.label}</span>
@@ -289,6 +321,24 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                           {application.training_status && <p>Training: <span className="font-medium">{title(application.training_status)}</span></p>}
                           {application.operational_preparation_status && <p>Operational preparation: <span className="font-medium">{title(application.operational_preparation_status)}</span></p>}
                         </div>
+                        {application.franchise_fee_payment_status === 'pending' && application.franchise_fee_amount && <div className="mt-3 rounded-xl bg-[var(--oppa-cream)] p-3">
+                          <h4 className="text-sm font-semibold">Proof of payment</h4>
+                          <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Upload an image of your payment receipt. The franchise team will review it before marking the fee as paid.</p>
+                          {paymentProof && <p className="mt-2 text-xs text-emerald-800">Submitted: {paymentProof.name} · awaiting review</p>}
+                          <input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (!file) return;
+                            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+                              setError('Choose a JPG, PNG, or WEBP image up to 5 MB.');
+                              event.target.value = '';
+                              return;
+                            }
+                            setError('');
+                            setPaymentProofFiles((current) => ({ ...current, [application.id]: file }));
+                          }} className="mt-2 block w-full text-xs" />
+                          {paymentProofFiles[application.id] && <p className="mt-1 text-xs">Selected: {paymentProofFiles[application.id].name}</p>}
+                          <button type="button" onClick={() => void handlePaymentProof(application)} disabled={busyId === application.id || !paymentProofFiles[application.id]} className="mt-2 rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busyId === application.id ? 'Sending…' : paymentProof ? 'Replace proof image' : 'Send proof image'}</button>
+                        </div>}
                         {application.required_documents?.length ? <ul className="mt-3 space-y-1 border-t border-[var(--oppa-border)] pt-3 text-sm">{application.required_documents.filter((document) => document.required).map((document) => <li key={document.label} className="flex justify-between gap-3"><span>{document.label}</span><span className="font-medium">{title(document.status)}</span></li>)}</ul> : null}
                       </section>
                     )}

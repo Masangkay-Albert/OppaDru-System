@@ -1,7 +1,8 @@
-export const franchiseStatusLabel = (status = 'pending'): string =>
-  status === 'conditionally_approved'
-    ? 'Approved'
-    : status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+export const franchiseStatusLabel = (status = 'pending'): string => {
+  if (status === 'conditionally_approved') return 'Approved';
+  if (status === 'additional_information_required') return 'Documents Requested';
+  return status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
 
 export const FRANCHISE_APPLICATION_STAGES = [
   { status: 'program', label: 'Franchise opportunity' },

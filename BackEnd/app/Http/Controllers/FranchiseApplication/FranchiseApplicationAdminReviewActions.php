@@ -53,6 +53,7 @@ trait FranchiseApplicationAdminReviewActions
 
         $validator = Validator::make($request->all(), [
             'status' => 'required|string|in:'.implode(',', array_diff(FranchiseApplication::STATUSES, ['active', 'withdrawn'])),
+            'request_document_packet' => 'sometimes|boolean',
             'admin_notes' => 'nullable|string|max:5000',
             'next_step_instructions' => 'nullable|string|max:2000',
             'interview_at' => 'nullable|date',
@@ -72,10 +73,61 @@ trait FranchiseApplicationAdminReviewActions
         $application = DB::transaction(function () use ($id, $request, $targetStatus, $admin) {
             $application = FranchiseApplication::whereKey($id)->lockForUpdate()->firstOrFail();
             $currentStatus = $application->status === 'pending' ? 'submitted' : $application->status;
-            if (! $application->canTransitionTo($targetStatus)) {
+            $requestDocumentPacket = $request->boolean('request_document_packet');
+            if (! $application->canTransitionTo($targetStatus)
+                && ! ($requestDocumentPacket
+                    && $currentStatus === 'location_assessment'
+                    && $targetStatus === 'location_assessment')) {
                 abort(response()->json([
                     'message' => "The application cannot move from {$currentStatus} to {$targetStatus}.",
                 ], 409));
+            }
+            if ($requestDocumentPacket) {
+                if ($currentStatus !== 'location_assessment' || $targetStatus !== 'location_assessment') {
+                    abort(response()->json([
+                        'message' => 'A document packet can only be requested while the application is in Location Assessment.',
+                    ], 409));
+                }
+                if (! $request->filled('next_step_instructions')) {
+                    abort(response()->json([
+                        'message' => 'Provide instructions for the applicant before requesting the document packet.',
+                    ], 422));
+                }
+                if (FranchiseApplicationEvent::query()
+                    ->where('application_id', $application->id)
+                    ->whereIn('title', ['Additional information submitted', 'Document packet submitted'])
+                    ->where('status', 'location_assessment')
+                    ->exists()) {
+                    abort(response()->json([
+                        'message' => 'The combined document packet has already been submitted. Review the submitted documents and continue the final assessment.',
+                    ], 409));
+                }
+                if (FranchiseApplicationEvent::query()
+                    ->where('application_id', $application->id)
+                    ->where('title', 'Document packet requested')
+                    ->exists()) {
+                    abort(response()->json([
+                        'message' => 'A document packet has already been requested for this application.',
+                    ], 409));
+                }
+                $requiredDocuments = collect($application->required_documents ?? [])
+                    ->filter(fn (array $document) => $document['required'] ?? false);
+                if ($requiredDocuments->isEmpty()) {
+                    abort(response()->json([
+                        'message' => 'Add at least one required document before requesting the applicant packet.',
+                    ], 409));
+                }
+                $missingTemplates = $requiredDocuments
+                    ->filter(fn (array $document) => empty($document['template_path']))
+                    ->pluck('label')
+                    ->values()
+                    ->all();
+                if ($missingTemplates !== []) {
+                    abort(response()->json([
+                        'message' => 'Upload a blank template for each required document before requesting the combined document packet.',
+                        'missing_templates' => $missingTemplates,
+                    ], 409));
+                }
             }
             if ($targetStatus === 'additional_information_required' && ! $request->filled('next_step_instructions')) {
                 abort(response()->json(['message' => 'Provide clear instructions for the additional information required.'], 422));
@@ -84,7 +136,7 @@ trait FranchiseApplicationAdminReviewActions
                 && $targetStatus === 'additional_information_required'
                 && FranchiseApplicationEvent::query()
                     ->where('application_id', $application->id)
-                    ->where('title', 'Additional information submitted')
+                    ->whereIn('title', ['Additional information submitted', 'Document packet submitted'])
                     ->where('status', 'location_assessment')
                     ->exists()) {
                 abort(response()->json([
@@ -186,6 +238,7 @@ trait FranchiseApplicationAdminReviewActions
                 ])));
             }
             $application->save();
+            $this->requestDocumentPacketIfReady($application, $admin);
 
             if ($previousStatus !== $targetStatus || $previousInstructions !== $application->next_step_instructions) {
                 $this->recordEvent(
@@ -200,6 +253,16 @@ trait FranchiseApplicationAdminReviewActions
 
             if ($request->filled('admin_notes')) {
                 $this->recordEvent($application, 'admin', $admin?->id, $targetStatus, 'Internal review note added', $request->input('admin_notes'), true);
+            }
+            if ($requestDocumentPacket) {
+                $this->recordEvent(
+                    $application,
+                    'admin',
+                    $admin?->id,
+                    $targetStatus,
+                    'Document packet requested',
+                    $application->next_step_instructions,
+                );
             }
             if ($requestedInterviewAt) {
                 $interviewMessage = 'Interview scheduled for '.$requestedInterviewAt->setTimezone('Asia/Manila')->format('F j, Y g:i A').' (Philippine time).';
@@ -265,8 +328,8 @@ trait FranchiseApplicationAdminReviewActions
 
         $validator = Validator::make($request->all(), [
             'agreement_status' => 'required|string|in:not_started,drafting,sent,signed',
-            'agreement_prepared_at' => 'nullable|date',
-            'agreement_signed_at' => 'nullable|date',
+            'agreement_prepared_at' => 'nullable|date|after_or_equal:'.now('Asia/Manila')->toDateString(),
+            'agreement_signed_at' => 'nullable|date|after_or_equal:'.now('Asia/Manila')->toDateString(),
             'franchise_fee_amount' => 'nullable|numeric|min:0|max:9999999999.99',
             'franchise_fee_payment_status' => 'required|string|in:not_configured,pending,paid,waived,not_applicable',
             'franchise_fee_payment_reference' => 'nullable|string|max:255',
@@ -288,8 +351,8 @@ trait FranchiseApplicationAdminReviewActions
         }
 
         $feeStatus = $request->input('franchise_fee_payment_status');
-        if ($feeStatus === 'paid' && (! $request->filled('franchise_fee_amount') || ! $request->filled('franchise_fee_payment_reference'))) {
-            return response()->json(['message' => 'Record the applicable fee amount and payment reference before marking it paid.'], 422);
+        if ($feeStatus === 'paid' && ! $request->filled('franchise_fee_amount')) {
+            return response()->json(['message' => 'Record the applicable fee amount before marking it paid.'], 422);
         }
         if (in_array($feeStatus, ['waived', 'not_applicable'], true) && ! $request->filled('internal_notes')) {
             return response()->json(['message' => 'Explain the fee waiver or why no franchise fee applies.'], 422);
@@ -304,12 +367,19 @@ trait FranchiseApplicationAdminReviewActions
         $admin = Admin::where('api_token', hash('sha256', $request->bearerToken() ?? ''))->first();
         $newTemplatePaths = [];
         $oldTemplatePaths = [];
+        $packetRequested = false;
         try {
-            $application = DB::transaction(function () use ($id, $request, $admin, &$newTemplatePaths, &$oldTemplatePaths) {
+            $application = DB::transaction(function () use ($id, $request, $admin, $feeStatus, &$newTemplatePaths, &$oldTemplatePaths, &$packetRequested) {
                 $application = FranchiseApplication::whereKey($id)->lockForUpdate()->firstOrFail();
                 if (in_array($application->status, ['active', 'rejected', 'withdrawn'], true)) {
                     abort(response()->json([
                         'message' => 'Requirements cannot be changed for active, rejected, or withdrawn applications.',
+                    ], 409));
+                }
+                if ($feeStatus === 'paid'
+                    && ! collect($application->documents ?? [])->contains('document_type', 'payment_proof')) {
+                    abort(response()->json([
+                        'message' => 'Review the applicant proof of payment before marking the franchise fee as paid.',
                     ], 409));
                 }
 
@@ -358,7 +428,6 @@ trait FranchiseApplicationAdminReviewActions
                     'agreement_signed_at',
                     'franchise_fee_amount',
                     'franchise_fee_payment_status',
-                    'franchise_fee_payment_reference',
                     'required_documents',
                     'location_readiness',
                     'permit_compliance_status',
@@ -366,6 +435,9 @@ trait FranchiseApplicationAdminReviewActions
                     'operational_preparation_status',
                 ] as $field) {
                     $application->{$field} = $request->input($field);
+                }
+                if ($request->has('franchise_fee_payment_reference')) {
+                    $application->franchise_fee_payment_reference = $request->input('franchise_fee_payment_reference');
                 }
                 $application->required_documents = $documents;
                 $application->requirements_reviewed_at = now();
@@ -381,6 +453,7 @@ trait FranchiseApplicationAdminReviewActions
                     'Agreement and opening requirements updated',
                     'Your agreement and opening requirements were updated by the franchise team.',
                 );
+                $packetRequested = $this->requestDocumentPacketIfReady($application, $admin);
                 if ($request->filled('internal_notes')) {
                     $this->recordEvent(
                         $application,
@@ -406,9 +479,45 @@ trait FranchiseApplicationAdminReviewActions
         }
 
         return response()->json([
-            'message' => 'Agreement and opening requirements saved.',
+            'message' => $packetRequested
+                ? 'Agreement and opening requirements saved. The applicant can now upload the requested document packet.'
+                : 'Agreement and opening requirements saved.',
             'data' => $application,
         ]);
+    }
+
+    private function requestDocumentPacketIfReady(FranchiseApplication $application, ?Admin $admin): bool
+    {
+        if ($application->status !== 'location_assessment') {
+            return false;
+        }
+
+        $requiredDocuments = collect($application->required_documents ?? [])
+            ->filter(fn (array $document) => ($document['required'] ?? false)
+                && ($document['status'] ?? null) !== 'not_applicable')
+            ->values();
+        if ($requiredDocuments->isEmpty()
+            || $requiredDocuments->contains(fn (array $document) => empty($document['template_path']))
+            || FranchiseApplicationEvent::query()
+                ->where('application_id', $application->id)
+                ->whereIn('title', ['Document packet requested', 'Document packet submitted', 'Additional information submitted'])
+                ->exists()) {
+            return false;
+        }
+
+        $labels = $requiredDocuments->pluck('label')->map(fn (string $label) => '- '.$label)->implode("\n");
+        $application->next_step_instructions = "Please complete and upload the following required documents together:\n".$labels;
+        $application->save();
+        $this->recordEvent(
+            $application,
+            'admin',
+            $admin?->id,
+            $application->status,
+            'Document packet requested',
+            $application->next_step_instructions,
+        );
+
+        return true;
     }
 
     public function stats(Request $request)

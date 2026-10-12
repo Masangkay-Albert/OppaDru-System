@@ -24,8 +24,8 @@ class FranchiseApplicationRequirementsTest extends TestCase
         $this->patchJson('/api/admin/franchise-applications/'.$application->id.'/requirements', array_merge(
             $this->requirementsData(),
             ['agreement_prepared_at' => now('Asia/Manila')->subDay()->toDateString()],
-        ), $headers)->assertOk()
-            ->assertJsonPath('data.agreement_status', 'drafting');
+        ), $headers)->assertUnprocessable()
+            ->assertJsonValidationErrors('agreement_prepared_at');
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id.'/requirements', $this->requirementsData(), $headers)
             ->assertOk()
@@ -87,7 +87,7 @@ class FranchiseApplicationRequirementsTest extends TestCase
         ])->assertUnauthorized();
     }
 
-    public function test_applicant_can_respond_to_an_information_request_and_withdraw_an_eligible_application(): void
+    public function test_applicant_cannot_send_documents_without_a_packet_request_and_can_withdraw(): void
     {
         $adminToken = $this->createAdminToken();
         $applicant = $this->createVerifiedApplicant();
@@ -100,19 +100,13 @@ class FranchiseApplicationRequirementsTest extends TestCase
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'additional_information_required',
             'next_step_instructions' => 'Please provide an updated business plan.',
-        ], $adminHeaders)->assertOk();
+        ], $adminHeaders)->assertStatus(409);
 
         Auth::forgetGuards();
         $this->postJson('/api/franchise-applications/me/'.$application->id.'/response', [
             'response' => 'I have attached the updated plan.',
-        ], ['Authorization' => 'Bearer '.$applicant['token']])->assertOk();
+        ], ['Authorization' => 'Bearer '.$applicant['token']])->assertStatus(409);
         $this->assertSame('under_review', $application->fresh()->status);
-
-        $this->assertDatabaseHas('franchise_application_events', [
-            'application_id' => $application->id,
-            'title' => 'Additional information submitted',
-            'actor_type' => 'applicant',
-        ]);
 
         Auth::forgetGuards();
         $this->patchJson('/api/franchise-applications/me/'.$application->id.'/withdraw', [], [

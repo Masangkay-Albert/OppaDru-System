@@ -30,7 +30,8 @@ class FranchiseApplicationReviewTest extends TestCase
             'Authorization' => 'Bearer '.$adminToken,
         ])->assertOk()
             ->assertJsonPath('data.allowed_transitions.0', 'under_review')
-            ->assertJsonPath('data.allowed_transitions.1', 'additional_information_required');
+            ->assertJsonMissing(['additional_information_required'])
+            ->assertJsonFragment(['on_hold']);
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'under_review',
@@ -70,16 +71,12 @@ class FranchiseApplicationReviewTest extends TestCase
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'additional_information_required',
-        ], $headers)->assertUnprocessable();
+        ], $headers)->assertStatus(409);
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'additional_information_required',
             'next_step_instructions' => 'Please provide your proposed property lease details.',
-        ], $headers)->assertOk();
-
-        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
-            'status' => 'under_review',
-        ], $headers)->assertOk();
+        ], $headers)->assertStatus(409);
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'for_interview',
@@ -216,7 +213,10 @@ class FranchiseApplicationReviewTest extends TestCase
             'training_status' => 'pending',
             'operational_preparation_status' => 'pending',
             'internal_notes' => '',
-        ], $headers + ['Accept' => 'application/json'])->assertOk();
+        ], $headers + ['Accept' => 'application/json'])->assertOk()
+            ->assertJsonPath('data.status', 'location_assessment')
+            ->assertJsonPath('data.next_step_instructions', "Please complete and upload the following required documents together:\n- Property application form")
+            ->assertJsonPath('message', 'Agreement and opening requirements saved. The applicant can now upload the requested document packet.');
 
         Auth::forgetGuards();
         $this->get('/api/franchise-applications/me/'.$application->id.'/required-documents/0/template', [
@@ -225,10 +225,10 @@ class FranchiseApplicationReviewTest extends TestCase
         ])->assertOk()
             ->assertHeader('content-disposition');
 
-        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
-            'status' => 'additional_information_required',
-            'next_step_instructions' => 'Submit your site documents, financial records, and agreement details together.',
-        ], $headers)->assertOk();
+        $this->assertDatabaseHas('franchise_application_events', [
+            'application_id' => $application->id,
+            'title' => 'Document packet requested',
+        ]);
 
         Auth::forgetGuards();
         $this->post('/api/franchise-applications/me/'.$application->id.'/response', [
@@ -255,10 +255,12 @@ class FranchiseApplicationReviewTest extends TestCase
             ->assertJsonPath('data.documents.0.name', 'completed-property-application.pdf')
             ->assertJsonPath('data.required_documents.0.status', 'received')
             ->assertJsonPath('data.required_documents.0.submitted_document_name', 'completed-property-application.pdf')
+            ->assertJsonFragment(['title' => 'Document packet submitted'])
             ->assertJsonMissingPath('data.required_documents.0.template_path');
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
-            'status' => 'additional_information_required',
+            'status' => 'location_assessment',
+            'request_document_packet' => true,
             'next_step_instructions' => 'Requesting another document packet.',
         ], $headers)->assertStatus(409);
 
@@ -269,7 +271,7 @@ class FranchiseApplicationReviewTest extends TestCase
             ->assertJsonPath('data.next_step_instructions', FranchiseApplication::defaultInstructionsFor('conditionally_approved'));
 
         $this->assertSame(
-            ['for_interview', 'location_assessment', 'additional_information_required', 'conditionally_approved'],
+            ['for_interview', 'location_assessment', 'conditionally_approved'],
             FranchiseApplicationEvent::where('application_id', $application->id)
                 ->where('title', 'Status updated')
                 ->orderBy('id')
@@ -316,6 +318,78 @@ class FranchiseApplicationReviewTest extends TestCase
             'interview_meeting_url' => 'javascript:alert(1)',
         ], ['Authorization' => 'Bearer '.$adminToken])->assertUnprocessable()
             ->assertJsonValidationErrors('interview_meeting_url');
+    }
+
+    public function test_applicant_can_submit_image_payment_proof_for_admin_review(): void
+    {
+        Storage::fake('local');
+        $adminToken = $this->createAdminToken();
+        $applicant = $this->createVerifiedApplicant();
+        $application = $this->submitApplication($applicant);
+        $application->forceFill([
+            'status' => 'location_assessment',
+            'franchise_fee_amount' => 5000,
+            'franchise_fee_payment_status' => 'pending',
+        ])->save();
+
+        Auth::forgetGuards();
+        $response = $this->post('/api/franchise-applications/me/'.$application->id.'/payment-proof', [
+            'proof' => UploadedFile::fake()->create('payment-proof.png', 100, 'image/png'),
+        ], [
+            'Authorization' => 'Bearer '.$applicant['token'],
+            'Accept' => 'application/json',
+        ])->assertOk()
+            ->assertJsonPath('data.franchise_fee_payment_status', 'pending')
+            ->assertJsonPath('data.documents.0.name', 'payment-proof.png')
+            ->assertJsonPath('data.documents.0.document_type', 'payment_proof')
+            ->assertJsonMissingPath('data.documents.0.path');
+
+        $storedPath = $application->fresh()->documents[0]['path'];
+        $this->assertTrue(Storage::disk('local')->exists($storedPath));
+
+        $this->post('/api/admin/franchise-applications/'.$application->id.'/requirements', [
+            '_method' => 'PATCH',
+            'agreement_status' => 'not_started',
+            'agreement_prepared_at' => '',
+            'agreement_signed_at' => '',
+            'franchise_fee_amount' => '5000',
+            'franchise_fee_payment_status' => 'paid',
+            'required_documents' => '[]',
+            'required_document_templates' => [],
+            'location_readiness' => 'pending',
+            'permit_compliance_status' => 'pending',
+            'training_status' => 'pending',
+            'operational_preparation_status' => 'pending',
+            'internal_notes' => '',
+        ], [
+            'Authorization' => 'Bearer '.$adminToken,
+            'Accept' => 'application/json',
+        ])->assertOk()
+            ->assertJsonPath('data.franchise_fee_payment_status', 'paid');
+    }
+
+    public function test_admin_cannot_set_past_agreement_dates(): void
+    {
+        $adminToken = $this->createAdminToken();
+        $applicant = $this->createVerifiedApplicant();
+        $application = $this->submitApplication($applicant);
+
+        $this->post('/api/admin/franchise-applications/'.$application->id.'/requirements', [
+            '_method' => 'PATCH',
+            'agreement_status' => 'not_started',
+            'agreement_prepared_at' => now('Asia/Manila')->subDay()->toDateString(),
+            'agreement_signed_at' => '',
+            'franchise_fee_payment_status' => 'not_configured',
+            'required_documents' => '[]',
+            'location_readiness' => 'pending',
+            'permit_compliance_status' => 'pending',
+            'training_status' => 'pending',
+            'operational_preparation_status' => 'pending',
+        ], [
+            'Authorization' => 'Bearer '.$adminToken,
+            'Accept' => 'application/json',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('agreement_prepared_at');
     }
 
     private function submitApplication(array $applicant): FranchiseApplication

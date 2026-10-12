@@ -42,7 +42,7 @@ export interface FranchiseApplication {
   has_proposed_property?: boolean;
   opening_timeline?: string;
   business_information?: string;
-  documents?: Array<{ name: string; size: number; mime_type: string; required_document_label?: string }>;
+  documents?: Array<{ name: string; size: number; mime_type: string; required_document_label?: string; document_type?: string }>;
   notes?: string;
   status?: string;
   allowed_transitions?: string[];
@@ -357,6 +357,7 @@ export const getFranchiseApplication = async (id: string | number): Promise<Fran
 
 export const reviewFranchiseApplication = async (id: string | number, data: {
   status: string;
+  request_document_packet?: boolean;
   admin_notes?: string;
   next_step_instructions?: string;
   interview_at?: string;
@@ -414,7 +415,6 @@ export const updateFranchiseApplicationRequirements = async (id: string | number
     agreement_signed_at: data.agreement_signed_at,
     franchise_fee_amount: data.franchise_fee_amount,
     franchise_fee_payment_status: data.franchise_fee_payment_status,
-    franchise_fee_payment_reference: data.franchise_fee_payment_reference,
     location_readiness: data.location_readiness,
     permit_compliance_status: data.permit_compliance_status,
     training_status: data.training_status,

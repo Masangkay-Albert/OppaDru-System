@@ -39,6 +39,14 @@ const manilaDateTimeInputToIso = (value: string): string =>
 const minimumManilaDateTime = (): string =>
   toManilaDateTimeInput(new Date(Date.now() + 60_000).toISOString());
 
+const todayInManila = (): string =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: manilaTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+
 type FranchiseRequirementDocument = { label: string; required: boolean; status: string; template_name?: string | null; submitted_document_name?: string | null };
 
 const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; onSaved: () => Promise<void> }> = ({ application, onSaved }) => {
@@ -47,7 +55,6 @@ const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; o
   const [agreementSignedAt, setAgreementSignedAt] = useState(application.agreement_signed_at?.slice(0, 10) || '');
   const [feeAmount, setFeeAmount] = useState(application.franchise_fee_amount ? String(application.franchise_fee_amount) : '');
   const [feeStatus, setFeeStatus] = useState(application.franchise_fee_payment_status || 'not_configured');
-  const [feeReference, setFeeReference] = useState(application.franchise_fee_payment_reference || '');
   const [documents, setDocuments] = useState<FranchiseRequirementDocument[]>(application.required_documents || []);
   const [documentTemplates, setDocumentTemplates] = useState<Record<number, File>>({});
   const [locationReadiness, setLocationReadiness] = useState(application.location_readiness || 'pending');
@@ -57,9 +64,15 @@ const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; o
   const [internalNotes, setInternalNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [savedMessage, setSavedMessage] = useState('');
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
+    const today = todayInManila();
+    if ((agreementPreparedAt && agreementPreparedAt < today) || (agreementSignedAt && agreementSignedAt < today)) {
+      setError('Agreement dates must be today or a future date.');
+      return;
+    }
     if (agreementStatus === 'signed' && !agreementSignedAt) {
       setError('Record the actual agreement signing date before marking it signed.');
       return;
@@ -71,14 +84,14 @@ const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; o
     }
     setSaving(true);
     setError('');
+    setSavedMessage('');
     try {
-      await updateFranchiseApplicationRequirements(application.id, {
+      const result = await updateFranchiseApplicationRequirements(application.id, {
         agreement_status: agreementStatus,
         agreement_prepared_at: agreementPreparedAt,
         agreement_signed_at: agreementSignedAt,
         franchise_fee_amount: feeAmount,
         franchise_fee_payment_status: feeStatus,
-        franchise_fee_payment_reference: feeReference,
         required_documents: documents,
         required_document_templates: documentTemplates,
         location_readiness: locationReadiness,
@@ -88,6 +101,7 @@ const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; o
         internal_notes: internalNotes,
       });
       setInternalNotes('');
+      setSavedMessage(result.message || 'Agreement and opening requirements saved.');
       await onSaved();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Unable to save agreement and opening requirements.');
@@ -103,15 +117,16 @@ const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; o
 
   return (
     <section className="mt-6 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-4"><h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Combined post-interview review and requirements</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">After a successful interview, review the site, finances, final decision, and agreement together. Add every document the applicant may need to submit to the checklist, then request the complete packet once using the instructions above. Record only agreed terms; opening approval remains blocked until every applicable check is complete.</p></div>
+      <div className="mb-4"><h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Combined post-interview review and requirements</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">After a successful interview, review the site, finances, final decision, and agreement together. Add each required document and upload its blank form. Saving sends the upload request to the applicant when every required form is ready. Record only agreed terms; opening approval remains blocked until every applicable check is complete.</p></div>
       {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {savedMessage && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{savedMessage}</p>}
       <form onSubmit={save} className="grid gap-4 md:grid-cols-2">
         <label className="text-sm font-medium">Agreement status<select value={agreementStatus} onChange={(event) => setAgreementStatus(event.target.value)} className={selectClass}><option value="not_started">Not started</option><option value="drafting">Drafting</option><option value="sent">Sent for review/signing</option><option value="signed">Signed</option></select></label>
-        <label className="text-sm font-medium">Agreement prepared date<input type="date" value={agreementPreparedAt} onChange={(event) => setAgreementPreparedAt(event.target.value)} className={dateClass} /></label>
-        <label className="text-sm font-medium">Actual agreement signing date<input type="date" value={agreementSignedAt} onChange={(event) => setAgreementSignedAt(event.target.value)} className={dateClass} /></label>
+        <label className="text-sm font-medium">Agreement prepared date<input type="date" min={todayInManila()} value={agreementPreparedAt} onChange={(event) => setAgreementPreparedAt(event.target.value)} className={dateClass} /></label>
+        <label className="text-sm font-medium">Actual agreement signing date<input type="date" min={todayInManila()} value={agreementSignedAt} onChange={(event) => setAgreementSignedAt(event.target.value)} className={dateClass} /></label>
         <label className="text-sm font-medium">Agreed franchise fee<input type="number" min="0" step="0.01" value={feeAmount} onChange={(event) => setFeeAmount(event.target.value)} placeholder="Not configured" className={dateClass} /></label>
         <label className="text-sm font-medium">Fee payment status<select value={feeStatus} onChange={(event) => setFeeStatus(event.target.value)} className={selectClass}><option value="not_configured">Not configured</option><option value="pending">Pending</option><option value="paid">Paid</option><option value="waived">Waived</option><option value="not_applicable">Not applicable</option></select></label>
-        <label className="text-sm font-medium">Payment receipt/reference<input value={feeReference} onChange={(event) => setFeeReference(event.target.value)} maxLength={255} className={dateClass} /></label>
+        <div className="text-sm"><span className="font-medium">Proof of payment</span><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{application.documents?.find((document) => document.document_type === 'payment_proof')?.name || 'No proof submitted yet. Review submitted images in Supporting documents above.'}</p></div>
 
         <fieldset className="space-y-2 rounded-xl border border-[var(--oppa-border)] p-4 md:col-span-2">
           <legend className="px-1 text-sm font-semibold">Application-specific required documents</legend>
@@ -175,7 +190,13 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       if (!mounted.current) return;
       setApplication(data);
       if (showLoading || !formDirty.current) {
-        setStatus(data.status === 'pending' ? 'submitted' : data.status || 'submitted');
+        const storedStatus = data.status === 'pending' ? 'submitted' : data.status || 'submitted';
+        const legacyReviewStatus = storedStatus === 'additional_information_required'
+          ? data.events?.some((event) => event.title === 'Status updated' && event.status === 'location_assessment')
+            ? 'location_assessment'
+            : 'under_review'
+          : storedStatus;
+        setStatus(legacyReviewStatus);
         setInstructions(data.next_step_instructions || '');
         setInterviewAt(data.interview_at ? toManilaDateTimeInput(data.interview_at) : '');
         setInterviewType(data.interview_type || 'online');
@@ -214,12 +235,17 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     return () => window.clearInterval(interval);
   }, []);
 
-  const currentStatus = application?.status === 'pending' ? 'submitted' : application?.status || 'submitted';
+  const storedStatus = application?.status === 'pending' ? 'submitted' : application?.status || 'submitted';
+  const currentStatus = storedStatus === 'additional_information_required'
+    ? application?.events?.some((event) => event.title === 'Status updated' && event.status === 'location_assessment')
+      ? 'location_assessment'
+      : 'under_review'
+    : storedStatus;
   const availableStatuses = useMemo(() => {
-    const options = application?.allowed_transitions || [currentStatus];
+    const options = (application?.allowed_transitions || [currentStatus])
+      .filter((option) => option !== 'additional_information_required');
     return options.includes(status) ? options : [status, ...options];
   }, [application?.allowed_transitions, currentStatus, status]);
-
   const saveReviewUpdates = async () => {
     if (!id) return;
     const savedInterviewAt = application?.interview_at ? toManilaDateTimeInput(application.interview_at) : '';
@@ -315,7 +341,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
               <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
                 <h2 className="mb-3 font-semibold text-[var(--oppa-text)]">Supporting documents</h2>
-                {!application.documents?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No supporting documents were provided.</p> : <ul className="space-y-2">{application.documents.map((file, index) => <li key={`${file.name}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-[var(--oppa-cream)] p-3"><span className="flex min-w-0 items-center gap-2 text-sm"><FileText size={17} className="shrink-0 text-[var(--oppa-green)]" /><span className="min-w-0"><span className="block truncate">{file.name}</span>{file.required_document_label && <span className="block text-xs text-[var(--oppa-text-muted)]">Submitted for: {file.required_document_label}</span>}</span></span><button type="button" onClick={() => void downloadDocument(index, file.name)} disabled={downloading === index} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-1.5 text-xs font-semibold disabled:opacity-60"><Download size={14} />{downloading === index ? 'Loading…' : 'Download'}</button></li>)}</ul>}
+                  {!application.documents?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No supporting documents were provided.</p> : <ul className="space-y-2">{application.documents.map((file, index) => <li key={`${file.name}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-[var(--oppa-cream)] p-3"><span className="flex min-w-0 items-center gap-2 text-sm"><FileText size={17} className="shrink-0 text-[var(--oppa-green)]" /><span className="min-w-0"><span className="block truncate">{file.document_type === 'payment_proof' ? `Proof of payment: ${file.name}` : file.name}</span>{file.required_document_label && <span className="block text-xs text-[var(--oppa-text-muted)]">Submitted for: {file.required_document_label}</span>}</span></span><button type="button" onClick={() => void downloadDocument(index, file.name)} disabled={downloading === index} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-1.5 text-xs font-semibold disabled:opacity-60"><Download size={14} />{downloading === index ? 'Loading…' : 'Download'}</button></li>)}</ul>}
               </section>
 
             </div>
@@ -323,9 +349,9 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             <form noValidate onChange={() => { formDirty.current = true; }} onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
               <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Each status change is recorded. Approval does not create access; franchise activation is a separate gated action.</p></div>
               <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
-              {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After a successful interview, select Location Assessment. This begins the combined final stage (site inspection, financial evaluation, and agreement). Add the complete required-document checklist in the combined requirements panel. If the applicant must send files, choose Additional Information Required and list every requested document in these instructions so the applicant can submit one complete packet. After the packet is received, the application returns to Location Assessment for your final review.</p>}
-              {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Complete the site and financial assessment and prepare the final decision/agreement in the combined requirements panel below. If documents are needed, request all of them together once: choose Additional Information Required and list the full document set in these instructions. The applicant can upload the complete packet in one submission; it returns here for review.</p>}
-              <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or the additional information needed." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
+              {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview is completed, select Location Assessment. This begins the combined final stage (site inspection, financial evaluation, and agreement). Add the complete required-document checklist and upload a blank form for each item in the combined requirements panel. Saving the requirements automatically sends the upload request when each required form is ready.</p>}
+              {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Complete the site and financial assessment and prepare the final decision/agreement in the combined requirements panel below. Saving the checklist automatically opens the applicant's document upload area when each required form has a template. The application remains in Location Assessment while documents are submitted.</p>}
+              <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or list the requested documents." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
               <div className="rounded-xl border border-[var(--oppa-border)] p-3">
                 <h3 className="mb-3 text-sm font-semibold">Interview record (Philippine time)</h3>
                 <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Date and time<input type="datetime-local" min={minimumInterviewAt} value={interviewAt} onChange={(event) => setInterviewAt(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>

@@ -190,6 +190,7 @@ Route::middleware('franchise.applicant.access')->group(function () {
     Route::get('/franchise-applications/me', [FranchiseApplicationController::class, 'myApplications']);
     Route::get('/franchise-applications/me/{id}', [FranchiseApplicationController::class, 'showMine']);
     Route::post('/franchise-applications/me/{id}/response', [FranchiseApplicationController::class, 'respond']);
+    Route::post('/franchise-applications/me/{id}/payment-proof', [FranchiseApplicationController::class, 'submitPaymentProof']);
     Route::get('/franchise-applications/me/{id}/required-documents/{document}/template', [FranchiseApplicationController::class, 'downloadRequiredDocumentTemplate']);
     Route::patch('/franchise-applications/me/{id}/withdraw', [FranchiseApplicationController::class, 'withdraw']);
     Route::get('/franchise-applications/{id}/documents/{document}', [FranchiseApplicationController::class, 'downloadDocument']);

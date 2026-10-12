@@ -156,6 +156,7 @@ class FranchiseApplication extends Model
     {
         $currentStatus = $this->status === 'pending' ? 'submitted' : ($this->status ?: 'submitted');
         $transitions = self::STATUS_TRANSITIONS[$currentStatus] ?? [];
+        $transitions = array_values(array_diff($transitions, ['additional_information_required']));
 
         if (! in_array($currentStatus, ['active', 'rejected', 'withdrawn'], true)) {
             array_unshift($transitions, $currentStatus);
@@ -198,8 +199,9 @@ class FranchiseApplication extends Model
             $issues[] = 'The applicable franchise fee must be paid, waived with a recorded reason, or explicitly marked not applicable.';
         }
         if ($this->franchise_fee_payment_status === 'paid'
-            && (! $this->franchise_fee_amount || ! $this->franchise_fee_payment_reference)) {
-            $issues[] = 'The paid franchise fee must include its amount and payment reference.';
+            && (! $this->franchise_fee_amount
+                || ! collect($this->documents ?? [])->contains('document_type', 'payment_proof'))) {
+            $issues[] = 'The paid franchise fee must include its amount and an applicant-submitted proof of payment.';
         }
         if (! $this->requirements_reviewed_at) {
             $issues[] = 'An administrator must review and save the requirements checklist.';
