@@ -275,7 +275,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                     {packetRequestOpen && (
                       <section className="mb-5 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div><h3 className="font-semibold text-[var(--oppa-text)]">Complete and submit requested forms</h3><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Download each form from the franchise team, fill it out, then choose the completed file for that requirement. Submit the required forms together.</p></div>
+                          <div><h3 className="font-semibold text-[var(--oppa-text)]">Upload requested documents</h3><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Upload a file for each requirement below. If the franchise team attached a template, you can download it, fill it out, and upload the completed file. Templates are optional.</p></div>
                           <span className="w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900">{selectedPacketFiles} of {pendingPacketDocuments.length} selected</span>
                         </div>
                         {!pendingPacketDocuments.length ? <p className="mt-3 rounded-xl bg-white p-3 text-sm text-[var(--oppa-text-muted)]">There are no outstanding required forms to submit.</p> : <div className="mt-3 space-y-3">
@@ -288,7 +288,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                               {document.template_name && <button type="button" onClick={() => void handleTemplateDownload(application, index, document.template_name || document.label)} disabled={busyId === application.id} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-60"><Download size={14} />Download file from franchisor</button>}
                               {!document.template_name && <p className="mt-2 rounded-lg bg-blue-50 p-2 text-xs text-blue-900">No template was attached. You can upload the requested document directly below.</p>}
                               <div className="mt-3">
-                                <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-amber-950">Upload your completed form</p>
+                                <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-amber-950">Upload file for this requirement</p>
                                 <input id={`required-response-${application.id}-${index}`} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="peer sr-only" onChange={(event) => {
                                   const file = event.target.files?.[0];
                                   if (!file) return;

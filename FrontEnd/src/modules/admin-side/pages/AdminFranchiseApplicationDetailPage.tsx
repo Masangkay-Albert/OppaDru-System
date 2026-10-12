@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Download, FileText, Loader2, Save, Upload, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Download, Eye, FileText, Loader2, MoreHorizontal, Plus, Save, Upload, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { ConfirmDialog } from '../components/AdminUI';
@@ -40,19 +40,12 @@ const manilaDateTimeInputToIso = (value: string): string =>
 const minimumManilaDateTime = (): string =>
   toManilaDateTimeInput(new Date(Date.now() + 60_000).toISOString());
 
-const todayInManila = (): string =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: manilaTimeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-
 type FranchiseRequirementDocument = {
   label: string;
   required: boolean;
   status: string;
   category?: string;
+  name_is_custom?: boolean;
   template_name?: string | null;
   template_size_bytes?: number | null;
   template_uploaded_at?: string | null;
@@ -62,12 +55,44 @@ type FranchiseRequirementDocument = {
 };
 
 const requirementCategories = [
-  ['agreement_signing', 'Agreement and signing'],
-  ['payment', 'Payment receipt/reference'],
-  ['location_readiness', 'Location readiness'],
-  ['permits_compliance', 'Permits and compliance'],
-  ['operational_preparation', 'System and operational preparation'],
+  ['application_documents', 'Application-specific documents', ''],
+  ['agreement_signing', 'Agreement and signing', 'Agreement and Signing'],
+  ['payment', 'Payment receipt/reference', 'Payment Receipt / Reference'],
+  ['permits_compliance', 'Permits and compliance', 'Permits and Compliance'],
+  ['location_readiness', 'Location readiness', 'Location Readiness'],
+  ['training', 'Training', 'Training'],
+  ['operational_preparation', 'System and operational preparation', 'System and Operational Preparation'],
+  ['', 'Other', ''],
 ] as const;
+
+const requirementStatusStyles: Record<string, string> = {
+  pending: 'border-slate-200 bg-slate-100 text-slate-700',
+  submitted: 'border-sky-200 bg-sky-50 text-sky-800',
+  received: 'border-amber-200 bg-amber-50 text-amber-800',
+  verified: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  rejected: 'border-red-200 bg-red-50 text-red-800',
+  not_applicable: 'border-slate-200 bg-slate-100 text-slate-600',
+};
+
+const requirementStatusLabel = (status: string) => ({
+  pending: 'Pending',
+  submitted: 'Submitted',
+  received: 'Under review',
+  verified: 'Verified',
+  rejected: 'Rejected',
+  not_applicable: 'Not applicable',
+}[status] || status.replace(/[_-]+/g, ' '));
+
+const defaultRequirementName = (category?: string) =>
+  requirementCategories.find(([value]) => value === (category || ''))?.[2] || '';
+
+const fileNameSuggestion = (fileName: string) => fileName
+  .replace(/\.[^.]+$/, '')
+  .replace(/[_-]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .toLowerCase()
+  .replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
 
 const formatFileSize = (size: number) => {
   if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
@@ -101,27 +126,39 @@ const FranchiseRequirementsForm: React.FC<{
   onSaved: () => Promise<void>;
   onDownload: (index: number, name: string) => void;
   onDownloadTemplate: (index: number, name: string) => void;
-}> = ({ application, onSaved, onDownload, onDownloadTemplate }) => {
-  const [agreementStatus, setAgreementStatus] = useState(application.agreement_status || 'not_started');
-  const [agreementPreparedAt, setAgreementPreparedAt] = useState(application.agreement_prepared_at?.slice(0, 10) || '');
-  const [agreementSignedAt, setAgreementSignedAt] = useState(application.agreement_signed_at?.slice(0, 10) || '');
-  const [feeAmount, setFeeAmount] = useState(application.franchise_fee_amount ? String(application.franchise_fee_amount) : '');
-  const [feeStatus, setFeeStatus] = useState(application.franchise_fee_payment_status || 'not_configured');
-  const [feeRejectReason, setFeeRejectReason] = useState(application.franchise_fee_payment_reject_reason || '');
-  const [documents, setDocuments] = useState<FranchiseRequirementDocument[]>(application.required_documents || []);
+  onPreview: (index: number) => Promise<Blob>;
+}> = ({ application, onSaved, onDownload, onDownloadTemplate, onPreview }) => {
+  const [documents, setDocuments] = useState<FranchiseRequirementDocument[]>(
+    (application.required_documents || []).map((document) => ({
+      ...document,
+      name_is_custom: document.name_is_custom ?? document.label !== defaultRequirementName(document.category),
+    })),
+  );
   const [documentTemplates, setDocumentTemplates] = useState<Record<number, File>>({});
   const [templateErrors, setTemplateErrors] = useState<Record<number, string>>({});
   const [draggingTemplate, setDraggingTemplate] = useState<number | null>(null);
-  const [locationReadiness, setLocationReadiness] = useState(application.location_readiness || 'pending');
-  const [permitStatus, setPermitStatus] = useState(application.permit_compliance_status || 'pending');
-  const [trainingStatus, setTrainingStatus] = useState(application.training_status || 'pending');
-  const [operationsStatus, setOperationsStatus] = useState(application.operational_preparation_status || 'pending');
-  const [internalNotes, setInternalNotes] = useState('');
+  const [expandedCards, setExpandedCards] = useState<Record<number, boolean>>(
+    Object.fromEntries((application.required_documents || []).map((document, index) => [index, document.status !== 'verified'])),
+  );
+  const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<number | null>(null);
+  const [nameErrors, setNameErrors] = useState<Record<number, string>>({});
+  const [preview, setPreview] = useState<{ url: string; name: string; mimeType: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
-  const [confirmFeeVerification, setConfirmFeeVerification] = useState(false);
+  const [nameAnnouncement, setNameAnnouncement] = useState('');
   const [missingTemplateWarning, setMissingTemplateWarning] = useState<string[]>([]);
+  const nameInputs = useRef<Record<number, HTMLInputElement | null>>({});
+
+  const counts = useMemo(() => ({
+    verified: documents.filter((document) => document.status === 'verified').length,
+    awaiting: documents.filter((document) => document.required
+      && !['verified', 'not_applicable'].includes(document.status)
+      && !document.submitted_document_name
+      && !application.documents?.some((file) => file.required_document_label === document.label)).length,
+  }), [application.documents, documents]);
 
   const saveRequirements = async () => {
     setSaving(true);
@@ -129,27 +166,14 @@ const FranchiseRequirementsForm: React.FC<{
     setSavedMessage('');
     try {
       const result = await updateFranchiseApplicationRequirements(application.id, {
-        agreement_status: agreementStatus,
-        agreement_prepared_at: agreementPreparedAt,
-        agreement_signed_at: agreementSignedAt,
-        franchise_fee_amount: feeAmount,
-        franchise_fee_payment_status: feeStatus,
-        franchise_fee_payment_reference: application.franchise_fee_payment_reference || '',
-        franchise_fee_payment_reject_reason: feeRejectReason,
         required_documents: documents,
         required_document_templates: documentTemplates,
-        location_readiness: locationReadiness,
-        permit_compliance_status: permitStatus,
-        training_status: trainingStatus,
-        operational_preparation_status: operationsStatus,
-        internal_notes: internalNotes,
       });
-      setInternalNotes('');
       setDocumentTemplates({});
-      setSavedMessage(result.message || 'Agreement and opening requirements saved.');
+      setSavedMessage(result.message || 'Required documents saved.');
       await onSaved();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to save agreement and opening requirements.');
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save required documents.');
     } finally {
       setSaving(false);
     }
@@ -157,17 +181,16 @@ const FranchiseRequirementsForm: React.FC<{
 
   const save = (event: React.FormEvent) => {
     event.preventDefault();
-    const today = todayInManila();
-    if ((agreementPreparedAt && agreementPreparedAt < today) || (agreementSignedAt && agreementSignedAt < today)) {
-      setError('Agreement dates must be today or a future date.');
-      return;
-    }
-    if (agreementStatus === 'signed' && !agreementSignedAt) {
-      setError('Record the actual agreement signing date before marking it signed.');
-      return;
-    }
-    if (['waived', 'not_applicable'].includes(feeStatus) && !internalNotes.trim()) {
-      setError('Explain why the franchise fee is waived or not applicable in the internal note.');
+    const nextNameErrors: Record<number, string> = {};
+    documents.forEach((document, index) => {
+      if (!document.label.trim()) nextNameErrors[index] = 'Enter a name for this requirement.';
+      if (document.status === 'rejected' && !document.reject_reason?.trim()) {
+        nextNameErrors[index] = 'Add a reason for rejecting this submission.';
+      }
+    });
+    setNameErrors(nextNameErrors);
+    if (Object.keys(nextNameErrors).length) {
+      nameInputs.current[Number(Object.keys(nextNameErrors)[0])]?.focus();
       return;
     }
     const missingTemplates = documents
@@ -177,31 +200,80 @@ const FranchiseRequirementsForm: React.FC<{
       setMissingTemplateWarning(missingTemplates);
       return;
     }
-    if (feeStatus === 'paid' && application.franchise_fee_payment_status !== 'paid') {
-      setConfirmFeeVerification(true);
-      return;
-    }
     void saveRequirements();
   };
 
   const updateDocument = (index: number, patch: Partial<FranchiseRequirementDocument>) =>
     setDocuments((current) => current.map((document, position) => position === index ? { ...document, ...patch } : document));
+  const changeCategory = (index: number, category: string) => {
+    const current = documents[index];
+    const nameIsCustom = current.name_is_custom ?? true;
+    const defaultName = defaultRequirementName(category);
+    let nextName = current.label;
+    if (!nameIsCustom) {
+      nextName = defaultName;
+      if (defaultName) {
+        const duplicateCount = documents.filter((document, position) => position !== index && document.category === category).length;
+        if (duplicateCount) nextName = `${defaultName} ${duplicateCount + 1}`;
+      }
+    }
+    updateDocument(index, { category: category || undefined, label: nextName, name_is_custom: nameIsCustom });
+    setNameErrors((currentErrors) => ({ ...currentErrors, [index]: '' }));
+    if (!defaultName) {
+      setNameAnnouncement('Enter a custom name for this requirement.');
+      window.setTimeout(() => nameInputs.current[index]?.focus(), 0);
+    } else if (!nameIsCustom) {
+      setNameAnnouncement(`Requirement name set to ${nextName}.`);
+    }
+  };
   const selectTemplate = (index: number, file?: File) => {
     if (!file) return;
     const fileError = templateFileError(file);
     setTemplateErrors((current) => ({ ...current, [index]: fileError }));
     if (fileError) return;
     setDocumentTemplates((current) => ({ ...current, [index]: file }));
+    if (!documents[index].name_is_custom) {
+      const suggestedName = fileNameSuggestion(file.name);
+      updateDocument(index, { label: suggestedName, name_is_custom: false });
+      setNameAnnouncement(`Suggested requirement name: ${suggestedName}. You can edit it.`);
+    }
     updateDocument(index, { template_name: file.name, template_size_bytes: file.size, template_uploaded_at: new Date().toISOString() });
   };
-  const selectClass = 'mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm';
-  const dateClass = 'mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm';
-
+  const removeRequirement = () => {
+    if (removeTarget === null) return;
+    const removedIndex = removeTarget;
+    setDocuments((current) => current.filter((_, index) => index !== removedIndex));
+    setDocumentTemplates((current) => Object.fromEntries(Object.entries(current)
+      .filter(([key]) => Number(key) !== removedIndex)
+      .map(([key, file]) => [Number(key) > removedIndex ? String(Number(key) - 1) : key, file])));
+    setTemplateErrors((current) => Object.fromEntries(Object.entries(current)
+      .filter(([key]) => Number(key) !== removedIndex)
+      .map(([key, message]) => [Number(key) > removedIndex ? String(Number(key) - 1) : key, message])));
+    setNameErrors((current) => Object.fromEntries(Object.entries(current)
+      .filter(([key]) => Number(key) !== removedIndex)
+      .map(([key, message]) => [Number(key) > removedIndex ? String(Number(key) - 1) : key, message])));
+    setExpandedCards((current) => Object.fromEntries(Object.entries(current)
+      .filter(([key]) => Number(key) !== removedIndex)
+      .map(([key, expanded]) => [Number(key) > removedIndex ? String(Number(key) - 1) : key, expanded])));
+    setRemoveTarget(null);
+  };
+  const showPreview = async (index: number, name: string, mimeType: string) => {
+    setPreviewLoading(index);
+    try {
+      const blob = await onPreview(index);
+      setPreview({ url: URL.createObjectURL(blob), name, mimeType: blob.type || mimeType });
+    } catch (previewError) {
+      setError(previewError instanceof Error ? previewError.message : 'Unable to preview the submitted document.');
+    } finally {
+      setPreviewLoading(null);
+    }
+  };
   return (
     <section className="mt-6 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-4"><h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Documents and final review</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Add each document the franchisee must complete. Attach a blank form or instructions if available; a template is optional, and the franchisee can still upload the requested document directly. Agreement, payment, and readiness records are available below if needed.</p></div>
+      <div className="mb-4"><h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Documents and final review</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Add each document the franchisee must complete. Attach a blank form or instructions if available; a template is optional, and the franchisee can still upload the requested document directly.</p></div>
       {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {savedMessage && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{savedMessage}</p>}
+      <p className="sr-only" aria-live="polite">{nameAnnouncement}</p>
       {missingTemplateWarning.length > 0 && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => {
         if (event.target === event.currentTarget && !saving) setMissingTemplateWarning([]);
       }}>
@@ -214,48 +286,22 @@ const FranchiseRequirementsForm: React.FC<{
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm font-medium text-amber-900">{missingTemplateWarning.map((label) => <li key={label}>Walang file na naka-attach sa “{label}”. Hindi ito mada-download ng franchisee.</li>)}</ul>
           <div className="mt-6 flex flex-col-reverse justify-end gap-2 sm:flex-row">
             <button type="button" disabled={saving} onClick={() => setMissingTemplateWarning([])} className="min-h-10 rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-60">Go back and attach file</button>
-            <button type="button" disabled={saving} onClick={() => {
-              setMissingTemplateWarning([]);
-              if (feeStatus === 'paid' && application.franchise_fee_payment_status !== 'paid') {
-                setConfirmFeeVerification(true);
-                return;
-              }
-              void saveRequirements();
-            }} className="min-h-10 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60">Save without file</button>
+            <button type="button" disabled={saving} onClick={() => { setMissingTemplateWarning([]); void saveRequirements(); }} className="min-h-10 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60">Save without file</button>
           </div>
         </section>
       </div>}
-      {confirmFeeVerification && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !saving) setConfirmFeeVerification(false);
-      }}>
-        <section role="alertdialog" aria-modal="true" aria-labelledby="fee-verification-title" aria-describedby="fee-verification-description" onKeyDown={(event) => {
-          if (event.key === 'Escape' && !saving) setConfirmFeeVerification(false);
-        }} className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-2xl">
-          <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-emerald-50 text-[var(--oppa-green)]"><CheckCircle2 size={22} aria-hidden="true" /></div>
-          <h3 id="fee-verification-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">Verify franchise payment?</h3>
-          <p id="fee-verification-description" className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">Confirm that you reviewed the submitted receipt and the franchise fee has actually been received. This will mark the payment as verified.</p>
-          <div className="mt-6 flex justify-end gap-2">
-            <button type="button" disabled={saving} onClick={() => setConfirmFeeVerification(false)} className="rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-60">Cancel</button>
-            <button type="button" disabled={saving} onClick={() => { setConfirmFeeVerification(false); void saveRequirements(); }} className="inline-flex items-center gap-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60">{saving && <Loader2 size={15} className="animate-spin" />}{saving ? 'Saving…' : 'Confirm and save'}</button>
-          </div>
-        </section>
-      </div>}
-      <form onSubmit={save} className="grid gap-4 md:grid-cols-2">
-        <details className="rounded-xl border border-[var(--oppa-border)] md:col-span-2">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Optional agreement and payment records</summary>
-          <div className="grid gap-4 border-t border-[var(--oppa-border)] p-4 md:grid-cols-2">
-            <label className="text-sm font-medium">Agreement status<select value={agreementStatus} onChange={(event) => setAgreementStatus(event.target.value)} className={selectClass}><option value="not_started">Not started</option><option value="drafting">Drafting</option><option value="sent">Sent for review/signing</option><option value="signed">Signed</option></select></label>
-            <label className="text-sm font-medium">Agreement prepared date<input type="date" min={todayInManila()} value={agreementPreparedAt} onChange={(event) => setAgreementPreparedAt(event.target.value)} className={dateClass} /></label>
-            <label className="text-sm font-medium">Actual agreement signing date<input type="date" min={todayInManila()} value={agreementSignedAt} onChange={(event) => setAgreementSignedAt(event.target.value)} className={dateClass} /></label>
-            <label className="text-sm font-medium">Agreed franchise fee<input type="number" min="0" step="0.01" value={feeAmount} onChange={(event) => setFeeAmount(event.target.value)} placeholder="Not configured" className={dateClass} /></label>
-            <label className="text-sm font-medium">Fee payment status<select value={feeStatus} onChange={(event) => setFeeStatus(event.target.value)} className={selectClass}><option value="not_configured">Not configured</option><option value="pending">Pending</option><option value="submitted">Submitted</option><option value="paid">Verified</option><option value="rejected">Rejected</option><option value="waived">Waived</option><option value="not_applicable">Not applicable</option></select></label>
-            <div className="text-sm"><span className="font-medium">Payment reference</span><p className="mt-1 break-all text-xs text-[var(--oppa-text-muted)]">{application.franchise_fee_payment_reference || 'Not submitted'}</p><span className="mt-2 block font-medium">Proof of payment</span><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{application.documents?.find((document) => document.document_type === 'payment_proof')?.name || 'No proof submitted yet. Review submitted files in Supporting documents above.'}</p></div>
-            {feeStatus === 'rejected' && <label className="text-sm font-medium md:col-span-2">Payment rejection reason<textarea required value={feeRejectReason} onChange={(event) => setFeeRejectReason(event.target.value)} rows={2} maxLength={2000} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" /></label>}
-          </div>
-        </details>
-
-        <fieldset className="space-y-2 rounded-xl border border-[var(--oppa-border)] p-4 md:col-span-2">
-          <legend className="px-1 text-sm font-semibold">Requirements and files for the franchisee</legend>
+      <div className="mb-4 rounded-xl bg-[var(--oppa-cream)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <p className="font-semibold text-[var(--oppa-text)]">{documents.length} of 8 requirements · {counts.verified} verified · {counts.awaiting} awaiting submission</p>
+          <span className="text-xs text-[var(--oppa-text-muted)]">{documents.length ? Math.round((counts.verified / documents.length) * 100) : 0}% verified</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-white" role="progressbar" aria-label="Requirements verified" aria-valuemin={0} aria-valuemax={documents.length || 1} aria-valuenow={counts.verified}>
+          <div className="h-full rounded-full bg-[var(--oppa-green)] transition-[width]" style={{ width: `${documents.length ? (counts.verified / documents.length) * 100 : 0}%` }} />
+        </div>
+      </div>
+      <form noValidate onSubmit={save} className="space-y-3">
+        <fieldset className="space-y-3">
+          <legend className="sr-only">Requirements and files for the franchisee</legend>
           {documents.map((document, index) => {
             const submission = application.documents
               ?.map((file, documentIndex) => ({ ...file, documentIndex }))
@@ -263,106 +309,148 @@ const FranchiseRequirementsForm: React.FC<{
               .find((file) => file.required_document_label === document.label);
             const submittedName = submission?.name || document.submitted_document_name;
             const submittedIndex = submission?.documentIndex ?? document.submitted_document_index;
+            const submittedFile = typeof submittedIndex === 'number' ? application.documents?.[submittedIndex] : undefined;
+            const submittedMime = submittedFile?.mime_type || '';
+            const submittedDate = submittedFile?.uploaded_at;
             const templateFile = documentTemplates[index];
             const templatePersisted = Boolean(document.template_name && !templateFile);
             const templateAttached = Boolean(templateFile || document.template_name);
             const templateInputId = `franchise-template-${application.id}-${index}`;
-            const rowBusy = saving;
-            return <div key={index} className="space-y-4 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-4">
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(150px,180px)] sm:items-center">
-                <input aria-label="Required document name" required value={document.label} onChange={(event) => updateDocument(index, { label: event.target.value })} placeholder="Requirement or file name" className="min-h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm" />
-                <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={document.required} onChange={(event) => updateDocument(index, { required: event.target.checked })} className="size-4 accent-[var(--oppa-green)]" />Required</label>
-                <select aria-label="Document verification status" value={document.status} onChange={(event) => updateDocument(index, { status: event.target.value, reject_reason: event.target.value === 'rejected' ? document.reject_reason : null })} className="min-h-11 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm"><option value="pending">Pending</option><option value="submitted">Submitted</option><option value="received">Received</option><option value="verified">Verified</option><option value="rejected">Rejected</option><option value="not_applicable">Not applicable</option></select>
-              </div>
+            const nameInputId = `franchise-requirement-name-${application.id}-${index}`;
+            const statusLabel = requirementStatusLabel(document.status);
+            const expanded = expandedCards[index] ?? document.status !== 'verified';
+            const verificationEvent = document.status === 'verified'
+              ? [...(application.events || [])].reverse().find((event) => event.title === 'Document verified'
+                && event.message?.includes(`verified your submitted document: ${document.label}.`))
+              : undefined;
+            const verifiedText = verificationEvent?.created_at
+              ? `Verified by franchise team on ${formatUploadDate(verificationEvent.created_at)}`
+              : 'Verified · save to record this review.';
 
-              <label htmlFor={`${templateInputId}-category`} className="block text-sm font-medium">Category</label>
-              <select id={`${templateInputId}-category`} value={requirementCategories.some(([value]) => value === document.category) ? document.category : (document.category || 'agreement_signing')} onChange={(event) => updateDocument(index, { category: event.target.value })} className="min-h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm">
-                {document.category && !requirementCategories.some(([value]) => value === document.category) && <option value={document.category} disabled>Legacy category — choose a current category</option>}
-                {requirementCategories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-
-              <div>
-                <label htmlFor={templateInputId} className="mb-2 block text-sm font-semibold">File or form to send to franchisee</label>
-                <input id={templateInputId} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png" className="peer sr-only" disabled={rowBusy} onChange={(event) => {
-                  selectTemplate(index, event.currentTarget.files?.[0]);
-                  event.currentTarget.value = '';
-                }} />
-                {!templateAttached ? <label
-                  htmlFor={templateInputId}
-                  onDragOver={(event) => { event.preventDefault(); if (!rowBusy) setDraggingTemplate(index); }}
-                  onDragLeave={(event) => {
-                    const nextTarget = event.relatedTarget;
-                    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) setDraggingTemplate(null);
-                  }}
-                  onDrop={(event) => { event.preventDefault(); setDraggingTemplate(null); if (!rowBusy) selectTemplate(index, event.dataTransfer.files[0]); }}
-                  className={`flex min-h-36 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-5 text-center transition peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--oppa-green)] peer-focus-visible:ring-offset-2 ${draggingTemplate === index ? 'border-[var(--oppa-green)] bg-green-50' : 'border-amber-400 bg-amber-50/70 hover:border-[var(--oppa-green)] hover:bg-green-50'}`}
-                >
-                  <span className="mb-2 flex size-11 items-center justify-center rounded-full bg-white text-[var(--oppa-green)] shadow-sm"><Upload size={21} aria-hidden="true" /></span>
-                  <span className="text-sm font-semibold text-[var(--oppa-text)]">Upload file or form for the franchisee</span>
-                  <span className="mt-1 text-xs text-[var(--oppa-text-muted)]">PDF, DOC, DOCX, JPG, PNG · Max 10MB</span>
-                  <span className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white">Choose file</span>
-                  <span className="mt-2 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900">No file attached</span>
-                </label> : <div aria-live="polite" className="flex flex-col gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 sm:flex-row sm:items-center">
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--oppa-green)]"><FileText size={21} aria-hidden="true" /></span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">{saving && templateFile ? 'Uploading…' : templatePersisted ? 'File attached' : 'Ready to attach'}</span>{templateFile && <span className="text-xs text-[var(--oppa-text-muted)]">{formatFileSize(templateFile.size)}</span>}{!templateFile && document.template_size_bytes && <span className="text-xs text-[var(--oppa-text-muted)]">{formatFileSize(document.template_size_bytes)}</span>}</div>
-                    <p className="mt-1 break-all text-sm font-semibold text-[var(--oppa-text)]">{templateFile?.name || document.template_name}</p>
-                    <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{templateFile ? 'Selected; save requirements to finish attaching.' : document.template_uploaded_at ? `Uploaded ${formatUploadDate(document.template_uploaded_at)}` : 'Previously attached template'}</p>
-                    {saving && templateFile && <span className="mt-2 flex items-center gap-2 text-xs font-medium text-[var(--oppa-green)]"><Loader2 size={14} className="animate-spin" />Saving file securely…</span>}
-                  </div>
-                  <div className="flex flex-wrap gap-2 sm:justify-end">
-                    {templatePersisted && <button type="button" onClick={() => onDownloadTemplate(index, document.template_name || 'franchisee-form')} disabled={rowBusy} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-50"><Download size={14} />Download file</button>}
-                    <label htmlFor={templateInputId} className={`inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-xs font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] ${rowBusy ? 'pointer-events-none opacity-50' : ''}`}><Upload size={14} />Replace</label>
-                    <button type="button" disabled={rowBusy} onClick={() => {
-                      setDocumentTemplates((current) => { const next = { ...current }; delete next[index]; return next; });
-                      setTemplateErrors((current) => ({ ...current, [index]: '' }));
-                      updateDocument(index, { template_name: null, template_size_bytes: null, template_uploaded_at: null });
-                    }} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"><X size={14} />Remove file</button>
-                  </div>
-                </div>}
-                {templateErrors[index] && <p role="alert" aria-live="assertive" className="mt-2 text-sm font-medium text-red-700">{templateErrors[index]}</p>}
-              </div>
-
-              <div className="rounded-lg border border-[var(--oppa-border)] bg-white p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div><p className="text-sm font-semibold">Franchisee submission</p>{submittedName ? <p className="mt-1 break-all text-xs text-[var(--oppa-text-muted)]">{submittedName}</p> : <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">No completed file submitted yet.</p>}</div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {submittedName && typeof submittedIndex === 'number' && <button type="button" onClick={() => onDownload(submittedIndex, submittedName)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] px-3 text-xs font-semibold text-[var(--oppa-green)]"><Download size={14} />Download submission</button>}
-                    <button type="button" disabled={rowBusy} onClick={() => updateDocument(index, { status: 'verified', reject_reason: null })} className="min-h-9 rounded-lg bg-emerald-100 px-3 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">Verify</button>
-                    <button type="button" disabled={rowBusy} onClick={() => updateDocument(index, { status: 'rejected' })} className="min-h-9 rounded-lg bg-red-100 px-3 text-xs font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-50">Reject</button>
+            return <article key={`${index}-${document.category || 'other'}`} className="overflow-visible rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-3 sm:p-4">
+              <header className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(170px,.7fr)_minmax(200px,1.3fr)]">
+                  <label className="sr-only" htmlFor={`${templateInputId}-category`}>Requirement category</label>
+                  <select id={`${templateInputId}-category`} value={document.category || ''} disabled={saving} onChange={(event) => changeCategory(index, event.target.value)} className="min-h-10 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">
+                    {document.category && !requirementCategories.some(([value]) => value === document.category) && <option value={document.category}>Legacy category</option>}
+                    {requirementCategories.map(([value, label]) => <option key={`${value}-${label}`} value={value}>{label}</option>)}
+                  </select>
+                  <div className="min-w-0">
+                    <label className="sr-only" htmlFor={nameInputId}>Requirement name</label>
+                    <input id={nameInputId} ref={(element) => { nameInputs.current[index] = element; }} value={document.label} onChange={(event) => {
+                      updateDocument(index, { label: event.target.value, name_is_custom: true });
+                      setNameErrors((current) => ({ ...current, [index]: '' }));
+                    }} disabled={saving} placeholder="Enter a custom requirement name" title={document.label} aria-invalid={Boolean(nameErrors[index])} aria-describedby={nameErrors[index] ? `${nameInputId}-error` : undefined} className="min-h-10 w-full min-w-0 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]" />
+                    {nameErrors[index] && !document.status.includes('rejected') && <p id={`${nameInputId}-error`} role="alert" className="mt-1 text-xs font-medium text-red-700">{nameErrors[index]}</p>}
                   </div>
                 </div>
-                {document.status === 'rejected' && <label className="mt-3 block text-sm font-medium">Reason for rejection<textarea required value={document.reject_reason || ''} onChange={(event) => updateDocument(index, { reject_reason: event.target.value })} rows={2} maxLength={2000} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm" /></label>}
-              </div>
-              <div className="flex justify-end border-t border-[var(--oppa-border)] pt-3">
-                <button type="button" disabled={rowBusy} onClick={() => {
-                  setDocuments((current) => current.filter((_, position) => position !== index));
-                  setDocumentTemplates((current) => Object.fromEntries(Object.entries(current).filter(([key]) => Number(key) !== index).map(([key, file]) => [Number(key) > index ? String(Number(key) - 1) : key, file])));
-                  setTemplateErrors((current) => Object.fromEntries(Object.entries(current).filter(([key]) => Number(key) !== index).map(([key, message]) => [Number(key) > index ? String(Number(key) - 1) : key, message])));
-                }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"><X size={14} />Remove requirement</button>
-              </div>
-            </div>;
+                <div className="flex flex-wrap items-center gap-2 lg:pr-1">
+                  <span className={`inline-flex min-h-8 items-center rounded-full border px-3 text-xs font-semibold ${requirementStatusStyles[document.status] || requirementStatusStyles.pending}`} aria-live="polite">{statusLabel}</span>
+                  <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-full border border-[var(--oppa-border)] bg-white px-3 text-xs font-semibold text-[var(--oppa-text)]">
+                    <input type="checkbox" role="switch" aria-label={`${document.label || 'Requirement'} is required`} checked={document.required} disabled={saving} onChange={(event) => updateDocument(index, { required: event.target.checked })} className="size-4 accent-[var(--oppa-green)]" />
+                    Required
+                  </label>
+                  <label className="sr-only" htmlFor={`${templateInputId}-status`}>Document status</label>
+                  <select id={`${templateInputId}-status`} value={document.status} disabled={saving} onChange={(event) => updateDocument(index, { status: event.target.value, reject_reason: event.target.value === 'rejected' ? document.reject_reason : null })} className="min-h-9 rounded-lg border border-[var(--oppa-border)] bg-white px-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">
+                    <option value="pending">Pending</option><option value="submitted">Submitted</option><option value="received">Under review</option><option value="verified">Verified</option><option value="rejected">Rejected</option><option value="not_applicable">Not applicable</option>
+                  </select>
+                  <div className="relative">
+                    <button type="button" aria-label="Requirement actions" aria-haspopup="menu" aria-expanded={openMenu === index} onClick={() => setOpenMenu(openMenu === index ? null : index)} className="inline-flex size-9 items-center justify-center rounded-lg border border-[var(--oppa-border)] bg-white text-[var(--oppa-text)] hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]"><MoreHorizontal size={18} /></button>
+                    {openMenu === index && <div role="menu" className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-[var(--oppa-border)] bg-white p-1 shadow-lg">
+                      <button type="button" role="menuitem" disabled={saving} onClick={() => { setRemoveTarget(index); setOpenMenu(null); }} className="w-full rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">Remove requirement</button>
+                    </div>}
+                  </div>
+                  <button type="button" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${document.label || 'requirement'}`} aria-expanded={expanded} onClick={() => setExpandedCards((current) => ({ ...current, [index]: !expanded }))} className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">
+                    <ChevronDown size={18} className={expanded ? '' : '-rotate-90'} />
+                  </button>
+                </div>
+              </header>
+              {!expanded && document.status === 'verified' ? <p className="mt-2 truncate pl-1 text-xs text-emerald-800" title={document.label}>{document.label} · {verifiedText}</p> : expanded && <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <section className="min-w-0 rounded-xl border border-[var(--oppa-border)] bg-white p-3 sm:p-4">
+                  <div className="mb-3"><h3 className="text-sm font-semibold text-[var(--oppa-text)]">Template from admin</h3><p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">File to send to franchisee</p></div>
+                  <input id={templateInputId} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png" className="peer sr-only" disabled={saving} onChange={(event) => { selectTemplate(index, event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} />
+                  {!templateAttached ? <label htmlFor={templateInputId} onDragOver={(event) => { event.preventDefault(); if (!saving) setDraggingTemplate(index); }} onDragLeave={(event) => {
+                    const nextTarget = event.relatedTarget;
+                    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) setDraggingTemplate(null);
+                  }} onDrop={(event) => { event.preventDefault(); setDraggingTemplate(null); if (!saving) selectTemplate(index, event.dataTransfer.files[0]); }} className={`flex min-h-36 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-5 text-center transition peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--oppa-green)] peer-focus-visible:ring-offset-2 ${draggingTemplate === index ? 'border-[var(--oppa-green)] bg-emerald-50' : 'border-amber-400 bg-amber-50/70 hover:border-[var(--oppa-green)] hover:bg-emerald-50'}`}>
+                    <span className="mb-2 flex size-10 items-center justify-center rounded-full bg-white text-[var(--oppa-green)] shadow-sm"><Upload size={20} aria-hidden="true" /></span>
+                    <span className="text-sm font-semibold text-[var(--oppa-text)]">Upload file or form for the franchisee</span>
+                    <span className="mt-1 text-xs text-[var(--oppa-text-muted)]">PDF, DOC, DOCX, JPG, PNG · max 10MB · drag and drop supported</span>
+                    <span className="mt-3 inline-flex min-h-9 items-center rounded-lg bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white">Choose file</span>
+                  </label> : <div aria-live="polite" className="flex min-w-0 flex-col gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 sm:flex-row sm:items-center">
+                    <FileText size={20} className="shrink-0 text-[var(--oppa-green)]" aria-hidden="true" />
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold" title={templateFile?.name || document.template_name || ''}>{templateFile?.name || document.template_name}</p><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{templateFile ? `${formatFileSize(templateFile.size)} · selected; save to finish attaching` : `${document.template_size_bytes ? `${formatFileSize(document.template_size_bytes)} · ` : ''}${document.template_uploaded_at ? `Uploaded ${formatUploadDate(document.template_uploaded_at)}` : 'File attached'}`}</p>{saving && templateFile && <p className="mt-1 flex items-center gap-1 text-xs text-[var(--oppa-green)]"><Loader2 size={13} className="animate-spin" />Uploading securely…</p>}</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {templatePersisted && <button type="button" onClick={() => onDownloadTemplate(index, document.template_name || 'franchisee-form')} disabled={saving} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-white px-2.5 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-50"><Download size={13} />Download</button>}
+                      <label htmlFor={templateInputId} className={`inline-flex min-h-9 cursor-pointer items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-white px-2.5 text-xs font-semibold ${saving ? 'pointer-events-none opacity-50' : ''}`}><Upload size={13} />Replace</label>
+                      <button type="button" disabled={saving} onClick={() => {
+                        setDocumentTemplates((current) => { const next = { ...current }; delete next[index]; return next; });
+                        setTemplateErrors((current) => ({ ...current, [index]: '' }));
+                        updateDocument(index, { template_name: null, template_size_bytes: null, template_uploaded_at: null });
+                      }} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 text-xs font-semibold text-red-700 disabled:opacity-50"><X size={13} />Remove</button>
+                    </div>
+                  </div>}
+                  {templateErrors[index] && <p role="alert" aria-live="assertive" className="mt-2 text-sm font-medium text-red-700">{templateErrors[index]}</p>}
+                </section>
+                <section className="min-w-0 rounded-xl border border-[var(--oppa-border)] bg-white p-3 sm:p-4">
+                  <div className="mb-3"><h3 className="text-sm font-semibold text-[var(--oppa-text)]">Franchisee submission</h3><p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">Completed document uploaded by the applicant</p></div>
+                  {submittedName && typeof submittedIndex === 'number' ? <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 p-3 sm:flex-row sm:items-center">
+                    <FileText size={20} className="shrink-0 text-sky-800" aria-hidden="true" />
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-[var(--oppa-text)]" title={submittedName}>{submittedName}</p><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{submittedFile?.size ? `${formatFileSize(submittedFile.size)} · ` : ''}{submittedDate ? `Uploaded ${formatUploadDate(submittedDate)}` : 'Submitted by franchisee'}</p></div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button type="button" onClick={() => onDownload(submittedIndex, submittedName)} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-white px-2.5 text-xs font-semibold text-[var(--oppa-green)]"><Download size={13} />Download</button>
+                      {(submittedMime === 'application/pdf' || submittedMime.startsWith('image/')) && <button type="button" disabled={previewLoading === index} onClick={() => void showPreview(submittedIndex, submittedName, submittedMime)} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-white px-2.5 text-xs font-semibold text-[var(--oppa-text)] disabled:opacity-50"><Eye size={13} />{previewLoading === index ? 'Loading…' : 'Preview'}</button>}
+                    </div>
+                  </div> : <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-4 text-center text-sm text-[var(--oppa-text-muted)]">Not submitted yet</div>}
+                  {document.status === 'rejected' && document.reject_reason && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><span className="font-semibold">Rejection reason: </span>{document.reject_reason}</p>}
+                </section>
+                <footer className="flex flex-col gap-2 border-t border-[var(--oppa-border)] pt-3 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" disabled={!submittedName || saving} onClick={() => {
+                      updateDocument(index, { status: 'verified', reject_reason: null });
+                      setExpandedCards((current) => ({ ...current, [index]: false }));
+                    }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-50"><Check size={15} />Verify</button>
+                    <button type="button" disabled={!submittedName || saving} onClick={() => {
+                      updateDocument(index, { status: 'rejected', reject_reason: document.reject_reason || '' });
+                      setNameErrors((current) => ({ ...current, [index]: 'Add a reason for rejecting this submission.' }));
+                    }} className="inline-flex min-h-10 items-center justify-center rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">Reject</button>
+                  </div>
+                  {document.status === 'verified' && <p role="status" className="text-xs font-medium text-emerald-800">{verifiedText}</p>}
+                  {document.status === 'rejected' && <label className="w-full text-xs font-semibold text-red-800 sm:max-w-md">Reason shown to the franchisee
+                    <textarea value={document.reject_reason || ''} onChange={(event) => {
+                      updateDocument(index, { reject_reason: event.target.value });
+                      if (event.target.value.trim()) setNameErrors((current) => ({ ...current, [index]: '' }));
+                    }} rows={2} maxLength={2000} aria-invalid={Boolean(nameErrors[index])} className="mt-1 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-normal text-[var(--oppa-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500" placeholder="Explain what needs to be corrected" />
+                    {nameErrors[index] && <span role="alert" className="mt-1 block">{nameErrors[index]}</span>}
+                  </label>}
+                </footer>
+              </div>}
+            </article>;
           })}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button type="button" disabled={documents.length >= 8 || saving} onClick={() => setDocuments((current) => [...current, { label: '', category: 'agreement_signing', required: true, status: 'pending' }])} className="min-h-10 rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50">Add requirement and file</button>
-            {documents.length >= 8 && <p role="status" className="text-xs font-medium text-amber-800">Maximum of 8 requirements reached.</p>}
-          </div>
-          <p className="text-xs leading-5 text-[var(--oppa-text-muted)]">Attach the agreement, guide, or form the franchisee needs to download for each requirement. They will upload their completed documents together (up to 8).</p>
         </fieldset>
-
-        <details className="rounded-xl border border-[var(--oppa-border)] md:col-span-2">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Optional readiness statuses and internal note</summary>
-          <div className="grid gap-4 border-t border-[var(--oppa-border)] p-4 md:grid-cols-2">
-            <label className="text-sm font-medium">Location readiness<select value={locationReadiness} onChange={(event) => setLocationReadiness(event.target.value)} className={selectClass}><option value="pending">Pending</option><option value="ready">Ready</option><option value="not_applicable">Not applicable</option></select></label>
-            <label className="text-sm font-medium">Permits and compliance<select value={permitStatus} onChange={(event) => setPermitStatus(event.target.value)} className={selectClass}><option value="pending">Pending</option><option value="verified">Verified</option><option value="not_applicable">Not applicable</option></select></label>
-            <label className="text-sm font-medium">Training<select value={trainingStatus} onChange={(event) => setTrainingStatus(event.target.value)} className={selectClass}><option value="pending">Pending</option><option value="scheduled">Scheduled</option><option value="complete">Complete</option><option value="not_applicable">Not applicable</option></select></label>
-            <label className="text-sm font-medium">System and operational preparation<select value={operationsStatus} onChange={(event) => setOperationsStatus(event.target.value)} className={selectClass}><option value="pending">Pending</option><option value="in_progress">In progress</option><option value="complete">Complete</option><option value="not_applicable">Not applicable</option></select></label>
-            <label className="text-sm font-medium md:col-span-2">Internal note<textarea value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} rows={2} maxLength={5000} placeholder="Explain waivers, not-applicable items, or audit details." className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" /></label>
-          </div>
-        </details>
-        <button type="submit" disabled={saving} className="rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 md:col-span-2">{saving ? 'Saving review…' : 'Save combined review and requirements'}</button>
-        <p className="text-xs text-[var(--oppa-text-muted)] md:col-span-2">{application.requirements_reviewed_at ? `Last reviewed ${new Date(application.requirements_reviewed_at).toLocaleString()}.` : 'Not yet reviewed. Saving records the current checklist and review.'}</p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button type="button" disabled={documents.length >= 8 || saving} onClick={() => {
+            const category = 'agreement_signing';
+            const defaultName = defaultRequirementName(category);
+            const duplicates = documents.filter((document) => document.category === category).length;
+            const label = duplicates ? `${defaultName} ${duplicates + 1}` : defaultName;
+            setDocuments((current) => [...current, { label, category, required: true, status: 'pending', name_is_custom: false }]);
+            setExpandedCards((current) => ({ ...current, [documents.length]: true }));
+          }} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-lg border border-[var(--oppa-border)] bg-white px-4 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-50"><Plus size={16} />Add requirement</button>
+          {documents.length >= 8 && <p role="status" className="text-xs font-medium text-amber-800">Maximum of 8 requirements reached.</p>}
+        </div>
+        <button type="submit" disabled={saving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">{saving && <Loader2 size={16} className="animate-spin" />}{saving ? 'Saving requirements…' : 'Save document requirements'}</button>
+        <p className="text-xs text-[var(--oppa-text-muted)]">{application.requirements_reviewed_at ? `Last reviewed ${new Date(application.requirements_reviewed_at).toLocaleString()}.` : 'Not yet reviewed. Saving records the current checklist and review.'}</p>
       </form>
+      {removeTarget !== null && <ConfirmDialog title={`Remove "${documents[removeTarget]?.label || 'this requirement'}"?`} description="This requirement and its attached template will be removed from the applicant checklist." confirmLabel="Remove requirement" onCancel={() => setRemoveTarget(null)} onConfirm={removeRequirement} />}
+      {preview && <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-3 sm:p-6" role="dialog" aria-modal="true" aria-label={`Preview ${preview.name}`} onMouseDown={(event) => {
+        if (event.target === event.currentTarget) { URL.revokeObjectURL(preview.url); setPreview(null); }
+      }}>
+        <section className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <header className="flex items-center justify-between gap-3 border-b border-[var(--oppa-border)] px-4 py-3"><h2 className="truncate text-sm font-semibold" title={preview.name}>{preview.name}</h2><button type="button" aria-label="Close preview" onClick={() => { URL.revokeObjectURL(preview.url); setPreview(null); }} className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg hover:bg-[var(--oppa-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]"><X size={18} /></button></header>
+          {preview.mimeType.startsWith('image/') ? <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-stone-100 p-3"><img src={preview.url} alt={`Preview of ${preview.name}`} className="max-h-[78vh] max-w-full object-contain" /></div> : <iframe title={`Preview of ${preview.name}`} src={preview.url} className="min-h-[70vh] w-full flex-1" />}
+        </section>
+      </div>}
     </section>
   );
 };
@@ -541,6 +629,11 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     }
   };
 
+  const previewDocument = async (index: number) => {
+    if (!id) throw new Error('Application is not available.');
+    return downloadFranchiseApplicationDocument(id, index);
+  };
+
   const downloadTemplate = async (index: number, name: string) => {
     if (!id) return;
     const key = `template-${index}`;
@@ -598,8 +691,8 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             <form noValidate onChange={() => { formDirty.current = true; }} onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
               <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Each status change is recorded. Approval does not create access; franchise activation is a separate gated action.</p></div>
               <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
-              {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview is completed, select Location Assessment. This begins the combined final stage (site inspection, financial evaluation, and agreement). Add the complete required-document checklist and upload a blank form for each item in the combined requirements panel. Saving the requirements automatically sends the upload request when each required form is ready.</p>}
-              {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Complete the site and financial assessment and prepare the final decision/agreement in the combined requirements panel below. Saving the checklist automatically opens the applicant's document upload area when each required form has a template. The application remains in Location Assessment while documents are submitted.</p>}
+              {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview is completed, select Location Assessment. This begins the combined final stage (site inspection, financial evaluation, and agreement). Add the required-document checklist in the panel below. A blank form is optional; saving the requirements automatically opens the applicant's upload area.</p>}
+              {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Complete the site and financial assessment and prepare the final decision/agreement in the requirements panel below. Saving the checklist opens the applicant's document upload area, whether or not templates are attached. The application remains in Location Assessment while documents are submitted.</p>}
               <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or list the requested documents." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
               <div className="rounded-xl border border-[var(--oppa-border)] p-3">
                 <h3 className="mb-3 text-sm font-semibold">Interview record (Philippine time)</h3>
@@ -618,7 +711,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
           {['location_assessment', 'conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening'].includes(currentStatus) && (
             <div id="franchise-requirements-panel" className="scroll-mt-6">
-              <FranchiseRequirementsForm application={application} onSaved={load} onDownload={(index, name) => void downloadDocument(index, name)} onDownloadTemplate={(index, name) => void downloadTemplate(index, name)} />
+              <FranchiseRequirementsForm application={application} onSaved={load} onDownload={(index, name) => void downloadDocument(index, name)} onDownloadTemplate={(index, name) => void downloadTemplate(index, name)} onPreview={previewDocument} />
             </div>
           )}
           <FranchiseActivationPanel application={application} onActivated={load} />

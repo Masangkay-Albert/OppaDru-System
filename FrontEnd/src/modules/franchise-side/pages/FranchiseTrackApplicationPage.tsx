@@ -234,7 +234,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                 {(actionError || actionMessage) && <p role={actionError ? 'alert' : 'status'} className={`rounded-xl p-3 text-sm ${actionError ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'}`}>{actionError || actionMessage}</p>}
                 <section className="rounded-2xl border border-[var(--oppa-border)] p-4 sm:p-5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div><h3 className="font-semibold">Documents you need to complete</h3><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Download each file from the franchise team, fill it out, then upload your completed file below. Submit all required files together. PDF, DOC, DOCX, JPG, or PNG; up to 10 MB each.</p></div>
+                    <div><h3 className="font-semibold">Upload requested documents</h3><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Upload a file for each requirement below. If the franchise team attached a template, download and complete it first. Templates are optional. Submit all required files together. PDF, DOC, DOCX, JPG, or PNG; up to 10 MB each.</p></div>
                     <span className="w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900">{selectedDocumentCount} of {documentsToSubmit.length} files selected</span>
                   </div>
                   {!requiredDocuments.length ? <p className="mt-4 rounded-xl bg-[var(--oppa-cream)] p-3 text-sm text-[var(--oppa-text-muted)]">The franchise team is preparing your document packet.</p> : <div className="mt-4 space-y-3">
@@ -253,7 +253,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                           {item.submitted_document_name && <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Submitted file: {item.submitted_document_name}</p>}
                           {item.status === 'rejected' && item.reject_reason && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">Please correct and resubmit: {item.reject_reason}</p>}
                           {!alreadyComplete && packetNeedsApplicantAction && <div className="mt-3">
-                            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-amber-950">{underReview ? 'Upload an updated document' : 'Upload your completed document'}</p>
+                            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-amber-950">{underReview ? 'Upload an updated document' : 'Upload file for this requirement'}</p>
                             <input id={`document-upload-${application.id}-${item.index}`} key={`${application.id}-${item.index}-${application.updated_at}`} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => {
                             const file = event.target.files?.[0];
                             if (!file) return;

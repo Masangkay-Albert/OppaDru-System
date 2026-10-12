@@ -320,13 +320,13 @@ trait FranchiseApplicationAdminReviewActions
         }
 
         $validator = Validator::make($request->all(), [
-            'agreement_status' => 'required|string|in:not_started,drafting,sent,signed',
-            'agreement_prepared_at' => 'nullable|date|after_or_equal:'.now('Asia/Manila')->toDateString(),
-            'agreement_signed_at' => 'nullable|date|after_or_equal:'.now('Asia/Manila')->toDateString(),
-            'franchise_fee_amount' => 'nullable|numeric|min:0|max:9999999999.99',
-            'franchise_fee_payment_status' => 'required|string|in:not_configured,pending,submitted,paid,rejected,waived,not_applicable',
-            'franchise_fee_payment_reference' => 'nullable|string|max:255',
-            'franchise_fee_payment_reject_reason' => 'nullable|string|max:2000',
+            'agreement_status' => 'sometimes|required|string|in:not_started,drafting,sent,signed',
+            'agreement_prepared_at' => 'sometimes|nullable|date',
+            'agreement_signed_at' => 'sometimes|nullable|date',
+            'franchise_fee_amount' => 'sometimes|nullable|numeric|min:0|max:9999999999.99',
+            'franchise_fee_payment_status' => 'sometimes|required|string|in:not_configured,pending,submitted,paid,rejected,waived,not_applicable',
+            'franchise_fee_payment_reference' => 'sometimes|nullable|string|max:255',
+            'franchise_fee_payment_reject_reason' => 'sometimes|nullable|string|max:2000',
             'required_documents' => 'present|array|max:8',
             'required_documents.*.label' => 'required|string|max:255|distinct',
             'required_documents.*.category' => 'nullable|string|in:agreement_signing,payment,application_documents,location_readiness,permits_compliance,training,operational_preparation',
@@ -336,14 +336,14 @@ trait FranchiseApplicationAdminReviewActions
             'required_documents.*.template_name' => 'nullable|string|max:255',
             'required_document_templates' => 'nullable|array|max:8',
             'required_document_templates.*' => 'file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
-            'location_readiness' => 'required|string|in:pending,ready,not_applicable',
-            'permit_compliance_status' => 'required|string|in:pending,verified,not_applicable',
-            'training_status' => 'required|string|in:pending,scheduled,complete,not_applicable',
-            'operational_preparation_status' => 'required|string|in:pending,in_progress,complete,not_applicable',
-            'internal_notes' => 'nullable|string|max:5000',
+            'location_readiness' => 'sometimes|required|string|in:pending,ready,not_applicable',
+            'permit_compliance_status' => 'sometimes|required|string|in:pending,verified,not_applicable',
+            'training_status' => 'sometimes|required|string|in:pending,scheduled,complete,not_applicable',
+            'operational_preparation_status' => 'sometimes|required|string|in:pending,in_progress,complete,not_applicable',
+            'internal_notes' => 'sometimes|nullable|string|max:5000',
         ]);
         if ($validator->fails()) {
-            return response()->json(['message' => 'Agreement and requirement details are invalid.', 'errors' => $validator->errors()], 422);
+            return response()->json(['message' => 'Required document details are invalid.', 'errors' => $validator->errors()], 422);
         }
         foreach ($request->input('required_documents', []) as $index => $document) {
             if (($document['status'] ?? null) === 'rejected' && ! trim((string) ($document['reject_reason'] ?? ''))) {
@@ -355,19 +355,29 @@ trait FranchiseApplicationAdminReviewActions
         }
 
         $feeStatus = $request->input('franchise_fee_payment_status');
-        if ($feeStatus === 'paid' && ! $request->filled('franchise_fee_amount')) {
+        if ($request->has('franchise_fee_payment_status')
+            && $feeStatus === 'paid'
+            && ! $request->filled('franchise_fee_amount')) {
             return response()->json(['message' => 'Record the applicable fee amount before marking it paid.'], 422);
         }
-        if (in_array($feeStatus, ['waived', 'not_applicable'], true) && ! $request->filled('internal_notes')) {
+        if ($request->has('franchise_fee_payment_status')
+            && in_array($feeStatus, ['waived', 'not_applicable'], true)
+            && ! $request->filled('internal_notes')) {
             return response()->json(['message' => 'Explain the fee waiver or why no franchise fee applies.'], 422);
         }
-        if ($feeStatus === 'rejected' && ! $request->filled('franchise_fee_payment_reject_reason')) {
+        if ($request->has('franchise_fee_payment_status')
+            && $feeStatus === 'rejected'
+            && ! $request->filled('franchise_fee_payment_reject_reason')) {
             return response()->json(['message' => 'Provide a reason for rejecting the payment proof.'], 422);
         }
-        if (in_array($request->input('agreement_status'), ['drafting', 'sent', 'signed'], true) && ! $request->filled('agreement_prepared_at')) {
+        if ($request->has('agreement_status')
+            && in_array($request->input('agreement_status'), ['drafting', 'sent', 'signed'], true)
+            && ! $request->filled('agreement_prepared_at')) {
             return response()->json(['message' => 'Record the actual agreement preparation date.'], 422);
         }
-        if ($request->input('agreement_status') === 'signed' && ! $request->filled('agreement_signed_at')) {
+        if ($request->has('agreement_status')
+            && $request->input('agreement_status') === 'signed'
+            && ! $request->filled('agreement_signed_at')) {
             return response()->json(['message' => 'Record the actual agreement signing date before marking it signed.'], 422);
         }
 
@@ -383,7 +393,8 @@ trait FranchiseApplicationAdminReviewActions
                         'message' => 'Requirements cannot be changed for active, rejected, or withdrawn applications.',
                     ], 409));
                 }
-                if (in_array($feeStatus, ['submitted', 'paid', 'rejected'], true)
+                if ($request->has('franchise_fee_payment_status')
+                    && in_array($feeStatus, ['submitted', 'paid', 'rejected'], true)
                     && ! collect($application->documents ?? [])->contains('document_type', 'payment_proof')) {
                     abort(response()->json([
                         'message' => 'Review the applicant proof of payment before changing the payment status.',
@@ -446,15 +457,21 @@ trait FranchiseApplicationAdminReviewActions
                     'training_status',
                     'operational_preparation_status',
                 ] as $field) {
-                    $application->{$field} = $request->input($field);
+                    if ($request->has($field)) {
+                        $application->{$field} = $request->input($field);
+                    }
                 }
                 if ($request->has('franchise_fee_payment_reference')) {
                     $application->franchise_fee_payment_reference = $request->input('franchise_fee_payment_reference');
                 }
                 $application->required_documents = $documents;
-                $application->franchise_fee_payment_reject_reason = $feeStatus === 'rejected'
-                    ? trim((string) $request->input('franchise_fee_payment_reject_reason'))
-                    : null;
+                if ($request->has('franchise_fee_payment_status')) {
+                    $application->franchise_fee_payment_reject_reason = $feeStatus === 'rejected'
+                        ? trim((string) $request->input('franchise_fee_payment_reject_reason'))
+                        : null;
+                } elseif ($request->has('franchise_fee_payment_reject_reason')) {
+                    $application->franchise_fee_payment_reject_reason = $request->input('franchise_fee_payment_reject_reason');
+                }
                 $application->requirements_reviewed_at = now();
                 $application->reviewed_by_admin_id = $admin?->id;
                 $application->reviewed_at = now();
@@ -465,8 +482,8 @@ trait FranchiseApplicationAdminReviewActions
                     'admin',
                     $admin?->id,
                     $application->status,
-                    'Agreement and opening requirements updated',
-                    'Your agreement and opening requirements were updated by the franchise team.',
+                    'Required documents updated',
+                    'The franchise team updated your required documents.',
                 );
                 foreach ($documents as $index => $document) {
                     $previous = collect($previousDocuments)->firstWhere('label', $document['label']);
@@ -539,8 +556,8 @@ trait FranchiseApplicationAdminReviewActions
 
         return response()->json([
             'message' => $packetRequested
-                ? 'Agreement and opening requirements saved. The applicant can now upload the requested document packet.'
-                : 'Agreement and opening requirements saved.',
+                ? 'Required documents saved. The applicant can now upload the requested document packet.'
+                : 'Required documents saved.',
             'data' => $application,
         ]);
     }

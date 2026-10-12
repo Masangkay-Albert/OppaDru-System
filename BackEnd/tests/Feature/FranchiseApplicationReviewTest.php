@@ -217,7 +217,7 @@ class FranchiseApplicationReviewTest extends TestCase
         $this->post('/api/admin/franchise-applications/'.$application->id.'/requirements', $requirementsPayload, $headers + ['Accept' => 'application/json'])->assertOk()
             ->assertJsonPath('data.status', 'location_assessment')
             ->assertJsonPath('data.next_step_instructions', "Please complete and upload the following required documents together:\n- Property application form")
-            ->assertJsonPath('message', 'Agreement and opening requirements saved. The applicant can now upload the requested document packet.');
+            ->assertJsonPath('message', 'Required documents saved. The applicant can now upload the requested document packet.');
 
         Auth::forgetGuards();
         $this->get('/api/franchise-applications/me/'.$application->id.'/required-documents/0/template', [
@@ -407,24 +407,14 @@ class FranchiseApplicationReviewTest extends TestCase
         ], $adminHeaders)->assertOk();
         $requirementsPayload = [
             '_method' => 'PATCH',
-            'agreement_status' => 'not_started',
-            'agreement_prepared_at' => '',
-            'agreement_signed_at' => '',
-            'franchise_fee_amount' => '',
-            'franchise_fee_payment_status' => 'not_configured',
             'required_documents' => json_encode([
                 ['label' => 'Location plan', 'category' => 'location_readiness', 'required' => true, 'status' => 'pending'],
             ]),
-            'location_readiness' => 'pending',
-            'permit_compliance_status' => 'pending',
-            'training_status' => 'pending',
-            'operational_preparation_status' => 'pending',
-            'internal_notes' => '',
         ];
         $this->post('/api/admin/franchise-applications/'.$application->id.'/requirements', $requirementsPayload, $adminHeaders)
             ->assertOk()
-            ->assertJsonPath('message', 'Agreement and opening requirements saved.');
-        $this->assertDatabaseMissing('franchise_application_events', [
+            ->assertJsonPath('message', 'Required documents saved. The applicant can now upload the requested document packet.');
+        $this->assertDatabaseHas('franchise_application_events', [
             'application_id' => $application->id,
             'title' => 'Document packet requested',
         ]);
@@ -437,27 +427,10 @@ class FranchiseApplicationReviewTest extends TestCase
         ], [
             'Authorization' => 'Bearer '.$applicant['token'],
             'Accept' => 'application/json',
-        ])->assertStatus(409);
-        Auth::forgetGuards();
-
-        $requirementsPayload['required_document_templates'] = [
-            0 => UploadedFile::fake()->create('location-plan-form.pdf', 100, 'application/pdf'),
-        ];
-        $this->post('/api/admin/franchise-applications/'.$application->id.'/requirements', $requirementsPayload, $adminHeaders)->assertOk()
-            ->assertJsonPath('message', 'Agreement and opening requirements saved. The applicant can now upload the requested document packet.');
-
-        Auth::forgetGuards();
-        $this->post('/api/franchise-applications/me/'.$application->id.'/response', [
-            'required_document_uploads' => [
-                0 => UploadedFile::fake()->create('location-plan.pdf', 100, 'application/pdf'),
-            ],
-        ], [
-            'Authorization' => 'Bearer '.$applicant['token'],
-            'Accept' => 'application/json',
         ])->assertOk()
             ->assertJsonPath('data.status', 'location_assessment')
             ->assertJsonPath('data.required_documents.0.category', 'location_readiness')
-            ->assertJsonPath('data.required_documents.0.template_name', 'location-plan-form.pdf')
+            ->assertJsonMissingPath('data.required_documents.0.template_name')
             ->assertJsonPath('data.documents.0.name', 'location-plan.pdf')
             ->assertJsonPath('data.required_documents.0.status', 'submitted');
     }

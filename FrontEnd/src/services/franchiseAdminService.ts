@@ -42,7 +42,7 @@ export interface FranchiseApplication {
   has_proposed_property?: boolean;
   opening_timeline?: string;
   business_information?: string;
-  documents?: Array<{ name: string; size: number; mime_type: string; required_document_label?: string; document_type?: string }>;
+  documents?: Array<{ name: string; size: number; mime_type: string; uploaded_at?: string; required_document_label?: string; document_type?: string }>;
   notes?: string;
   status?: string;
   allowed_transitions?: string[];
@@ -66,6 +66,7 @@ export interface FranchiseApplication {
     required: boolean;
     status: string;
     category?: string;
+    name_is_custom?: boolean;
     template_name?: string | null;
     template_size_bytes?: number | null;
     template_uploaded_at?: string | null;
@@ -408,11 +409,11 @@ export const downloadFranchiseRequirementTemplate = async (id: string | number, 
 };
 
 export const updateFranchiseApplicationRequirements = async (id: string | number, data: {
-  agreement_status: string;
+  agreement_status?: string;
   agreement_prepared_at?: string;
   agreement_signed_at?: string;
   franchise_fee_amount?: string;
-  franchise_fee_payment_status: string;
+  franchise_fee_payment_status?: string;
   franchise_fee_payment_reference?: string;
   franchise_fee_payment_reject_reason?: string;
   required_documents: Array<{
@@ -420,15 +421,16 @@ export const updateFranchiseApplicationRequirements = async (id: string | number
     required: boolean;
     status: string;
     category?: string;
+    name_is_custom?: boolean;
     template_name?: string | null;
     template_size_bytes?: number | null;
     template_uploaded_at?: string | null;
     reject_reason?: string | null;
   }>;
-  location_readiness: string;
-  permit_compliance_status: string;
-  training_status: string;
-  operational_preparation_status: string;
+  location_readiness?: string;
+  permit_compliance_status?: string;
+  training_status?: string;
+  operational_preparation_status?: string;
   internal_notes?: string;
   required_document_templates?: Record<number, File>;
 }) => {
@@ -447,7 +449,9 @@ export const updateFranchiseApplicationRequirements = async (id: string | number
     operational_preparation_status: data.operational_preparation_status,
     internal_notes: data.internal_notes,
   };
-  Object.entries(scalarFields).forEach(([key, value]) => form.append(key, value ?? ''));
+  Object.entries(scalarFields).forEach(([key, value]) => {
+    if (value !== undefined) form.append(key, value);
+  });
   form.append('_method', 'PATCH');
   form.append('required_documents', JSON.stringify(data.required_documents));
   Object.entries(data.required_document_templates || {}).forEach(([index, file]) => {
