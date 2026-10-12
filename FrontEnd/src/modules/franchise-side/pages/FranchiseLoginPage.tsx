@@ -97,7 +97,7 @@ const FranchiseLoginPage: React.FC = () => {
           </form>
 
           <div className="mt-4 flex items-center justify-between gap-3 text-sm text-[var(--oppa-text-muted)]">
-            <Link to="/franchise/apply" className="font-medium text-[var(--oppa-green)] hover:underline">
+            <Link to="/franchise-opportunities" className="font-medium text-[var(--oppa-green)] hover:underline">
               Apply for a franchise
             </Link>
             <button onClick={() => navigate('/login')} className="inline-flex items-center gap-1 hover:text-[var(--oppa-green)]">

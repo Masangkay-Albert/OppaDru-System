@@ -84,7 +84,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
             <div className="space-y-5 p-5 sm:p-6">
               {showProgress && <section className="rounded-2xl border border-[var(--oppa-border)] p-4">
                 <h3 className="mb-3 text-sm font-semibold">Franchise process</h3>
-                <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   {FRANCHISE_APPLICATION_STAGES.map((stage, index) => {
                     const complete = index < stageIndex;
                     const current = index === stageIndex;

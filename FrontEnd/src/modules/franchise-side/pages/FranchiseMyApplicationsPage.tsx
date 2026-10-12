@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Clock3, Download, FileText, Loader2, RotateCcw, Send } from 'lucide-react';
+import { AlertCircle, Clock3, Download, FileText, Loader2, LogOut, RotateCcw, Send } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
 import {
   downloadMyFranchiseApplicationDocument,
   getMyFranchiseApplications,
@@ -31,6 +33,8 @@ const uniqueTimelineEvents = (
 };
 
 const FranchiseMyApplicationsPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { logout } = useFranchiseApplicantAuth();
   const [applications, setApplications] = useState<ApplicantFranchiseApplication[]>([]);
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [responseFiles, setResponseFiles] = useState<Record<string, File[]>>({});
@@ -132,13 +136,28 @@ const FranchiseMyApplicationsPage: React.FC = () => {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/franchise/applicant-login?returnTo=%2Ffranchise%2Fmy-applications', { replace: true });
+    } catch (logoutError: unknown) {
+      const message = logoutError instanceof Error ? logoutError.message : 'Unable to sign out of the applicant account.';
+      navigate('/franchise/applicant-login?returnTo=%2Ffranchise%2Fmy-applications', { replace: true, state: { signOutError: message } });
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-8 sm:px-6">
       <div className="mx-auto max-w-5xl">
-        <header className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--oppa-green)]">Franchise partner portal</p>
-          <h1 className="mt-1 font-serif text-3xl font-bold text-[var(--oppa-text)]">My Applications</h1>
-          <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">View your application status, next steps, interview updates, and information requests.</p>
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--oppa-green)]">Franchise partner portal</p>
+            <h1 className="mt-1 font-serif text-3xl font-bold text-[var(--oppa-text)]">My Applications</h1>
+            <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">View your application status, next steps, interview updates, and information requests.</p>
+          </div>
+          <button type="button" onClick={handleLogout} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--oppa-text)] transition hover:border-red-200 hover:text-red-700">
+            <LogOut size={16} aria-hidden="true" /> Sign out
+          </button>
         </header>
         {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {message && <p role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{message}</p>}
@@ -197,9 +216,11 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                     {currentStatus === 'additional_information_required' && (
                       <section className="mb-5 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                         <h3 className="font-semibold text-[var(--oppa-text)]">Send additional information</h3>
+                        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Please include every requested document in one submission so the team can complete the combined site, financial, and final review.</p>
+                        {application.required_documents?.some((document) => document.required) && <ul className="mt-3 list-inside list-disc space-y-1 text-sm">{application.required_documents.filter((document) => document.required).map((document) => <li key={document.label}>{document.label}</li>)}</ul>}
                         <textarea value={responses[application.id] || ''} onChange={(event) => setResponses((current) => ({ ...current, [application.id]: event.target.value}))} rows={4} maxLength={5000} placeholder="Write your response to the review team's request." className="mt-3 w-full rounded-xl border border-[var(--oppa-border)] bg-white p-3 text-sm" />
                         <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => setResponseFiles((current) => ({ ...current, [application.id]: Array.from(event.target.files || [])}))} className="mt-3 block text-sm" />
-                        <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Optional supporting files: PDF, JPG, PNG, DOC, or DOCX; up to 10 MB each.</p>
+                        <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Submit all files together: PDF, JPG, PNG, DOC, or DOCX; up to 8 files and 10 MB each.</p>
                         <button type="button" onClick={() => void handleResponse(application)} disabled={busyId === application.id} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"><Send size={15} />{busyId === application.id ? 'Sending…' : 'Send information'}</button>
                       </section>
                     )}

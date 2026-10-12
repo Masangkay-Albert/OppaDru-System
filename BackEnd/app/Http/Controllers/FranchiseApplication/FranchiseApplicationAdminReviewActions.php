@@ -77,6 +77,17 @@ trait FranchiseApplicationAdminReviewActions
             if ($targetStatus === 'additional_information_required' && ! $request->filled('next_step_instructions')) {
                 abort(response()->json(['message' => 'Provide clear instructions for the additional information required.'], 422));
             }
+            if ($currentStatus === 'location_assessment'
+                && $targetStatus === 'additional_information_required'
+                && FranchiseApplicationEvent::query()
+                    ->where('application_id', $application->id)
+                    ->where('title', 'Additional information submitted')
+                    ->where('status', 'location_assessment')
+                    ->exists()) {
+                abort(response()->json([
+                    'message' => 'The combined post-interview document packet has already been submitted. Review the submitted documents and continue the final assessment.',
+                ], 409));
+            }
             if ($targetStatus === 'for_interview' && ! $request->filled('interview_at')) {
                 abort(response()->json(['message' => 'Set an interview date and time before moving this application to For Interview.'], 422));
             }

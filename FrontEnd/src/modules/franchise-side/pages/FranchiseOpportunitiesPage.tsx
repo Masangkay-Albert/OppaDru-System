@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, BadgeCheck, Building2, CircleHelp, ClipboardCheck, Clock3, HandCoins } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
 import { API_URL } from '../../../services/apiConfig';
 
 interface FranchiseOpportunityInfo {
@@ -16,8 +17,11 @@ interface FranchiseOpportunityInfo {
 }
 
 const FranchiseOpportunitiesPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { applicant, isLoading: isAuthLoading, logout } = useFranchiseApplicantAuth();
   const [info, setInfo] = useState<FranchiseOpportunityInfo | null>(null);
   const [error, setError] = useState('');
+  const [isStartingApplication, setIsStartingApplication] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +37,19 @@ const FranchiseOpportunitiesPage: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
+  const handleApply = async () => {
+    setIsStartingApplication(true);
+    try {
+      if (applicant) await logout();
+      navigate('/franchise/applicant-login?returnTo=%2Ffranchise%2Fapply', { replace: true });
+    } catch (signOutError: unknown) {
+      const message = signOutError instanceof Error ? signOutError.message : 'Unable to sign out of the existing applicant account.';
+      navigate('/franchise/applicant-login?returnTo=%2Ffranchise%2Fapply', { replace: true, state: { signOutError: message } });
+    } finally {
+      setIsStartingApplication(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)]">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
@@ -46,7 +63,7 @@ const FranchiseOpportunitiesPage: React.FC = () => {
           <h1 className="mt-3 max-w-3xl font-serif text-4xl font-bold leading-tight sm:text-5xl">Grow with Oppa Dru Korean Fried Chicken</h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-white/80">Explore a partnership opportunity and tell us about your operating experience, investment plans, and proposed market. Every application is individually reviewed.</p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link to="/franchise/apply" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[var(--oppa-green)] shadow-sm transition hover:bg-[var(--oppa-cream)]">Apply for Franchise <ArrowRight size={16} /></Link>
+            <button type="button" onClick={handleApply} disabled={isAuthLoading || isStartingApplication} className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[var(--oppa-green)] shadow-sm transition hover:bg-[var(--oppa-cream)] disabled:cursor-wait disabled:opacity-70">{isStartingApplication ? 'Please wait…' : 'Apply for Franchise'} <ArrowRight size={16} /></button>
             <Link to="/franchise/track-application" className="rounded-xl border border-white/50 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Track an application</Link>
           </div>
           <p className="mt-3 text-xs text-white/65">An application is not an offer, approval, or authorization to operate.</p>

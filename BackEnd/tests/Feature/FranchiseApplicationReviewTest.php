@@ -10,8 +10,10 @@ use App\Models\FranchiseApplication;
 use App\Models\FranchiseApplicationEvent;
 use App\Models\FranchiseUser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -172,8 +174,9 @@ class FranchiseApplicationReviewTest extends TestCase
         $this->assertArrayNotHasKey('interview_notes', $applicantView->json('data.0'));
     }
 
-    public function test_successful_post_interview_review_moves_application_into_step_four_then_step_five(): void
+    public function test_successful_post_interview_review_accepts_one_combined_document_packet(): void
     {
+        Storage::fake('local');
         $adminToken = $this->createAdminToken();
         $applicant = $this->createVerifiedApplicant();
         $application = $this->submitApplication($applicant);
@@ -195,13 +198,34 @@ class FranchiseApplicationReviewTest extends TestCase
             ->assertJsonPath('data.next_step_instructions', FranchiseApplication::defaultInstructionsFor('location_assessment'));
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'additional_information_required',
+            'next_step_instructions' => 'Submit your site documents, financial records, and agreement details together.',
+        ], $headers)->assertOk();
+
+        $this->post('/api/franchise-applications/me/'.$application->id.'/response', [
+            'response' => 'I have attached the complete requested document packet.',
+            'documents' => [UploadedFile::fake()->create('complete-document-packet.pdf', 100, 'application/pdf')],
+        ], [
+            'Authorization' => 'Bearer '.$applicant['token'],
+            'Accept' => 'application/json',
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'location_assessment')
+            ->assertJsonPath('data.next_step_instructions', 'Your complete document packet was received. The franchise team will continue the site assessment and final review.')
+            ->assertJsonCount(1, 'data.documents');
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'additional_information_required',
+            'next_step_instructions' => 'Requesting another document packet.',
+        ], $headers)->assertStatus(409);
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'conditionally_approved',
         ], $headers)->assertOk()
             ->assertJsonPath('data.status', 'conditionally_approved')
             ->assertJsonPath('data.next_step_instructions', FranchiseApplication::defaultInstructionsFor('conditionally_approved'));
 
         $this->assertSame(
-            ['for_interview', 'location_assessment', 'conditionally_approved'],
+            ['for_interview', 'location_assessment', 'additional_information_required', 'conditionally_approved'],
             FranchiseApplicationEvent::where('application_id', $application->id)
                 ->where('title', 'Status updated')
                 ->orderBy('id')

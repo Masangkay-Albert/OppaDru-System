@@ -13,7 +13,7 @@ const FranchiseApplicantLoginPage: React.FC = () => {
   const requestedReturnTo = search.get('returnTo');
   const returnTo = requestedReturnTo === '/franchise/apply' || requestedReturnTo === '/franchise/my-applications'
     ? requestedReturnTo
-    : '/franchise/my-applications';
+    : '/franchise/apply';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -27,6 +27,10 @@ const FranchiseApplicantLoginPage: React.FC = () => {
     : search.get('verified') === '1'
       ? 'Email verified. You can now sign in.'
       : '';
+  const signOutError = typeof location.state === 'object' && location.state !== null
+    && 'signOutError' in location.state && typeof location.state.signOutError === 'string'
+    ? location.state.signOutError
+    : '';
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -89,6 +93,7 @@ const FranchiseApplicantLoginPage: React.FC = () => {
           )}
 
           {registeredMessage && <p role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3.5 text-sm text-green-800">{registeredMessage}</p>}
+          {signOutError && <p role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800">{signOutError} Your local session was cleared; sign in again to continue.</p>}
           {resendMessage && <p role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3.5 text-sm text-green-800">{resendMessage}</p>}
 
           <form onSubmit={handleSubmit} aria-busy={isLoading} className="space-y-4">

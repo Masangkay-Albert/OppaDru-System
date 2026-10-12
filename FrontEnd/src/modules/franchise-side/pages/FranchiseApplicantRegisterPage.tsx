@@ -20,7 +20,7 @@ const FranchiseApplicantRegisterPage: React.FC = () => {
   const requestedReturnTo = params.get('returnTo');
   const returnTo = requestedReturnTo === '/franchise/apply' || requestedReturnTo === '/franchise/my-applications'
     ? requestedReturnTo
-    : '/franchise/my-applications';
+    : '/franchise/apply';
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

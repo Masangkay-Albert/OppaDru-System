@@ -4,6 +4,7 @@ namespace App\Http\Controllers\FranchiseApplication;
 
 use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
+use App\Models\FranchiseApplicationEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -214,14 +215,22 @@ trait FranchiseApplicationApplicantActions
                 }
 
                 $application->documents = $documents;
-                $application->status = 'under_review';
-                $application->next_step_instructions = 'Your response was received. The franchise team will review the information you provided.';
+                $previousReviewStatus = FranchiseApplicationEvent::query()
+                    ->where('application_id', $application->id)
+                    ->where('title', 'Status updated')
+                    ->where('status', '!=', 'additional_information_required')
+                    ->orderByDesc('id')
+                    ->value('status');
+                $application->status = $previousReviewStatus === 'location_assessment' ? 'location_assessment' : 'under_review';
+                $application->next_step_instructions = $application->status === 'location_assessment'
+                    ? 'Your complete document packet was received. The franchise team will continue the site assessment and final review.'
+                    : 'Your response was received. The franchise team will review the information you provided.';
                 $application->save();
                 $this->recordEvent(
                     $application,
                     'applicant',
                     $applicantId,
-                    'under_review',
+                    $application->status,
                     'Additional information submitted',
                     trim((string) $request->input('response')),
                 );
