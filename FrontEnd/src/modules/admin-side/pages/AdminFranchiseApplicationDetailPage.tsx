@@ -55,14 +55,11 @@ type FranchiseRequirementDocument = {
 };
 
 const requirementCategories = [
-  ['application_documents', 'Application-specific documents', ''],
+  ['application_documents', 'Choose a file', ''],
   ['agreement_signing', 'Agreement and signing', 'Agreement and Signing'],
   ['payment', 'Payment receipt/reference', 'Payment Receipt / Reference'],
   ['permits_compliance', 'Permits and compliance', 'Permits and Compliance'],
-  ['location_readiness', 'Location readiness', 'Location Readiness'],
-  ['training', 'Training', 'Training'],
-  ['operational_preparation', 'System and operational preparation', 'System and Operational Preparation'],
-  ['', 'Other', ''],
+  ['other', 'Other', ''],
 ] as const;
 
 const requirementStatusStyles: Record<string, string> = {
@@ -143,6 +140,8 @@ const FranchiseRequirementsForm: React.FC<{
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [removeTarget, setRemoveTarget] = useState<number | null>(null);
   const [nameErrors, setNameErrors] = useState<Record<number, string>>({});
+  const [rejectErrors, setRejectErrors] = useState<Record<number, string>>({});
+  const [duplicateNameErrors, setDuplicateNameErrors] = useState<Record<number, string>>({});
   const [preview, setPreview] = useState<{ url: string; name: string; mimeType: string } | null>(null);
   const [previewLoading, setPreviewLoading] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -151,14 +150,6 @@ const FranchiseRequirementsForm: React.FC<{
   const [nameAnnouncement, setNameAnnouncement] = useState('');
   const [missingTemplateWarning, setMissingTemplateWarning] = useState<string[]>([]);
   const nameInputs = useRef<Record<number, HTMLInputElement | null>>({});
-
-  const counts = useMemo(() => ({
-    verified: documents.filter((document) => document.status === 'verified').length,
-    awaiting: documents.filter((document) => document.required
-      && !['verified', 'not_applicable'].includes(document.status)
-      && !document.submitted_document_name
-      && !application.documents?.some((file) => file.required_document_label === document.label)).length,
-  }), [application.documents, documents]);
 
   const saveRequirements = async () => {
     setSaving(true);
@@ -173,7 +164,18 @@ const FranchiseRequirementsForm: React.FC<{
       setSavedMessage(result.message || 'Required documents saved.');
       await onSaved();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to save required documents.');
+      const message = saveError instanceof Error ? saveError.message : 'Unable to save required documents.';
+      const failedTemplate = message.match(/required_document_templates\.(\d+).*failed to upload/i);
+      if (failedTemplate) {
+        const failedIndex = Number(failedTemplate[1]);
+        setTemplateErrors((current) => ({
+          ...current,
+          [failedIndex]: 'The server could not receive this file. Try selecting it again; if it keeps failing, check the server upload-size and temporary-storage limits.',
+        }));
+        setError('A template upload failed. Your requirement changes were not saved.');
+      } else {
+        setError(message);
+      }
     } finally {
       setSaving(false);
     }
@@ -182,15 +184,31 @@ const FranchiseRequirementsForm: React.FC<{
   const save = (event: React.FormEvent) => {
     event.preventDefault();
     const nextNameErrors: Record<number, string> = {};
+    const nextRejectErrors: Record<number, string> = {};
+    const nextDuplicateErrors: Record<number, string> = {};
+    const labels = new Map<string, number[]>();
     documents.forEach((document, index) => {
       if (!document.label.trim()) nextNameErrors[index] = 'Enter a name for this requirement.';
       if (document.status === 'rejected' && !document.reject_reason?.trim()) {
-        nextNameErrors[index] = 'Add a reason for rejecting this submission.';
+        nextRejectErrors[index] = 'Add a reason for rejecting this submission.';
+      }
+      const normalizedLabel = document.label.trim().toLocaleLowerCase();
+      if (normalizedLabel) labels.set(normalizedLabel, [...(labels.get(normalizedLabel) || []), index]);
+    });
+    labels.forEach((indices) => {
+      if (indices.length > 1) {
+        indices.forEach((index) => { nextDuplicateErrors[index] = 'Requirement names must be unique. Add a distinguishing name.'; });
       }
     });
     setNameErrors(nextNameErrors);
-    if (Object.keys(nextNameErrors).length) {
-      nameInputs.current[Number(Object.keys(nextNameErrors)[0])]?.focus();
+    setRejectErrors(nextRejectErrors);
+    setDuplicateNameErrors(nextDuplicateErrors);
+    if (Object.keys(nextNameErrors).length || Object.keys(nextRejectErrors).length || Object.keys(nextDuplicateErrors).length) {
+      const firstInvalidIndex = Math.min(
+        ...Object.keys({ ...nextNameErrors, ...nextRejectErrors, ...nextDuplicateErrors }).map(Number),
+      );
+      if (nextNameErrors[firstInvalidIndex]) nameInputs.current[firstInvalidIndex]?.focus();
+      else nameInputs.current[firstInvalidIndex]?.focus();
       return;
     }
     const missingTemplates = documents
@@ -252,6 +270,12 @@ const FranchiseRequirementsForm: React.FC<{
     setNameErrors((current) => Object.fromEntries(Object.entries(current)
       .filter(([key]) => Number(key) !== removedIndex)
       .map(([key, message]) => [Number(key) > removedIndex ? String(Number(key) - 1) : key, message])));
+    setDuplicateNameErrors((current) => Object.fromEntries(Object.entries(current)
+      .filter(([key]) => Number(key) !== removedIndex)
+      .map(([key, message]) => [Number(key) > removedIndex ? String(Number(key) - 1) : key, message])));
+    setRejectErrors((current) => Object.fromEntries(Object.entries(current)
+      .filter(([key]) => Number(key) !== removedIndex)
+      .map(([key, message]) => [Number(key) > removedIndex ? String(Number(key) - 1) : key, message])));
     setExpandedCards((current) => Object.fromEntries(Object.entries(current)
       .filter(([key]) => Number(key) !== removedIndex)
       .map(([key, expanded]) => [Number(key) > removedIndex ? String(Number(key) - 1) : key, expanded])));
@@ -290,15 +314,6 @@ const FranchiseRequirementsForm: React.FC<{
           </div>
         </section>
       </div>}
-      <div className="mb-4 rounded-xl bg-[var(--oppa-cream)] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <p className="font-semibold text-[var(--oppa-text)]">{documents.length} of 8 requirements · {counts.verified} verified · {counts.awaiting} awaiting submission</p>
-          <span className="text-xs text-[var(--oppa-text-muted)]">{documents.length ? Math.round((counts.verified / documents.length) * 100) : 0}% verified</span>
-        </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-white" role="progressbar" aria-label="Requirements verified" aria-valuemin={0} aria-valuemax={documents.length || 1} aria-valuenow={counts.verified}>
-          <div className="h-full rounded-full bg-[var(--oppa-green)] transition-[width]" style={{ width: `${documents.length ? (counts.verified / documents.length) * 100 : 0}%` }} />
-        </div>
-      </div>
       <form noValidate onSubmit={save} className="space-y-3">
         <fieldset className="space-y-3">
           <legend className="sr-only">Requirements and files for the franchisee</legend>
@@ -340,8 +355,10 @@ const FranchiseRequirementsForm: React.FC<{
                     <input id={nameInputId} ref={(element) => { nameInputs.current[index] = element; }} value={document.label} onChange={(event) => {
                       updateDocument(index, { label: event.target.value, name_is_custom: true });
                       setNameErrors((current) => ({ ...current, [index]: '' }));
-                    }} disabled={saving} placeholder="Enter a custom requirement name" title={document.label} aria-invalid={Boolean(nameErrors[index])} aria-describedby={nameErrors[index] ? `${nameInputId}-error` : undefined} className="min-h-10 w-full min-w-0 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]" />
-                    {nameErrors[index] && !document.status.includes('rejected') && <p id={`${nameInputId}-error`} role="alert" className="mt-1 text-xs font-medium text-red-700">{nameErrors[index]}</p>}
+                      setDuplicateNameErrors((current) => ({ ...current, [index]: '' }));
+                    }} disabled={saving} placeholder="Enter a custom requirement name" title={document.label} aria-invalid={Boolean(nameErrors[index] || duplicateNameErrors[index])} aria-describedby={nameErrors[index] ? `${nameInputId}-error` : duplicateNameErrors[index] ? `${nameInputId}-duplicate-error` : undefined} className="min-h-10 w-full min-w-0 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]" />
+                    {nameErrors[index] && <p id={`${nameInputId}-error`} role="alert" className="mt-1 text-xs font-medium text-red-700">{nameErrors[index]}</p>}
+                    {duplicateNameErrors[index] && <p id={`${nameInputId}-duplicate-error`} role="alert" className="mt-1 text-xs font-medium text-red-700">{duplicateNameErrors[index]}</p>}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 lg:pr-1">
@@ -412,16 +429,16 @@ const FranchiseRequirementsForm: React.FC<{
                     }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-50"><Check size={15} />Verify</button>
                     <button type="button" disabled={!submittedName || saving} onClick={() => {
                       updateDocument(index, { status: 'rejected', reject_reason: document.reject_reason || '' });
-                      setNameErrors((current) => ({ ...current, [index]: 'Add a reason for rejecting this submission.' }));
+                      setRejectErrors((current) => ({ ...current, [index]: 'Add a reason for rejecting this submission.' }));
                     }} className="inline-flex min-h-10 items-center justify-center rounded-lg border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">Reject</button>
                   </div>
                   {document.status === 'verified' && <p role="status" className="text-xs font-medium text-emerald-800">{verifiedText}</p>}
                   {document.status === 'rejected' && <label className="w-full text-xs font-semibold text-red-800 sm:max-w-md">Reason shown to the franchisee
                     <textarea value={document.reject_reason || ''} onChange={(event) => {
                       updateDocument(index, { reject_reason: event.target.value });
-                      if (event.target.value.trim()) setNameErrors((current) => ({ ...current, [index]: '' }));
-                    }} rows={2} maxLength={2000} aria-invalid={Boolean(nameErrors[index])} className="mt-1 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-normal text-[var(--oppa-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500" placeholder="Explain what needs to be corrected" />
-                    {nameErrors[index] && <span role="alert" className="mt-1 block">{nameErrors[index]}</span>}
+                      if (event.target.value.trim()) setRejectErrors((current) => ({ ...current, [index]: '' }));
+                    }} rows={2} maxLength={2000} aria-invalid={Boolean(rejectErrors[index])} className="mt-1 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-normal text-[var(--oppa-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500" placeholder="Explain what needs to be corrected" />
+                    {rejectErrors[index] && <span role="alert" className="mt-1 block">{rejectErrors[index]}</span>}
                   </label>}
                 </footer>
               </div>}
@@ -656,6 +673,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
   return (
     <AdminLayout>
+      <div className="min-h-[calc(100dvh-116px)] rounded-2xl bg-[var(--oppa-surface)] p-3 sm:p-5">
       <Link to="/admin/franchise-applications" className="mb-5 inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)]"><ArrowLeft size={16} /> All applications</Link>
       {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {loading ? <div className="rounded-2xl bg-white p-10 text-center text-sm text-[var(--oppa-text-muted)]"><Loader2 className="mx-auto size-6 animate-spin" /><p className="mt-3">Loading application…</p></div> : !application ? null : (
@@ -730,6 +748,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
         }}
         busy={saving}
       />}
+      </div>
     </AdminLayout>
   );
 };

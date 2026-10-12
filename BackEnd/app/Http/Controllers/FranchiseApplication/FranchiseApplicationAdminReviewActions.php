@@ -7,6 +7,7 @@ use App\Models\FranchiseApplication;
 use App\Models\FranchiseApplicationEvent;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -319,6 +320,19 @@ trait FranchiseApplicationAdminReviewActions
             $request->merge(['required_documents' => $documents]);
         }
 
+        foreach ($request->file('required_document_templates', []) as $index => $template) {
+            if ($template instanceof UploadedFile && ! $template->isValid()) {
+                return response()->json([
+                    'message' => 'A template upload could not be received.',
+                    'errors' => [
+                        "required_document_templates.$index" => [
+                            'Upload failed: '.$template->getErrorMessage(),
+                        ],
+                    ],
+                ], 422);
+            }
+        }
+
         $validator = Validator::make($request->all(), [
             'agreement_status' => 'sometimes|required|string|in:not_started,drafting,sent,signed',
             'agreement_prepared_at' => 'sometimes|nullable|date',
@@ -329,7 +343,7 @@ trait FranchiseApplicationAdminReviewActions
             'franchise_fee_payment_reject_reason' => 'sometimes|nullable|string|max:2000',
             'required_documents' => 'present|array|max:8',
             'required_documents.*.label' => 'required|string|max:255|distinct',
-            'required_documents.*.category' => 'nullable|string|in:agreement_signing,payment,application_documents,location_readiness,permits_compliance,training,operational_preparation',
+            'required_documents.*.category' => 'nullable|string|in:agreement_signing,payment,application_documents,location_readiness,permits_compliance,training,operational_preparation,other',
             'required_documents.*.required' => 'required|boolean',
             'required_documents.*.status' => 'required|string|in:pending,submitted,received,verified,rejected,not_applicable',
             'required_documents.*.reject_reason' => 'nullable|string|max:2000',
