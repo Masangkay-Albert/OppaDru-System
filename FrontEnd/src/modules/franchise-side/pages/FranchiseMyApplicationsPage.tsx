@@ -14,6 +14,16 @@ import {
 import { FRANCHISE_APPLICATION_STAGES, franchiseStageIndex, franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 
 const title = franchiseStatusLabel;
+const requirementCategoryTitle = (category?: string) => ({
+  agreement_signing: 'Agreement and signing',
+  payment: 'Payment receipt/reference',
+  application_documents: 'Application-specific documents',
+  location_readiness: 'Location readiness',
+  permits_compliance: 'Permits and compliance',
+  training: 'Training',
+  operational_preparation: 'System and operational preparation',
+}[category || 'application_documents'] || 'Application-specific documents');
+
 const formatPhilippineDateTime = (value: string) => new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'long',
   timeStyle: 'short',
@@ -87,9 +97,18 @@ const FranchiseMyApplicationsPage: React.FC = () => {
   const handleResponse = async (application: ApplicantFranchiseApplication) => {
     const response = responses[application.id]?.trim() || '';
     const requiredFiles = requiredResponseFiles[application.id] || {};
+    const missingSourceFiles = (application.required_documents || [])
+      .map((document) => document.required && !['verified', 'not_applicable'].includes(document.status) && !document.template_name ? document.label : null)
+      .filter((label): label is string => Boolean(label));
+    if (missingSourceFiles.length) {
+      setError(`The franchise team still needs to attach files for: ${missingSourceFiles.join(', ')}.`);
+      return;
+    }
     const missingRequiredFiles = (application.required_documents || [])
       .map((document, index) => ({ document, index }))
-      .filter(({ document, index }) => document.required && document.status !== 'not_applicable' && !requiredFiles[index])
+      .filter(({ document, index }) => document.required
+        && !['verified', 'not_applicable'].includes(document.status)
+        && !requiredFiles[index])
       .map(({ document }) => document.label);
     if (missingRequiredFiles.length) {
       setError(`Upload all required forms before submitting: ${missingRequiredFiles.join(', ')}.`);
@@ -296,11 +315,12 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                     {packetRequestOpen && (
                       <section className="mb-5 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                         <h3 className="font-semibold text-[var(--oppa-text)]">Submit requested documents</h3>
-                        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Upload each required document below and submit them together for the combined site, financial, and final review. A blank form is optional; you can upload your completed document directly.</p>
-                        {application.required_documents?.some((document) => document.required) && <div className="mt-3 space-y-3">{application.required_documents.map((document, index) => document.required && document.status !== 'not_applicable' ? <label key={document.label} className="block rounded-xl border border-amber-200 bg-white p-3 text-sm">
+                        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Download each file provided by the franchise team, complete it, and submit the required files together for review.</p>
+                        {application.required_documents?.some((document) => document.required && !['verified', 'not_applicable'].includes(document.status)) && <div className="mt-3 space-y-3">{application.required_documents.map((document, index) => document.required && !['verified', 'not_applicable'].includes(document.status) ? <label key={document.label} className="block rounded-xl border border-amber-200 bg-white p-3 text-sm">
                           <span className="font-semibold">{document.label}</span>
-                          {document.template_name ? <button type="button" onClick={() => void handleTemplateDownload(application, index, document.template_name || document.label)} disabled={busyId === application.id} className="ml-2 font-semibold text-[var(--oppa-green)] underline disabled:opacity-60">Download blank form</button> : <span className="ml-2 text-xs text-[var(--oppa-text-muted)]">No blank template attached; upload your completed file.</span>}
-                          <input type="file" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) setRequiredResponseFiles((current) => ({ ...current, [application.id]: { ...(current[application.id] || {}), [index]: file } })); }} className="mt-2 block w-full text-xs" />
+                          <span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">{requirementCategoryTitle(document.category)}</span>
+                          {document.template_name ? <button type="button" onClick={() => void handleTemplateDownload(application, index, document.template_name || document.label)} disabled={busyId === application.id} className="mt-2 font-semibold text-[var(--oppa-green)] underline disabled:opacity-60">Download file from franchisor</button> : <span className="mt-2 block text-xs text-amber-800">Waiting for the franchise team to attach the file you need.</span>}
+                          {document.template_name && <input type="file" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) setRequiredResponseFiles((current) => ({ ...current, [application.id]: { ...(current[application.id] || {}), [index]: file } })); }} className="mt-2 block w-full text-xs" />}
                           {requiredResponseFiles[application.id]?.[index] && <span className="mt-1 block text-xs text-emerald-800">Selected: {requiredResponseFiles[application.id][index].name}</span>}
                         </label> : null)}</div>}
                         <textarea value={responses[application.id] || ''} onChange={(event) => setResponses((current) => ({ ...current, [application.id]: event.target.value}))} rows={3} maxLength={5000} placeholder="Optional message for the review team." className="mt-3 w-full rounded-xl border border-[var(--oppa-border)] bg-white p-3 text-sm" />

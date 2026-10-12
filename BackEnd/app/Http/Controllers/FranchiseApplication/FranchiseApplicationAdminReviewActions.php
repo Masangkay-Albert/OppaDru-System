@@ -336,6 +336,7 @@ trait FranchiseApplicationAdminReviewActions
             'franchise_fee_payment_reject_reason' => 'nullable|string|max:2000',
             'required_documents' => 'present|array|max:8',
             'required_documents.*.label' => 'required|string|max:255|distinct',
+            'required_documents.*.category' => 'nullable|string|in:agreement_signing,payment,application_documents,location_readiness,permits_compliance,training,operational_preparation',
             'required_documents.*.required' => 'required|boolean',
             'required_documents.*.status' => 'required|string|in:pending,submitted,received,verified,rejected,not_applicable',
             'required_documents.*.reject_reason' => 'nullable|string|max:2000',
@@ -565,6 +566,12 @@ trait FranchiseApplicationAdminReviewActions
                 $application->next_step_instructions = FranchiseApplication::defaultInstructionsFor('location_assessment');
                 $application->save();
             }
+
+            return false;
+        }
+        if ($requiredDocuments->contains(fn (array $document) => empty($document['template_path']))) {
+            $application->next_step_instructions = 'The franchise team is preparing the forms and instructions for your remaining requirements.';
+            $application->save();
 
             return false;
         }

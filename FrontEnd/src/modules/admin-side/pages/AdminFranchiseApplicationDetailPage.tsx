@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Download, FileText, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Download, FileText, Loader2, Save } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { ConfirmDialog } from '../components/AdminUI';
@@ -51,11 +51,22 @@ type FranchiseRequirementDocument = {
   label: string;
   required: boolean;
   status: string;
+  category?: string;
   template_name?: string | null;
   submitted_document_name?: string | null;
   submitted_document_index?: number | null;
   reject_reason?: string | null;
 };
+
+const requirementCategories = [
+  ['agreement_signing', 'Agreement and signing'],
+  ['payment', 'Payment receipt/reference'],
+  ['application_documents', 'Application-specific documents'],
+  ['location_readiness', 'Location readiness'],
+  ['permits_compliance', 'Permits and compliance'],
+  ['training', 'Training'],
+  ['operational_preparation', 'System and operational preparation'],
+] as const;
 
 const FranchiseRequirementsForm: React.FC<{
   application: FranchiseApplication;
@@ -78,23 +89,9 @@ const FranchiseRequirementsForm: React.FC<{
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
+  const [confirmFeeVerification, setConfirmFeeVerification] = useState(false);
 
-  const save = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const today = todayInManila();
-    if ((agreementPreparedAt && agreementPreparedAt < today) || (agreementSignedAt && agreementSignedAt < today)) {
-      setError('Agreement dates must be today or a future date.');
-      return;
-    }
-    if (agreementStatus === 'signed' && !agreementSignedAt) {
-      setError('Record the actual agreement signing date before marking it signed.');
-      return;
-    }
-    if (feeStatus === 'paid' && !window.confirm('Confirm the recorded franchise fee has actually been received?')) return;
-    if (['waived', 'not_applicable'].includes(feeStatus) && !internalNotes.trim()) {
-      setError('Explain why the franchise fee is waived or not applicable in the internal note.');
-      return;
-    }
+  const saveRequirements = async () => {
     setSaving(true);
     setError('');
     setSavedMessage('');
@@ -125,6 +122,28 @@ const FranchiseRequirementsForm: React.FC<{
     }
   };
 
+  const save = (event: React.FormEvent) => {
+    event.preventDefault();
+    const today = todayInManila();
+    if ((agreementPreparedAt && agreementPreparedAt < today) || (agreementSignedAt && agreementSignedAt < today)) {
+      setError('Agreement dates must be today or a future date.');
+      return;
+    }
+    if (agreementStatus === 'signed' && !agreementSignedAt) {
+      setError('Record the actual agreement signing date before marking it signed.');
+      return;
+    }
+    if (['waived', 'not_applicable'].includes(feeStatus) && !internalNotes.trim()) {
+      setError('Explain why the franchise fee is waived or not applicable in the internal note.');
+      return;
+    }
+    if (feeStatus === 'paid' && application.franchise_fee_payment_status !== 'paid') {
+      setConfirmFeeVerification(true);
+      return;
+    }
+    void saveRequirements();
+  };
+
   const updateDocument = (index: number, patch: Partial<FranchiseRequirementDocument>) =>
     setDocuments((current) => current.map((document, position) => position === index ? { ...document, ...patch } : document));
   const selectClass = 'mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm';
@@ -135,6 +154,21 @@ const FranchiseRequirementsForm: React.FC<{
       <div className="mb-4"><h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Combined post-interview review and requirements</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">After a successful interview, review the site, finances, final decision, and agreement together. Add each required document and upload its blank form. Saving sends the upload request to the applicant when every required form is ready. Record only agreed terms; opening approval remains blocked until every applicable check is complete.</p></div>
       {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {savedMessage && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{savedMessage}</p>}
+      {confirmFeeVerification && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !saving) setConfirmFeeVerification(false);
+      }}>
+        <section role="alertdialog" aria-modal="true" aria-labelledby="fee-verification-title" aria-describedby="fee-verification-description" onKeyDown={(event) => {
+          if (event.key === 'Escape' && !saving) setConfirmFeeVerification(false);
+        }} className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-2xl">
+          <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-emerald-50 text-[var(--oppa-green)]"><CheckCircle2 size={22} aria-hidden="true" /></div>
+          <h3 id="fee-verification-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">Verify franchise payment?</h3>
+          <p id="fee-verification-description" className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">Confirm that you reviewed the submitted receipt and the franchise fee has actually been received. This will mark the payment as verified.</p>
+          <div className="mt-6 flex justify-end gap-2">
+            <button type="button" disabled={saving} onClick={() => setConfirmFeeVerification(false)} className="rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-60">Cancel</button>
+            <button type="button" disabled={saving} onClick={() => { setConfirmFeeVerification(false); void saveRequirements(); }} className="inline-flex items-center gap-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60">{saving && <Loader2 size={15} className="animate-spin" />}{saving ? 'Saving…' : 'Confirm and save'}</button>
+          </div>
+        </section>
+      </div>}
       <form onSubmit={save} className="grid gap-4 md:grid-cols-2">
         <label className="text-sm font-medium">Agreement status<select value={agreementStatus} onChange={(event) => setAgreementStatus(event.target.value)} className={selectClass}><option value="not_started">Not started</option><option value="drafting">Drafting</option><option value="sent">Sent for review/signing</option><option value="signed">Signed</option></select></label>
         <label className="text-sm font-medium">Agreement prepared date<input type="date" min={todayInManila()} value={agreementPreparedAt} onChange={(event) => setAgreementPreparedAt(event.target.value)} className={dateClass} /></label>
@@ -145,7 +179,7 @@ const FranchiseRequirementsForm: React.FC<{
         {feeStatus === 'rejected' && <label className="text-sm font-medium md:col-span-2">Payment rejection reason<textarea required value={feeRejectReason} onChange={(event) => setFeeRejectReason(event.target.value)} rows={2} maxLength={2000} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" /></label>}
 
         <fieldset className="space-y-2 rounded-xl border border-[var(--oppa-border)] p-4 md:col-span-2">
-          <legend className="px-1 text-sm font-semibold">Application-specific required documents</legend>
+          <legend className="px-1 text-sm font-semibold">Requirements and files for the franchisee</legend>
           {documents.map((document, index) => {
             const submission = application.documents
               ?.map((file, documentIndex) => ({ ...file, documentIndex }))
@@ -154,7 +188,7 @@ const FranchiseRequirementsForm: React.FC<{
             const submittedName = submission?.name || document.submitted_document_name;
             const submittedIndex = submission?.documentIndex ?? document.submitted_document_index;
             return <div key={index} className="grid gap-2 rounded-lg bg-[var(--oppa-cream)] p-3 sm:grid-cols-[minmax(180px,1fr)_auto_160px_auto] sm:items-center">
-            <input aria-label="Required document name" required value={document.label} onChange={(event) => updateDocument(index, { label: event.target.value })} placeholder="Document name" className="rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm" />
+            <input aria-label="Required document name" required value={document.label} onChange={(event) => updateDocument(index, { label: event.target.value })} placeholder="Requirement or file name" className="rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm" />
             <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={document.required} onChange={(event) => updateDocument(index, { required: event.target.checked })} />Required</label>
             <select aria-label="Document verification status" value={document.status} onChange={(event) => updateDocument(index, { status: event.target.value, reject_reason: event.target.value === 'rejected' ? document.reject_reason : null })} className="rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2 text-xs"><option value="pending">Pending</option><option value="submitted">Submitted</option><option value="received">Received</option><option value="verified">Verified</option><option value="rejected">Rejected</option><option value="not_applicable">Not applicable</option></select>
             <div className="flex gap-2 sm:col-span-4"><button type="button" onClick={() => updateDocument(index, { status: 'verified', reject_reason: null })} className="rounded-lg bg-emerald-100 px-2.5 py-1.5 text-xs font-semibold text-emerald-800">Verify</button><button type="button" onClick={() => updateDocument(index, { status: 'rejected' })} className="rounded-lg bg-red-100 px-2.5 py-1.5 text-xs font-semibold text-red-800">Reject</button></div>
@@ -162,14 +196,15 @@ const FranchiseRequirementsForm: React.FC<{
             <div className="text-xs text-[var(--oppa-text-muted)] sm:col-span-4">
               {submittedName && <p>Applicant submission: <span className="font-medium text-[var(--oppa-text)]">{submittedName}</span>{typeof submittedIndex === 'number' && <button type="button" onClick={() => onDownload(submittedIndex, submittedName)} className="ml-2 font-semibold text-[var(--oppa-green)] underline">Download submitted file</button>}</p>}
               {document.status === 'rejected' && <label className="mt-2 block font-medium">Reason for rejection<textarea required value={document.reject_reason || ''} onChange={(event) => updateDocument(index, { reject_reason: event.target.value })} rows={2} maxLength={2000} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-xs" /></label>}
-              <label className="mt-2 block font-medium">Blank form/template for applicant<input type="file" accept=".pdf,.doc,.docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) { setDocumentTemplates((current) => ({ ...current, [index]: file })); updateDocument(index, { template_name: file.name }); } }} className="mt-1 block w-full text-xs" /></label>
-              <p className="mt-1">{documentTemplates[index]?.name || document.template_name || 'No template attached'}</p>
+              <label className="mt-2 block font-medium">Category<select value={document.category || 'application_documents'} onChange={(event) => updateDocument(index, { category: event.target.value })} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-xs">{requirementCategories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <label className="mt-2 block font-medium">File or form to send to franchisee<input type="file" accept=".pdf,.doc,.docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) { setDocumentTemplates((current) => ({ ...current, [index]: file })); updateDocument(index, { template_name: file.name }); } }} className="mt-1 block w-full text-xs" /></label>
+              <p className="mt-1">{documentTemplates[index]?.name || document.template_name || 'No file attached yet'}</p>
               {(document.template_name || documentTemplates[index]) && <button type="button" onClick={() => { setDocumentTemplates((current) => { const next = { ...current }; delete next[index]; return next; }); updateDocument(index, { template_name: null }); }} className="mt-1 font-semibold text-red-700 hover:underline">Remove template</button>}
             </div>
           </div>;
           })}
-          <button type="button" disabled={documents.length >= 8} onClick={() => setDocuments((current) => [...current, { label: '', required: true, status: 'pending' }])} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold disabled:opacity-50">Add required document</button>
-          <p className="text-xs text-[var(--oppa-text-muted)]">Upload a blank PDF/DOC/DOCX form for each item. Applicants can download, fill out, and return all required files together (up to 8).</p>
+          <button type="button" disabled={documents.length >= 8} onClick={() => setDocuments((current) => [...current, { label: '', category: 'application_documents', required: true, status: 'pending' }])} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold disabled:opacity-50">Add requirement and file</button>
+          <p className="text-xs text-[var(--oppa-text-muted)]">Attach the agreement, guide, form, or other file the franchisee needs for each requirement. They can download the files and return all required completed documents together (up to 8).</p>
         </fieldset>
 
         <label className="text-sm font-medium">Location readiness<select value={locationReadiness} onChange={(event) => setLocationReadiness(event.target.value)} className={selectClass}><option value="pending">Pending</option><option value="ready">Ready</option><option value="not_applicable">Not applicable</option></select></label>

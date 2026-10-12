@@ -65,6 +65,7 @@ export interface FranchiseApplication {
     label: string;
     required: boolean;
     status: string;
+    category?: string;
     template_name?: string | null;
     submitted_document_name?: string | null;
     submitted_document_index?: number | null;
@@ -408,6 +409,7 @@ export const updateFranchiseApplicationRequirements = async (id: string | number
     label: string;
     required: boolean;
     status: string;
+    category?: string;
     template_name?: string | null;
     reject_reason?: string | null;
   }>;
