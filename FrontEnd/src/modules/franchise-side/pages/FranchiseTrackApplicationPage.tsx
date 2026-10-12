@@ -79,9 +79,10 @@ const FranchiseTrackApplicationPage: React.FC = () => {
           <article className="overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
             <header className="flex flex-col gap-3 border-b border-[var(--oppa-border)] p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
               <div><p className="font-mono text-xs text-[var(--oppa-text-muted)]">{application.reference_number}</p><h2 className="mt-1 text-xl font-bold text-[var(--oppa-text)]">{application.franchise_name}</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Proposed location: {application.location}</p></div>
-              <span className="w-fit rounded-full bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-800">{franchiseStatusLabel(status)}</span>
+              <span className={`w-fit rounded-full px-3 py-1.5 text-sm font-semibold ${status === 'rejected' ? 'bg-red-50 text-red-700' : status === 'active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800'}`}>{franchiseStatusLabel(status)}</span>
             </header>
             <div className="space-y-5 p-5 sm:p-6">
+              {status === 'rejected' && <section role="status" className="rounded-2xl border border-red-200 bg-red-50 p-4"><h3 className="font-semibold text-red-900">Application not approved</h3><p className="mt-1 text-sm leading-6 text-red-800">{application.next_step_instructions || 'The franchisor has reviewed your application and decided not to proceed.'}</p></section>}
               {showProgress && <section className="rounded-2xl border border-[var(--oppa-border)] p-4">
                 <h3 className="mb-3 text-sm font-semibold">Franchise process</h3>
                 <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -92,7 +93,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                   })}
                 </ol>
               </section>}
-              <section className="rounded-2xl bg-[var(--oppa-cream)] p-4">
+              {status !== 'rejected' && <section className="rounded-2xl bg-[var(--oppa-cream)] p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>
                 <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
                 {(application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl bg-white p-3 text-sm">
@@ -101,7 +102,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                   {application.interview_location && <p className="mt-1">Location: {application.interview_location}</p>}
                   {application.interview_meeting_url && <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex font-semibold text-[var(--oppa-green)] underline">Join online interview</a>}
                 </div>}
-              </section>
+              </section>}
               <section>
                 <h3 className="mb-3 flex items-center gap-2 font-semibold"><BriefcaseBusiness size={16} className="text-[var(--oppa-green)]" /> Application timeline</h3>
                 {!application.events?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No timeline updates yet.</p> : <ol className="space-y-4">{application.events.map((event) => <li key={event.id} className="border-l border-[var(--oppa-border)] pl-4"><p className="text-sm font-semibold">{event.title}</p>{event.message && <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[var(--oppa-text-muted)]">{event.message}</p>}<p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{formatPhilippineDateTime(event.created_at)}</p></li>)}</ol>}

@@ -197,21 +197,65 @@ class FranchiseApplicationReviewTest extends TestCase
             ->assertJsonPath('data.status', 'location_assessment')
             ->assertJsonPath('data.next_step_instructions', FranchiseApplication::defaultInstructionsFor('location_assessment'));
 
+        $this->post('/api/admin/franchise-applications/'.$application->id.'/requirements', [
+            '_method' => 'PATCH',
+            'agreement_status' => 'not_started',
+            'agreement_prepared_at' => '',
+            'agreement_signed_at' => '',
+            'franchise_fee_amount' => '',
+            'franchise_fee_payment_status' => 'not_configured',
+            'franchise_fee_payment_reference' => '',
+            'required_documents' => json_encode([
+                ['label' => 'Property application form', 'required' => true, 'status' => 'pending', 'template_name' => null],
+            ]),
+            'required_document_templates' => [
+                0 => UploadedFile::fake()->create('property-application-form.pdf', 100, 'application/pdf'),
+            ],
+            'location_readiness' => 'pending',
+            'permit_compliance_status' => 'pending',
+            'training_status' => 'pending',
+            'operational_preparation_status' => 'pending',
+            'internal_notes' => '',
+        ], $headers + ['Accept' => 'application/json'])->assertOk();
+
+        Auth::forgetGuards();
+        $this->get('/api/franchise-applications/me/'.$application->id.'/required-documents/0/template', [
+            'Authorization' => 'Bearer '.$applicant['token'],
+            'Accept' => 'application/json',
+        ])->assertOk()
+            ->assertHeader('content-disposition');
+
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'additional_information_required',
             'next_step_instructions' => 'Submit your site documents, financial records, and agreement details together.',
         ], $headers)->assertOk();
 
+        Auth::forgetGuards();
         $this->post('/api/franchise-applications/me/'.$application->id.'/response', [
             'response' => 'I have attached the complete requested document packet.',
-            'documents' => [UploadedFile::fake()->create('complete-document-packet.pdf', 100, 'application/pdf')],
+        ], [
+            'Authorization' => 'Bearer '.$applicant['token'],
+            'Accept' => 'application/json',
+        ])->assertUnprocessable()
+            ->assertJsonPath('missing_documents.0', 'Property application form');
+
+        Auth::forgetGuards();
+        $this->post('/api/franchise-applications/me/'.$application->id.'/response', [
+            'response' => 'I have attached the complete requested document packet.',
+            'required_document_uploads' => [
+                0 => UploadedFile::fake()->create('completed-property-application.pdf', 100, 'application/pdf'),
+            ],
         ], [
             'Authorization' => 'Bearer '.$applicant['token'],
             'Accept' => 'application/json',
         ])->assertOk()
             ->assertJsonPath('data.status', 'location_assessment')
             ->assertJsonPath('data.next_step_instructions', 'Your complete document packet was received. The franchise team will continue the site assessment and final review.')
-            ->assertJsonCount(1, 'data.documents');
+            ->assertJsonCount(1, 'data.documents')
+            ->assertJsonPath('data.documents.0.name', 'completed-property-application.pdf')
+            ->assertJsonPath('data.required_documents.0.status', 'received')
+            ->assertJsonPath('data.required_documents.0.submitted_document_name', 'completed-property-application.pdf')
+            ->assertJsonMissingPath('data.required_documents.0.template_path');
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'additional_information_required',

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
 import {
   downloadMyFranchiseApplicationDocument,
+  downloadFranchiseRequiredDocumentTemplate,
   getMyFranchiseApplications,
   respondToFranchiseApplication,
   withdrawFranchiseApplication,
@@ -38,6 +39,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
   const [applications, setApplications] = useState<ApplicantFranchiseApplication[]>([]);
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [responseFiles, setResponseFiles] = useState<Record<string, File[]>>({});
+  const [requiredResponseFiles, setRequiredResponseFiles] = useState<Record<string, Record<number, File>>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -82,21 +84,53 @@ const FranchiseMyApplicationsPage: React.FC = () => {
 
   const handleResponse = async (application: ApplicantFranchiseApplication) => {
     const response = responses[application.id]?.trim() || '';
+    const requiredFiles = requiredResponseFiles[application.id] || {};
+    const missingRequiredFiles = (application.required_documents || [])
+      .map((document, index) => ({ document, index }))
+      .filter(({ document, index }) => document.required && document.status !== 'not_applicable' && !requiredFiles[index])
+      .map(({ document }) => document.label);
     if (!response) {
       setError('Write a response before sending additional information.');
+      return;
+    }
+    if (missingRequiredFiles.length) {
+      setError(`Upload all required forms before submitting: ${missingRequiredFiles.join(', ')}.`);
+      return;
+    }
+    if (Object.keys(requiredFiles).length + (responseFiles[application.id]?.length || 0) > 8) {
+      setError('Submit no more than 8 documents in one response.');
       return;
     }
     setBusyId(application.id);
     setError('');
     setMessage('');
     try {
-      await respondToFranchiseApplication(application.id, response, responseFiles[application.id] || []);
+      await respondToFranchiseApplication(application.id, response, responseFiles[application.id] || [], requiredFiles);
       setResponses((current) => ({ ...current, [application.id]: '' }));
       setResponseFiles((current) => ({ ...current, [application.id]: [] }));
+      setRequiredResponseFiles((current) => ({ ...current, [application.id]: {} }));
       setMessage(`Your response for ${application.reference_number} has been sent.`);
       await load(false);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : 'Unable to send your response.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleTemplateDownload = async (application: ApplicantFranchiseApplication, index: number, name: string) => {
+    setBusyId(application.id);
+    setError('');
+    try {
+      const blob = await downloadFranchiseRequiredDocumentTemplate(application.id, index);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = name;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : 'Unable to download the required form.');
     } finally {
       setBusyId(null);
     }
@@ -174,6 +208,8 @@ const FranchiseMyApplicationsPage: React.FC = () => {
               const currentStatus = application.status || 'under_review';
               const currentStageIndex = franchiseStageIndex(application);
               const showProgress = currentStatus !== 'rejected' && currentStatus !== 'withdrawn';
+              const hasEnteredCombinedReview = ['location_assessment', 'conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening', 'active'].includes(currentStatus)
+                || (currentStatus === 'additional_information_required' && application.events?.some((event) => event.title === 'Status updated' && event.status === 'location_assessment') === true);
               const canWithdraw = ['submitted', 'pending', 'under_review', 'additional_information_required', 'for_interview', 'location_assessment', 'on_hold'].includes(currentStatus);
               return (
                 <article key={application.id} className="overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
@@ -184,7 +220,18 @@ const FranchiseMyApplicationsPage: React.FC = () => {
 
                   <div className="p-5 sm:p-6">
                     {currentStatus === 'on_hold' && <p className="mb-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">Your application is temporarily on hold. Please follow the instructions below or contact the franchise team if clarification is needed.</p>}
-                    {currentStatus === 'rejected' && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">This application was not approved. Any applicant-visible update from the team is shown in the timeline below.</p>}
+                    {currentStatus === 'rejected' && (
+                      <section role="status" className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle className="mt-0.5 size-5 shrink-0 text-red-700" aria-hidden="true" />
+                          <div>
+                            <h3 className="font-semibold text-red-900">Application not approved</h3>
+                            <p className="mt-1 text-sm leading-6 text-red-800">{application.next_step_instructions || 'The franchisor has reviewed your application and decided not to proceed.'}</p>
+                            <p className="mt-2 text-xs text-red-800">You can review the application timeline below for the latest update.</p>
+                          </div>
+                        </div>
+                      </section>
+                    )}
                     {currentStatus === 'withdrawn' && <p className="mb-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">You withdrew this application.</p>}
 
                     {showProgress && (
@@ -202,7 +249,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
 
                     {currentStatus === 'active' && <p className="mb-5 rounded-xl bg-green-50 p-3 text-sm text-green-800">Your franchise is active. Authorized franchise operations, sales reporting, and compliance monitoring are now managed through the franchise portal.</p>}
 
-                    <section className="mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
+                    {currentStatus !== 'rejected' && <section className="mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
                       <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>
                       <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
                       {(application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl bg-white p-3 text-sm">
@@ -211,13 +258,18 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                         {application.interview_location && <p className="mt-1">Location: {application.interview_location}</p>}
                         {application.interview_meeting_url && <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex font-semibold text-[var(--oppa-green)] underline">Join online interview</a>}
                       </div>}
-                    </section>
+                    </section>}
 
                     {currentStatus === 'additional_information_required' && (
                       <section className="mb-5 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                         <h3 className="font-semibold text-[var(--oppa-text)]">Send additional information</h3>
                         <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Please include every requested document in one submission so the team can complete the combined site, financial, and final review.</p>
-                        {application.required_documents?.some((document) => document.required) && <ul className="mt-3 list-inside list-disc space-y-1 text-sm">{application.required_documents.filter((document) => document.required).map((document) => <li key={document.label}>{document.label}</li>)}</ul>}
+                        {application.required_documents?.some((document) => document.required) && <div className="mt-3 space-y-3">{application.required_documents.map((document, index) => document.required && document.status !== 'not_applicable' ? <label key={document.label} className="block rounded-xl border border-amber-200 bg-white p-3 text-sm">
+                          <span className="font-semibold">{document.label}</span>
+                          {document.template_name ? <button type="button" onClick={() => void handleTemplateDownload(application, index, document.template_name || document.label)} disabled={busyId === application.id} className="ml-2 font-semibold text-[var(--oppa-green)] underline disabled:opacity-60">Download blank form</button> : <span className="ml-2 text-xs text-amber-800">Form not uploaded yet — contact the franchise team.</span>}
+                          <input type="file" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) setRequiredResponseFiles((current) => ({ ...current, [application.id]: { ...(current[application.id] || {}), [index]: file } })); }} className="mt-2 block w-full text-xs" />
+                          {requiredResponseFiles[application.id]?.[index] && <span className="mt-1 block text-xs text-emerald-800">Selected: {requiredResponseFiles[application.id][index].name}</span>}
+                        </label> : null)}</div>}
                         <textarea value={responses[application.id] || ''} onChange={(event) => setResponses((current) => ({ ...current, [application.id]: event.target.value}))} rows={4} maxLength={5000} placeholder="Write your response to the review team's request." className="mt-3 w-full rounded-xl border border-[var(--oppa-border)] bg-white p-3 text-sm" />
                         <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => setResponseFiles((current) => ({ ...current, [application.id]: Array.from(event.target.files || [])}))} className="mt-3 block text-sm" />
                         <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Submit all files together: PDF, JPG, PNG, DOC, or DOCX; up to 8 files and 10 MB each.</p>
@@ -225,7 +277,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                       </section>
                     )}
 
-                    {(application.agreement_status || application.required_documents?.length || application.location_readiness) && (
+                    {hasEnteredCombinedReview && (application.agreement_status || application.required_documents?.length || application.location_readiness) && (
                       <section className="mb-5 rounded-2xl border border-[var(--oppa-border)] p-4">
                         <h3 className="mb-1 font-semibold">Agreement and opening readiness</h3>
                         <p className="mb-3 text-xs text-[var(--oppa-text-muted)]">Read-only updates from the franchise review team. Contact the team if you have questions about a requirement.</p>

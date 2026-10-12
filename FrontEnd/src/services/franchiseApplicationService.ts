@@ -30,7 +30,13 @@ export interface ApplicantFranchiseApplication {
   agreement_signed_at?: string | null;
   franchise_fee_amount?: string | number | null;
   franchise_fee_payment_status?: string;
-  required_documents?: Array<{ label: string; required: boolean; status: string }>;
+  required_documents?: Array<{
+    label: string;
+    required: boolean;
+    status: string;
+    template_name?: string | null;
+    submitted_document_name?: string | null;
+  }>;
   location_readiness?: string;
   permit_compliance_status?: string;
   training_status?: string;
@@ -76,10 +82,18 @@ export const trackFranchiseApplication = async (referenceNumber: string, email: 
   return body.data as ApplicantFranchiseApplication;
 };
 
-export const respondToFranchiseApplication = (id: string, response: string, documents: File[]) => {
+export const respondToFranchiseApplication = (
+  id: string,
+  response: string,
+  documents: File[],
+  requiredDocumentUploads: Record<number, File> = {},
+) => {
   const form = new FormData();
   form.append('response', response);
   documents.forEach((document) => form.append('documents[]', document));
+  Object.entries(requiredDocumentUploads).forEach(([index, file]) => {
+    form.append(`required_document_uploads[${index}]`, file);
+  });
   return request(`/franchise-applications/me/${id}/response`, { method: 'POST', body: form });
 };
 
@@ -93,5 +107,15 @@ export const downloadMyFranchiseApplicationDocument = async (id: string, documen
     headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error('Unable to download this supporting document.');
+  return response.blob();
+};
+
+export const downloadFranchiseRequiredDocumentTemplate = async (id: string, document: number): Promise<Blob> => {
+  const token = franchiseApplicantAuthService.getToken();
+  if (!token) throw new Error('Sign in to access your franchise applications.');
+  const response = await fetch(`${API_URL}/franchise-applications/me/${id}/required-documents/${document}/template`, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to download this required document template.');
   return response.blob();
 };

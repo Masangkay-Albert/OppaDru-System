@@ -42,7 +42,7 @@ export interface FranchiseApplication {
   has_proposed_property?: boolean;
   opening_timeline?: string;
   business_information?: string;
-  documents?: Array<{ name: string; size: number; mime_type: string }>;
+  documents?: Array<{ name: string; size: number; mime_type: string; required_document_label?: string }>;
   notes?: string;
   status?: string;
   allowed_transitions?: string[];
@@ -60,7 +60,13 @@ export interface FranchiseApplication {
   franchise_fee_amount?: string | number | null;
   franchise_fee_payment_status?: string;
   franchise_fee_payment_reference?: string | null;
-  required_documents?: Array<{ label: string; required: boolean; status: string }>;
+  required_documents?: Array<{
+    label: string;
+    required: boolean;
+    status: string;
+    template_name?: string | null;
+    submitted_document_name?: string | null;
+  }>;
   requirements_reviewed_at?: string | null;
   location_readiness?: string;
   permit_compliance_status?: string;
@@ -393,17 +399,38 @@ export const updateFranchiseApplicationRequirements = async (id: string | number
   franchise_fee_amount?: string;
   franchise_fee_payment_status: string;
   franchise_fee_payment_reference?: string;
-  required_documents: Array<{ label: string; required: boolean; status: string }>;
+  required_documents: Array<{ label: string; required: boolean; status: string; template_name?: string | null }>;
   location_readiness: string;
   permit_compliance_status: string;
   training_status: string;
   operational_preparation_status: string;
   internal_notes?: string;
+  required_document_templates?: Record<number, File>;
 }) => {
+  const form = new FormData();
+  const scalarFields: Record<string, string | undefined> = {
+    agreement_status: data.agreement_status,
+    agreement_prepared_at: data.agreement_prepared_at,
+    agreement_signed_at: data.agreement_signed_at,
+    franchise_fee_amount: data.franchise_fee_amount,
+    franchise_fee_payment_status: data.franchise_fee_payment_status,
+    franchise_fee_payment_reference: data.franchise_fee_payment_reference,
+    location_readiness: data.location_readiness,
+    permit_compliance_status: data.permit_compliance_status,
+    training_status: data.training_status,
+    operational_preparation_status: data.operational_preparation_status,
+    internal_notes: data.internal_notes,
+  };
+  Object.entries(scalarFields).forEach(([key, value]) => form.append(key, value ?? ''));
+  form.append('_method', 'PATCH');
+  form.append('required_documents', JSON.stringify(data.required_documents));
+  Object.entries(data.required_document_templates || {}).forEach(([index, file]) => {
+    form.append(`required_document_templates[${index}]`, file);
+  });
   const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications/${id}/requirements`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(data),
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+    body: form,
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {

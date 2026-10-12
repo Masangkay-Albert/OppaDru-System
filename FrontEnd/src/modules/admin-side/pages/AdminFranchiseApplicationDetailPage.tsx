@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Download, FileText, Loader2, Save } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import { ConfirmDialog } from '../components/AdminUI';
 import {
   activateFranchiseApplication,
   downloadFranchiseApplicationDocument,
@@ -38,7 +39,7 @@ const manilaDateTimeInputToIso = (value: string): string =>
 const minimumManilaDateTime = (): string =>
   toManilaDateTimeInput(new Date(Date.now() + 60_000).toISOString());
 
-type FranchiseRequirementDocument = { label: string; required: boolean; status: string };
+type FranchiseRequirementDocument = { label: string; required: boolean; status: string; template_name?: string | null; submitted_document_name?: string | null };
 
 const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; onSaved: () => Promise<void> }> = ({ application, onSaved }) => {
   const [agreementStatus, setAgreementStatus] = useState(application.agreement_status || 'not_started');
@@ -48,6 +49,7 @@ const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; o
   const [feeStatus, setFeeStatus] = useState(application.franchise_fee_payment_status || 'not_configured');
   const [feeReference, setFeeReference] = useState(application.franchise_fee_payment_reference || '');
   const [documents, setDocuments] = useState<FranchiseRequirementDocument[]>(application.required_documents || []);
+  const [documentTemplates, setDocumentTemplates] = useState<Record<number, File>>({});
   const [locationReadiness, setLocationReadiness] = useState(application.location_readiness || 'pending');
   const [permitStatus, setPermitStatus] = useState(application.permit_compliance_status || 'pending');
   const [trainingStatus, setTrainingStatus] = useState(application.training_status || 'pending');
@@ -78,6 +80,7 @@ const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; o
         franchise_fee_payment_status: feeStatus,
         franchise_fee_payment_reference: feeReference,
         required_documents: documents,
+        required_document_templates: documentTemplates,
         location_readiness: locationReadiness,
         permit_compliance_status: permitStatus,
         training_status: trainingStatus,
@@ -112,13 +115,20 @@ const FranchiseRequirementsForm: React.FC<{ application: FranchiseApplication; o
 
         <fieldset className="space-y-2 rounded-xl border border-[var(--oppa-border)] p-4 md:col-span-2">
           <legend className="px-1 text-sm font-semibold">Application-specific required documents</legend>
-          {documents.map((document, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_auto_160px_auto] sm:items-center">
-            <input aria-label="Required document name" required value={document.label} onChange={(event) => updateDocument(index, { label: event.target.value })} placeholder="Document name" className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" />
+          {documents.map((document, index) => <div key={index} className="grid gap-2 rounded-lg bg-[var(--oppa-cream)] p-3 sm:grid-cols-[minmax(180px,1fr)_auto_160px_auto] sm:items-center">
+            <input aria-label="Required document name" required value={document.label} onChange={(event) => updateDocument(index, { label: event.target.value })} placeholder="Document name" className="rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm" />
             <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={document.required} onChange={(event) => updateDocument(index, { required: event.target.checked })} />Required</label>
             <select aria-label="Document verification status" value={document.status} onChange={(event) => updateDocument(index, { status: event.target.value })} className="rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2 text-xs"><option value="pending">Pending</option><option value="received">Received</option><option value="verified">Verified</option><option value="not_applicable">Not applicable</option></select>
-            <button type="button" onClick={() => setDocuments((current) => current.filter((_, position) => position !== index))} className="text-xs font-semibold text-red-700">Remove</button>
+            <button type="button" onClick={() => { setDocuments((current) => current.filter((_, position) => position !== index)); setDocumentTemplates((current) => Object.fromEntries(Object.entries(current).filter(([key]) => Number(key) !== index).map(([key, file]) => [Number(key) > index ? String(Number(key) - 1) : key, file]))); }} className="text-xs font-semibold text-red-700">Remove</button>
+            <div className="text-xs text-[var(--oppa-text-muted)] sm:col-span-4">
+              {document.submitted_document_name && <p>Applicant submission: <span className="font-medium text-[var(--oppa-text)]">{document.submitted_document_name}</span></p>}
+              <label className="mt-2 block font-medium">Blank form/template for applicant<input type="file" accept=".pdf,.doc,.docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) { setDocumentTemplates((current) => ({ ...current, [index]: file })); updateDocument(index, { template_name: file.name }); } }} className="mt-1 block w-full text-xs" /></label>
+              <p className="mt-1">{documentTemplates[index]?.name || document.template_name || 'No template attached'}</p>
+              {(document.template_name || documentTemplates[index]) && <button type="button" onClick={() => { setDocumentTemplates((current) => { const next = { ...current }; delete next[index]; return next; }); updateDocument(index, { template_name: null }); }} className="mt-1 font-semibold text-red-700 hover:underline">Remove template</button>}
+            </div>
           </div>)}
-          <button type="button" onClick={() => setDocuments((current) => [...current, { label: '', required: true, status: 'pending' }])} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold">Add required document</button>
+          <button type="button" disabled={documents.length >= 8} onClick={() => setDocuments((current) => [...current, { label: '', required: true, status: 'pending' }])} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold disabled:opacity-50">Add required document</button>
+          <p className="text-xs text-[var(--oppa-text-muted)]">Upload a blank PDF/DOC/DOCX form for each item. Applicants can download, fill out, and return all required files together (up to 8).</p>
         </fieldset>
 
         <label className="text-sm font-medium">Location readiness<select value={locationReadiness} onChange={(event) => setLocationReadiness(event.target.value)} className={selectClass}><option value="pending">Pending</option><option value="ready">Ready</option><option value="not_applicable">Not applicable</option></select></label>
@@ -148,7 +158,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState<number | null>(null);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [confirmationStatus, setConfirmationStatus] = useState<string | null>(null);
   const formDirty = useRef(false);
   const requestInFlight = useRef(false);
   const mounted = useRef(false);
@@ -210,9 +220,34 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     return options.includes(status) ? options : [status, ...options];
   }, [application?.allowed_transitions, currentStatus, status]);
 
+  const saveReviewUpdates = async () => {
+    if (!id) return;
+    const savedInterviewAt = application?.interview_at ? toManilaDateTimeInput(application.interview_at) : '';
+    const interviewChanged = interviewAt !== savedInterviewAt;
+    const interviewAtIso = interviewAt ? manilaDateTimeInputToIso(interviewAt) : '';
+    setSaving(true);
+    setError('');
+    try {
+      await reviewFranchiseApplication(id, {
+        status,
+        next_step_instructions: instructions,
+        ...(interviewAt && (status === 'for_interview' || interviewChanged) ? { interview_at: interviewAtIso } : {}),
+        interview_type: interviewType,
+        interview_location: interviewType === 'onsite' ? interviewLocation.trim() : null,
+        interview_notes: interviewNotes,
+        interview_meeting_url: interviewType === 'online' ? interviewMeetingUrl.trim() || null : null,
+      });
+      formDirty.current = false;
+      await load();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save review updates.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!id) return;
     const savedInterviewAt = application?.interview_at ? toManilaDateTimeInput(application.interview_at) : '';
     const interviewChanged = interviewAt !== savedInterviewAt;
     const interviewAtIso = interviewAt ? manilaDateTimeInputToIso(interviewAt) : '';
@@ -225,28 +260,11 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       setError('Enter the location for the onsite interview.');
       return;
     }
-    if ((status === 'conditionally_approved' || status === 'rejected') && !window.confirm(`Confirm ${statusTitle(status).toLowerCase()} for this application?`)) return;
-    setSaving(true);
-    setError('');
-    setMessage('');
-    try {
-      await reviewFranchiseApplication(id, {
-        status,
-        next_step_instructions: instructions,
-        ...(interviewAt && (status === 'for_interview' || interviewChanged) ? { interview_at: interviewAtIso } : {}),
-        interview_type: interviewType,
-        interview_location: interviewType === 'onsite' ? interviewLocation.trim() : null,
-        interview_notes: interviewNotes,
-        interview_meeting_url: interviewType === 'online' ? interviewMeetingUrl.trim() || null : null,
-      });
-      formDirty.current = false;
-      setMessage('Review updates saved.');
-      await load();
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to save review updates.');
-    } finally {
-      setSaving(false);
+    if (status === 'conditionally_approved' || status === 'rejected') {
+      setConfirmationStatus(status);
+      return;
     }
+    await saveReviewUpdates();
   };
 
   const downloadDocument = async (index: number, name: string) => {
@@ -272,7 +290,6 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     <AdminLayout>
       <Link to="/admin/franchise-applications" className="mb-5 inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)]"><ArrowLeft size={16} /> All applications</Link>
       {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      {message && <p role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{message}</p>}
       {loading ? <div className="rounded-2xl bg-white p-10 text-center text-sm text-[var(--oppa-text-muted)]"><Loader2 className="mx-auto size-6 animate-spin" /><p className="mt-3">Loading application…</p></div> : !application ? null : (
         <>
           <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -298,7 +315,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
               <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
                 <h2 className="mb-3 font-semibold text-[var(--oppa-text)]">Supporting documents</h2>
-                {!application.documents?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No supporting documents were provided.</p> : <ul className="space-y-2">{application.documents.map((file, index) => <li key={`${file.name}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-[var(--oppa-cream)] p-3"><span className="flex min-w-0 items-center gap-2 text-sm"><FileText size={17} className="shrink-0 text-[var(--oppa-green)]" /><span className="truncate">{file.name}</span></span><button type="button" onClick={() => void downloadDocument(index, file.name)} disabled={downloading === index} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-1.5 text-xs font-semibold disabled:opacity-60"><Download size={14} />{downloading === index ? 'Loading…' : 'Download'}</button></li>)}</ul>}
+                {!application.documents?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No supporting documents were provided.</p> : <ul className="space-y-2">{application.documents.map((file, index) => <li key={`${file.name}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-[var(--oppa-cream)] p-3"><span className="flex min-w-0 items-center gap-2 text-sm"><FileText size={17} className="shrink-0 text-[var(--oppa-green)]" /><span className="min-w-0"><span className="block truncate">{file.name}</span>{file.required_document_label && <span className="block text-xs text-[var(--oppa-text-muted)]">Submitted for: {file.required_document_label}</span>}</span></span><button type="button" onClick={() => void downloadDocument(index, file.name)} disabled={downloading === index} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-1.5 text-xs font-semibold disabled:opacity-60"><Download size={14} />{downloading === index ? 'Loading…' : 'Download'}</button></li>)}</ul>}
               </section>
 
             </div>
@@ -330,6 +347,19 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
           <FranchiseActivationPanel application={application} onActivated={load} />
         </>
       )}
+      {confirmationStatus && <ConfirmDialog
+        title={confirmationStatus === 'rejected' ? 'Reject this application?' : 'Approve this application?'}
+        description={confirmationStatus === 'rejected'
+          ? 'The applicant will see that their application was not approved and any instructions you provide. This decision will be recorded in the application timeline.'
+          : 'The applicant will be notified that they passed the review and may proceed to the agreement and final requirements.'}
+        confirmLabel={confirmationStatus === 'rejected' ? 'Reject application' : 'Approve application'}
+        onCancel={() => setConfirmationStatus(null)}
+        onConfirm={() => {
+          setConfirmationStatus(null);
+          void saveReviewUpdates();
+        }}
+        busy={saving}
+      />}
     </AdminLayout>
   );
 };

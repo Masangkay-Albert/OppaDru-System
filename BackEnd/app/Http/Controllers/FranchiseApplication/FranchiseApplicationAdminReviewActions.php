@@ -8,7 +8,10 @@ use App\Models\FranchiseApplicationEvent;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use RuntimeException;
+use Throwable;
 
 trait FranchiseApplicationAdminReviewActions
 {
@@ -87,6 +90,19 @@ trait FranchiseApplicationAdminReviewActions
                 abort(response()->json([
                     'message' => 'The combined post-interview document packet has already been submitted. Review the submitted documents and continue the final assessment.',
                 ], 409));
+            }
+            if ($currentStatus === 'location_assessment' && $targetStatus === 'additional_information_required') {
+                $missingTemplates = collect($application->required_documents ?? [])
+                    ->filter(fn (array $document) => ($document['required'] ?? false) && empty($document['template_path']))
+                    ->pluck('label')
+                    ->values()
+                    ->all();
+                if ($missingTemplates !== []) {
+                    abort(response()->json([
+                        'message' => 'Upload a blank template for each required document before requesting the combined document packet.',
+                        'missing_templates' => $missingTemplates,
+                    ], 409));
+                }
             }
             if ($targetStatus === 'for_interview' && ! $request->filled('interview_at')) {
                 abort(response()->json(['message' => 'Set an interview date and time before moving this application to For Interview.'], 422));
@@ -239,6 +255,14 @@ trait FranchiseApplicationAdminReviewActions
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
+        if (is_string($request->input('required_documents'))) {
+            $documents = json_decode($request->input('required_documents'), true);
+            if (! is_array($documents)) {
+                return response()->json(['message' => 'The required document list is invalid.'], 422);
+            }
+            $request->merge(['required_documents' => $documents]);
+        }
+
         $validator = Validator::make($request->all(), [
             'agreement_status' => 'required|string|in:not_started,drafting,sent,signed',
             'agreement_prepared_at' => 'nullable|date',
@@ -246,10 +270,13 @@ trait FranchiseApplicationAdminReviewActions
             'franchise_fee_amount' => 'nullable|numeric|min:0|max:9999999999.99',
             'franchise_fee_payment_status' => 'required|string|in:not_configured,pending,paid,waived,not_applicable',
             'franchise_fee_payment_reference' => 'nullable|string|max:255',
-            'required_documents' => 'present|array|max:30',
-            'required_documents.*.label' => 'required|string|max:255',
+            'required_documents' => 'present|array|max:8',
+            'required_documents.*.label' => 'required|string|max:255|distinct',
             'required_documents.*.required' => 'required|boolean',
             'required_documents.*.status' => 'required|string|in:pending,received,verified,not_applicable',
+            'required_documents.*.template_name' => 'nullable|string|max:255',
+            'required_document_templates' => 'nullable|array|max:8',
+            'required_document_templates.*' => 'file|mimes:pdf,doc,docx|max:10240',
             'location_readiness' => 'required|string|in:pending,ready,not_applicable',
             'permit_compliance_status' => 'required|string|in:pending,verified,not_applicable',
             'training_status' => 'required|string|in:pending,scheduled,complete,not_applicable',
@@ -275,56 +302,108 @@ trait FranchiseApplicationAdminReviewActions
         }
 
         $admin = Admin::where('api_token', hash('sha256', $request->bearerToken() ?? ''))->first();
-        $application = DB::transaction(function () use ($id, $request, $admin) {
-            $application = FranchiseApplication::whereKey($id)->lockForUpdate()->firstOrFail();
-            if (in_array($application->status, ['active', 'rejected', 'withdrawn'], true)) {
-                abort(response()->json([
-                    'message' => 'Requirements cannot be changed for active, rejected, or withdrawn applications.',
-                ], 409));
-            }
+        $newTemplatePaths = [];
+        $oldTemplatePaths = [];
+        try {
+            $application = DB::transaction(function () use ($id, $request, $admin, &$newTemplatePaths, &$oldTemplatePaths) {
+                $application = FranchiseApplication::whereKey($id)->lockForUpdate()->firstOrFail();
+                if (in_array($application->status, ['active', 'rejected', 'withdrawn'], true)) {
+                    abort(response()->json([
+                        'message' => 'Requirements cannot be changed for active, rejected, or withdrawn applications.',
+                    ], 409));
+                }
 
-            foreach ([
-                'agreement_status',
-                'agreement_prepared_at',
-                'agreement_signed_at',
-                'franchise_fee_amount',
-                'franchise_fee_payment_status',
-                'franchise_fee_payment_reference',
-                'required_documents',
-                'location_readiness',
-                'permit_compliance_status',
-                'training_status',
-                'operational_preparation_status',
-            ] as $field) {
-                $application->{$field} = $request->input($field);
-            }
-            $application->requirements_reviewed_at = now();
-            $application->reviewed_by_admin_id = $admin?->id;
-            $application->reviewed_at = now();
-            $application->save();
+                $previousDocuments = $application->required_documents ?? [];
+                $documents = $request->input('required_documents');
+                foreach ($documents as $index => &$document) {
+                    $previous = collect($previousDocuments)->firstWhere('label', $document['label']);
+                    $template = $request->file("required_document_templates.$index");
+                    if ($template) {
+                        $path = Storage::disk('local')->putFile('franchise-application-templates/'.$application->id, $template);
+                        if (! $path) {
+                            throw new RuntimeException('A required document template could not be saved. Please try again.');
+                        }
+                        $newTemplatePaths[] = $path;
+                        if (! empty($previous['template_path'])) {
+                            $oldTemplatePaths[] = $previous['template_path'];
+                        }
+                        $document['template_path'] = $path;
+                        $document['template_name'] = basename($template->getClientOriginalName());
+                    } elseif (! empty($document['template_name']) && ! empty($previous['template_path'])) {
+                        $document['template_path'] = $previous['template_path'];
+                        $document['template_name'] = $previous['template_name'];
+                    } else {
+                        if (! empty($previous['template_path'])) {
+                            $oldTemplatePaths[] = $previous['template_path'];
+                        }
+                        unset($document['template_path'], $document['template_name']);
+                    }
 
-            $this->recordEvent(
-                $application,
-                'admin',
-                $admin?->id,
-                $application->status,
-                'Agreement and opening requirements updated',
-                'Your agreement and opening requirements were updated by the franchise team.',
-            );
-            if ($request->filled('internal_notes')) {
+                    if (isset($previous['submitted_document_name'])) {
+                        $document['submitted_document_name'] = $previous['submitted_document_name'];
+                        $document['submitted_document_index'] = $previous['submitted_document_index'] ?? null;
+                    }
+                }
+                unset($document);
+                foreach ($previousDocuments as $previousDocument) {
+                    if (! collect($documents)->contains('label', $previousDocument['label'] ?? null)
+                        && ! empty($previousDocument['template_path'])) {
+                        $oldTemplatePaths[] = $previousDocument['template_path'];
+                    }
+                }
+
+                foreach ([
+                    'agreement_status',
+                    'agreement_prepared_at',
+                    'agreement_signed_at',
+                    'franchise_fee_amount',
+                    'franchise_fee_payment_status',
+                    'franchise_fee_payment_reference',
+                    'required_documents',
+                    'location_readiness',
+                    'permit_compliance_status',
+                    'training_status',
+                    'operational_preparation_status',
+                ] as $field) {
+                    $application->{$field} = $request->input($field);
+                }
+                $application->required_documents = $documents;
+                $application->requirements_reviewed_at = now();
+                $application->reviewed_by_admin_id = $admin?->id;
+                $application->reviewed_at = now();
+                $application->save();
+
                 $this->recordEvent(
                     $application,
                     'admin',
                     $admin?->id,
                     $application->status,
-                    'Internal requirements note added',
-                    $request->input('internal_notes'),
-                    true,
+                    'Agreement and opening requirements updated',
+                    'Your agreement and opening requirements were updated by the franchise team.',
                 );
-            }
+                if ($request->filled('internal_notes')) {
+                    $this->recordEvent(
+                        $application,
+                        'admin',
+                        $admin?->id,
+                        $application->status,
+                        'Internal requirements note added',
+                        $request->input('internal_notes'),
+                        true,
+                    );
+                }
 
-            return $application->fresh(['events']);
-        });
+                return $application->fresh(['events']);
+            });
+        } catch (Throwable $exception) {
+            if ($newTemplatePaths !== []) {
+                Storage::disk('local')->delete($newTemplatePaths);
+            }
+            throw $exception;
+        }
+        if ($oldTemplatePaths !== []) {
+            Storage::disk('local')->delete(array_unique($oldTemplatePaths));
+        }
 
         return response()->json([
             'message' => 'Agreement and opening requirements saved.',

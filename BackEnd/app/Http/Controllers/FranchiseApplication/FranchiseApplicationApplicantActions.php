@@ -181,12 +181,18 @@ trait FranchiseApplicationApplicantActions
             'response' => 'required|string|max:5000',
             'documents' => 'nullable|array|max:8',
             'documents.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240',
+            'required_document_uploads' => 'nullable|array|max:8',
+            'required_document_uploads.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240',
         ]);
         if ($validator->fails()) {
             return response()->json(['message' => 'Your response could not be submitted.', 'errors' => $validator->errors()], 422);
         }
 
         $applicantId = $request->user()->id;
+        $uploadedCount = count($request->file('documents', [])) + count($request->file('required_document_uploads', []));
+        if ($uploadedCount > 8) {
+            return response()->json(['message' => 'Submit no more than 8 documents in one response.'], 422);
+        }
         $storedPaths = [];
         try {
             $application = DB::transaction(function () use ($request, $id, $applicantId, &$storedPaths) {
@@ -199,22 +205,65 @@ trait FranchiseApplicationApplicantActions
                 }
 
                 $documents = $application->documents ?? [];
-                foreach ($request->file('documents', []) as $file) {
-                    $path = Storage::disk('local')->putFile('franchise-applications/'.$application->id, $file);
-                    if (! $path) {
-                        throw new RuntimeException('A supporting document could not be saved. Please try again.');
+                $requiredDocuments = $application->required_documents ?? [];
+                $requestedForCombinedReview = FranchiseApplicationEvent::query()
+                    ->where('application_id', $application->id)
+                    ->where('title', 'Status updated')
+                    ->where('status', 'location_assessment')
+                    ->exists();
+                $requiredUploads = $request->file('required_document_uploads', []);
+                if ($requestedForCombinedReview) {
+                    $missingDocuments = [];
+                    foreach ($requiredDocuments as $index => $requiredDocument) {
+                        if (($requiredDocument['required'] ?? false) && empty($requiredUploads[$index])) {
+                            $missingDocuments[] = $requiredDocument['label'] ?? 'Required document';
+                        }
                     }
-                    $storedPaths[] = $path;
-                    $documents[] = [
-                        'path' => $path,
-                        'name' => basename($file->getClientOriginalName()),
-                        'mime_type' => $file->getMimeType(),
-                        'size' => $file->getSize(),
-                        'uploaded_at' => now()->toIso8601String(),
-                    ];
+                    if ($missingDocuments !== []) {
+                        abort(response()->json([
+                            'message' => 'Upload every required document together before submitting.',
+                            'missing_documents' => $missingDocuments,
+                        ], 422));
+                    }
+                }
+
+                $uploadGroups = [
+                    ['files' => $request->file('documents', []), 'requirement_index' => null],
+                ];
+                foreach ($requiredUploads as $requirementIndex => $file) {
+                    $uploadGroups[] = ['files' => [$file], 'requirement_index' => (int) $requirementIndex];
+                }
+                foreach ($uploadGroups as $group) {
+                    foreach ($group['files'] as $file) {
+                        $path = Storage::disk('local')->putFile('franchise-applications/'.$application->id, $file);
+                        if (! $path) {
+                            throw new RuntimeException('A supporting document could not be saved. Please try again.');
+                        }
+                        $storedPaths[] = $path;
+                        $storedDocument = [
+                            'path' => $path,
+                            'name' => basename($file->getClientOriginalName()),
+                            'mime_type' => $file->getMimeType(),
+                            'size' => $file->getSize(),
+                            'uploaded_at' => now()->toIso8601String(),
+                        ];
+                        if ($group['requirement_index'] !== null) {
+                            $requirementIndex = $group['requirement_index'];
+                            if (! isset($requiredDocuments[$requirementIndex])) {
+                                abort(response()->json(['message' => 'One of the selected document requirements is no longer available. Refresh and try again.'], 409));
+                            }
+                            $storedDocument['required_document_index'] = $requirementIndex;
+                            $storedDocument['required_document_label'] = $requiredDocuments[$requirementIndex]['label'];
+                            $requiredDocuments[$requirementIndex]['status'] = 'received';
+                            $requiredDocuments[$requirementIndex]['submitted_document_name'] = $storedDocument['name'];
+                            $requiredDocuments[$requirementIndex]['submitted_document_index'] = count($documents);
+                        }
+                        $documents[] = $storedDocument;
+                    }
                 }
 
                 $application->documents = $documents;
+                $application->required_documents = $requiredDocuments;
                 $previousReviewStatus = FranchiseApplicationEvent::query()
                     ->where('application_id', $application->id)
                     ->where('title', 'Status updated')
@@ -248,6 +297,36 @@ trait FranchiseApplicationApplicantActions
             'message' => 'Your response has been sent to the franchise review team.',
             'data' => $this->applicantApplication($application),
         ]);
+    }
+
+    public function downloadRequiredDocumentTemplate(Request $request, string $id, int $document)
+    {
+        $application = FranchiseApplication::query()
+            ->where('franchise_applicant_id', $request->user()->id)
+            ->findOrFail($id);
+        $requiredDocument = $application->required_documents[$document] ?? null;
+        if (! is_array($requiredDocument)
+            || empty($requiredDocument['template_path'])
+            || ! Storage::disk('local')->exists($requiredDocument['template_path'])) {
+            abort(404);
+        }
+
+        $stream = Storage::disk('local')->readStream($requiredDocument['template_path']);
+        if (! is_resource($stream)) {
+            abort(404);
+        }
+
+        return response()->streamDownload(
+            function () use ($stream): void {
+                try {
+                    fpassthru($stream);
+                } finally {
+                    fclose($stream);
+                }
+            },
+            $requiredDocument['template_name'] ?? 'required-document-template',
+            ['Content-Type' => 'application/octet-stream'],
+        );
     }
 
     public function withdraw(Request $request, string $id)
@@ -329,7 +408,10 @@ trait FranchiseApplicationApplicantActions
             'location_assessment',
         ]);
         $application->documents = collect($application->documents ?? [])
-            ->map(fn (array $document) => collect($document)->only(['name', 'mime_type', 'size', 'uploaded_at'])->all())
+            ->map(fn (array $document) => collect($document)->only(['name', 'mime_type', 'size', 'uploaded_at', 'required_document_label'])->all())
+            ->all();
+        $application->required_documents = collect($application->required_documents ?? [])
+            ->map(fn (array $document) => collect($document)->except(['template_path', 'submitted_document_index'])->all())
             ->all();
 
         return $application->toArray();

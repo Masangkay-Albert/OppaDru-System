@@ -142,7 +142,11 @@ const refreshAdminSession = async (): Promise<string | null> => {
 export const fetchWithAdminAuth = async (url: string, init: RequestInit = {}): Promise<Response> => {
   const token = await ensureAdminSession();
   const headers = new Headers(init.headers);
-  headers.set('Content-Type', 'application/json');
+  if (init.body instanceof FormData) {
+    headers.delete('Content-Type');
+  } else {
+    headers.set('Content-Type', 'application/json');
+  }
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
