@@ -153,7 +153,7 @@ class FranchiseApplicationSubmissionTest extends TestCase
         ])->assertNotFound();
 
         $application = FranchiseApplication::findOrFail($applicationId);
-        Storage::disk('local')->assertExists($application->documents[0]['path']);
+        $this->assertTrue(Storage::disk('local')->exists($application->documents[0]['path']));
         Auth::forgetGuards();
         $this->get('/api/franchise-applications/'.$applicationId.'/documents/0', [
             'Authorization' => 'Bearer '.$applicant['token'],
