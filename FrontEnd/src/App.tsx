@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/Authcontext"; 
 import { AdminAuthProvider } from "./contexts/AdminAuthContext";
 import { FranchiseAuthProvider } from "./contexts/FranchiseAuthContext";
@@ -60,7 +60,6 @@ const FranchiseApplicationPage = lazy(() => import("./modules/franchise-side/pag
 const FranchiseOpportunitiesPage = lazy(() => import("./modules/franchise-side/pages/FranchiseOpportunitiesPage"));
 const FranchiseMyApplicationsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseMyApplicationsPage"));
 const FranchiseTrackApplicationPage = lazy(() => import("./modules/franchise-side/pages/FranchiseTrackApplicationPage"));
-const FranchiseApplicantAccessPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicantAccessPage"));
 const FranchiseApplicantLoginPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicantLoginPage"));
 const FranchiseApplicantRegisterPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicantRegisterPage"));
 import ProtectedFranchiseApplicantRoute from "./modules/franchise-side/components/ProtectedFranchiseApplicantRoute";
@@ -104,7 +103,7 @@ function App() {
                       <Route path="/login" element={<LoginPage />} />
                       <Route path="/register" element={<RegistrationPage />} />
                       <Route path="/franchise-opportunities" element={<FranchiseOpportunitiesPage />} />
-                      <Route path="/franchise/applicant-access" element={<FranchiseApplicantAccessPage />} />
+                      <Route path="/franchise/applicant-access" element={<Navigate to="/franchise/applicant-login?returnTo=%2Ffranchise%2Fapply" replace />} />
                       <Route path="/franchise/applicant-login" element={<FranchiseApplicantLoginPage />} />
                       <Route path="/franchise/applicant-register" element={<FranchiseApplicantRegisterPage />} />
                       <Route path="/franchise/apply" element={<ProtectedFranchiseApplicantRoute><FranchiseApplicationPage /></ProtectedFranchiseApplicantRoute>} />

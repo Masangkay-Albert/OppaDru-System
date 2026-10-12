@@ -46,7 +46,7 @@ const FranchiseOpportunitiesPage: React.FC = () => {
           <h1 className="mt-3 max-w-3xl font-serif text-4xl font-bold leading-tight sm:text-5xl">Grow with Oppa Dru Korean Fried Chicken</h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-white/80">Explore a partnership opportunity and tell us about your operating experience, investment plans, and proposed market. Every application is individually reviewed.</p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link to="/franchise/applicant-register?returnTo=%2Ffranchise%2Fapply" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[var(--oppa-green)] shadow-sm transition hover:bg-[var(--oppa-cream)]">Apply for Franchise <ArrowRight size={16} /></Link>
+            <Link to="/franchise/apply" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[var(--oppa-green)] shadow-sm transition hover:bg-[var(--oppa-cream)]">Apply for Franchise <ArrowRight size={16} /></Link>
             <Link to="/franchise/track-application" className="rounded-xl border border-white/50 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Track an application</Link>
           </div>
           <p className="mt-3 text-xs text-white/65">An application is not an offer, approval, or authorization to operate.</p>
@@ -127,7 +127,7 @@ const FranchiseOpportunitiesPage: React.FC = () => {
 
       <footer className="border-t border-[var(--oppa-border)] px-5 py-8 text-center text-xs text-[var(--oppa-text-muted)]">
         <div className="flex flex-wrap justify-center gap-5">
-          <Link to="/franchise/applicant-register?returnTo=%2Ffranchise%2Fapply" className="font-semibold text-[var(--oppa-green)] hover:underline">Ready to apply? Create your applicant account</Link>
+          <Link to="/franchise/apply" className="font-semibold text-[var(--oppa-green)] hover:underline">Ready to apply? Start your application</Link>
           <Link to="/franchise/track-application" className="font-semibold text-[var(--oppa-green)] hover:underline">Already applied? Track your application</Link>
         </div>
       </footer>

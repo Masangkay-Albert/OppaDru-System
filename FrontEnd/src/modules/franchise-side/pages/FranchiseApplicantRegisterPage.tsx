@@ -48,8 +48,8 @@ const FranchiseApplicantRegisterPage: React.FC = () => {
       <LoginBrandPanel title="Franchise Applicant Portal" description="Create a dedicated account to apply and follow your franchise application." />
       <main className="flex min-h-screen items-center justify-center px-5 py-8 sm:px-10 lg:px-12">
         <section className="w-full max-w-[430px] rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:p-7">
-          <Link to={`/franchise/applicant-access?returnTo=${encodeURIComponent(returnTo)}`} className="mb-5 inline-flex min-h-9 items-center gap-2 rounded text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]">
-            <ArrowLeft size={16} aria-hidden="true" /> Back to applicant access
+          <Link to={`/franchise/applicant-login?returnTo=${encodeURIComponent(returnTo)}`} className="mb-5 inline-flex min-h-9 items-center gap-2 rounded text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]">
+            <ArrowLeft size={16} aria-hidden="true" /> Back to sign in
           </Link>
           <header className="mb-6 text-center">
             <div className="mb-4 flex items-center justify-center gap-2.5 text-[var(--oppa-green)]">

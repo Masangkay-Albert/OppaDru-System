@@ -47,6 +47,32 @@ export const franchiseApplicantAuthService = {
     }
   },
 
+  async getAuthenticatedApplicant(): Promise<FranchiseApplicant | null> {
+    const token = this.getToken();
+    if (!token) {
+      this.clearAuth();
+      return null;
+    }
+
+    const response = await fetch(`${API_URL}/franchise-applicants/me`, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    });
+    const result: ApplicantAuthResponse = await response.json().catch(() => ({}));
+    if (response.status === 401 || response.status === 403) {
+      this.clearAuth();
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error(result.message || 'Unable to verify your applicant sign-in.');
+    }
+    if (!result.applicant) {
+      throw new Error('The applicant session response was incomplete.');
+    }
+
+    localStorage.setItem(APPLICANT_KEY, JSON.stringify(result.applicant));
+    return result.applicant;
+  },
+
   async login(email: string, password: string): Promise<FranchiseApplicant> {
     const result = await apiRequest('/franchise-applicants/login', { email, password });
     if (!result.applicant || !result.token) {

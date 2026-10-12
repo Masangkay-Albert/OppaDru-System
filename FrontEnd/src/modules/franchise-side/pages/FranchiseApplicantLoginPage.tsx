@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, BriefcaseBusiness, Eye, EyeOff, Lock, LogIn, Mail } from 'lucide-react';
+import { BriefcaseBusiness, Eye, EyeOff, Lock, LogIn, Mail } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import LoginBrandPanel from '../../../components/LoginBrandPanel';
 import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
@@ -149,9 +149,6 @@ const FranchiseApplicantLoginPage: React.FC = () => {
             <Link to={`/franchise/applicant-register?returnTo=${encodeURIComponent(returnTo)}`} className="font-semibold text-[var(--oppa-green)] hover:underline">Create account</Link>
           </p>
 
-          <div className="mt-6 border-t border-[var(--oppa-border)] pt-4 text-center text-sm">
-            <Link to="/franchise/applicant-access" className="inline-flex items-center gap-1.5 text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)]"><ArrowLeft size={15} /> Back to applicant options</Link>
-          </div>
         </div>
       </main>
     </div>

@@ -184,6 +184,7 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
 });
 
 Route::middleware('franchise.applicant.access')->group(function () {
+    Route::get('/franchise-applicants/me', [FranchiseApplicantAuthController::class, 'me']);
     Route::post('/franchise-applicants/logout', [FranchiseApplicantAuthController::class, 'logout']);
     Route::post('/franchise-applications', [FranchiseApplicationController::class, 'store'])->middleware('throttle:5,1');
     Route::get('/franchise-applications/me', [FranchiseApplicationController::class, 'myApplications']);

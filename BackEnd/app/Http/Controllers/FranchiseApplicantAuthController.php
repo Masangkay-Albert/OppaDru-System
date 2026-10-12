@@ -92,6 +92,13 @@ class FranchiseApplicantAuthController extends Controller
         return response()->json(['message' => 'Logout successful.']);
     }
 
+    public function me(Request $request)
+    {
+        return response()->json([
+            'applicant' => $request->user()->makeHidden(['password', 'api_token']),
+        ]);
+    }
+
     public function resendVerification(Request $request)
     {
         $validated = $request->validate(['email' => 'required|email|max:255']);

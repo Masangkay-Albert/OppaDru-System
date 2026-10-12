@@ -82,6 +82,19 @@ class FranchiseApplicationSubmissionTest extends TestCase
         $this->getJson('/api/franchise-applications/me')->assertUnauthorized();
     }
 
+    public function test_applicant_session_check_requires_a_valid_verified_applicant_token(): void
+    {
+        $this->getJson('/api/franchise-applicants/me')->assertUnauthorized();
+
+        $applicant = $this->createVerifiedApplicant();
+        $this->getJson('/api/franchise-applicants/me', [
+            'Authorization' => 'Bearer '.$applicant['token'],
+        ])->assertOk()
+            ->assertJsonPath('applicant.id', $applicant['applicant']->id)
+            ->assertJsonMissingPath('applicant.api_token')
+            ->assertJsonMissingPath('applicant.password');
+    }
+
     public function test_guest_can_track_application_with_reference_number_and_contact_email(): void
     {
         $application = $this->createLegacyApplication('guest@example.test');
