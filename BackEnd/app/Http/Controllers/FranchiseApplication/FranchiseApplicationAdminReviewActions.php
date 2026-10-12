@@ -497,7 +497,6 @@ trait FranchiseApplicationAdminReviewActions
                 && ($document['status'] ?? null) !== 'not_applicable')
             ->values();
         if ($requiredDocuments->isEmpty()
-            || $requiredDocuments->contains(fn (array $document) => empty($document['template_path']))
             || FranchiseApplicationEvent::query()
                 ->where('application_id', $application->id)
                 ->whereIn('title', ['Document packet requested', 'Document packet submitted', 'Additional information submitted'])

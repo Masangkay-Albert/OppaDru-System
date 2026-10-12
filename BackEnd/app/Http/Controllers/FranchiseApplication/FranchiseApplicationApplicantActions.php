@@ -178,7 +178,7 @@ trait FranchiseApplicationApplicantActions
     public function respond(Request $request, string $id)
     {
         $validator = Validator::make($request->all(), [
-            'response' => 'required|string|max:5000',
+            'response' => 'nullable|string|max:5000',
             'documents' => 'nullable|array|max:8',
             'documents.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240',
             'required_document_uploads' => 'nullable|array|max:8',
@@ -214,14 +214,23 @@ trait FranchiseApplicationApplicantActions
                     ->value('id');
                 $hasOpenPacketRequest = $latestPacketRequestId
                     && (! $latestPacketSubmissionId || $latestPacketRequestId > $latestPacketSubmissionId);
-                if ($application->status !== 'additional_information_required' && ! $hasOpenPacketRequest) {
-                    abort(response()->json(['message' => 'A document packet can only be submitted after the franchise team requests it.'], 409));
+                $hasConfiguredRequirements = collect($requiredDocuments)
+                    ->contains(fn (array $document) => ($document['required'] ?? false)
+                        && ($document['status'] ?? null) !== 'not_applicable');
+                $isLocationAssessment = $application->status === 'location_assessment' && $hasConfiguredRequirements;
+                if ($application->status !== 'additional_information_required'
+                    && ! $hasOpenPacketRequest
+                    && ! $isLocationAssessment) {
+                    abort(response()->json(['message' => 'A document packet can only be submitted after the franchise team moves the application to Location Assessment or requests a packet.'], 409));
                 }
                 $requestedForCombinedReview = FranchiseApplicationEvent::query()
                     ->where('application_id', $application->id)
                     ->where('title', 'Status updated')
                     ->where('status', 'location_assessment')
-                    ->exists() || (bool) $hasOpenPacketRequest;
+                    ->exists() || (bool) $hasOpenPacketRequest || $isLocationAssessment;
+                if ($requestedForCombinedReview && ! $hasConfiguredRequirements) {
+                    abort(response()->json(['message' => 'The franchise team has not configured any required documents yet.'], 409));
+                }
                 $requiredUploads = $request->file('required_document_uploads', []);
                 if ($requestedForCombinedReview) {
                     $missingDocuments = [];
@@ -292,7 +301,8 @@ trait FranchiseApplicationApplicantActions
                     $applicantId,
                     $application->status,
                     $hasOpenPacketRequest ? 'Document packet submitted' : 'Additional information submitted',
-                    trim((string) $request->input('response')),
+                    trim((string) $request->input('response'))
+                        ?: 'The applicant submitted the requested document packet.',
                 );
 
                 return $application->fresh(['events' => fn ($query) => $query->where('is_internal', false)]);

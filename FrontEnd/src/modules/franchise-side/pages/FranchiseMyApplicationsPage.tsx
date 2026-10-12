@@ -91,10 +91,6 @@ const FranchiseMyApplicationsPage: React.FC = () => {
       .map((document, index) => ({ document, index }))
       .filter(({ document, index }) => document.required && document.status !== 'not_applicable' && !requiredFiles[index])
       .map(({ document }) => document.label);
-    if (!response) {
-      setError('Write a response before submitting the requested documents.');
-      return;
-    }
     if (missingRequiredFiles.length) {
       setError(`Upload all required forms before submitting: ${missingRequiredFiles.join(', ')}.`);
       return;
@@ -239,8 +235,13 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                 || (currentStatus === 'additional_information_required' && application.events?.some((event) => event.title === 'Status updated' && event.status === 'location_assessment') === true);
               const latestPacketRequest = [...(application.events || [])].reverse().find((event) => event.title === 'Document packet requested');
               const latestPacketSubmission = [...(application.events || [])].reverse().find((event) => ['Additional information submitted', 'Document packet submitted'].includes(event.title));
-              const packetRequestOpen = currentStatus === 'additional_information_required'
-                || Boolean(latestPacketRequest && (!latestPacketSubmission || latestPacketRequest.id > latestPacketSubmission.id));
+              const hasRequiredDocuments = application.required_documents?.some((document) => document.required && document.status !== 'not_applicable') === true;
+              const packetAlreadySubmitted = Boolean(latestPacketSubmission && (!latestPacketRequest || latestPacketSubmission.id > latestPacketRequest.id));
+              const packetRequestOpen = !packetAlreadySubmitted && (
+                currentStatus === 'additional_information_required'
+                || Boolean(latestPacketRequest && (!latestPacketSubmission || latestPacketRequest.id > latestPacketSubmission.id))
+                || (currentStatus === 'location_assessment' && hasRequiredDocuments)
+              );
               const paymentProof = application.documents?.find((document) => document.document_type === 'payment_proof');
               const canWithdraw = ['submitted', 'pending', 'under_review', 'additional_information_required', 'for_interview', 'location_assessment', 'on_hold'].includes(currentStatus);
               return (
@@ -295,14 +296,14 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                     {packetRequestOpen && (
                       <section className="mb-5 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                         <h3 className="font-semibold text-[var(--oppa-text)]">Submit requested documents</h3>
-                        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Please include every requested document in one submission so the team can complete the combined site, financial, and final review.</p>
+                        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Upload each required document below and submit them together for the combined site, financial, and final review. A blank form is optional; you can upload your completed document directly.</p>
                         {application.required_documents?.some((document) => document.required) && <div className="mt-3 space-y-3">{application.required_documents.map((document, index) => document.required && document.status !== 'not_applicable' ? <label key={document.label} className="block rounded-xl border border-amber-200 bg-white p-3 text-sm">
                           <span className="font-semibold">{document.label}</span>
-                          {document.template_name ? <button type="button" onClick={() => void handleTemplateDownload(application, index, document.template_name || document.label)} disabled={busyId === application.id} className="ml-2 font-semibold text-[var(--oppa-green)] underline disabled:opacity-60">Download blank form</button> : <span className="ml-2 text-xs text-amber-800">Form not uploaded yet — contact the franchise team.</span>}
+                          {document.template_name ? <button type="button" onClick={() => void handleTemplateDownload(application, index, document.template_name || document.label)} disabled={busyId === application.id} className="ml-2 font-semibold text-[var(--oppa-green)] underline disabled:opacity-60">Download blank form</button> : <span className="ml-2 text-xs text-[var(--oppa-text-muted)]">No blank template attached; upload your completed file.</span>}
                           <input type="file" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) setRequiredResponseFiles((current) => ({ ...current, [application.id]: { ...(current[application.id] || {}), [index]: file } })); }} className="mt-2 block w-full text-xs" />
                           {requiredResponseFiles[application.id]?.[index] && <span className="mt-1 block text-xs text-emerald-800">Selected: {requiredResponseFiles[application.id][index].name}</span>}
                         </label> : null)}</div>}
-                        <textarea value={responses[application.id] || ''} onChange={(event) => setResponses((current) => ({ ...current, [application.id]: event.target.value}))} rows={4} maxLength={5000} placeholder="Write your response to the review team's request." className="mt-3 w-full rounded-xl border border-[var(--oppa-border)] bg-white p-3 text-sm" />
+                        <textarea value={responses[application.id] || ''} onChange={(event) => setResponses((current) => ({ ...current, [application.id]: event.target.value}))} rows={3} maxLength={5000} placeholder="Optional message for the review team." className="mt-3 w-full rounded-xl border border-[var(--oppa-border)] bg-white p-3 text-sm" />
                         <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => setResponseFiles((current) => ({ ...current, [application.id]: Array.from(event.target.files || [])}))} className="mt-3 block text-sm" />
                         <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Submit all files together: PDF, JPG, PNG, DOC, or DOCX; up to 8 files and 10 MB each.</p>
                         <button type="button" onClick={() => void handleResponse(application)} disabled={busyId === application.id} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"><Send size={15} />{busyId === application.id ? 'Sending…' : 'Send information'}</button>

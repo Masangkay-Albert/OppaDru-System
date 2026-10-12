@@ -392,6 +392,49 @@ class FranchiseApplicationReviewTest extends TestCase
             ->assertJsonValidationErrors('agreement_prepared_at');
     }
 
+    public function test_applicant_can_submit_required_documents_after_location_assessment_without_templates(): void
+    {
+        Storage::fake('local');
+        $adminToken = $this->createAdminToken();
+        $applicant = $this->createVerifiedApplicant();
+        $application = $this->submitApplication($applicant);
+        $adminHeaders = ['Authorization' => 'Bearer '.$adminToken, 'Accept' => 'application/json'];
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'location_assessment',
+        ], $adminHeaders)->assertOk();
+        $this->post('/api/admin/franchise-applications/'.$application->id.'/requirements', [
+            '_method' => 'PATCH',
+            'agreement_status' => 'not_started',
+            'agreement_prepared_at' => '',
+            'agreement_signed_at' => '',
+            'franchise_fee_amount' => '',
+            'franchise_fee_payment_status' => 'not_configured',
+            'required_documents' => json_encode([
+                ['label' => 'Location plan', 'required' => true, 'status' => 'pending'],
+            ]),
+            'location_readiness' => 'pending',
+            'permit_compliance_status' => 'pending',
+            'training_status' => 'pending',
+            'operational_preparation_status' => 'pending',
+            'internal_notes' => '',
+        ], $adminHeaders)->assertOk()
+            ->assertJsonPath('message', 'Agreement and opening requirements saved. The applicant can now upload the requested document packet.');
+
+        Auth::forgetGuards();
+        $this->post('/api/franchise-applications/me/'.$application->id.'/response', [
+            'required_document_uploads' => [
+                0 => UploadedFile::fake()->create('location-plan.pdf', 100, 'application/pdf'),
+            ],
+        ], [
+            'Authorization' => 'Bearer '.$applicant['token'],
+            'Accept' => 'application/json',
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'location_assessment')
+            ->assertJsonPath('data.documents.0.name', 'location-plan.pdf')
+            ->assertJsonPath('data.required_documents.0.status', 'received');
+    }
+
     private function submitApplication(array $applicant): FranchiseApplication
     {
         $this->postJson('/api/franchise-applications', [
