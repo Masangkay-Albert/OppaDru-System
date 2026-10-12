@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, BriefcaseBusiness, CheckCircle2, Clock3, Download, Loader2, Search, Upload } from 'lucide-react';
+import { ArrowLeft, BriefcaseBusiness, Clock3, Download, Loader2, Search, Upload } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   downloadTrackedFranchiseDocumentTemplate,
   submitTrackedFranchiseDocuments,
-  submitTrackedFranchisePaymentProof,
   trackFranchiseApplication,
   type ApplicantFranchiseApplication,
 } from '../../../services/franchiseApplicationService';
@@ -16,39 +15,13 @@ const formatPhilippineDateTime = (value: string) => new Intl.DateTimeFormat('en-
   timeZone: 'Asia/Manila',
 }).format(new Date(value));
 
-const TrackInfo: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div>
-    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">{label}</p>
-    <p className="mt-1 text-sm capitalize text-[var(--oppa-text)]">{value}</p>
-  </div>
-);
-
-const agreementStatusLabel = (status?: string) => ({
-  not_started: 'Not started',
-  drafting: 'Prepared',
-  sent: 'For signing',
-  signed: 'Signed',
-}[status || 'not_started'] || status || 'Not started');
-
-const paymentStatusLabel = (status?: string) => ({
-  not_configured: 'Not configured',
-  pending: 'Pending',
-  submitted: 'Submitted',
-  paid: 'Verified',
-  rejected: 'Rejected',
-  waived: 'Waived',
-  not_applicable: 'Not applicable',
-}[status || 'not_configured'] || status || 'Not configured');
-
 const requirementCategoryLabel = (category?: string) => ({
   agreement_signing: 'Agreement and signing',
   payment: 'Payment receipt/reference',
-  application_documents: 'Application-specific documents',
   location_readiness: 'Location readiness',
   permits_compliance: 'Permits and compliance',
-  training: 'Training',
   operational_preparation: 'System and operational preparation',
-}[category || 'application_documents'] || 'Application-specific documents');
+}[category || ''] || 'Required document');
 
 const FranchiseTrackApplicationPage: React.FC = () => {
   const location = useLocation();
@@ -63,8 +36,6 @@ const FranchiseTrackApplicationPage: React.FC = () => {
   const [actionMessage, setActionMessage] = useState('');
   const [actionBusy, setActionBusy] = useState('');
   const [documentFiles, setDocumentFiles] = useState<Record<number, File>>({});
-  const [paymentReference, setPaymentReference] = useState('');
-  const [paymentProof, setPaymentProof] = useState<File | null>(null);
 
   useEffect(() => {
     if (!routeState?.referenceNumber || !routeState.email) return;
@@ -126,8 +97,6 @@ const FranchiseTrackApplicationPage: React.FC = () => {
     setTrackedLookup(null);
     setActionError('');
     setActionMessage('');
-    setPaymentReference('');
-    setPaymentProof(null);
     setDocumentFiles({});
     try {
       const lookup = { referenceNumber: referenceNumber.trim(), email: email.trim() };
@@ -149,10 +118,6 @@ const FranchiseTrackApplicationPage: React.FC = () => {
   );
   const selectedDocumentCount = documentsToSubmit.filter((item) => documentFiles[item.index]).length;
   const packetNeedsApplicantAction = requiredDocuments.some((item) => ['pending', 'rejected'].includes(item.status));
-  const packetFilesReady = requiredDocuments.length > 0
-    && requiredDocuments
-      .filter((item) => !['verified', 'not_applicable'].includes(item.status))
-      .every((item) => Boolean(item.template_name));
   const showRequirements = Boolean(
     application
       && application.status !== 'rejected'
@@ -161,8 +126,6 @@ const FranchiseTrackApplicationPage: React.FC = () => {
         || application.requirements_reviewed_at
         || application.required_documents?.length),
   );
-  const paymentProofFile = paymentProof;
-
   const downloadTemplate = async (index: number, name: string) => {
     if (!trackedLookup) return;
     setActionBusy(`template-${index}`);
@@ -218,53 +181,9 @@ const FranchiseTrackApplicationPage: React.FC = () => {
     }
   };
 
-  const submitPayment = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!trackedLookup || !paymentProof) {
-      setActionError('Enter the payment reference and select proof of payment.');
-      return;
-    }
-    if (paymentProof.size > 5 * 1024 * 1024) {
-      setActionError('Payment proof must be 5 MB or smaller.');
-      return;
-    }
-    setActionBusy('payment');
-    setActionError('');
-    setActionMessage('');
-    try {
-      const result = await submitTrackedFranchisePaymentProof(
-        trackedLookup.referenceNumber,
-        trackedLookup.email,
-        paymentReference.trim(),
-        paymentProof,
-      );
-      setApplication(result.data);
-      setPaymentProof(null);
-      setActionMessage(result.message || 'Your payment reference and proof were submitted for review.');
-    } catch (submitError) {
-      setActionError(submitError instanceof Error ? submitError.message : 'Unable to submit your payment proof.');
-    } finally {
-      setActionBusy('');
-    }
-  };
-
   const status = application?.status || 'under_review';
   const stageIndex = application ? franchiseStageIndex(application) : -1;
   const showProgress = status !== 'rejected' && status !== 'withdrawn';
-  const outstandingRequirements = application ? [
-    ...requiredDocuments
-      .filter((item) => item.status !== 'verified' && item.status !== 'not_applicable')
-      .map((item) => `${item.label}: ${item.status === 'rejected' ? 'resubmission required' : item.status === 'submitted' || item.status === 'received' ? 'under review' : 'not submitted'}`),
-    ...(application.franchise_fee_amount && !['paid', 'waived', 'not_applicable'].includes(application.franchise_fee_payment_status || '')
-      ? ['Franchise fee payment: not verified']
-      : []),
-    ...(application.agreement_status !== 'signed' ? ['Franchise agreement: not signed'] : []),
-    ...(!['ready', 'not_applicable'].includes(application.location_readiness || '') ? ['Location readiness: incomplete'] : []),
-    ...(!['verified', 'not_applicable'].includes(application.permit_compliance_status || '') ? ['Permits and compliance: incomplete'] : []),
-    ...(!['complete', 'not_applicable'].includes(application.training_status || '') ? ['Training: incomplete'] : []),
-    ...(!['complete', 'not_applicable'].includes(application.operational_preparation_status || '') ? ['System and operational preparation: incomplete'] : []),
-  ] : [];
-
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-8 sm:px-6">
       <div className="mx-auto max-w-3xl">
@@ -333,7 +252,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                           <p className="mt-1 text-[11px] font-medium text-[var(--oppa-text-muted)]">{requirementCategoryLabel(item.category)}</p>
                           {item.submitted_document_name && <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Submitted file: {item.submitted_document_name}</p>}
                           {item.status === 'rejected' && item.reject_reason && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">Please correct and resubmit: {item.reject_reason}</p>}
-                          {!alreadyComplete && packetNeedsApplicantAction && item.template_name && <div className="mt-3">
+                          {!alreadyComplete && packetNeedsApplicantAction && <div className="mt-3">
                             <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-amber-950">{underReview ? 'Upload an updated document' : 'Upload your completed document'}</p>
                             <input id={`document-upload-${application.id}-${item.index}`} key={`${application.id}-${item.index}-${application.updated_at}`} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => {
                             const file = event.target.files?.[0];
@@ -366,57 +285,11 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                         {item.template_name && <button type="button" onClick={() => void downloadTemplate(item.index, item.template_name || 'franchise-requirement-file')} disabled={actionBusy === `template-${item.index}`} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-60"><Download size={14} />{actionBusy === `template-${item.index}` ? 'Preparing…' : 'Download file'}</button>}
                       </div>;
                     })}
-                    {packetNeedsApplicantAction && !packetFilesReady && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">The franchise team is preparing files for your remaining requirements. The upload form will be available when those files are ready.</p>}
-                    {packetNeedsApplicantAction && packetFilesReady && <div className="rounded-xl border border-[var(--oppa-green)]/30 bg-green-50 p-3">
+                    {packetNeedsApplicantAction && <div className="rounded-xl border border-[var(--oppa-green)]/30 bg-green-50 p-3">
                       <p className="mb-2 text-center text-sm font-semibold text-green-900">{selectedDocumentCount === documentsToSubmit.length ? 'All required files are ready to submit.' : `Select ${documentsToSubmit.length - selectedDocumentCount} more required ${documentsToSubmit.length - selectedDocumentCount === 1 ? 'file' : 'files'} to continue.`}</p>
                       <button type="button" onClick={() => void submitDocuments()} disabled={actionBusy !== '' || selectedDocumentCount !== documentsToSubmit.length} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"><Upload size={16} />{actionBusy === 'documents' ? 'Submitting documents…' : 'Submit all documents'}</button>
                     </div>}
                   </div>}
-                </section>
-
-                <section className="rounded-2xl border border-[var(--oppa-border)] p-4 sm:p-5">
-                  <h3 className="font-semibold">Franchise payment</h3>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl bg-[var(--oppa-cream)] p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Agreed franchise fee</p><p className="mt-1 text-lg font-bold text-[var(--oppa-text)]">{application.franchise_fee_amount ? `₱${Number(application.franchise_fee_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : 'Not configured yet'}</p></div>
-                    <div className="rounded-xl bg-[var(--oppa-cream)] p-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Payment status</p><p className="mt-1 text-sm font-semibold">{paymentStatusLabel(application.franchise_fee_payment_status)}</p>{application.franchise_fee_payment_reference && <p className="mt-1 break-all text-xs text-[var(--oppa-text-muted)]">Reference: {application.franchise_fee_payment_reference}</p>}</div>
-                  </div>
-                  {application.franchise_fee_payment_reject_reason && application.franchise_fee_payment_status === 'rejected' && <p className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">Payment proof needs attention: {application.franchise_fee_payment_reject_reason}</p>}
-                  {application.franchise_fee_amount && ['pending', 'rejected'].includes(application.franchise_fee_payment_status || '') && <form onSubmit={submitPayment} className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <label className="text-sm font-medium sm:col-span-2">Payment reference number<input required maxLength={255} value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" /></label>
-                    <label className="text-sm font-medium sm:col-span-2">Receipt or proof of payment<input required type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => {
-                      const file = event.target.files?.[0] || null;
-                      if (file && file.size > 5 * 1024 * 1024) {
-                        setActionError('Payment proof must be 5 MB or smaller.');
-                        event.target.value = '';
-                        setPaymentProof(null);
-                        return;
-                      }
-                      setActionError('');
-                      setPaymentProof(file);
-                    }} className="mt-1 block w-full rounded-lg border border-[var(--oppa-border)] p-2 text-xs" /><span className="mt-1 block text-xs font-normal text-[var(--oppa-text-muted)]">JPG, PNG, WEBP, or PDF, up to 5 MB.</span>{paymentProofFile && <span className="mt-1 block break-all text-xs text-[var(--oppa-green)]">{paymentProofFile.name}</span>}</label>
-                    <button type="submit" disabled={actionBusy !== ''} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 sm:col-span-2"><Upload size={16} />{actionBusy === 'payment' ? 'Submitting payment…' : 'Submit payment proof'}</button>
-                  </form>}
-                  {application.franchise_fee_payment_status === 'submitted' && <p className="mt-3 text-sm text-[var(--oppa-text-muted)]">Your payment is waiting for verification by the franchise team.</p>}
-                </section>
-
-                <section className="rounded-2xl border border-[var(--oppa-border)] p-4 sm:p-5">
-                  <h3 className="font-semibold">Agreement status</h3>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <TrackInfo label="Status" value={agreementStatusLabel(application.agreement_status)} />
-                    <TrackInfo label="Prepared date" value={application.agreement_prepared_at ? new Date(application.agreement_prepared_at).toLocaleDateString('en-PH') : 'Not prepared'} />
-                    <TrackInfo label="Signing date" value={application.agreement_signed_at ? new Date(application.agreement_signed_at).toLocaleDateString('en-PH') : 'Not signed'} />
-                  </div>
-                  <h4 className="mt-5 text-sm font-semibold">Readiness checklist</h4>
-                  <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {[
-                      ['Location readiness', application.location_readiness || 'pending'],
-                      ['Permits and compliance', application.permit_compliance_status || 'pending'],
-                      ['Training', application.training_status || 'pending'],
-                      ['System and operational preparation', application.operational_preparation_status || 'pending'],
-                    ].map(([label, value]) => <li key={label} className="flex items-center justify-between gap-2 rounded-lg bg-[var(--oppa-cream)] px-3 py-2 text-xs"><span>{label}</span><span className="rounded-full bg-white px-2 py-1 font-semibold capitalize">{value.replaceAll('_', ' ')}</span></li>)}
-                  </ul>
-                  <h4 className="mt-5 text-sm font-semibold">Outstanding requirements</h4>
-                  {outstandingRequirements.length ? <ul className="mt-2 space-y-1.5 text-sm text-[var(--oppa-text-muted)]">{outstandingRequirements.map((item) => <li key={item} className="flex gap-2"><span aria-hidden="true">•</span><span>{item}</span></li>)}</ul> : <p className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-green-800"><CheckCircle2 size={16} />All listed readiness requirements are complete.</p>}
                 </section>
               </>}
               <section>

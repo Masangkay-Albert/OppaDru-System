@@ -76,7 +76,7 @@ const FranchiseApplicantRegisterPage: React.FC = () => {
               </span>
             </label>
             <label className="block text-sm font-medium text-[var(--oppa-green)]">
-              Phone number <span className="font-normal text-[var(--oppa-text-muted)]">(optional)</span>
+              Phone number
               <span className="relative mt-1.5 block">
                 <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
                 <input type="tel" maxLength={50} autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="e.g. 0917 123 4567" />

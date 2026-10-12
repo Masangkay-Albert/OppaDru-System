@@ -45,6 +45,23 @@ trait FranchiseApplicationAdminReviewActions
         return response()->json(['data' => $application]);
     }
 
+    public function downloadRequirementTemplate(Request $request, string $id, int $document)
+    {
+        if (! $this->checkAdminAuth($request)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $application = FranchiseApplication::findOrFail($id);
+        $requiredDocument = $application->required_documents[$document] ?? null;
+        $path = is_array($requiredDocument) ? ($requiredDocument['template_path'] ?? null) : null;
+        $disk = Storage::disk('local');
+        if (! $path || ! $disk->exists($path)) {
+            abort(404);
+        }
+
+        return response()->download($disk->path($path), basename($requiredDocument['template_name'] ?? 'franchise-requirement'));
+    }
+
     public function review(Request $request, string $id)
     {
         if (! $this->checkAdminAuth($request)) {
@@ -117,17 +134,6 @@ trait FranchiseApplicationAdminReviewActions
                         'message' => 'Add at least one required document before requesting the applicant packet.',
                     ], 409));
                 }
-                $missingTemplates = $requiredDocuments
-                    ->filter(fn (array $document) => empty($document['template_path']))
-                    ->pluck('label')
-                    ->values()
-                    ->all();
-                if ($missingTemplates !== []) {
-                    abort(response()->json([
-                        'message' => 'Upload a blank template for each required document before requesting the combined document packet.',
-                        'missing_templates' => $missingTemplates,
-                    ], 409));
-                }
             }
             if ($targetStatus === 'additional_information_required' && ! $request->filled('next_step_instructions')) {
                 abort(response()->json(['message' => 'Provide clear instructions for the additional information required.'], 422));
@@ -142,19 +148,6 @@ trait FranchiseApplicationAdminReviewActions
                 abort(response()->json([
                     'message' => 'The combined post-interview document packet has already been submitted. Review the submitted documents and continue the final assessment.',
                 ], 409));
-            }
-            if ($currentStatus === 'location_assessment' && $targetStatus === 'additional_information_required') {
-                $missingTemplates = collect($application->required_documents ?? [])
-                    ->filter(fn (array $document) => ($document['required'] ?? false) && empty($document['template_path']))
-                    ->pluck('label')
-                    ->values()
-                    ->all();
-                if ($missingTemplates !== []) {
-                    abort(response()->json([
-                        'message' => 'Upload a blank template for each required document before requesting the combined document packet.',
-                        'missing_templates' => $missingTemplates,
-                    ], 409));
-                }
             }
             if ($targetStatus === 'for_interview' && ! $request->filled('interview_at')) {
                 abort(response()->json(['message' => 'Set an interview date and time before moving this application to For Interview.'], 422));
@@ -342,7 +335,7 @@ trait FranchiseApplicationAdminReviewActions
             'required_documents.*.reject_reason' => 'nullable|string|max:2000',
             'required_documents.*.template_name' => 'nullable|string|max:255',
             'required_document_templates' => 'nullable|array|max:8',
-            'required_document_templates.*' => 'file|mimes:pdf,doc,docx|max:10240',
+            'required_document_templates.*' => 'file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
             'location_readiness' => 'required|string|in:pending,ready,not_applicable',
             'permit_compliance_status' => 'required|string|in:pending,verified,not_applicable',
             'training_status' => 'required|string|in:pending,scheduled,complete,not_applicable',
@@ -414,14 +407,18 @@ trait FranchiseApplicationAdminReviewActions
                         }
                         $document['template_path'] = $path;
                         $document['template_name'] = basename($template->getClientOriginalName());
+                        $document['template_size_bytes'] = $template->getSize();
+                        $document['template_uploaded_at'] = now()->toIso8601String();
                     } elseif (! empty($document['template_name']) && ! empty($previous['template_path'])) {
                         $document['template_path'] = $previous['template_path'];
                         $document['template_name'] = $previous['template_name'];
+                        $document['template_size_bytes'] = $previous['template_size_bytes'] ?? null;
+                        $document['template_uploaded_at'] = $previous['template_uploaded_at'] ?? null;
                     } else {
                         if (! empty($previous['template_path'])) {
                             $oldTemplatePaths[] = $previous['template_path'];
                         }
-                        unset($document['template_path'], $document['template_name']);
+                        unset($document['template_path'], $document['template_name'], $document['template_size_bytes'], $document['template_uploaded_at']);
                     }
 
                     if (isset($previous['submitted_document_name'])) {
@@ -569,13 +566,6 @@ trait FranchiseApplicationAdminReviewActions
 
             return false;
         }
-        if ($requiredDocuments->contains(fn (array $document) => empty($document['template_path']))) {
-            $application->next_step_instructions = 'The franchise team is preparing the forms and instructions for your remaining requirements.';
-            $application->save();
-
-            return false;
-        }
-
         $needsSubmission = $requiredDocuments->contains(fn (array $document) => in_array(
             $document['status'] ?? 'pending',
             ['pending', 'rejected'],

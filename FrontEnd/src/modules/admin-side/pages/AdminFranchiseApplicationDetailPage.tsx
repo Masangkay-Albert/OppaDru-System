@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Download, FileText, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Download, FileText, Loader2, Save, Upload, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { ConfirmDialog } from '../components/AdminUI';
 import {
   activateFranchiseApplication,
   downloadFranchiseApplicationDocument,
+  downloadFranchiseRequirementTemplate,
   getFranchiseApplication,
   reviewFranchiseApplication,
   updateFranchiseApplicationRequirements,
@@ -53,6 +54,8 @@ type FranchiseRequirementDocument = {
   status: string;
   category?: string;
   template_name?: string | null;
+  template_size_bytes?: number | null;
+  template_uploaded_at?: string | null;
   submitted_document_name?: string | null;
   submitted_document_index?: number | null;
   reject_reason?: string | null;
@@ -61,18 +64,44 @@ type FranchiseRequirementDocument = {
 const requirementCategories = [
   ['agreement_signing', 'Agreement and signing'],
   ['payment', 'Payment receipt/reference'],
-  ['application_documents', 'Application-specific documents'],
   ['location_readiness', 'Location readiness'],
   ['permits_compliance', 'Permits and compliance'],
-  ['training', 'Training'],
   ['operational_preparation', 'System and operational preparation'],
 ] as const;
+
+const formatFileSize = (size: number) => {
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const formatUploadDate = (value: string) => new Intl.DateTimeFormat('en-PH', {
+  dateStyle: 'medium',
+  timeZone: 'Asia/Manila',
+}).format(new Date(value));
+
+const templateFileError = (file: File) => {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  const allowedMimeTypes: Record<string, string[]> = {
+    pdf: ['application/pdf'],
+    doc: ['application/msword'],
+    docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    jpg: ['image/jpeg'],
+    jpeg: ['image/jpeg'],
+    png: ['image/png'],
+  };
+
+  if (!extension || !allowedMimeTypes[extension]) return 'File type not allowed. Choose a PDF, DOC, DOCX, JPG, or PNG file.';
+  if (!allowedMimeTypes[extension].includes(file.type)) return 'The file type does not match its extension. Choose a valid PDF, DOC, DOCX, JPG, or PNG file.';
+  if (file.size > 10 * 1024 * 1024) return 'File is larger than 10 MB.';
+  return '';
+};
 
 const FranchiseRequirementsForm: React.FC<{
   application: FranchiseApplication;
   onSaved: () => Promise<void>;
   onDownload: (index: number, name: string) => void;
-}> = ({ application, onSaved, onDownload }) => {
+  onDownloadTemplate: (index: number, name: string) => void;
+}> = ({ application, onSaved, onDownload, onDownloadTemplate }) => {
   const [agreementStatus, setAgreementStatus] = useState(application.agreement_status || 'not_started');
   const [agreementPreparedAt, setAgreementPreparedAt] = useState(application.agreement_prepared_at?.slice(0, 10) || '');
   const [agreementSignedAt, setAgreementSignedAt] = useState(application.agreement_signed_at?.slice(0, 10) || '');
@@ -81,6 +110,8 @@ const FranchiseRequirementsForm: React.FC<{
   const [feeRejectReason, setFeeRejectReason] = useState(application.franchise_fee_payment_reject_reason || '');
   const [documents, setDocuments] = useState<FranchiseRequirementDocument[]>(application.required_documents || []);
   const [documentTemplates, setDocumentTemplates] = useState<Record<number, File>>({});
+  const [templateErrors, setTemplateErrors] = useState<Record<number, string>>({});
+  const [draggingTemplate, setDraggingTemplate] = useState<number | null>(null);
   const [locationReadiness, setLocationReadiness] = useState(application.location_readiness || 'pending');
   const [permitStatus, setPermitStatus] = useState(application.permit_compliance_status || 'pending');
   const [trainingStatus, setTrainingStatus] = useState(application.training_status || 'pending');
@@ -90,6 +121,7 @@ const FranchiseRequirementsForm: React.FC<{
   const [error, setError] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
   const [confirmFeeVerification, setConfirmFeeVerification] = useState(false);
+  const [missingTemplateWarning, setMissingTemplateWarning] = useState<string[]>([]);
 
   const saveRequirements = async () => {
     setSaving(true);
@@ -113,6 +145,7 @@ const FranchiseRequirementsForm: React.FC<{
         internal_notes: internalNotes,
       });
       setInternalNotes('');
+      setDocumentTemplates({});
       setSavedMessage(result.message || 'Agreement and opening requirements saved.');
       await onSaved();
     } catch (saveError) {
@@ -137,6 +170,13 @@ const FranchiseRequirementsForm: React.FC<{
       setError('Explain why the franchise fee is waived or not applicable in the internal note.');
       return;
     }
+    const missingTemplates = documents
+      .filter((document, index) => document.label.trim() && !document.template_name && !documentTemplates[index])
+      .map((document) => document.label.trim());
+    if (missingTemplates.length) {
+      setMissingTemplateWarning(missingTemplates);
+      return;
+    }
     if (feeStatus === 'paid' && application.franchise_fee_payment_status !== 'paid') {
       setConfirmFeeVerification(true);
       return;
@@ -146,14 +186,45 @@ const FranchiseRequirementsForm: React.FC<{
 
   const updateDocument = (index: number, patch: Partial<FranchiseRequirementDocument>) =>
     setDocuments((current) => current.map((document, position) => position === index ? { ...document, ...patch } : document));
+  const selectTemplate = (index: number, file?: File) => {
+    if (!file) return;
+    const fileError = templateFileError(file);
+    setTemplateErrors((current) => ({ ...current, [index]: fileError }));
+    if (fileError) return;
+    setDocumentTemplates((current) => ({ ...current, [index]: file }));
+    updateDocument(index, { template_name: file.name, template_size_bytes: file.size, template_uploaded_at: new Date().toISOString() });
+  };
   const selectClass = 'mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm';
   const dateClass = 'mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm';
 
   return (
     <section className="mt-6 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-4"><h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Documents and final review</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Add each document the franchisee must complete and attach its blank form or instructions. Once every required file is attached, the franchisee can download, complete, and submit the forms together. Agreement, payment, and readiness records are available below if needed.</p></div>
+      <div className="mb-4"><h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Documents and final review</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Add each document the franchisee must complete. Attach a blank form or instructions if available; a template is optional, and the franchisee can still upload the requested document directly. Agreement, payment, and readiness records are available below if needed.</p></div>
       {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {savedMessage && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{savedMessage}</p>}
+      {missingTemplateWarning.length > 0 && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !saving) setMissingTemplateWarning([]);
+      }}>
+        <section role="alertdialog" aria-modal="true" aria-labelledby="missing-template-title" aria-describedby="missing-template-description" onKeyDown={(event) => {
+          if (event.key === 'Escape' && !saving) setMissingTemplateWarning([]);
+        }} className="w-full max-w-lg rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-2xl">
+          <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-amber-100 text-amber-900"><FileText size={21} aria-hidden="true" /></div>
+          <h3 id="missing-template-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">Some requirements have no file attached</h3>
+          <p id="missing-template-description" className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">Without an attached file, the franchisee cannot download a form for these requirements:</p>
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm font-medium text-amber-900">{missingTemplateWarning.map((label) => <li key={label}>Walang file na naka-attach sa “{label}”. Hindi ito mada-download ng franchisee.</li>)}</ul>
+          <div className="mt-6 flex flex-col-reverse justify-end gap-2 sm:flex-row">
+            <button type="button" disabled={saving} onClick={() => setMissingTemplateWarning([])} className="min-h-10 rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-60">Go back and attach file</button>
+            <button type="button" disabled={saving} onClick={() => {
+              setMissingTemplateWarning([]);
+              if (feeStatus === 'paid' && application.franchise_fee_payment_status !== 'paid') {
+                setConfirmFeeVerification(true);
+                return;
+              }
+              void saveRequirements();
+            }} className="min-h-10 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60">Save without file</button>
+          </div>
+        </section>
+      </div>}
       {confirmFeeVerification && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => {
         if (event.target === event.currentTarget && !saving) setConfirmFeeVerification(false);
       }}>
@@ -192,24 +263,91 @@ const FranchiseRequirementsForm: React.FC<{
               .find((file) => file.required_document_label === document.label);
             const submittedName = submission?.name || document.submitted_document_name;
             const submittedIndex = submission?.documentIndex ?? document.submitted_document_index;
-            return <div key={index} className="grid gap-2 rounded-lg bg-[var(--oppa-cream)] p-3 sm:grid-cols-[minmax(180px,1fr)_auto_160px_auto] sm:items-center">
-            <input aria-label="Required document name" required value={document.label} onChange={(event) => updateDocument(index, { label: event.target.value })} placeholder="Requirement or file name" className="rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm" />
-            <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={document.required} onChange={(event) => updateDocument(index, { required: event.target.checked })} />Required</label>
-            <select aria-label="Document verification status" value={document.status} onChange={(event) => updateDocument(index, { status: event.target.value, reject_reason: event.target.value === 'rejected' ? document.reject_reason : null })} className="rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-2 text-xs"><option value="pending">Pending</option><option value="submitted">Submitted</option><option value="received">Received</option><option value="verified">Verified</option><option value="rejected">Rejected</option><option value="not_applicable">Not applicable</option></select>
-            <div className="flex gap-2 sm:col-span-4"><button type="button" onClick={() => updateDocument(index, { status: 'verified', reject_reason: null })} className="rounded-lg bg-emerald-100 px-2.5 py-1.5 text-xs font-semibold text-emerald-800">Verify</button><button type="button" onClick={() => updateDocument(index, { status: 'rejected' })} className="rounded-lg bg-red-100 px-2.5 py-1.5 text-xs font-semibold text-red-800">Reject</button></div>
-            <button type="button" onClick={() => { setDocuments((current) => current.filter((_, position) => position !== index)); setDocumentTemplates((current) => Object.fromEntries(Object.entries(current).filter(([key]) => Number(key) !== index).map(([key, file]) => [Number(key) > index ? String(Number(key) - 1) : key, file]))); }} className="text-xs font-semibold text-red-700">Remove</button>
-            <div className="text-xs text-[var(--oppa-text-muted)] sm:col-span-4">
-              {submittedName && <p>Applicant submission: <span className="font-medium text-[var(--oppa-text)]">{submittedName}</span>{typeof submittedIndex === 'number' && <button type="button" onClick={() => onDownload(submittedIndex, submittedName)} className="ml-2 font-semibold text-[var(--oppa-green)] underline">Download submitted file</button>}</p>}
-              {document.status === 'rejected' && <label className="mt-2 block font-medium">Reason for rejection<textarea required value={document.reject_reason || ''} onChange={(event) => updateDocument(index, { reject_reason: event.target.value })} rows={2} maxLength={2000} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-xs" /></label>}
-              <label className="mt-2 block font-medium">Category<select value={document.category || 'application_documents'} onChange={(event) => updateDocument(index, { category: event.target.value })} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-xs">{requirementCategories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <label className="mt-2 block font-medium">File or form to send to franchisee<input type="file" accept=".pdf,.doc,.docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) { setDocumentTemplates((current) => ({ ...current, [index]: file })); updateDocument(index, { template_name: file.name }); } }} className="mt-1 block w-full text-xs" /></label>
-              <p className="mt-1">{documentTemplates[index]?.name || document.template_name || 'No file attached yet'}</p>
-              {(document.template_name || documentTemplates[index]) && <button type="button" onClick={() => { setDocumentTemplates((current) => { const next = { ...current }; delete next[index]; return next; }); updateDocument(index, { template_name: null }); }} className="mt-1 font-semibold text-red-700 hover:underline">Remove template</button>}
-            </div>
-          </div>;
+            const templateFile = documentTemplates[index];
+            const templatePersisted = Boolean(document.template_name && !templateFile);
+            const templateAttached = Boolean(templateFile || document.template_name);
+            const templateInputId = `franchise-template-${application.id}-${index}`;
+            const rowBusy = saving;
+            return <div key={index} className="space-y-4 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-4">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(150px,180px)] sm:items-center">
+                <input aria-label="Required document name" required value={document.label} onChange={(event) => updateDocument(index, { label: event.target.value })} placeholder="Requirement or file name" className="min-h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm" />
+                <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={document.required} onChange={(event) => updateDocument(index, { required: event.target.checked })} className="size-4 accent-[var(--oppa-green)]" />Required</label>
+                <select aria-label="Document verification status" value={document.status} onChange={(event) => updateDocument(index, { status: event.target.value, reject_reason: event.target.value === 'rejected' ? document.reject_reason : null })} className="min-h-11 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm"><option value="pending">Pending</option><option value="submitted">Submitted</option><option value="received">Received</option><option value="verified">Verified</option><option value="rejected">Rejected</option><option value="not_applicable">Not applicable</option></select>
+              </div>
+
+              <label htmlFor={`${templateInputId}-category`} className="block text-sm font-medium">Category</label>
+              <select id={`${templateInputId}-category`} value={requirementCategories.some(([value]) => value === document.category) ? document.category : (document.category || 'agreement_signing')} onChange={(event) => updateDocument(index, { category: event.target.value })} className="min-h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm">
+                {document.category && !requirementCategories.some(([value]) => value === document.category) && <option value={document.category} disabled>Legacy category — choose a current category</option>}
+                {requirementCategories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+
+              <div>
+                <label htmlFor={templateInputId} className="mb-2 block text-sm font-semibold">File or form to send to franchisee</label>
+                <input id={templateInputId} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png" className="peer sr-only" disabled={rowBusy} onChange={(event) => {
+                  selectTemplate(index, event.currentTarget.files?.[0]);
+                  event.currentTarget.value = '';
+                }} />
+                {!templateAttached ? <label
+                  htmlFor={templateInputId}
+                  onDragOver={(event) => { event.preventDefault(); if (!rowBusy) setDraggingTemplate(index); }}
+                  onDragLeave={(event) => {
+                    const nextTarget = event.relatedTarget;
+                    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) setDraggingTemplate(null);
+                  }}
+                  onDrop={(event) => { event.preventDefault(); setDraggingTemplate(null); if (!rowBusy) selectTemplate(index, event.dataTransfer.files[0]); }}
+                  className={`flex min-h-36 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-5 text-center transition peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--oppa-green)] peer-focus-visible:ring-offset-2 ${draggingTemplate === index ? 'border-[var(--oppa-green)] bg-green-50' : 'border-amber-400 bg-amber-50/70 hover:border-[var(--oppa-green)] hover:bg-green-50'}`}
+                >
+                  <span className="mb-2 flex size-11 items-center justify-center rounded-full bg-white text-[var(--oppa-green)] shadow-sm"><Upload size={21} aria-hidden="true" /></span>
+                  <span className="text-sm font-semibold text-[var(--oppa-text)]">Upload file or form for the franchisee</span>
+                  <span className="mt-1 text-xs text-[var(--oppa-text-muted)]">PDF, DOC, DOCX, JPG, PNG · Max 10MB</span>
+                  <span className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white">Choose file</span>
+                  <span className="mt-2 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900">No file attached</span>
+                </label> : <div aria-live="polite" className="flex flex-col gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 sm:flex-row sm:items-center">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--oppa-green)]"><FileText size={21} aria-hidden="true" /></span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">{saving && templateFile ? 'Uploading…' : templatePersisted ? 'File attached' : 'Ready to attach'}</span>{templateFile && <span className="text-xs text-[var(--oppa-text-muted)]">{formatFileSize(templateFile.size)}</span>}{!templateFile && document.template_size_bytes && <span className="text-xs text-[var(--oppa-text-muted)]">{formatFileSize(document.template_size_bytes)}</span>}</div>
+                    <p className="mt-1 break-all text-sm font-semibold text-[var(--oppa-text)]">{templateFile?.name || document.template_name}</p>
+                    <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{templateFile ? 'Selected; save requirements to finish attaching.' : document.template_uploaded_at ? `Uploaded ${formatUploadDate(document.template_uploaded_at)}` : 'Previously attached template'}</p>
+                    {saving && templateFile && <span className="mt-2 flex items-center gap-2 text-xs font-medium text-[var(--oppa-green)]"><Loader2 size={14} className="animate-spin" />Saving file securely…</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
+                    {templatePersisted && <button type="button" onClick={() => onDownloadTemplate(index, document.template_name || 'franchisee-form')} disabled={rowBusy} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-50"><Download size={14} />Download file</button>}
+                    <label htmlFor={templateInputId} className={`inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-xs font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] ${rowBusy ? 'pointer-events-none opacity-50' : ''}`}><Upload size={14} />Replace</label>
+                    <button type="button" disabled={rowBusy} onClick={() => {
+                      setDocumentTemplates((current) => { const next = { ...current }; delete next[index]; return next; });
+                      setTemplateErrors((current) => ({ ...current, [index]: '' }));
+                      updateDocument(index, { template_name: null, template_size_bytes: null, template_uploaded_at: null });
+                    }} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"><X size={14} />Remove file</button>
+                  </div>
+                </div>}
+                {templateErrors[index] && <p role="alert" aria-live="assertive" className="mt-2 text-sm font-medium text-red-700">{templateErrors[index]}</p>}
+              </div>
+
+              <div className="rounded-lg border border-[var(--oppa-border)] bg-white p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div><p className="text-sm font-semibold">Franchisee submission</p>{submittedName ? <p className="mt-1 break-all text-xs text-[var(--oppa-text-muted)]">{submittedName}</p> : <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">No completed file submitted yet.</p>}</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {submittedName && typeof submittedIndex === 'number' && <button type="button" onClick={() => onDownload(submittedIndex, submittedName)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] px-3 text-xs font-semibold text-[var(--oppa-green)]"><Download size={14} />Download submission</button>}
+                    <button type="button" disabled={rowBusy} onClick={() => updateDocument(index, { status: 'verified', reject_reason: null })} className="min-h-9 rounded-lg bg-emerald-100 px-3 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">Verify</button>
+                    <button type="button" disabled={rowBusy} onClick={() => updateDocument(index, { status: 'rejected' })} className="min-h-9 rounded-lg bg-red-100 px-3 text-xs font-semibold text-red-800 disabled:cursor-not-allowed disabled:opacity-50">Reject</button>
+                  </div>
+                </div>
+                {document.status === 'rejected' && <label className="mt-3 block text-sm font-medium">Reason for rejection<textarea required value={document.reject_reason || ''} onChange={(event) => updateDocument(index, { reject_reason: event.target.value })} rows={2} maxLength={2000} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm" /></label>}
+              </div>
+              <div className="flex justify-end border-t border-[var(--oppa-border)] pt-3">
+                <button type="button" disabled={rowBusy} onClick={() => {
+                  setDocuments((current) => current.filter((_, position) => position !== index));
+                  setDocumentTemplates((current) => Object.fromEntries(Object.entries(current).filter(([key]) => Number(key) !== index).map(([key, file]) => [Number(key) > index ? String(Number(key) - 1) : key, file])));
+                  setTemplateErrors((current) => Object.fromEntries(Object.entries(current).filter(([key]) => Number(key) !== index).map(([key, message]) => [Number(key) > index ? String(Number(key) - 1) : key, message])));
+                }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"><X size={14} />Remove requirement</button>
+              </div>
+            </div>;
           })}
-          <button type="button" disabled={documents.length >= 8} onClick={() => setDocuments((current) => [...current, { label: '', category: 'application_documents', required: true, status: 'pending' }])} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold disabled:opacity-50">Add requirement and file</button>
-          <p className="text-xs text-[var(--oppa-text-muted)]">Attach the agreement, guide, form, or other file the franchisee needs for each requirement. They can download the files and return all required completed documents together (up to 8).</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <button type="button" disabled={documents.length >= 8 || saving} onClick={() => setDocuments((current) => [...current, { label: '', category: 'agreement_signing', required: true, status: 'pending' }])} className="min-h-10 rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50">Add requirement and file</button>
+            {documents.length >= 8 && <p role="status" className="text-xs font-medium text-amber-800">Maximum of 8 requirements reached.</p>}
+          </div>
+          <p className="text-xs leading-5 text-[var(--oppa-text-muted)]">Attach the agreement, guide, or form the franchisee needs to download for each requirement. They will upload their completed documents together (up to 8).</p>
         </fieldset>
 
         <details className="rounded-xl border border-[var(--oppa-border)] md:col-span-2">
@@ -242,15 +380,20 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const [interviewMeetingUrl, setInterviewMeetingUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [downloading, setDownloading] = useState<number | null>(null);
+  const [downloading, setDownloading] = useState<number | string | null>(null);
   const [error, setError] = useState('');
   const [confirmationStatus, setConfirmationStatus] = useState<string | null>(null);
   const formDirty = useRef(false);
   const requestInFlight = useRef(false);
+  const refreshQueued = useRef(false);
   const mounted = useRef(false);
 
   const load = async (showLoading = true) => {
-    if (!id || requestInFlight.current) return;
+    if (!id) return;
+    if (requestInFlight.current) {
+      if (showLoading) refreshQueued.current = true;
+      return;
+    }
     requestInFlight.current = true;
     if (showLoading) {
       setLoading(true);
@@ -281,6 +424,10 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     } finally {
       requestInFlight.current = false;
       if (mounted.current && showLoading) setLoading(false);
+      if (mounted.current && refreshQueued.current) {
+        refreshQueued.current = false;
+        void load(false);
+      }
     }
   };
 
@@ -334,8 +481,19 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
         interview_notes: interviewNotes,
         interview_meeting_url: interviewType === 'online' ? interviewMeetingUrl.trim() || null : null,
       });
+      setApplication((current) => current
+        ? { ...current, status, next_step_instructions: instructions }
+        : current);
       formDirty.current = false;
       await load();
+      if (status === 'location_assessment') {
+        window.setTimeout(() => {
+          document.getElementById('franchise-requirements-panel')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+        }, 0);
+      }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Unable to save review updates.');
     } finally {
@@ -378,6 +536,26 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       URL.revokeObjectURL(url);
     } catch (downloadError) {
       setError(downloadError instanceof Error ? downloadError.message : 'Unable to download the supporting document.');
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const downloadTemplate = async (index: number, name: string) => {
+    if (!id) return;
+    const key = `template-${index}`;
+    setDownloading(key);
+    setError('');
+    try {
+      const blob = await downloadFranchiseRequirementTemplate(id, index);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = name;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : 'Unable to download the franchisee template.');
     } finally {
       setDownloading(null);
     }
@@ -439,7 +617,9 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
           </div>
 
           {['location_assessment', 'conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening'].includes(currentStatus) && (
-            <FranchiseRequirementsForm application={application} onSaved={load} onDownload={(index, name) => void downloadDocument(index, name)} />
+            <div id="franchise-requirements-panel" className="scroll-mt-6">
+              <FranchiseRequirementsForm application={application} onSaved={load} onDownload={(index, name) => void downloadDocument(index, name)} onDownloadTemplate={(index, name) => void downloadTemplate(index, name)} />
+            </div>
           )}
           <FranchiseActivationPanel application={application} onActivated={load} />
         </>

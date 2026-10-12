@@ -67,6 +67,8 @@ export interface FranchiseApplication {
     status: string;
     category?: string;
     template_name?: string | null;
+    template_size_bytes?: number | null;
+    template_uploaded_at?: string | null;
     submitted_document_name?: string | null;
     submitted_document_index?: number | null;
     reject_reason?: string | null;
@@ -397,6 +399,14 @@ export const downloadFranchiseApplicationDocument = async (id: string | number, 
   return response.blob();
 };
 
+export const downloadFranchiseRequirementTemplate = async (id: string | number, document: number): Promise<Blob> => {
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications/${id}/required-documents/${document}/template`);
+  if (!response.ok) {
+    throw new Error('Unable to download the franchisee template.');
+  }
+  return response.blob();
+};
+
 export const updateFranchiseApplicationRequirements = async (id: string | number, data: {
   agreement_status: string;
   agreement_prepared_at?: string;
@@ -411,6 +421,8 @@ export const updateFranchiseApplicationRequirements = async (id: string | number
     status: string;
     category?: string;
     template_name?: string | null;
+    template_size_bytes?: number | null;
+    template_uploaded_at?: string | null;
     reject_reason?: string | null;
   }>;
   location_readiness: string;

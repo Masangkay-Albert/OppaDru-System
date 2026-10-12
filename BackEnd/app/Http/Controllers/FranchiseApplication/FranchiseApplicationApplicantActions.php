@@ -240,21 +240,6 @@ trait FranchiseApplicationApplicantActions
                 if ($requestedForCombinedReview && ! $hasConfiguredRequirements) {
                     abort(response()->json(['message' => 'The franchise team has not configured any required documents yet.'], 409));
                 }
-                if ($requestedForCombinedReview) {
-                    $missingTemplates = collect($requiredDocuments)
-                        ->filter(fn (array $document) => ($document['required'] ?? false)
-                            && ($document['status'] ?? null) !== 'not_applicable'
-                            && empty($document['template_path']))
-                        ->pluck('label')
-                        ->values()
-                        ->all();
-                    if ($missingTemplates !== []) {
-                        abort(response()->json([
-                            'message' => 'The franchise team is still preparing the files for your required documents. Refresh this page after they are attached.',
-                            'requirements' => $missingTemplates,
-                        ], 409));
-                    }
-                }
                 $requiredUploads = $request->file('required_document_uploads', []);
                 if ($requestedForCombinedReview) {
                     $missingDocuments = [];

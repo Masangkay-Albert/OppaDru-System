@@ -247,6 +247,7 @@ Route::prefix('admin')->group(function () {
     Route::get('/franchise-applications/{id}', [FranchiseApplicationController::class, 'showAdmin']);
     Route::patch('/franchise-applications/{id}', [FranchiseApplicationController::class, 'review']);
     Route::patch('/franchise-applications/{id}/requirements', [FranchiseApplicationController::class, 'updateRequirements']);
+    Route::get('/franchise-applications/{id}/required-documents/{document}/template', [FranchiseApplicationController::class, 'downloadRequirementTemplate']);
     Route::post('/franchise-applications/{id}/activate', [FranchiseApplicationController::class, 'activate']);
     Route::get('/franchise-applications/{id}/documents/{document}', [FranchiseApplicationController::class, 'downloadDocument']);
     Route::put('/franchise-opportunities', [FranchiseApplicationController::class, 'updateOpportunitySettings']);
