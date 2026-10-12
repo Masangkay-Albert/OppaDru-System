@@ -34,6 +34,7 @@ const FranchiseApplicantRegisterPage: React.FC = () => {
         password,
         password_confirmation: passwordConfirmation,
       });
+      franchiseApplicantAuthService.clearAuth();
       navigate(`/franchise/applicant-login?registered=1&returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
     } catch (registrationError: unknown) {
       setError(registrationError instanceof Error ? registrationError.message : 'Unable to create your applicant account.');
