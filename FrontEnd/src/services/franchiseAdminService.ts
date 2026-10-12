@@ -49,6 +49,8 @@ export interface FranchiseApplication {
   admin_notes?: string;
   next_step_instructions?: string;
   interview_at?: string | null;
+  interview_type?: 'online' | 'onsite' | null;
+  interview_location?: string | null;
   interview_notes?: string | null;
   interview_meeting_url?: string | null;
   location_assessment?: { result?: string; notes?: string } | null;
@@ -352,6 +354,8 @@ export const reviewFranchiseApplication = async (id: string | number, data: {
   admin_notes?: string;
   next_step_instructions?: string;
   interview_at?: string;
+  interview_type?: 'online' | 'onsite';
+  interview_location?: string | null;
   interview_notes?: string;
   interview_meeting_url?: string | null;
   location_assessment?: { result?: string; notes?: string };

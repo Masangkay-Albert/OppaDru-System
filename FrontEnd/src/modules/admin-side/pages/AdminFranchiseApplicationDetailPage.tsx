@@ -137,14 +137,13 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [application, setApplication] = useState<FranchiseApplication | null>(null);
   const [status, setStatus] = useState('');
-  const [adminNotes, setAdminNotes] = useState('');
   const [instructions, setInstructions] = useState('');
   const [interviewAt, setInterviewAt] = useState('');
   const [minimumInterviewAt, setMinimumInterviewAt] = useState(minimumManilaDateTime);
+  const [interviewType, setInterviewType] = useState<'online' | 'onsite'>('online');
+  const [interviewLocation, setInterviewLocation] = useState('');
   const [interviewNotes, setInterviewNotes] = useState('');
   const [interviewMeetingUrl, setInterviewMeetingUrl] = useState('');
-  const [assessmentResult, setAssessmentResult] = useState('');
-  const [assessmentNotes, setAssessmentNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState<number | null>(null);
@@ -169,10 +168,10 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
         setStatus(data.status === 'pending' ? 'submitted' : data.status || 'submitted');
         setInstructions(data.next_step_instructions || '');
         setInterviewAt(data.interview_at ? toManilaDateTimeInput(data.interview_at) : '');
+        setInterviewType(data.interview_type || 'online');
+        setInterviewLocation(data.interview_location || '');
         setInterviewNotes(data.interview_notes || '');
         setInterviewMeetingUrl(data.interview_meeting_url || '');
-        setAssessmentResult(data.location_assessment?.result || '');
-        setAssessmentNotes(data.location_assessment?.notes || '');
         formDirty.current = false;
       }
     } catch (loadError) {
@@ -222,6 +221,10 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       setError('Choose a current or future interview date and time.');
       return;
     }
+    if (interviewType === 'onsite' && !interviewLocation.trim()) {
+      setError('Enter the location for the onsite interview.');
+      return;
+    }
     if ((status === 'conditionally_approved' || status === 'rejected') && !window.confirm(`Confirm ${statusTitle(status).toLowerCase()} for this application?`)) return;
     setSaving(true);
     setError('');
@@ -229,18 +232,14 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     try {
       await reviewFranchiseApplication(id, {
         status,
-        admin_notes: adminNotes,
         next_step_instructions: instructions,
         ...(interviewAt && (status === 'for_interview' || interviewChanged) ? { interview_at: interviewAtIso } : {}),
+        interview_type: interviewType,
+        interview_location: interviewType === 'onsite' ? interviewLocation.trim() : null,
         interview_notes: interviewNotes,
-        interview_meeting_url: interviewMeetingUrl.trim() || null,
-        location_assessment: {
-          ...(assessmentResult ? { result: assessmentResult } : {}),
-          ...(assessmentNotes ? { notes: assessmentNotes } : {}),
-        },
+        interview_meeting_url: interviewType === 'online' ? interviewMeetingUrl.trim() || null : null,
       });
       formDirty.current = false;
-      setAdminNotes('');
       setMessage('Review updates saved.');
       await load();
     } catch (saveError) {
@@ -307,21 +306,19 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             <form noValidate onChange={() => { formDirty.current = true; }} onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
               <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Each status change is recorded. Approval does not create access; franchise activation is a separate gated action.</p></div>
               <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
+              {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview, review the applicant and update the status. If they pass, select Location Assessment to begin Step 4; otherwise request more information, place the application on hold, or reject it.</p>}
               <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or the additional information needed." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
               <div className="rounded-xl border border-[var(--oppa-border)] p-3">
                 <h3 className="mb-3 text-sm font-semibold">Interview record (Philippine time)</h3>
                 <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Date and time<input type="datetime-local" min={minimumInterviewAt} value={interviewAt} onChange={(event) => setInterviewAt(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
                 <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Past dates and times are unavailable. Choose today or a future date.</p>
-                <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Online meeting link<input type="url" maxLength={2048} value={interviewMeetingUrl} onChange={(event) => setInterviewMeetingUrl(event.target.value)} placeholder="https://meet.google.com/… or https://zoom.us/…" className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">This link will be shared with the franchisee in their application portal.</p>
+                <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Interview type<select value={interviewType} onChange={(event) => setInterviewType(event.target.value as 'online' | 'onsite')} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]"><option value="online">Online</option><option value="onsite">Onsite</option></select></label>
+                {interviewType === 'online' ? <>
+                  <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Online meeting link<input type="url" maxLength={2048} value={interviewMeetingUrl} onChange={(event) => setInterviewMeetingUrl(event.target.value)} placeholder="https://meet.google.com/… or https://zoom.us/…" className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
+                  <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">This link will be shared with the franchisee in their application portal.</p>
+                </> : <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Onsite interview location<input required maxLength={500} value={interviewLocation} onChange={(event) => setInterviewLocation(event.target.value)} placeholder="Enter the complete address or venue" className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /><span className="mt-1 block">This location will be shared with the franchisee in their application portal.</span></label>}
                 <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Internal interview notes<textarea value={interviewNotes} onChange={(event) => setInterviewNotes(event.target.value)} rows={2} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
               </div>
-              <div className="rounded-xl border border-[var(--oppa-border)] p-3">
-                <h3 className="mb-3 text-sm font-semibold">Location assessment</h3>
-                <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Assessment outcome<select value={assessmentResult} onChange={(event) => setAssessmentResult(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]"><option value="">Not assessed</option><option value="pending">Pending</option><option value="passed">Passed</option><option value="follow_up_required">Follow-up required</option><option value="not_suitable">Not suitable</option></select></label>
-                <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Internal assessment notes<textarea value={assessmentNotes} onChange={(event) => setAssessmentNotes(event.target.value)} rows={3} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-              </div>
-              <label className="block text-sm font-medium">Add an internal review note<textarea value={adminNotes} onChange={(event) => setAdminNotes(event.target.value)} rows={3} maxLength={5000} placeholder="Visible to authorized administrators only." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
               <button type="submit" disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60"><Save size={16} />{saving ? 'Saving review…' : 'Save review updates'}</button>
             </form>
           </div>

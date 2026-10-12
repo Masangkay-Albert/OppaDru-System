@@ -86,6 +86,7 @@ class FranchiseApplicationReviewTest extends TestCase
         $interviewReview = [
             'status' => 'for_interview',
             'interview_at' => '2026-11-01T10:00:00+08:00',
+            'interview_type' => 'online',
             'interview_notes' => 'Bring the operating plan.',
             'interview_meeting_url' => 'https://meet.example.test/franchise-interview',
             'next_step_instructions' => 'Your interview is scheduled. Please check your account email.',
@@ -105,10 +106,12 @@ class FranchiseApplicationReviewTest extends TestCase
             'Authorization' => 'Bearer '.$applicant['token'],
         ])->assertOk();
         $this->assertNotEmpty($applicantView->json('data.0.interview_at'));
+        $this->assertSame('online', $applicantView->json('data.0.interview_type'));
         $this->assertSame(
             'https://meet.example.test/franchise-interview',
             $applicantView->json('data.0.interview_meeting_url'),
         );
+        $this->assertArrayNotHasKey('admin_notes', $applicantView->json('data.0'));
         $this->assertArrayNotHasKey('interview_notes', $applicantView->json('data.0'));
 
         $this->assertDatabaseHas('franchise_application_events', [
@@ -128,6 +131,83 @@ class FranchiseApplicationReviewTest extends TestCase
             'title' => 'Interview notes added',
             'is_internal' => true,
         ]);
+    }
+
+    public function test_admin_can_schedule_an_onsite_interview_with_a_location_visible_to_the_applicant(): void
+    {
+        $adminToken = $this->createAdminToken();
+        $applicant = $this->createVerifiedApplicant();
+        $application = $this->submitApplication($applicant);
+        $headers = ['Authorization' => 'Bearer '.$adminToken];
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'under_review',
+        ], $headers)->assertOk();
+
+        $onsiteInterview = [
+            'status' => 'for_interview',
+            'interview_at' => '2026-11-01T10:00:00+08:00',
+            'interview_type' => 'onsite',
+            'interview_notes' => 'Discuss the operating plan.',
+        ];
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, $onsiteInterview, $headers)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('interview_location');
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            ...$onsiteInterview,
+            'interview_location' => 'Oppa Dru HQ, Cebu City',
+        ], $headers)->assertOk()
+            ->assertJsonPath('data.interview_type', 'onsite')
+            ->assertJsonPath('data.interview_location', 'Oppa Dru HQ, Cebu City')
+            ->assertJsonPath('data.interview_meeting_url', null);
+
+        Auth::forgetGuards();
+        $applicantView = $this->getJson('/api/franchise-applications/me', [
+            'Authorization' => 'Bearer '.$applicant['token'],
+        ])->assertOk();
+        $this->assertSame('onsite', $applicantView->json('data.0.interview_type'));
+        $this->assertSame('Oppa Dru HQ, Cebu City', $applicantView->json('data.0.interview_location'));
+        $this->assertArrayNotHasKey('interview_notes', $applicantView->json('data.0'));
+    }
+
+    public function test_successful_post_interview_review_moves_application_into_step_four_then_step_five(): void
+    {
+        $adminToken = $this->createAdminToken();
+        $applicant = $this->createVerifiedApplicant();
+        $application = $this->submitApplication($applicant);
+        $headers = ['Authorization' => 'Bearer '.$adminToken];
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'under_review',
+        ], $headers)->assertOk();
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'for_interview',
+            'interview_at' => '2026-11-01T10:00:00+08:00',
+        ], $headers)->assertOk();
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'location_assessment',
+        ], $headers)->assertOk()
+            ->assertJsonPath('data.status', 'location_assessment')
+            ->assertJsonPath('data.next_step_instructions', FranchiseApplication::defaultInstructionsFor('location_assessment'));
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'conditionally_approved',
+        ], $headers)->assertOk()
+            ->assertJsonPath('data.status', 'conditionally_approved')
+            ->assertJsonPath('data.next_step_instructions', FranchiseApplication::defaultInstructionsFor('conditionally_approved'));
+
+        $this->assertSame(
+            ['for_interview', 'location_assessment', 'conditionally_approved'],
+            FranchiseApplicationEvent::where('application_id', $application->id)
+                ->where('title', 'Status updated')
+                ->orderBy('id')
+                ->pluck('status')
+                ->all(),
+        );
     }
 
     public function test_applicant_cannot_update_status_and_admin_cannot_skip_to_activation(): void

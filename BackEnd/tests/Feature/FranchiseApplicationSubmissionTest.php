@@ -87,6 +87,7 @@ class FranchiseApplicationSubmissionTest extends TestCase
         $application = $this->createLegacyApplication('guest@example.test');
         $application->update([
             'interview_meeting_url' => 'https://meet.example.test/guest-interview',
+            'interview_notes' => 'Applicant account only.',
         ]);
 
         $this->postJson('/api/franchise-applications/track', [
@@ -198,12 +199,17 @@ class FranchiseApplicationSubmissionTest extends TestCase
             'phone' => '09170000000',
             'password' => 'SecurePassword1!',
             'password_confirmation' => 'SecurePassword1!',
+        ], [
+            'X-Forwarded-Proto' => 'https',
+            'X-Forwarded-Host' => 'oppadru-system-1.onrender.com',
         ])->assertCreated()
             ->assertJsonPath('applicant.email', 'new.applicant@example.test');
 
         $this->assertDatabaseCount('users', 0);
         $applicant = FranchiseApplicant::where('email', 'new.applicant@example.test')->firstOrFail();
-        Notification::assertSentTo($applicant, VerifyFranchiseApplicantEmail::class);
+        Notification::assertSentTo($applicant, VerifyFranchiseApplicantEmail::class, function (VerifyFranchiseApplicantEmail $notification) use ($applicant): bool {
+            return str_starts_with($notification->toMail($applicant)->actionUrl, 'https://oppadru-system-1.onrender.com/');
+        });
 
         $this->postJson('/api/franchise-applicants/login', [
             'email' => 'new.applicant@example.test',

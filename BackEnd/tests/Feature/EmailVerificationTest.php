@@ -34,6 +34,9 @@ class EmailVerificationTest extends TestCase
             'phone' => '09171234567',
             'password' => 'Password1!',
             'password_confirmation' => 'Password1!',
+        ], [
+            'X-Forwarded-Proto' => 'https',
+            'X-Forwarded-Host' => 'oppadru-system-1.onrender.com',
         ]);
 
         $response->assertCreated()
@@ -43,7 +46,9 @@ class EmailVerificationTest extends TestCase
         $user = User::where('email', 'customer@yahoo.com')->firstOrFail();
         $this->assertNull($user->email_verified_at);
         $this->assertNull($user->api_token);
-        Notification::assertSentTo($user, VerifyUserEmail::class);
+        Notification::assertSentTo($user, VerifyUserEmail::class, function (VerifyUserEmail $notification) use ($user): bool {
+            return str_starts_with($notification->toMail($user)->actionUrl, 'https://oppadru-system-1.onrender.com/');
+        });
     }
 
     public function test_unverified_user_cannot_login_until_the_signed_link_is_used(): void

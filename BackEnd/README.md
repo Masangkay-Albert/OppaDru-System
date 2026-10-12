@@ -47,8 +47,23 @@ The SMTP account must have permission to send mail and should use an app passwor
 
 Registration returns an error instead of claiming success when SMTP rejects the message. The signed verification URL expires after 60 minutes, is validated by Laravel, marks `email_verified_at`, and redirects to the frontend login page.
 
+### Improve inbox placement
+
+The application trusts the forwarding headers from its Render reverse proxy so verification links use the public HTTPS host instead of an internal HTTP connection. Keep `APP_URL` set to the canonical public HTTPS backend URL, and redeploy after changing Render environment variables.
+
+Inbox placement cannot be guaranteed by application code alone. Configure the sending domain with the mail provider and publish the exact DNS records the provider supplies:
+
+- SPF must authorize the provider that sends these messages. Keep one SPF record for the domain and merge providers into it rather than publishing multiple SPF records.
+- Enable DKIM signing with the provider and publish its DKIM records.
+- Publish a DMARC record for the visible `MAIL_FROM_ADDRESS` domain. Start with `p=none` while monitoring reports, then move to a stricter policy once all legitimate senders pass.
+- Use a sender address on a domain you control and align it with the authenticated sending domain. For a custom domain, use a transactional email provider or a properly configured Google Workspace sender; a personal `@gmail.com` address is not a branded sender identity.
+
+After DNS changes, verify SPF, DKIM, and DMARC pass on a received message's headers and check the provider's delivery/reputation dashboard. Gmail may still classify messages based on recipient-specific history and sender reputation.
+
 ## Franchise ordering and POS
 
+- Admins can schedule a franchise interview online with a meeting link or onsite with a location that is shown to the applicant. Internal interview notes remain admin-only. Run `php artisan migrate --force` during deployment to add interview type and location fields.
+- After the interview, the franchisor reviews the application and moves a successful applicant from `For Interview` to `Location Assessment` to begin Step 4. The applicant progress then advances through site inspection/assessment, financial/final evaluation (`Conditionally Approved`), and franchise approval/agreement; the admin can instead request more information, put the application on hold, or reject it.
 - Franchise management uses `franchise_accounts` as the parent business record and keeps the existing `franchises` table as its branch/location records. The additive `2026_10_08_000001_create_franchise_accounts_and_link_locations` migration links existing branches and branch managers to a generated account without changing their existing IDs.
 - HQ manages franchise account details, activation, locations, managers, staff, and revenue performance through the admin franchise module. A franchise manager can view their associated account and locations; order/POS/inventory operations remain scoped to their assigned location. Deactivating an account blocks customer ordering and branch manager, employee, and driver operational access at its locations.
 - Customers choose an active branch in the customer menu; the original store remains the default.

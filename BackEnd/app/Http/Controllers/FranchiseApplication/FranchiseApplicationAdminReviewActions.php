@@ -53,6 +53,8 @@ trait FranchiseApplicationAdminReviewActions
             'admin_notes' => 'nullable|string|max:5000',
             'next_step_instructions' => 'nullable|string|max:2000',
             'interview_at' => 'nullable|date',
+            'interview_type' => 'nullable|string|in:online,onsite',
+            'interview_location' => 'nullable|string|max:500|required_if:interview_type,onsite',
             'interview_notes' => 'nullable|string|max:5000',
             'interview_meeting_url' => 'nullable|url:http,https|max:2048',
             'location_assessment.result' => 'nullable|string|in:pending,passed,follow_up_required,not_suitable',
@@ -129,6 +131,17 @@ trait FranchiseApplicationAdminReviewActions
             }
             if ($request->has('interview_at')) {
                 $application->interview_at = $requestedInterviewAt;
+            }
+            if ($request->has('interview_type')) {
+                $application->interview_type = $request->input('interview_type');
+                if ($request->input('interview_type') === 'onsite') {
+                    $application->interview_meeting_url = null;
+                } elseif ($request->input('interview_type') === 'online') {
+                    $application->interview_location = null;
+                }
+            }
+            if ($request->has('interview_location')) {
+                $application->interview_location = $request->input('interview_location');
             }
             if ($request->has('interview_notes')) {
                 $application->interview_notes = $request->input('interview_notes');

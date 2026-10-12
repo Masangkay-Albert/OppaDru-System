@@ -12,6 +12,8 @@ export interface ApplicantFranchiseApplication {
   status: string;
   next_step_instructions?: string | null;
   interview_at?: string | null;
+  interview_type?: 'online' | 'onsite' | null;
+  interview_location?: string | null;
   interview_meeting_url?: string | null;
   created_at: string;
   updated_at: string;
