@@ -2,10 +2,9 @@
 
 namespace App\Http\Controllers\FranchiseApplication;
 
+use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
-use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -16,7 +15,7 @@ trait FranchiseApplicationApplicantActions
 {
     public function store(Request $request)
     {
-        $user = Auth::guard('api')->user();
+        $applicant = $request->user();
         $validator = Validator::make($request->all(), [
             'franchise_name' => 'nullable|string|max:255',
             'contact_name' => 'required|string|max:255',
@@ -37,29 +36,16 @@ trait FranchiseApplicationApplicantActions
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-        if (! $user && ! $request->filled('email')) {
-            return response()->json([
-                'message' => 'A contact email is required so the franchise team can respond to your application.',
-                'errors' => ['email' => ['Enter a contact email address.']],
-            ], 422);
-        }
-
         $storedPaths = [];
 
         try {
-            $application = DB::transaction(function () use ($request, $user, &$storedPaths) {
-                $lockedUser = $user ? User::whereKey($user->id)->lockForUpdate()->firstOrFail() : null;
-                $email = strtolower(trim((string) (
-                    $request->filled('email') ? $request->input('email') : $lockedUser?->email
-                )));
+            $application = DB::transaction(function () use ($request, $applicant, &$storedPaths) {
+                $lockedApplicant = FranchiseApplicant::whereKey($applicant->id)->lockForUpdate()->firstOrFail();
+                $email = strtolower(trim((string) ($request->filled('email') ? $request->input('email') : $lockedApplicant->email)));
                 $hasOpenApplication = FranchiseApplication::query()
-                    ->where(function ($query) use ($lockedUser, $email) {
-                        if ($lockedUser) {
-                            $query->where('user_id', $lockedUser->id)
-                                ->orWhere('email', $email);
-                        } else {
-                            $query->where('email', $email);
-                        }
+                    ->where(function ($query) use ($lockedApplicant, $email) {
+                        $query->where('franchise_applicant_id', $lockedApplicant->id)
+                            ->orWhere('email', $email);
                     })
                     ->where(function ($query) {
                         $query->whereNull('status')
@@ -75,7 +61,7 @@ trait FranchiseApplicationApplicantActions
 
                 $location = trim((string) $request->input('location'));
                 $application = FranchiseApplication::create([
-                    'user_id' => $lockedUser?->id,
+                    'franchise_applicant_id' => $lockedApplicant->id,
                     'franchise_name' => trim((string) $request->input('franchise_name'))
                         ?: 'Oppa Dru - '.$location,
                     'contact_name' => trim((string) $request->input('contact_name')),
@@ -89,8 +75,8 @@ trait FranchiseApplicationApplicantActions
                     'opening_timeline' => $request->input('opening_timeline'),
                     'business_information' => $request->input('business_information'),
                     'notes' => $request->input('notes'),
-                    'status' => 'submitted',
-                    'next_step_instructions' => 'Our franchise team will review your application and contact you using the contact email provided.',
+                    'status' => 'under_review',
+                    'next_step_instructions' => FranchiseApplication::defaultInstructionsFor('under_review'),
                 ]);
 
                 $documents = [];
@@ -115,10 +101,10 @@ trait FranchiseApplicationApplicantActions
                 $this->recordEvent(
                     $application,
                     'applicant',
-                    $lockedUser?->id,
-                    'submitted',
+                    $lockedApplicant->id,
+                    'under_review',
                     'Application submitted',
-                    'Your application was received and is waiting for review.',
+                    'Your application was received and is now under review.',
                 );
 
                 return $application;
@@ -131,8 +117,8 @@ trait FranchiseApplicationApplicantActions
         }
 
         return response()->json([
-            'data' => $application,
-            'message' => 'Your application was submitted for review.',
+            'data' => $this->applicantApplication($application),
+            'message' => 'Your application was submitted and is now under review.',
             'reference_number' => $application->reference_number,
         ], 201);
     }
@@ -141,7 +127,7 @@ trait FranchiseApplicationApplicantActions
     {
         return response()->json([
             'data' => FranchiseApplication::query()
-                ->where('user_id', $request->user()->id)
+                ->where('franchise_applicant_id', $request->user()->id)
                 ->with(['events' => fn ($query) => $query->where('is_internal', false)])
                 ->latest()
                 ->get()
@@ -150,10 +136,38 @@ trait FranchiseApplicationApplicantActions
         ]);
     }
 
+    public function trackByReference(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'reference_number' => 'required|string|max:32',
+            'email' => 'required|email|max:255',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Enter the application reference number and contact email used when applying.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $application = FranchiseApplication::query()
+            ->whereRaw('LOWER(reference_number) = ?', [strtolower(trim((string) $request->input('reference_number')))])
+            ->whereRaw('LOWER(email) = ?', [strtolower(trim((string) $request->input('email')))])
+            ->with(['events' => fn ($query) => $query->where('is_internal', false)])
+            ->first();
+
+        if (! $application) {
+            return response()->json([
+                'message' => 'We could not find an application matching those details. Check your reference number and contact email.',
+            ], 404);
+        }
+
+        return response()->json(['data' => $this->applicantApplication($application)]);
+    }
+
     public function showMine(Request $request, string $id)
     {
         $application = FranchiseApplication::query()
-            ->where('user_id', $request->user()->id)
+            ->where('franchise_applicant_id', $request->user()->id)
             ->with(['events' => fn ($query) => $query->where('is_internal', false)])
             ->findOrFail($id);
 
@@ -171,11 +185,11 @@ trait FranchiseApplicationApplicantActions
             return response()->json(['message' => 'Your response could not be submitted.', 'errors' => $validator->errors()], 422);
         }
 
-        $userId = $request->user()->id;
+        $applicantId = $request->user()->id;
         $storedPaths = [];
         try {
-            $application = DB::transaction(function () use ($request, $id, $userId, &$storedPaths) {
-                $application = FranchiseApplication::where('user_id', $userId)
+            $application = DB::transaction(function () use ($request, $id, $applicantId, &$storedPaths) {
+                $application = FranchiseApplication::where('franchise_applicant_id', $applicantId)
                     ->whereKey($id)
                     ->lockForUpdate()
                     ->firstOrFail();
@@ -206,7 +220,7 @@ trait FranchiseApplicationApplicantActions
                 $this->recordEvent(
                     $application,
                     'applicant',
-                    $userId,
+                    $applicantId,
                     'under_review',
                     'Additional information submitted',
                     trim((string) $request->input('response')),
@@ -229,9 +243,9 @@ trait FranchiseApplicationApplicantActions
 
     public function withdraw(Request $request, string $id)
     {
-        $userId = $request->user()->id;
-        DB::transaction(function () use ($userId, $id) {
-            $application = FranchiseApplication::where('user_id', $userId)
+        $applicantId = $request->user()->id;
+        DB::transaction(function () use ($applicantId, $id) {
+            $application = FranchiseApplication::where('franchise_applicant_id', $applicantId)
                 ->whereKey($id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -253,7 +267,7 @@ trait FranchiseApplicationApplicantActions
             $this->recordEvent(
                 $application,
                 'applicant',
-                $userId,
+                $applicantId,
                 'withdrawn',
                 'Application withdrawn',
                 'You withdrew this application.',
@@ -266,7 +280,7 @@ trait FranchiseApplicationApplicantActions
     public function downloadDocument(Request $request, string $id, int $document)
     {
         $application = FranchiseApplication::findOrFail($id);
-        $isApplicant = (string) $request->user()?->id === (string) $application->user_id;
+        $isApplicant = (string) $request->user()?->id === (string) $application->franchise_applicant_id;
         if (! $isApplicant && ! $this->checkAdminAuth($request)) {
             abort(404);
         }
@@ -298,6 +312,7 @@ trait FranchiseApplicationApplicantActions
     {
         $application->makeHidden([
             'user_id',
+            'franchise_applicant_id',
             'admin_notes',
             'reviewed_by_admin_id',
             'reviewed_at',

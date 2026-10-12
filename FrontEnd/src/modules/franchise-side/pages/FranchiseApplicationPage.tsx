@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Building2, Check, CheckCircle2, FileText, Mail, MapPin, Phone, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
-import { authService } from '../../../services/authService';
+import { franchiseApplicantAuthService } from '../../../services/franchiseApplicantAuthService';
 
 type ApplicationForm = {
   franchise_name: string;
@@ -50,13 +50,6 @@ const getReferenceNumber = (value: unknown): string => {
   return getReferenceNumber(payload.data)
     || getReferenceNumber(payload.application)
     || getReferenceNumber(payload.result);
-};
-
-const getApplicationUserId = (value: unknown): string | number | null => {
-  const payload = asPayload(value);
-  if (!payload) return null;
-  if (typeof payload.user_id === 'string' || typeof payload.user_id === 'number') return payload.user_id;
-  return getApplicationUserId(payload.data) || getApplicationUserId(payload.application) || getApplicationUserId(payload.result);
 };
 
 const timelineLabels: Record<string, string> = {
@@ -163,7 +156,7 @@ const FranchiseApplicationPage: React.FC = () => {
         method: 'POST',
         headers: {
           Accept: 'application/json',
-          ...(authService.getToken() ? { Authorization: `Bearer ${authService.getToken()}` } : {}),
+          ...(franchiseApplicantAuthService.getToken() ? { Authorization: `Bearer ${franchiseApplicantAuthService.getToken()}` } : {}),
         },
         body,
       });
@@ -172,32 +165,10 @@ const FranchiseApplicationPage: React.FC = () => {
         const validationMessages = result.errors ? Object.values(result.errors).flat().join(' ') : '';
         throw new Error(validationMessages || result.message || 'Unable to submit your application.');
       }
-      let reference = getReferenceNumber(result);
-      const linkedUserId = getApplicationUserId(result);
-      if (!reference && linkedUserId) {
-        const applicationsResponse = await fetch(`${API_URL}/franchise-applications/me`, {
-          headers: { Accept: 'application/json', Authorization: `Bearer ${authService.getToken()}` },
-        });
-        if (applicationsResponse.ok) {
-          const applicationsResult: unknown = await applicationsResponse.json();
-          const payload = asPayload(applicationsResult);
-          const applications = Array.isArray(payload?.data) ? payload.data : [];
-          const submittedApplication = applications
-            .map(asPayload)
-            .find((application) =>
-              application
-              && application.status === 'submitted'
-              && application.contact_name === form.contact_name
-              && String(application.email || '').toLowerCase() === form.email.toLowerCase()
-              && application.phone === form.phone
-              && application.location === form.location,
-            );
-          reference = getReferenceNumber(submittedApplication);
-        }
-      }
+      const reference = getReferenceNumber(result);
       sessionStorage.removeItem(draftKey);
       setReferenceNumber(reference);
-      setCanTrackInPortal(Boolean(linkedUserId));
+      setCanTrackInPortal(true);
       setSubmissionConfirmed(true);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Unable to submit your application. Please try again.');
@@ -214,14 +185,14 @@ const FranchiseApplicationPage: React.FC = () => {
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--oppa-green)]">Application received</p>
           <h1 className="mt-2 font-serif text-3xl font-bold text-[var(--oppa-text)]">Thank you, {form.contact_name}</h1>
           <p className="mt-3 text-sm leading-6 text-[var(--oppa-text-muted)]">
-            Your application has been submitted for review. Keep this reference number for your records. You do not need an account to apply.
+            Your application has been submitted and is now under review. Keep this reference number for your records. You can follow updates in your applicant account.
           </p>
           {referenceNumber ? (
             <div className="mt-6 rounded-2xl bg-[var(--oppa-cream)] p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Application reference</p>
               <p className="mt-1 font-mono text-xl font-bold tracking-wide text-[var(--oppa-green)]">{referenceNumber}</p>
               <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm font-medium text-[var(--oppa-text)]">
-                <span className="size-2 rounded-full bg-amber-500" /> Submitted · awaiting review
+                <span className="size-2 rounded-full bg-amber-500" /> Under Review
               </p>
             </div>
           ) : (
@@ -230,6 +201,7 @@ const FranchiseApplicationPage: React.FC = () => {
             </p>
           )}
           <div className="mt-7 flex flex-wrap justify-center gap-3">
+            <Link to="/franchise/track-application" state={{ referenceNumber, email: form.email }} className="rounded-xl bg-[var(--oppa-green)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Track application status</Link>
             {canTrackInPortal && <Link to="/franchise/my-applications" className="rounded-xl bg-[var(--oppa-green)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">View My Applications</Link>}
             <Link to="/franchise-opportunities" className="rounded-xl border border-[var(--oppa-border)] px-5 py-3 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Back to opportunities</Link>
           </div>

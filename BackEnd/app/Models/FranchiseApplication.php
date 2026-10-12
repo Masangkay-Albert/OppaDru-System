@@ -50,6 +50,7 @@ class FranchiseApplication extends Model
         'franchise_name',
         'contact_name',
         'user_id',
+        'franchise_applicant_id',
         'email',
         'phone',
         'location',
@@ -68,6 +69,7 @@ class FranchiseApplication extends Model
         'reviewed_at',
         'interview_at',
         'interview_notes',
+        'interview_meeting_url',
         'location_assessment',
         'agreement_status',
         'agreement_prepared_at',
@@ -126,6 +128,11 @@ class FranchiseApplication extends Model
     public function applicant()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function franchiseApplicant()
+    {
+        return $this->belongsTo(FranchiseApplicant::class, 'franchise_applicant_id');
     }
 
     public function events()

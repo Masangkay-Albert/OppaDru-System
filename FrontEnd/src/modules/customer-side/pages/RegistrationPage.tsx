@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
 import { UserPlus, Eye, EyeOff, Phone, Mail, Lock, User } from "lucide-react";
-import heroSectionImg from "../../../assets/herosection.png";
+import LoginBrandPanel from "../../../components/LoginBrandPanel";
 
 const RegistrationPage: React.FC = () => {
   const navigate = useNavigate();
@@ -21,6 +21,13 @@ const RegistrationPage: React.FC = () => {
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
+
+  useEffect(() => {
+    const returnTo = new URLSearchParams(location.search).get("returnTo");
+    if (returnTo === "/franchise/apply" || returnTo === "/franchise/my-applications") {
+      navigate(`/franchise/applicant-register${location.search}`, { replace: true });
+    }
+  }, [location.search, navigate]);
 
   const validatePhoneNumber = (phone: string) => {
     const phoneRegex = /^(09|\+639)\d{9}$/;
@@ -162,24 +169,10 @@ const RegistrationPage: React.FC = () => {
   const showConfirmPasswordError = confirmPasswordTouched && passwordConfirmation && password !== passwordConfirmation;
 
   return (
-    <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-1/2 bg-[var(--oppa-green)] relative items-center justify-center overflow-hidden">
-        <img
-          src={heroSectionImg}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover opacity-10"
-        />
-        <div className="relative text-center px-12">
-          <h2 className="text-4xl font-semibold text-white mb-4">
-            Join Oppa Dru
-          </h2>
-          <p className="text-white/70 font-serif text-xl max-w-sm mx-auto">
-            Sauced, tossed, and straight-up obsessed.
-          </p>
-        </div>
-      </div>
+    <div className="min-h-screen lg:grid lg:grid-cols-2">
+      <LoginBrandPanel title="Join Oppa Dru" description="Sauced, tossed, and straight-up obsessed." />
 
-      <div className="flex-1 flex items-center justify-center px-4 py-12 bg-[var(--oppa-cream)]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--oppa-cream)] px-4 py-12">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-4">

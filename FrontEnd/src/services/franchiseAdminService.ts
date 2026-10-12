@@ -50,6 +50,7 @@ export interface FranchiseApplication {
   next_step_instructions?: string;
   interview_at?: string | null;
   interview_notes?: string | null;
+  interview_meeting_url?: string | null;
   location_assessment?: { result?: string; notes?: string } | null;
   agreement_status?: string;
   agreement_prepared_at?: string | null;
@@ -352,6 +353,7 @@ export const reviewFranchiseApplication = async (id: string | number, data: {
   next_step_instructions?: string;
   interview_at?: string;
   interview_notes?: string;
+  interview_meeting_url?: string | null;
   location_assessment?: { result?: string; notes?: string };
 }) => {
   const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications/${id}`, {

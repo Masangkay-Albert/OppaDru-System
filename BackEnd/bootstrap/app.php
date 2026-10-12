@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(\App\Http\Middleware\CorsMiddleware::class);
         $middleware->alias([
             'verified-user' => \App\Http\Middleware\EnsureUserIsVerified::class,
+            'franchise.applicant.access' => \App\Http\Middleware\EnsureFranchiseApplicantAccess::class,
             'franchise.access' => \App\Http\Middleware\EnsureFranchiseAccess::class,
             'employee.access' => \App\Http\Middleware\EnsureEmployeeAccess::class,
             'admin.access' => \App\Http\Middleware\EnsureAdminAccess::class,

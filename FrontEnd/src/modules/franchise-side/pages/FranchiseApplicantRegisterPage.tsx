@@ -1,0 +1,109 @@
+import React, { useState } from 'react';
+import { ArrowLeft, BriefcaseBusiness, Lock, Mail, Phone, UserRound } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import LoginBrandPanel from '../../../components/LoginBrandPanel';
+import { franchiseApplicantAuthService } from '../../../services/franchiseApplicantAuthService';
+
+const FranchiseApplicantRegisterPage: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const params = new URLSearchParams(location.search);
+  const requestedReturnTo = params.get('returnTo');
+  const returnTo = requestedReturnTo === '/franchise/apply' || requestedReturnTo === '/franchise/my-applications'
+    ? requestedReturnTo
+    : '/franchise/my-applications';
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setIsLoading(true);
+    try {
+      await franchiseApplicantAuthService.register({
+        full_name: fullName,
+        email,
+        phone,
+        password,
+        password_confirmation: passwordConfirmation,
+      });
+      navigate(`/franchise/applicant-login?registered=1&returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
+    } catch (registrationError: unknown) {
+      setError(registrationError instanceof Error ? registrationError.message : 'Unable to create your applicant account.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)] lg:grid lg:grid-cols-2">
+      <LoginBrandPanel title="Franchise Applicant Portal" description="Create a dedicated account to apply and follow your franchise application." />
+      <main className="flex min-h-screen items-center justify-center px-5 py-8 sm:px-10 lg:px-12">
+        <section className="w-full max-w-[430px] rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:p-7">
+          <Link to={`/franchise/applicant-access?returnTo=${encodeURIComponent(returnTo)}`} className="mb-5 inline-flex min-h-9 items-center gap-2 rounded text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]">
+            <ArrowLeft size={16} aria-hidden="true" /> Back to applicant access
+          </Link>
+          <header className="mb-6 text-center">
+            <div className="mb-4 flex items-center justify-center gap-2.5 text-[var(--oppa-green)]">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-[var(--oppa-green-soft)]"><BriefcaseBusiness className="size-5" aria-hidden="true" /></span>
+              <span className="text-xl font-semibold">Oppa Dru</span>
+            </div>
+            <h1 className="font-serif text-3xl font-semibold text-[var(--oppa-green)]">Create applicant account</h1>
+            <p className="mt-1.5 text-sm text-[var(--oppa-text-muted)]">Use a separate account to manage your franchise application.</p>
+          </header>
+          {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-700">{error}</p>}
+          <form onSubmit={handleSubmit} className="space-y-4" aria-busy={isLoading}>
+            <label className="block text-sm font-medium text-[var(--oppa-green)]">
+              Full name
+              <span className="relative mt-1.5 block">
+                <UserRound className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                <input required maxLength={255} autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="Enter your full name" />
+              </span>
+            </label>
+            <label className="block text-sm font-medium text-[var(--oppa-green)]">
+              Email address
+              <span className="relative mt-1.5 block">
+                <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                <input required type="email" maxLength={255} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="you@example.com" />
+              </span>
+            </label>
+            <label className="block text-sm font-medium text-[var(--oppa-green)]">
+              Phone number <span className="font-normal text-[var(--oppa-text-muted)]">(optional)</span>
+              <span className="relative mt-1.5 block">
+                <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                <input type="tel" maxLength={50} autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="e.g. 0917 123 4567" />
+              </span>
+            </label>
+            <label className="block text-sm font-medium text-[var(--oppa-green)]">
+              Password
+              <span className="relative mt-1.5 block">
+                <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                <input required minLength={8} type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="At least 8 characters" />
+              </span>
+            </label>
+            <label className="block text-sm font-medium text-[var(--oppa-green)]">
+              Confirm password
+              <span className="relative mt-1.5 block">
+                <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                <input required minLength={8} type="password" autoComplete="new-password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="Re-enter your password" />
+              </span>
+            </label>
+            <button type="submit" disabled={isLoading} className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[var(--oppa-green)] py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60">
+              {isLoading ? 'Creating account…' : 'Create applicant account'}
+            </button>
+          </form>
+          <p className="mt-5 text-center text-sm text-[var(--oppa-text-muted)]">
+            Already registered? <Link className="font-semibold text-[var(--oppa-green)] underline-offset-2 hover:underline" to={`/franchise/applicant-login?returnTo=${encodeURIComponent(returnTo)}`}>Sign in</Link>
+          </p>
+        </section>
+      </main>
+    </div>
+  );
+};
+
+export default FranchiseApplicantRegisterPage;

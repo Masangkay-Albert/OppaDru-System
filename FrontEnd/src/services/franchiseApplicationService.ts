@@ -1,5 +1,5 @@
 import { API_URL } from './apiConfig';
-import { authService } from './authService';
+import { franchiseApplicantAuthService } from './franchiseApplicantAuthService';
 
 export interface ApplicantFranchiseApplication {
   id: string;
@@ -12,6 +12,7 @@ export interface ApplicantFranchiseApplication {
   status: string;
   next_step_instructions?: string | null;
   interview_at?: string | null;
+  interview_meeting_url?: string | null;
   created_at: string;
   updated_at: string;
   documents?: Array<{ name: string; mime_type: string; size: number; uploaded_at?: string }>;
@@ -35,7 +36,7 @@ export interface ApplicantFranchiseApplication {
 }
 
 const request = async (path: string, init?: RequestInit) => {
-  const token = authService.getToken();
+  const token = franchiseApplicantAuthService.getToken();
   if (!token) throw new Error('Sign in to access your franchise applications.');
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -59,6 +60,20 @@ export const getMyFranchiseApplications = async (): Promise<ApplicantFranchiseAp
   return Array.isArray(body.data) ? body.data : [];
 };
 
+export const trackFranchiseApplication = async (referenceNumber: string, email: string): Promise<ApplicantFranchiseApplication> => {
+  const response = await fetch(`${API_URL}/franchise-applications/track`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reference_number: referenceNumber, email }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const validationMessages = body.errors ? Object.values(body.errors).flat().join(' ') : '';
+    throw new Error(validationMessages || body.message || 'Unable to find your franchise application.');
+  }
+  return body.data as ApplicantFranchiseApplication;
+};
+
 export const respondToFranchiseApplication = (id: string, response: string, documents: File[]) => {
   const form = new FormData();
   form.append('response', response);
@@ -70,7 +85,7 @@ export const withdrawFranchiseApplication = (id: string) =>
   request(`/franchise-applications/me/${id}/withdraw`, { method: 'PATCH' });
 
 export const downloadMyFranchiseApplicationDocument = async (id: string, document: number): Promise<Blob> => {
-  const token = authService.getToken();
+  const token = franchiseApplicantAuthService.getToken();
   if (!token) throw new Error('Sign in to access your franchise applications.');
   const response = await fetch(`${API_URL}/franchise-applications/${id}/documents/${document}`, {
     headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },

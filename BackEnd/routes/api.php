@@ -23,6 +23,7 @@ use App\Http\Controllers\DiscountApplicationController;
 use App\Http\Controllers\ProofImageController;
 use App\Http\Controllers\FranchiseApplicationController;
 use App\Http\Controllers\FranchiseAuthController;
+use App\Http\Controllers\FranchiseApplicantAuthController;
 use App\Http\Controllers\FranchiseController;
 use App\Http\Controllers\FranchiseAccountController;
 use Illuminate\Http\Request;
@@ -47,6 +48,10 @@ Route::get('/storage/{path}', function (string $path) {
 
 Route::get('/settings/pricing', [SettingController::class, 'index']);
 Route::get('/franchise-opportunities', [FranchiseApplicationController::class, 'opportunities']);
+Route::post('/franchise-applications/track', [FranchiseApplicationController::class, 'trackByReference'])->middleware('throttle:10,1');
+Route::post('/franchise-applicants/register', [FranchiseApplicantAuthController::class, 'register'])->middleware('throttle:5,1');
+Route::post('/franchise-applicants/login', [FranchiseApplicantAuthController::class, 'login'])->middleware('throttle:10,1');
+Route::post('/franchise-applicants/verification/resend', [FranchiseApplicantAuthController::class, 'resendVerification'])->middleware('throttle:6,1');
 Route::get('/franchises/active', [FranchiseController::class, 'activeBranches']);
 
 Route::prefix('franchise')->group(function () {
@@ -151,9 +156,6 @@ Route::post('/payment/gcash/create', [PaymentController::class, 'createGCashPaym
 Route::post('/payment/gcash/webhook', [PaymentController::class, 'webhook']);
 Route::get('/payment/status/{reference}', [PaymentController::class, 'getPaymentStatus']);
 
-Route::post('/franchise-applications', [FranchiseApplicationController::class, 'store'])
-    ->middleware('throttle:5,1');
-
 Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
@@ -179,6 +181,11 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::post('/payment/card/process', [PaymentController::class, 'processCard']);
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 
+});
+
+Route::middleware('franchise.applicant.access')->group(function () {
+    Route::post('/franchise-applicants/logout', [FranchiseApplicantAuthController::class, 'logout']);
+    Route::post('/franchise-applications', [FranchiseApplicationController::class, 'store'])->middleware('throttle:5,1');
     Route::get('/franchise-applications/me', [FranchiseApplicationController::class, 'myApplications']);
     Route::get('/franchise-applications/me/{id}', [FranchiseApplicationController::class, 'showMine']);
     Route::post('/franchise-applications/me/{id}/response', [FranchiseApplicationController::class, 'respond']);

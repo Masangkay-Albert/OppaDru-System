@@ -2,16 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Loader2, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
-import {
-  getFranchiseApplications,
-  getFranchiseOpportunitySettings,
-  updateFranchiseOpportunitySettings,
-  type FranchiseOpportunitySettings,
-  type FranchiseApplication,
-} from '../../../services/franchiseAdminService';
+import { getFranchiseApplications, type FranchiseApplication } from '../../../services/franchiseAdminService';
 import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 
-const lines = (items: string[] | undefined) => (items || []).join('\n');
 const statusClass = (status?: string) => {
   if (status === 'rejected' || status === 'withdrawn') return 'bg-red-50 text-red-700';
   if (status === 'active' || status === 'approved_for_opening') return 'bg-green-50 text-green-700';
@@ -78,7 +71,6 @@ const AdminFranchiseApplicationsPage: React.FC = () => {
         <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Franchise Applications</h1>
         <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Evaluate each applicant and proposed site through the full review process. Applications never activate a franchise by themselves. New applications appear automatically while this page is open.</p>
       </div>
-      <FranchiseProgramSettingsForm />
       {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">
         <label className="relative flex-1">
@@ -117,85 +109,6 @@ const AdminFranchiseApplicationsPage: React.FC = () => {
         </div>
       )}
     </AdminLayout>
-  );
-};
-
-const FranchiseProgramSettingsForm: React.FC = () => {
-  const [settings, setSettings] = useState<FranchiseOpportunitySettings | null>(null);
-  const [investmentMinimum, setInvestmentMinimum] = useState('');
-  const [investmentMaximum, setInvestmentMaximum] = useState('');
-  const [franchiseFee, setFranchiseFee] = useState('');
-  const [requirements, setRequirements] = useState('');
-  const [availableLocations, setAvailableLocations] = useState('');
-  const [qualifications, setQualifications] = useState('');
-  const [businessRules, setBusinessRules] = useState('');
-  const [support, setSupport] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-
-  useEffect(() => {
-    getFranchiseOpportunitySettings()
-      .then((current) => {
-        setSettings(current);
-        setInvestmentMinimum(current.investment?.minimum || '');
-        setInvestmentMaximum(current.investment?.maximum || '');
-        setFranchiseFee(current.franchise_fee || '');
-        setRequirements(lines(current.requirements));
-        setAvailableLocations(lines(current.available_locations));
-        setQualifications(lines(current.qualifications));
-        setBusinessRules(lines(current.business_rules));
-        setSupport(lines(current.support));
-      })
-      .catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : 'Unable to load franchise program settings.'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const save = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setSaving(true);
-    setError('');
-    setMessage('');
-    try {
-      const updated = await updateFranchiseOpportunitySettings({
-        investment_minimum: investmentMinimum || null,
-        investment_maximum: investmentMaximum || null,
-        franchise_fee: franchiseFee || null,
-        requirements,
-        available_locations: availableLocations,
-        qualifications,
-        business_rules: businessRules,
-        support,
-      });
-      setSettings(updated);
-      setMessage('Franchise program details updated. The public opportunities page now shows these terms.');
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Unable to update franchise program settings.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <details className="mb-5 rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
-      <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-[var(--oppa-text)]">Configure franchise program, fees, and applicant requirements</summary>
-      <form onSubmit={save} className="grid gap-4 border-t border-[var(--oppa-border)] p-5 md:grid-cols-2">
-        {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 md:col-span-2">{error}</p>}
-        {message && <p role="status" className="rounded-xl bg-green-50 p-3 text-sm text-green-800 md:col-span-2">{message}</p>}
-        <p className="text-xs leading-5 text-[var(--oppa-text-muted)] md:col-span-2">Set accurate published terms. Use one item per line. Leave fees blank if they are not yet approved for publication. The signed agreement and per-application checklist remain the record for actual charges and completion.</p>
-        <label className="text-sm font-medium">Estimated minimum investment<input type="number" min="0" step="0.01" value={investmentMinimum} onChange={(event) => setInvestmentMinimum(event.target.value)} placeholder="Not published" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-        <label className="text-sm font-medium">Estimated maximum investment<input type="number" min="0" step="0.01" value={investmentMaximum} onChange={(event) => setInvestmentMaximum(event.target.value)} placeholder="Not published" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-        <label className="text-sm font-medium">Published franchise fee (optional)<input type="number" min="0" step="0.01" value={franchiseFee} onChange={(event) => setFranchiseFee(event.target.value)} placeholder="Not published" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-        <label className="text-sm font-medium">Applicant requirements<textarea rows={4} maxLength={10000} value={requirements} onChange={(event) => setRequirements(event.target.value)} placeholder="One requirement per line" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-        <label className="text-sm font-medium">Available franchise locations<textarea rows={4} maxLength={10000} value={availableLocations} onChange={(event) => setAvailableLocations(event.target.value)} placeholder="One city, area, or region per line" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-        <label className="text-sm font-medium">Applicant qualifications<textarea rows={4} maxLength={10000} value={qualifications} onChange={(event) => setQualifications(event.target.value)} placeholder="One qualification per line" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-        <label className="text-sm font-medium">Business rules<textarea rows={4} maxLength={10000} value={businessRules} onChange={(event) => setBusinessRules(event.target.value)} placeholder="One rule per line" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-        <label className="text-sm font-medium">Franchisor support<textarea rows={4} maxLength={10000} value={support} onChange={(event) => setSupport(event.target.value)} placeholder="One support item per line" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-        {settings && <p className="text-xs text-[var(--oppa-text-muted)] md:col-span-2">Changes publish immediately to Franchise Opportunities; per-applicant signed terms and readiness continue to be tracked separately.</p>}
-        <button type="submit" disabled={loading || saving || !settings} className="rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 md:col-span-2">{loading ? 'Loading program…' : saving ? 'Saving program…' : 'Save franchise program'}</button>
-      </form>
-    </details>
   );
 };
 

@@ -5,10 +5,10 @@ namespace Tests\Feature;
 use App\Models\Admin;
 use App\Models\Franchise;
 use App\Models\FranchiseAccount;
+use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseApplicationEvent;
 use App\Models\FranchiseUser;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -27,8 +27,8 @@ class FranchiseApplicationReviewTest extends TestCase
         $this->getJson('/api/admin/franchise-applications/'.$application->id, [
             'Authorization' => 'Bearer '.$adminToken,
         ])->assertOk()
-            ->assertJsonPath('data.allowed_transitions.0', 'submitted')
-            ->assertJsonPath('data.allowed_transitions.1', 'under_review');
+            ->assertJsonPath('data.allowed_transitions.0', 'under_review')
+            ->assertJsonPath('data.allowed_transitions.1', 'additional_information_required');
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'under_review',
@@ -87,6 +87,7 @@ class FranchiseApplicationReviewTest extends TestCase
             'status' => 'for_interview',
             'interview_at' => '2026-11-01T10:00:00+08:00',
             'interview_notes' => 'Bring the operating plan.',
+            'interview_meeting_url' => 'https://meet.example.test/franchise-interview',
             'next_step_instructions' => 'Your interview is scheduled. Please check your account email.',
         ];
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
@@ -104,6 +105,11 @@ class FranchiseApplicationReviewTest extends TestCase
             'Authorization' => 'Bearer '.$applicant['token'],
         ])->assertOk();
         $this->assertNotEmpty($applicantView->json('data.0.interview_at'));
+        $this->assertSame(
+            'https://meet.example.test/franchise-interview',
+            $applicantView->json('data.0.interview_meeting_url'),
+        );
+        $this->assertArrayNotHasKey('interview_notes', $applicantView->json('data.0'));
 
         $this->assertDatabaseHas('franchise_application_events', [
             'application_id' => $application->id,
@@ -136,7 +142,8 @@ class FranchiseApplicationReviewTest extends TestCase
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'conditionally_approved',
-        ], ['Authorization' => 'Bearer '.$adminToken])->assertStatus(409);
+        ], ['Authorization' => 'Bearer '.$adminToken])->assertOk()
+            ->assertJsonPath('data.status', 'conditionally_approved');
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'active',
@@ -146,8 +153,21 @@ class FranchiseApplicationReviewTest extends TestCase
             'action' => 'approve',
         ], ['Authorization' => 'Bearer '.$adminToken])->assertUnprocessable();
 
-        $this->assertSame('submitted', $application->fresh()->status);
+        $this->assertSame('conditionally_approved', $application->fresh()->status);
         $this->assertSame(0, Franchise::count());
+    }
+
+    public function test_admin_cannot_save_an_unsafe_interview_meeting_link(): void
+    {
+        $adminToken = $this->createAdminToken();
+        $applicant = $this->createVerifiedApplicant();
+        $application = $this->submitApplication($applicant);
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'under_review',
+            'interview_meeting_url' => 'javascript:alert(1)',
+        ], ['Authorization' => 'Bearer '.$adminToken])->assertUnprocessable()
+            ->assertJsonValidationErrors('interview_meeting_url');
     }
 
     private function submitApplication(array $applicant): FranchiseApplication
@@ -169,7 +189,7 @@ class FranchiseApplicationReviewTest extends TestCase
     private function createVerifiedApplicant(): array
     {
         $token = Str::random(40);
-        $user = User::create([
+        $applicant = FranchiseApplicant::create([
             'full_name' => 'Franchise Applicant',
             'email' => 'applicant@example.test',
             'phone' => '09170000000',
@@ -178,7 +198,7 @@ class FranchiseApplicationReviewTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        return ['user' => $user, 'token' => $token];
+        return ['applicant' => $applicant, 'token' => $token];
     }
 
     private function createAdminToken(): string

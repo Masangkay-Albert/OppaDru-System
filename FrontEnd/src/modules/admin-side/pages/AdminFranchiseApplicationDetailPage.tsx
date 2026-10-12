@@ -142,6 +142,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const [interviewAt, setInterviewAt] = useState('');
   const [minimumInterviewAt, setMinimumInterviewAt] = useState(minimumManilaDateTime);
   const [interviewNotes, setInterviewNotes] = useState('');
+  const [interviewMeetingUrl, setInterviewMeetingUrl] = useState('');
   const [assessmentResult, setAssessmentResult] = useState('');
   const [assessmentNotes, setAssessmentNotes] = useState('');
   const [loading, setLoading] = useState(true);
@@ -169,6 +170,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
         setInstructions(data.next_step_instructions || '');
         setInterviewAt(data.interview_at ? toManilaDateTimeInput(data.interview_at) : '');
         setInterviewNotes(data.interview_notes || '');
+        setInterviewMeetingUrl(data.interview_meeting_url || '');
         setAssessmentResult(data.location_assessment?.result || '');
         setAssessmentNotes(data.location_assessment?.notes || '');
         formDirty.current = false;
@@ -231,6 +233,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
         next_step_instructions: instructions,
         ...(interviewAt && (status === 'for_interview' || interviewChanged) ? { interview_at: interviewAtIso } : {}),
         interview_notes: interviewNotes,
+        interview_meeting_url: interviewMeetingUrl.trim() || null,
         location_assessment: {
           ...(assessmentResult ? { result: assessmentResult } : {}),
           ...(assessmentNotes ? { notes: assessmentNotes } : {}),
@@ -309,6 +312,8 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                 <h3 className="mb-3 text-sm font-semibold">Interview record (Philippine time)</h3>
                 <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Date and time<input type="datetime-local" min={minimumInterviewAt} value={interviewAt} onChange={(event) => setInterviewAt(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
                 <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Past dates and times are unavailable. Choose today or a future date.</p>
+                <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Online meeting link<input type="url" maxLength={2048} value={interviewMeetingUrl} onChange={(event) => setInterviewMeetingUrl(event.target.value)} placeholder="https://meet.google.com/… or https://zoom.us/…" className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
+                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">This link will be shared with the franchisee in their application portal.</p>
                 <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Internal interview notes<textarea value={interviewNotes} onChange={(event) => setInterviewNotes(event.target.value)} rows={2} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
               </div>
               <div className="rounded-xl border border-[var(--oppa-border)] p-3">

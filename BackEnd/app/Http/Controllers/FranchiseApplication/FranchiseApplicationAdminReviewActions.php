@@ -54,6 +54,7 @@ trait FranchiseApplicationAdminReviewActions
             'next_step_instructions' => 'nullable|string|max:2000',
             'interview_at' => 'nullable|date',
             'interview_notes' => 'nullable|string|max:5000',
+            'interview_meeting_url' => 'nullable|url:http,https|max:2048',
             'location_assessment.result' => 'nullable|string|in:pending,passed,follow_up_required,not_suitable',
             'location_assessment.notes' => 'nullable|string|max:5000',
         ]);
@@ -98,6 +99,7 @@ trait FranchiseApplicationAdminReviewActions
             $previousStatus = $currentStatus;
             $previousInstructions = $application->next_step_instructions;
             $previousInterviewNotes = $application->interview_notes;
+            $previousInterviewMeetingUrl = $application->interview_meeting_url;
             $previousAssessmentNotes = data_get($application->location_assessment, 'notes');
             $requestedInterviewAt = $request->filled('interview_at')
                 ? CarbonImmutable::parse((string) $request->input('interview_at'))
@@ -127,7 +129,12 @@ trait FranchiseApplicationAdminReviewActions
             }
             if ($request->has('interview_at')) {
                 $application->interview_at = $requestedInterviewAt;
+            }
+            if ($request->has('interview_notes')) {
                 $application->interview_notes = $request->input('interview_notes');
+            }
+            if ($request->has('interview_meeting_url')) {
+                $application->interview_meeting_url = $request->input('interview_meeting_url');
             }
             if ($request->has('location_assessment')) {
                 $application->location_assessment = $request->input('location_assessment');
@@ -176,6 +183,18 @@ trait FranchiseApplicationAdminReviewActions
             }
             if ($request->filled('interview_notes') && $previousInterviewNotes !== $request->input('interview_notes')) {
                 $this->recordEvent($application, 'admin', $admin?->id, $targetStatus, 'Interview notes added', $request->input('interview_notes'), true);
+            }
+            if ($previousInterviewMeetingUrl !== $application->interview_meeting_url) {
+                $this->recordEvent(
+                    $application,
+                    'admin',
+                    $admin?->id,
+                    $targetStatus,
+                    $application->interview_meeting_url ? 'Online interview link added' : 'Online interview link removed',
+                    $application->interview_meeting_url
+                        ? 'An online interview link is available in your application details.'
+                        : 'The online interview link was removed.',
+                );
             }
             if ($request->filled('location_assessment.notes') && $previousAssessmentNotes !== $request->input('location_assessment.notes')) {
                 $this->recordEvent($application, 'admin', $admin?->id, $targetStatus, 'Location assessment recorded', $request->input('location_assessment.notes'), true);

@@ -152,7 +152,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
         ) : (
           <div className="space-y-6">
             {applications.map((application) => {
-              const currentStatus = application.status || 'submitted';
+              const currentStatus = application.status || 'under_review';
               const currentStageIndex = franchiseStageIndex(application);
               const showProgress = currentStatus !== 'rejected' && currentStatus !== 'withdrawn';
               const canWithdraw = ['submitted', 'pending', 'under_review', 'additional_information_required', 'for_interview', 'location_assessment', 'on_hold'].includes(currentStatus);
@@ -186,7 +186,10 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                     <section className="mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
                       <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>
                       <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
-                      {application.interview_at && <p className="mt-3 rounded-xl bg-white p-3 text-sm font-medium">Interview (Philippine time): {formatPhilippineDateTime(application.interview_at)}</p>}
+                      {(application.interview_at || application.interview_meeting_url) && <div className="mt-3 rounded-xl bg-white p-3 text-sm">
+                        {application.interview_at && <p className="font-medium">Interview (Philippine time): {formatPhilippineDateTime(application.interview_at)}</p>}
+                        {application.interview_meeting_url && <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex font-semibold text-[var(--oppa-green)] underline">Join online interview</a>}
+                      </div>}
                     </section>
 
                     {currentStatus === 'additional_information_required' && (
