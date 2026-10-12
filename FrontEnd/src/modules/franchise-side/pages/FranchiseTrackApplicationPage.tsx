@@ -144,6 +144,10 @@ const FranchiseTrackApplicationPage: React.FC = () => {
   const requiredDocuments = (application?.required_documents || [])
     .map((document, index) => ({ ...document, index }))
     .filter((document) => document.required);
+  const documentsToSubmit = requiredDocuments.filter(
+    (item) => !['verified', 'not_applicable'].includes(item.status),
+  );
+  const selectedDocumentCount = documentsToSubmit.filter((item) => documentFiles[item.index]).length;
   const packetNeedsApplicantAction = requiredDocuments.some((item) => ['pending', 'rejected'].includes(item.status));
   const packetFilesReady = requiredDocuments.length > 0
     && requiredDocuments
@@ -311,8 +315,8 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                 {(actionError || actionMessage) && <p role={actionError ? 'alert' : 'status'} className={`rounded-xl p-3 text-sm ${actionError ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'}`}>{actionError || actionMessage}</p>}
                 <section className="rounded-2xl border border-[var(--oppa-border)] p-4 sm:p-5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div><h3 className="font-semibold">Files from the franchise team</h3><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Download the provided agreement, guide, or form, complete it, then submit the required files together. PDF, DOC, DOCX, JPG, or PNG uploads up to 10 MB each.</p></div>
-                    <span className="w-fit rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">{requiredDocuments.length} required</span>
+                    <div><h3 className="font-semibold">Documents you need to complete</h3><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Download each file from the franchise team, fill it out, then upload your completed file below. Submit all required files together. PDF, DOC, DOCX, JPG, or PNG; up to 10 MB each.</p></div>
+                    <span className="w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900">{selectedDocumentCount} of {documentsToSubmit.length} files selected</span>
                   </div>
                   {!requiredDocuments.length ? <p className="mt-4 rounded-xl bg-[var(--oppa-cream)] p-3 text-sm text-[var(--oppa-text-muted)]">The franchise team is preparing your document packet.</p> : <div className="mt-4 space-y-3">
                     {requiredDocuments.map((item) => {
@@ -323,13 +327,15 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                           : underReview ? 'Under review'
                             : item.status === 'not_applicable' ? 'Not applicable'
                               : 'Pending';
-                      return <div key={item.index} className="grid gap-3 rounded-xl bg-[var(--oppa-cream)] p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                      return <div key={item.index} className={`grid gap-3 rounded-xl border p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start ${!alreadyComplete && packetNeedsApplicantAction ? 'border-amber-300 bg-amber-50/70' : 'border-[var(--oppa-border)] bg-[var(--oppa-cream)]'}`}>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2"><p className="font-medium text-[var(--oppa-text)]">{item.label}</p><span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-green)]">Required</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.status === 'verified' ? 'bg-green-100 text-green-800' : item.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{statusText}</span></div>
                           <p className="mt-1 text-[11px] font-medium text-[var(--oppa-text-muted)]">{requirementCategoryLabel(item.category)}</p>
                           {item.submitted_document_name && <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Submitted file: {item.submitted_document_name}</p>}
                           {item.status === 'rejected' && item.reject_reason && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">Please correct and resubmit: {item.reject_reason}</p>}
-                          {!alreadyComplete && packetNeedsApplicantAction && item.template_name && <label className="mt-3 block text-xs font-medium">{underReview ? 'Include updated document in this response' : 'Upload completed document'}<input key={`${application.id}-${item.index}-${application.updated_at}`} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => {
+                          {!alreadyComplete && packetNeedsApplicantAction && item.template_name && <div className="mt-3">
+                            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-amber-950">{underReview ? 'Upload an updated document' : 'Upload your completed document'}</p>
+                            <input id={`document-upload-${application.id}-${item.index}`} key={`${application.id}-${item.index}-${application.updated_at}`} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => {
                             const file = event.target.files?.[0];
                             if (!file) return;
                             const extension = file.name.split('.').pop()?.toLowerCase();
@@ -345,14 +351,26 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                             }
                             setActionError('');
                             setDocumentFiles((current) => ({ ...current, [item.index]: file }));
-                          }} className="mt-1 block w-full rounded-lg border border-[var(--oppa-border)] bg-white p-2 text-xs file:mr-2 file:rounded-md file:border-0 file:bg-[var(--oppa-cream)] file:px-2 file:py-1" />{documentFiles[item.index] && <span className="mt-1 block break-all text-[var(--oppa-green)]">{documentFiles[item.index].name}</span>}</label>}
+                          }} className="peer sr-only" />
+                            <label htmlFor={`document-upload-${application.id}-${item.index}`} className="flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-amber-500 bg-white px-3 py-3 transition hover:border-[var(--oppa-green)] hover:bg-green-50 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--oppa-green)] peer-focus-visible:ring-offset-2">
+                              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-900"><Upload size={19} /></span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block break-all text-sm font-semibold text-[var(--oppa-text)]">{documentFiles[item.index]?.name || 'Tap here to choose your file'}</span>
+                                <span className="mt-0.5 block text-xs text-[var(--oppa-text-muted)]">{documentFiles[item.index] ? 'File ready to submit' : 'Choose the filled-out file from your device'}</span>
+                              </span>
+                              <span className="shrink-0 rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-xs font-bold text-white">Choose file</span>
+                            </label>
+                          </div>}
                           {underReview && !packetNeedsApplicantAction && <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">The franchise team is reviewing this submission.</p>}
                         </div>
                         {item.template_name && <button type="button" onClick={() => void downloadTemplate(item.index, item.template_name || 'franchise-requirement-file')} disabled={actionBusy === `template-${item.index}`} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-60"><Download size={14} />{actionBusy === `template-${item.index}` ? 'Preparing…' : 'Download file'}</button>}
                       </div>;
                     })}
                     {packetNeedsApplicantAction && !packetFilesReady && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">The franchise team is preparing files for your remaining requirements. The upload form will be available when those files are ready.</p>}
-                    {packetNeedsApplicantAction && packetFilesReady && <button type="button" onClick={() => void submitDocuments()} disabled={actionBusy !== ''} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"><Upload size={16} />{actionBusy === 'documents' ? 'Submitting documents…' : 'Submit all documents'}</button>}
+                    {packetNeedsApplicantAction && packetFilesReady && <div className="rounded-xl border border-[var(--oppa-green)]/30 bg-green-50 p-3">
+                      <p className="mb-2 text-center text-sm font-semibold text-green-900">{selectedDocumentCount === documentsToSubmit.length ? 'All required files are ready to submit.' : `Select ${documentsToSubmit.length - selectedDocumentCount} more required ${documentsToSubmit.length - selectedDocumentCount === 1 ? 'file' : 'files'} to continue.`}</p>
+                      <button type="button" onClick={() => void submitDocuments()} disabled={actionBusy !== '' || selectedDocumentCount !== documentsToSubmit.length} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"><Upload size={16} />{actionBusy === 'documents' ? 'Submitting documents…' : 'Submit all documents'}</button>
+                    </div>}
                   </div>}
                 </section>
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Clock3, Download, FileText, Loader2, LogOut, RotateCcw, Send } from 'lucide-react';
+import { AlertCircle, Clock3, Download, FileText, Loader2, LogOut, RotateCcw, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
 import {
@@ -48,8 +48,6 @@ const FranchiseMyApplicationsPage: React.FC = () => {
   const navigate = useNavigate();
   const { logout } = useFranchiseApplicantAuth();
   const [applications, setApplications] = useState<ApplicantFranchiseApplication[]>([]);
-  const [responses, setResponses] = useState<Record<string, string>>({});
-  const [responseFiles, setResponseFiles] = useState<Record<string, File[]>>({});
   const [requiredResponseFiles, setRequiredResponseFiles] = useState<Record<string, Record<number, File>>>({});
   const [paymentProofFiles, setPaymentProofFiles] = useState<Record<string, File>>({});
   const [loading, setLoading] = useState(true);
@@ -95,7 +93,6 @@ const FranchiseMyApplicationsPage: React.FC = () => {
   }, [load]);
 
   const handleResponse = async (application: ApplicantFranchiseApplication) => {
-    const response = responses[application.id]?.trim() || '';
     const requiredFiles = requiredResponseFiles[application.id] || {};
     const missingSourceFiles = (application.required_documents || [])
       .map((document) => document.required && !['verified', 'not_applicable'].includes(document.status) && !document.template_name ? document.label : null)
@@ -114,7 +111,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
       setError(`Upload all required forms before submitting: ${missingRequiredFiles.join(', ')}.`);
       return;
     }
-    if (Object.keys(requiredFiles).length + (responseFiles[application.id]?.length || 0) > 8) {
+    if (Object.keys(requiredFiles).length > 8) {
       setError('Submit no more than 8 documents in one response.');
       return;
     }
@@ -122,9 +119,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
     setError('');
     setMessage('');
     try {
-      await respondToFranchiseApplication(application.id, response, responseFiles[application.id] || [], requiredFiles);
-      setResponses((current) => ({ ...current, [application.id]: '' }));
-      setResponseFiles((current) => ({ ...current, [application.id]: [] }));
+      await respondToFranchiseApplication(application.id, '', [], requiredFiles);
       setRequiredResponseFiles((current) => ({ ...current, [application.id]: {} }));
       setMessage(`Your response for ${application.reference_number} has been sent.`);
       await load(false);
@@ -261,6 +256,11 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                 || Boolean(latestPacketRequest && (!latestPacketSubmission || latestPacketRequest.id > latestPacketSubmission.id))
                 || (currentStatus === 'location_assessment' && hasRequiredDocuments)
               );
+              const pendingPacketDocuments = (application.required_documents || [])
+                .map((document, index) => ({ document, index }))
+                .filter(({ document }) => document.required && !['verified', 'not_applicable'].includes(document.status));
+              const selectedPacketFiles = pendingPacketDocuments.filter(({ index }) => requiredResponseFiles[application.id]?.[index]).length;
+              const packetTemplatesReady = pendingPacketDocuments.every(({ document }) => Boolean(document.template_name));
               const paymentProof = application.documents?.find((document) => document.document_type === 'payment_proof');
               const canWithdraw = ['submitted', 'pending', 'under_review', 'additional_information_required', 'for_interview', 'location_assessment', 'on_hold'].includes(currentStatus);
               return (
@@ -301,7 +301,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
 
                     {currentStatus === 'active' && <p className="mb-5 rounded-xl bg-green-50 p-3 text-sm text-green-800">Your franchise is active. Authorized franchise operations, sales reporting, and compliance monitoring are now managed through the franchise portal.</p>}
 
-                    {currentStatus !== 'rejected' && <section className="mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
+                    {currentStatus !== 'rejected' && !packetRequestOpen && <section className="mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
                       <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>
                       <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
                       {currentStatus === 'for_interview' && (application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl bg-white p-3 text-sm">
@@ -314,19 +314,50 @@ const FranchiseMyApplicationsPage: React.FC = () => {
 
                     {packetRequestOpen && (
                       <section className="mb-5 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-                        <h3 className="font-semibold text-[var(--oppa-text)]">Submit requested documents</h3>
-                        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Download each file provided by the franchise team, complete it, and submit the required files together for review.</p>
-                        {application.required_documents?.some((document) => document.required && !['verified', 'not_applicable'].includes(document.status)) && <div className="mt-3 space-y-3">{application.required_documents.map((document, index) => document.required && !['verified', 'not_applicable'].includes(document.status) ? <label key={document.label} className="block rounded-xl border border-amber-200 bg-white p-3 text-sm">
-                          <span className="font-semibold">{document.label}</span>
-                          <span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">{requirementCategoryTitle(document.category)}</span>
-                          {document.template_name ? <button type="button" onClick={() => void handleTemplateDownload(application, index, document.template_name || document.label)} disabled={busyId === application.id} className="mt-2 font-semibold text-[var(--oppa-green)] underline disabled:opacity-60">Download file from franchisor</button> : <span className="mt-2 block text-xs text-amber-800">Waiting for the franchise team to attach the file you need.</span>}
-                          {document.template_name && <input type="file" required accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) setRequiredResponseFiles((current) => ({ ...current, [application.id]: { ...(current[application.id] || {}), [index]: file } })); }} className="mt-2 block w-full text-xs" />}
-                          {requiredResponseFiles[application.id]?.[index] && <span className="mt-1 block text-xs text-emerald-800">Selected: {requiredResponseFiles[application.id][index].name}</span>}
-                        </label> : null)}</div>}
-                        <textarea value={responses[application.id] || ''} onChange={(event) => setResponses((current) => ({ ...current, [application.id]: event.target.value}))} rows={3} maxLength={5000} placeholder="Optional message for the review team." className="mt-3 w-full rounded-xl border border-[var(--oppa-border)] bg-white p-3 text-sm" />
-                        <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(event) => setResponseFiles((current) => ({ ...current, [application.id]: Array.from(event.target.files || [])}))} className="mt-3 block text-sm" />
-                        <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Submit all files together: PDF, JPG, PNG, DOC, or DOCX; up to 8 files and 10 MB each.</p>
-                        <button type="button" onClick={() => void handleResponse(application)} disabled={busyId === application.id} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"><Send size={15} />{busyId === application.id ? 'Sending…' : 'Send information'}</button>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div><h3 className="font-semibold text-[var(--oppa-text)]">Complete and submit requested forms</h3><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Download each form from the franchise team, fill it out, then choose the completed file for that requirement. Submit the required forms together.</p></div>
+                          <span className="w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900">{selectedPacketFiles} of {pendingPacketDocuments.length} selected</span>
+                        </div>
+                        {!pendingPacketDocuments.length ? <p className="mt-3 rounded-xl bg-white p-3 text-sm text-[var(--oppa-text-muted)]">There are no outstanding required forms to submit.</p> : <div className="mt-3 space-y-3">
+                          {pendingPacketDocuments.map(({ document, index }) => {
+                            const selectedFile = requiredResponseFiles[application.id]?.[index];
+                            return <div key={`${application.id}-${index}`} className="rounded-xl border border-amber-200 bg-white p-3 text-sm">
+                              <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{document.label}</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">Required</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${document.status === 'rejected' ? 'bg-red-100 text-red-800' : document.status === 'submitted' || document.status === 'received' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>{document.status === 'rejected' ? 'Rejected' : document.status === 'submitted' || document.status === 'received' ? 'Under review' : 'Pending'}</span></div>
+                              <span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">{requirementCategoryTitle(document.category)}</span>
+                              {document.status === 'rejected' && document.reject_reason && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">Please correct and resubmit: {document.reject_reason}</p>}
+                              {document.template_name ? <button type="button" onClick={() => void handleTemplateDownload(application, index, document.template_name || document.label)} disabled={busyId === application.id} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-60"><Download size={14} />Download file from franchisor</button> : <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Waiting for the franchise team to attach the form or instructions.</p>}
+                              {document.template_name && <div className="mt-3">
+                                <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-amber-950">Upload your completed form</p>
+                                <input id={`required-response-${application.id}-${index}`} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="peer sr-only" onChange={(event) => {
+                                  const file = event.target.files?.[0];
+                                  if (!file) return;
+                                  const extension = file.name.split('.').pop()?.toLowerCase();
+                                  if (!['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'].includes(extension || '')) {
+                                    setError('Choose a PDF, DOC, DOCX, JPG, or PNG file.');
+                                    event.target.value = '';
+                                    return;
+                                  }
+                                  if (file.size > 10 * 1024 * 1024) {
+                                    setError('Each document must be 10 MB or smaller.');
+                                    event.target.value = '';
+                                    return;
+                                  }
+                                  setError('');
+                                  setRequiredResponseFiles((current) => ({ ...current, [application.id]: { ...(current[application.id] || {}), [index]: file } }));
+                                }} />
+                                <label htmlFor={`required-response-${application.id}-${index}`} className="flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-amber-500 px-3 py-3 transition hover:border-[var(--oppa-green)] hover:bg-green-50 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--oppa-green)] peer-focus-visible:ring-offset-2">
+                                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-900"><Upload size={19} /></span>
+                                  <span className="min-w-0 flex-1"><span className="block break-all font-semibold text-[var(--oppa-text)]">{selectedFile?.name || 'Tap here to choose your completed file'}</span><span className="mt-0.5 block text-xs text-[var(--oppa-text-muted)]">{selectedFile ? 'Ready to submit' : 'Select the filled-out file from your device'}</span></span>
+                                  <span className="shrink-0 rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-xs font-bold text-white">Choose file</span>
+                                </label>
+                              </div>}
+                            </div>;
+                          })}
+                        </div>}
+                        <div className="mt-3 rounded-xl border border-[var(--oppa-green)]/30 bg-green-50 p-3">
+                          <p className="mb-2 text-center text-sm font-semibold text-green-900">{!packetTemplatesReady ? 'The franchise team needs to attach each required form before you can submit.' : selectedPacketFiles === pendingPacketDocuments.length ? 'All required forms are ready to submit.' : `Select ${pendingPacketDocuments.length - selectedPacketFiles} more required ${pendingPacketDocuments.length - selectedPacketFiles === 1 ? 'file' : 'files'} to continue.`}</p>
+                          <button type="button" onClick={() => void handleResponse(application)} disabled={busyId === application.id || !packetTemplatesReady || !pendingPacketDocuments.length || selectedPacketFiles !== pendingPacketDocuments.length} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"><Upload size={16} />{busyId === application.id ? 'Submitting forms…' : 'Submit all completed forms'}</button>
+                        </div>
                       </section>
                     )}
 
