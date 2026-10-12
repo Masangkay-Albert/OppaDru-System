@@ -69,7 +69,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const handleExit = () => { logout(); navigate('/admin/login'); };
 
   return (
-    <div className="flex h-screen min-h-screen overflow-hidden bg-[var(--oppa-cream)]">
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-[var(--oppa-cream)]">
       <button aria-label="Close navigation" tabIndex={mobileOpen ? 0 : -1} className={`fixed inset-0 z-40 bg-black/55 transition-opacity md:hidden ${mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`} onClick={() => setMobileOpen(false)} />
       <aside className={`bg-oppa-gradient fixed inset-y-0 left-0 z-50 flex w-72 flex-col shadow-xl transition-all duration-200 md:static md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'md:w-[76px]' : 'md:w-64'}`}>
         <div className={`flex h-[76px] items-center gap-3 border-b border-white/15 px-4 ${collapsed ? 'md:justify-center md:px-2' : ''}`}>
@@ -139,8 +139,8 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </div>}
           </div>
         </header>
-        <div className="admin-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-          <div className="admin-page-enter mx-auto w-full max-w-[1600px]">
+        <div className="admin-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+          <div className="admin-page-enter mx-auto flex min-h-full w-full max-w-[1600px] flex-1 flex-col">
             <AdminErrorBoundary>{children}</AdminErrorBoundary>
           </div>
         </div>

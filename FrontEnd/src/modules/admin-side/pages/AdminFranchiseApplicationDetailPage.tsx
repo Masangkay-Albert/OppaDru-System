@@ -673,7 +673,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="min-h-[calc(100dvh-116px)] rounded-2xl bg-[var(--oppa-surface)] p-3 sm:p-5">
+      <div className="flex-1 rounded-2xl bg-[var(--oppa-surface)] p-3 sm:p-5">
       <Link to="/admin/franchise-applications" className="mb-5 inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)]"><ArrowLeft size={16} /> All applications</Link>
       {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {loading ? <div className="rounded-2xl bg-white p-10 text-center text-sm text-[var(--oppa-text-muted)]"><Loader2 className="mx-auto size-6 animate-spin" /><p className="mt-3">Loading application…</p></div> : !application ? null : (

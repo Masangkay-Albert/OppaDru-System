@@ -6,6 +6,7 @@ use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseApplicationEvent;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -177,6 +178,28 @@ trait FranchiseApplicationApplicantActions
 
     public function respond(Request $request, string $id = '')
     {
+        foreach (['documents', 'required_document_uploads'] as $field) {
+            foreach ($request->file($field, []) as $index => $file) {
+                if (! $file instanceof UploadedFile || $file->isValid()) {
+                    continue;
+                }
+
+                $message = match ($file->getError()) {
+                    UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'One of your files exceeds the server upload limit. Each file must be 10 MB or smaller.',
+                    UPLOAD_ERR_PARTIAL => 'One of your files was only partially uploaded. Please select it again and retry.',
+                    UPLOAD_ERR_NO_TMP_DIR => 'The server could not prepare the upload. Please try again later.',
+                    UPLOAD_ERR_CANT_WRITE => 'The server could not receive the upload. Please try again later.',
+                    UPLOAD_ERR_EXTENSION => 'The server stopped one of your uploads. Please contact support if this continues.',
+                    default => 'One of your files could not be uploaded. Please select it again and retry.',
+                };
+
+                return response()->json([
+                    'message' => $message,
+                    'errors' => ["{$field}.{$index}" => [$message]],
+                ], 422);
+            }
+        }
+
         $validator = Validator::make($request->all(), [
             'response' => 'nullable|string|max:5000',
             'reference_number' => [$request->user() ? 'nullable' : 'required', 'string', 'max:32'],
