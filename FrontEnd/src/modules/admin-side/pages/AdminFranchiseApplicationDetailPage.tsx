@@ -307,7 +307,7 @@ const FranchiseRequirementsForm: React.FC<{
           <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-amber-100 text-amber-900"><FileText size={21} aria-hidden="true" /></div>
           <h3 id="missing-template-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">Some requirements have no file attached</h3>
           <p id="missing-template-description" className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">Without an attached file, the franchisee cannot download a form for these requirements:</p>
-          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm font-medium text-amber-900">{missingTemplateWarning.map((label) => <li key={label}>Walang file na naka-attach sa “{label}”. Hindi ito mada-download ng franchisee.</li>)}</ul>
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm font-medium text-amber-900">{missingTemplateWarning.map((label) => <li key={label}>No file is attached to “{label}”. This cannot be downloaded by the franchisee.</li>)}</ul>
           <div className="mt-6 flex flex-col-reverse justify-end gap-2 sm:flex-row">
             <button type="button" disabled={saving} onClick={() => setMissingTemplateWarning([])} className="min-h-10 rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:opacity-60">Go back and attach file</button>
             <button type="button" disabled={saving} onClick={() => { setMissingTemplateWarning([]); void saveRequirements(); }} className="min-h-10 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60">Save without file</button>

@@ -17,7 +17,7 @@ export interface ApplicantFranchiseApplication {
   interview_meeting_url?: string | null;
   created_at: string;
   updated_at: string;
-  documents?: Array<{ name: string; mime_type: string; size: number; uploaded_at?: string; document_type?: string }>;
+  documents?: Array<{ name: string; mime_type: string; size: number; uploaded_at?: string; document_type?: string; required_document_label?: string }>;
   events?: Array<{
     id: number;
     status?: string | null;

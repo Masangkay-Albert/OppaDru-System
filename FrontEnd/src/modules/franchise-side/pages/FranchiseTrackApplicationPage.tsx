@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, BriefcaseBusiness, Clock3, Download, Loader2, Search, Upload } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { BriefcaseBusiness, Clock3, Download, Loader2, Search, Upload } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import {
+  downloadMyFranchiseApplicationDocument,
   downloadTrackedFranchiseDocumentTemplate,
   submitTrackedFranchiseDocuments,
   trackFranchiseApplication,
@@ -149,6 +150,25 @@ const FranchiseTrackApplicationPage: React.FC = () => {
     }
   };
 
+  const downloadSubmittedDocument = async (documentIndex: number, name: string) => {
+    if (!application) return;
+    setActionBusy(`submitted-${documentIndex}`);
+    setActionError('');
+    try {
+      const blob = await downloadMyFranchiseApplicationDocument(application.id, documentIndex);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = name;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (downloadError) {
+      setActionError(downloadError instanceof Error ? downloadError.message : 'Unable to download this document.');
+    } finally {
+      setActionBusy('');
+    }
+  };
+
   const submitDocuments = async () => {
     if (!application || !trackedLookup) return;
     const missing = requiredDocuments.filter((item) =>
@@ -187,13 +207,6 @@ const FranchiseTrackApplicationPage: React.FC = () => {
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-8 sm:px-6">
       <div className="mx-auto max-w-3xl">
-        <Link to="/franchise-opportunities" className="mb-6 inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)]"><ArrowLeft size={16} /> Back to franchise opportunities</Link>
-        <header className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--oppa-green)]">Franchise partner portal</p>
-          <h1 className="mt-1 font-serif text-3xl font-bold text-[var(--oppa-text)]">Track your application</h1>
-          <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">Enter the application reference number and contact email you used when applying.</p>
-        </header>
-
         <form onSubmit={handleSubmit} className="mb-6 grid gap-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:grid-cols-2">
           <label className="text-sm font-medium">Application reference number<input required maxLength={32} value={referenceNumber} onChange={(event) => setReferenceNumber(event.target.value)} placeholder="OPPA-2026-XXXXXXXX" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm font-normal" /></label>
           <label className="text-sm font-medium">Contact email<input required type="email" maxLength={255} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm font-normal" /></label>
@@ -241,11 +254,16 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                     {requiredDocuments.map((item) => {
                       const underReview = ['submitted', 'received'].includes(item.status);
                       const alreadyComplete = ['verified', 'not_applicable'].includes(item.status);
+                      const submittedDocument = [...(application?.documents || [])]
+                        .map((file, documentIndex) => ({ ...file, documentIndex }))
+                        .reverse()
+                        .find((file) => file.required_document_label === item.label);
                       const statusText = item.status === 'verified' ? 'Verified'
                         : item.status === 'rejected' ? 'Rejected'
                           : underReview ? 'Under review'
                             : item.status === 'not_applicable' ? 'Not applicable'
                               : 'Pending';
+                      const downloadAction = submittedDocument?.name ? () => void downloadSubmittedDocument(submittedDocument.documentIndex, submittedDocument.name) : item.template_name ? () => void downloadTemplate(item.index, item.template_name || 'franchise-requirement-file') : undefined;
                       return <div key={item.index} className={`grid gap-3 rounded-xl border p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start ${!alreadyComplete && packetNeedsApplicantAction ? 'border-amber-300 bg-amber-50/70' : 'border-[var(--oppa-border)] bg-[var(--oppa-cream)]'}`}>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2"><p className="font-medium text-[var(--oppa-text)]">{item.label}</p><span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-green)]">Required</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.status === 'verified' ? 'bg-green-100 text-green-800' : item.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{statusText}</span></div>
@@ -282,7 +300,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                           </div>}
                           {underReview && !packetNeedsApplicantAction && <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">The franchise team is reviewing this submission.</p>}
                         </div>
-                        {item.template_name && <button type="button" onClick={() => void downloadTemplate(item.index, item.template_name || 'franchise-requirement-file')} disabled={actionBusy === `template-${item.index}`} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-60"><Download size={14} />{actionBusy === `template-${item.index}` ? 'Preparing…' : 'Download file'}</button>}
+                        {downloadAction && <button type="button" onClick={downloadAction} disabled={actionBusy === `template-${item.index}` || actionBusy === `submitted-${submittedDocument?.documentIndex ?? -1}`} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-60"><Download size={14} />{actionBusy === `template-${item.index}` || actionBusy === `submitted-${submittedDocument?.documentIndex ?? -1}` ? 'Preparing…' : 'Download file'}</button>}
                       </div>;
                     })}
                     {packetNeedsApplicantAction && <div className="rounded-xl border border-[var(--oppa-green)]/30 bg-green-50 p-3">
