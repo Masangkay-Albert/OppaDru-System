@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { BriefcaseBusiness, Clock3, Download, Loader2, Search, Upload } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { ArrowLeft, BriefcaseBusiness, Clock3, Download, Loader2, Search, Upload } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import {
   downloadMyFranchiseApplicationDocument,
   downloadTrackedFranchiseDocumentTemplate,
@@ -207,9 +207,16 @@ const FranchiseTrackApplicationPage: React.FC = () => {
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-8 sm:px-6">
       <div className="mx-auto max-w-3xl">
+        <Link to="/franchise-opportunities" className="mb-6 inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)]"><ArrowLeft size={16} /> Back to franchise opportunities</Link>
+        <header className="mb-6">
+          <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--oppa-green)]">Franchise partner portal</p>
+          <h1 className="mt-1 font-serif text-3xl font-bold text-[var(--oppa-text)]">Track your application</h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">Enter the application reference number and contact email you used when applying.</p>
+        </header>
+
         <form onSubmit={handleSubmit} className="mb-6 grid gap-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:grid-cols-2">
-          <label className="text-sm font-medium">Application reference number<input required maxLength={32} value={referenceNumber} onChange={(event) => setReferenceNumber(event.target.value)} placeholder="OPPA-2026-XXXXXXXX" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm font-normal" /></label>
-          <label className="text-sm font-medium">Contact email<input required type="email" maxLength={255} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm font-normal" /></label>
+          <label className="text-sm font-medium text-[var(--oppa-text)]">Application reference number<input required maxLength={32} value={referenceNumber} onChange={(event) => setReferenceNumber(event.target.value)} placeholder="OPPA-2026-XXXXXXXX" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2.5 text-sm font-normal text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus:outline-none focus:ring-0" style={{ WebkitTextFillColor: 'var(--oppa-text)', WebkitBoxShadow: '0 0 0 1000px white inset' }} /></label>
+          <label className="text-sm font-medium text-[var(--oppa-text)]">Contact email<input required type="email" maxLength={255} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2.5 text-sm font-normal text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus:outline-none focus:ring-0" style={{ WebkitTextFillColor: 'var(--oppa-text)', WebkitBoxShadow: '0 0 0 1000px white inset' }} /></label>
           <button type="submit" disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 sm:col-span-2"><Search size={16} />{loading ? 'Checking application…' : 'Check application status'}</button>
         </form>
 

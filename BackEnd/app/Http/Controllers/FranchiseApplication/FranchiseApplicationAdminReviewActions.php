@@ -335,8 +335,8 @@ trait FranchiseApplicationAdminReviewActions
 
         $validator = Validator::make($request->all(), [
             'agreement_status' => 'sometimes|required|string|in:not_started,drafting,sent,signed',
-            'agreement_prepared_at' => 'sometimes|nullable|date',
-            'agreement_signed_at' => 'sometimes|nullable|date',
+            'agreement_prepared_at' => 'sometimes|nullable|date|after_or_equal:today',
+            'agreement_signed_at' => 'sometimes|nullable|date|after_or_equal:today',
             'franchise_fee_amount' => 'sometimes|nullable|numeric|min:0|max:9999999999.99',
             'franchise_fee_payment_status' => 'sometimes|required|string|in:not_configured,pending,submitted,paid,rejected,waived,not_applicable',
             'franchise_fee_payment_reference' => 'sometimes|nullable|string|max:255',
