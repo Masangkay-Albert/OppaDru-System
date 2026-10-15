@@ -39,7 +39,7 @@ trait FranchiseApplicationAdminReviewActions
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $application = FranchiseApplication::with(['applicant:id,full_name,email', 'events'])
+        $application = FranchiseApplication::with(['applicant:id,full_name,email', 'franchiseApplicant:id,full_name,email,phone', 'events'])
             ->findOrFail($id);
         $application->setAttribute('allowed_transitions', $application->allowedTransitions());
 

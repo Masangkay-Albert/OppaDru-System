@@ -151,13 +151,13 @@ const FranchiseRequirementsForm: React.FC<{
   const [missingTemplateWarning, setMissingTemplateWarning] = useState<string[]>([]);
   const nameInputs = useRef<Record<number, HTMLInputElement | null>>({});
 
-  const saveRequirements = async () => {
+  const saveRequirements = async (documentsToSave = documents) => {
     setSaving(true);
     setError('');
     setSavedMessage('');
     try {
       const result = await updateFranchiseApplicationRequirements(application.id, {
-        required_documents: documents,
+        required_documents: documentsToSave,
         required_document_templates: documentTemplates,
       });
       setDocumentTemplates({});
@@ -223,6 +223,13 @@ const FranchiseRequirementsForm: React.FC<{
 
   const updateDocument = (index: number, patch: Partial<FranchiseRequirementDocument>) =>
     setDocuments((current) => current.map((document, position) => position === index ? { ...document, ...patch } : document));
+  const setDocumentStatus = (index: number, status: string) => {
+    const updatedDocuments = documents.map((document, position) => position === index
+      ? { ...document, status, reject_reason: status === 'rejected' ? document.reject_reason : null }
+      : document);
+    setDocuments(updatedDocuments);
+    if (status === 'verified') void saveRequirements(updatedDocuments);
+  };
   const changeCategory = (index: number, category: string) => {
     const current = documents[index];
     const nameIsCustom = current.name_is_custom ?? true;
@@ -368,7 +375,7 @@ const FranchiseRequirementsForm: React.FC<{
                     Required
                   </label>
                   <label className="sr-only" htmlFor={`${templateInputId}-status`}>Document status</label>
-                  <select id={`${templateInputId}-status`} value={document.status} disabled={saving} onChange={(event) => updateDocument(index, { status: event.target.value, reject_reason: event.target.value === 'rejected' ? document.reject_reason : null })} className="min-h-9 rounded-lg border border-[var(--oppa-border)] bg-white px-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">
+                  <select id={`${templateInputId}-status`} value={document.status} disabled={saving} onChange={(event) => setDocumentStatus(index, event.target.value)} className="min-h-9 rounded-lg border border-[var(--oppa-border)] bg-white px-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">
                     <option value="pending">Pending</option><option value="submitted">Submitted</option><option value="received">Under review</option><option value="verified">Verified</option><option value="rejected">Rejected</option><option value="not_applicable">Not applicable</option>
                   </select>
                   <div className="relative">
@@ -424,7 +431,7 @@ const FranchiseRequirementsForm: React.FC<{
                 <footer className="flex flex-col gap-2 border-t border-[var(--oppa-border)] pt-3 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
                   <div className="flex flex-wrap gap-2">
                     <button type="button" disabled={!submittedName || saving} onClick={() => {
-                      updateDocument(index, { status: 'verified', reject_reason: null });
+                      setDocumentStatus(index, 'verified');
                       setExpandedCards((current) => ({ ...current, [index]: false }));
                     }} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-50"><Check size={15} />Verify</button>
                     <button type="button" disabled={!submittedName || saving} onClick={() => {
@@ -754,9 +761,10 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 };
 
 const FranchiseActivationPanel: React.FC<{ application: FranchiseApplication; onActivated: () => Promise<void> }> = ({ application, onActivated }) => {
-  const [managerName, setManagerName] = useState(application.contact_name);
-  const [managerEmail, setManagerEmail] = useState(application.email);
-  const [managerPhone, setManagerPhone] = useState(application.phone || '');
+  const registeredApplicant = application.franchise_applicant;
+  const [managerName, setManagerName] = useState(registeredApplicant?.full_name || application.contact_name);
+  const [managerEmail, setManagerEmail] = useState(registeredApplicant?.email || application.email);
+  const [managerPhone, setManagerPhone] = useState(registeredApplicant?.phone || application.phone || '');
   const [managerPassword, setManagerPassword] = useState('');
   const [canProcessPos, setCanProcessPos] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -779,15 +787,17 @@ const FranchiseActivationPanel: React.FC<{ application: FranchiseApplication; on
 
   const handleActivate = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!window.confirm('Activate this franchise, create its location and manager account, and enable access to franchise operations?')) return;
+    if (!window.confirm('Activate this franchise, create its location and franchisee dashboard access, and enable franchise operations?')) return;
     setSaving(true);
     setError('');
     try {
       await activateFranchiseApplication(application.id, {
-        manager_full_name: managerName,
-        manager_email: managerEmail,
-        manager_phone: managerPhone,
-        manager_password: managerPassword,
+        ...(registeredApplicant ? {} : {
+          manager_full_name: managerName,
+          manager_email: managerEmail,
+          manager_phone: managerPhone,
+          manager_password: managerPassword,
+        }),
         can_process_pos: canProcessPos,
       });
       setManagerPassword('');
@@ -801,13 +811,19 @@ const FranchiseActivationPanel: React.FC<{ application: FranchiseApplication; on
 
   return (
     <section className="mt-6 rounded-2xl border border-amber-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-4"><p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Final authorization</p><h2 className="mt-1 font-serif text-xl font-bold text-[var(--oppa-text)]">Activate franchise operations</h2><p className="mt-1 text-sm leading-6 text-[var(--oppa-text-muted)]">This creates one active franchise account/location and a manager login. The server rechecks approval, signed agreement, payment disposition, and every opening requirement before activation.</p></div>
+      <div className="mb-4"><p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Final authorization</p><h2 className="mt-1 font-serif text-xl font-bold text-[var(--oppa-text)]">Activate franchise operations</h2><p className="mt-1 text-sm leading-6 text-[var(--oppa-text-muted)]">This creates one active franchise account/location and dashboard access. The server rechecks approval, signed agreement, payment disposition, and every opening requirement before activation.</p></div>
       {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <form onSubmit={handleActivate} className="grid gap-4 md:grid-cols-2">
-        <label className="block text-sm font-medium">Authorized manager name<input required maxLength={255} value={managerName} onChange={(event) => setManagerName(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-        <label className="block text-sm font-medium">Manager login email<input required type="email" maxLength={255} value={managerEmail} onChange={(event) => setManagerEmail(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-        <label className="block text-sm font-medium">Manager phone<input maxLength={50} value={managerPhone} onChange={(event) => setManagerPhone(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-        <label className="block text-sm font-medium">Initial manager password<input required type="password" minLength={12} autoComplete="new-password" value={managerPassword} onChange={(event) => setManagerPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /><span className="mt-1 block text-xs font-normal text-[var(--oppa-text-muted)]">At least 12 characters. Share it with the manager through a separate secure channel.</span></label>
+        {registeredApplicant ? <>
+          <label className="block text-sm font-medium">Franchisee login name<input readOnly value={registeredApplicant.full_name} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-3 py-2.5 text-sm" /></label>
+          <label className="block text-sm font-medium">Franchisee login email<input readOnly value={registeredApplicant.email} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-3 py-2.5 text-sm" /></label>
+          <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)] md:col-span-2">The franchisee will sign in with the same email and password used for their applicant account. No new password is created or shown here.</p>
+        </> : <>
+          <label className="block text-sm font-medium">Authorized manager name<input required maxLength={255} value={managerName} onChange={(event) => setManagerName(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
+          <label className="block text-sm font-medium">Manager login email<input required type="email" maxLength={255} value={managerEmail} onChange={(event) => setManagerEmail(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
+          <label className="block text-sm font-medium">Manager phone<input maxLength={50} value={managerPhone} onChange={(event) => setManagerPhone(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
+          <label className="block text-sm font-medium">Initial manager password<input required type="password" minLength={12} autoComplete="new-password" value={managerPassword} onChange={(event) => setManagerPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /><span className="mt-1 block text-xs font-normal text-[var(--oppa-text-muted)]">At least 12 characters. Share it with the manager through a separate secure channel.</span></label>
+        </>}
         <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={canProcessPos} onChange={(event) => setCanProcessPos(event.target.checked)} />Authorize this manager to process POS transactions</label>
         <div className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)] md:col-span-2">No franchise record or dashboard/POS access is created until you confirm activation. Staff and cashier access remains subject to authorized setup for the activated location.</div>
         <button type="submit" disabled={saving} className="rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60 md:col-span-2">{saving ? 'Activating…' : 'Confirm and activate franchise'}</button>

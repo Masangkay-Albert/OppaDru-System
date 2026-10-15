@@ -604,6 +604,11 @@ class FranchiseApplicationReviewTest extends TestCase
             ->assertJsonPath('data.required_documents.0.status', 'verified')
             ->assertJsonFragment(['title' => 'Document verified']);
 
+        $this->postJson('/api/franchise-applications/track', $trackingCredentials)->assertOk()
+            ->assertJsonPath('data.required_documents.0.status', 'verified')
+            ->assertJsonPath('data.required_documents.1.status', 'verified')
+            ->assertJsonPath('data.required_documents.2.status', 'verified');
+
         $this->post('/api/franchise-applications/track/payment-proof', [
             ...$trackingCredentials,
             'payment_reference' => 'PAY-BAD',

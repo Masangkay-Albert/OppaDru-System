@@ -21,7 +21,7 @@ trait FranchiseApplicationActivationActions
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $application = FranchiseApplication::findOrFail($id);
+        $application = FranchiseApplication::with('franchiseApplicant')->findOrFail($id);
         if ($application->status === 'active' || $application->franchise_id || $application->franchise_account_id) {
             return response()->json([
                 'message' => 'This application is already associated with an activated franchise.',
@@ -35,15 +35,21 @@ trait FranchiseApplicationActivationActions
             return response()->json(['message' => 'Only an application approved for opening can be activated.'], 409);
         }
 
+        $hasRegisteredApplicant = (bool) $application->franchiseApplicant;
         $validator = Validator::make($request->all(), [
-            'manager_full_name' => 'required|string|max:255',
-            'manager_email' => 'required|string|email|max:255|unique:franchise_users,email',
+            'manager_full_name' => $hasRegisteredApplicant ? 'nullable|string|max:255' : 'required|string|max:255',
+            'manager_email' => $hasRegisteredApplicant ? 'nullable|email|max:255' : 'required|string|email|max:255|unique:franchise_users,email',
             'manager_phone' => 'nullable|string|max:50',
-            'manager_password' => 'required|string|min:12|max:255',
+            'manager_password' => $hasRegisteredApplicant ? 'nullable|string|min:12|max:255' : 'required|string|min:12|max:255',
             'can_process_pos' => 'required|boolean',
         ]);
         if ($validator->fails()) {
-            return response()->json(['message' => 'A unique manager account and secure initial password are required.', 'errors' => $validator->errors()], 422);
+            return response()->json(['message' => 'The franchise login details are invalid.', 'errors' => $validator->errors()], 422);
+        }
+        if ($hasRegisteredApplicant && FranchiseUser::whereRaw('LOWER(email) = ?', [strtolower($application->franchiseApplicant->email)])->exists()) {
+            return response()->json([
+                'message' => 'A franchise account already uses the applicant email. Resolve that account before activating this application.',
+            ], 409);
         }
 
         $issues = $application->activationReadinessIssues();
@@ -110,16 +116,26 @@ trait FranchiseApplicationActivationActions
                     'proposed_location' => $application->location,
                 ],
             ]);
-            $manager = FranchiseUser::create([
+            $applicant = $application->franchiseApplicant;
+            $franchiseUserPayload = [
                 'franchise_account_id' => $account->id,
                 'franchise_id' => $location->id,
-                'full_name' => trim((string) $request->input('manager_full_name')),
-                'email' => strtolower(trim((string) $request->input('manager_email'))),
-                'phone' => $request->input('manager_phone'),
-                'password' => Hash::make((string) $request->input('manager_password')),
+                'full_name' => $applicant
+                    ? $applicant->full_name
+                    : trim((string) $request->input('manager_full_name')),
+                'email' => strtolower($applicant?->email ?: trim((string) $request->input('manager_email'))),
+                'phone' => $applicant?->phone ?: $request->input('manager_phone'),
+                'password' => $applicant ? 'temporary-franchise-user-password' : Hash::make((string) $request->input('manager_password')),
                 'is_active' => true,
                 'can_process_pos' => $request->boolean('can_process_pos'),
-            ]);
+            ];
+            $franchiseUser = FranchiseUser::create($franchiseUserPayload);
+            if ($applicant) {
+                DB::table('franchise_users')->whereKey($franchiseUser->id)->update([
+                    'password' => $applicant->getAuthPassword(),
+                ]);
+                $franchiseUser->refresh();
+            }
 
             $application->franchise_account_id = $account->id;
             $application->franchise_id = $location->id;
@@ -128,7 +144,9 @@ trait FranchiseApplicationActivationActions
             $application->activated_by_admin_id = $admin?->id;
             $application->reviewed_by_admin_id = $admin?->id;
             $application->reviewed_at = now();
-            $application->next_step_instructions = 'Your franchise is active. Sign in to the franchise portal using the manager credentials provided by your administrator, then configure authorized staff and cashiers for this location.';
+            $application->next_step_instructions = $applicant
+                ? 'Your franchise is active. Sign in to the franchise portal using the same email and password you used for your applicant account, then configure authorized staff and cashiers for this location.'
+                : 'Your franchise is active. Sign in to the franchise portal using the manager credentials provided by your administrator, then configure authorized staff and cashiers for this location.';
             $application->save();
 
             $this->recordEvent(
@@ -137,7 +155,9 @@ trait FranchiseApplicationActivationActions
                 $admin?->id,
                 'active',
                 'Franchise activated',
-                'Your franchise has been activated. Follow the administrator’s instructions to access the franchise portal and complete operational setup.',
+                $applicant
+                    ? 'Your franchise has been activated. Sign in to the franchise portal using your applicant account email and password.'
+                    : 'Your franchise has been activated. Follow the administrator’s instructions to access the franchise portal and complete operational setup.',
             );
 
             return $application->fresh(['events', 'franchiseAccount', 'franchise']);

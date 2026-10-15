@@ -25,6 +25,7 @@ class FranchiseUser extends Authenticatable
         'phone',
         'password',
         'api_token',
+        'api_token_expires_at',
         'is_active',
         'can_process_pos',
     ];
@@ -39,6 +40,7 @@ class FranchiseUser extends Authenticatable
         'password' => 'hashed',
         'is_active' => 'boolean',
         'can_process_pos' => 'boolean',
+        'api_token_expires_at' => 'datetime',
     ];
 
     protected static function boot()
@@ -51,6 +53,10 @@ class FranchiseUser extends Authenticatable
                 $slug = preg_replace('/[^A-Z0-9]/', '', $slug);
                 $slug = substr($slug, 0, 16);
                 $model->id = 'OPPA-FRU-' . ($slug ?: 'FR') . '-' . strtoupper(Str::random(4));
+            }
+
+            if ($model->api_token && ! $model->api_token_expires_at) {
+                $model->api_token_expires_at = now()->addHours(8);
             }
         });
     }

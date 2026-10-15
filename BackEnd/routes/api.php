@@ -58,7 +58,7 @@ Route::post('/franchise-applicants/verification/resend', [FranchiseApplicantAuth
 Route::get('/franchises/active', [FranchiseController::class, 'activeBranches']);
 
 Route::prefix('franchise')->group(function () {
-    Route::post('/login', [FranchiseAuthController::class, 'login']);
+    Route::post('/login', [FranchiseAuthController::class, 'login'])->middleware('throttle:5,1,franchise-login');
     Route::post('/logout', [FranchiseAuthController::class, 'logout']);
 
     Route::middleware(['franchise.access'])->group(function () {
@@ -199,7 +199,7 @@ Route::middleware('franchise.applicant.access')->group(function () {
     Route::get('/franchise-applications/{id}/documents/{document}', [FranchiseApplicationController::class, 'downloadDocument']);
 });
 
-Route::prefix('admin')->group(function () {
+Route::middleware(['admin.access'])->prefix('admin')->group(function () {
     Route::post('/addon-groups', [AddonController::class, 'storeGroup']);
     Route::put('/addon-groups/{addonGroup}', [AddonController::class, 'updateGroup']);
     Route::delete('/addon-groups/{addonGroup}', [AddonController::class, 'destroyGroup']);
@@ -215,9 +215,6 @@ Route::prefix('admin')->group(function () {
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
     Route::patch('/products/{id}/toggle', [ProductController::class, 'toggleAvailability']);
 
-    Route::post('/register', [AdminController::class, 'store']);
-    Route::post('/login', [AdminAuthController::class, 'login']);
-    Route::post('/logout', [AdminAuthController::class, 'logout']);
     Route::delete('/customers/{id}', [AdminController::class, 'destroyCustomer']);
     Route::get('/list', [AdminController::class, 'index']);
     Route::get('/count', [AdminController::class, 'count']);
@@ -258,4 +255,10 @@ Route::prefix('admin')->group(function () {
     Route::put('/franchise-accounts/{id}', [FranchiseAccountController::class, 'update']);
     Route::post('/franchise-accounts/{id}/locations', [FranchiseAccountController::class, 'storeLocation']);
     Route::post('/franchise-accounts/{id}/managers', [FranchiseAccountController::class, 'storeManager']);
+});
+
+Route::prefix('admin')->group(function () {
+    Route::post('/register', [AdminController::class, 'store']);
+    Route::post('/login', [AdminAuthController::class, 'login']);
+    Route::post('/logout', [AdminAuthController::class, 'logout']);
 });

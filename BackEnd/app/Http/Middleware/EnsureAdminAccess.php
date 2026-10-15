@@ -15,7 +15,14 @@ class EnsureAdminAccess
             return response()->json(['message' => 'Unauthenticated administrator.'], 401);
         }
 
-        $admin = Admin::where('api_token', hash('sha256', $token))->first();
+        $hashedToken = hash('sha256', $token);
+        $admin = Admin::query()
+            ->where(function ($query) use ($token, $hashedToken) {
+                $query->where('api_token', $hashedToken)
+                    ->orWhere('api_token', $token);
+            })
+            ->first();
+
         if (!$admin) {
             return response()->json(['message' => 'Invalid administrator token.'], 401);
         }

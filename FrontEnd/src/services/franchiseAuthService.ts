@@ -91,6 +91,7 @@ export const removeCurrentFranchiseUser = (): void => {
 export const apiFranchiseLogin = async (email: string, password: string) => {
   const response = await fetch(`${API_URL}/franchise/login`, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -107,8 +108,38 @@ export const apiFranchiseLogin = async (email: string, password: string) => {
   return data;
 };
 
+export const getAuthenticatedFranchiseUser = async (): Promise<FranchiseUser | null> => {
+  const response = await fetch(`${API_URL}/franchise/me`, {
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401 || response.status === 403) {
+    removeCurrentFranchiseUser();
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(data?.message || 'Unable to verify your franchise session.');
+  }
+  if (!data.franchise_user) {
+    throw new Error('The franchise session response was incomplete.');
+  }
+  return data.franchise_user as FranchiseUser;
+};
+
+export const apiFranchiseLogout = async (): Promise<void> => {
+  const response = await fetch(`${API_URL}/franchise/logout`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data?.message || 'Unable to sign out from the franchise portal.');
+  }
+};
+
 export const fetchWithFranchiseAuth = async (url: string, init: RequestInit = {}): Promise<Response> => {
-  const token = getStoredFranchiseToken();
   const headers = new Headers(init.headers || {});
 
   if (!headers.has('Accept')) {
@@ -119,13 +150,9 @@ export const fetchWithFranchiseAuth = async (url: string, init: RequestInit = {}
     headers.set('Content-Type', 'application/json');
   }
 
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
+  const response = await fetch(url, { ...init, headers, credentials: 'include' });
 
-  const response = await fetch(url, { ...init, headers });
-
-  if (response.status === 401) {
+  if (response.status === 401 || response.status === 403) {
     removeCurrentFranchiseUser();
   }
 

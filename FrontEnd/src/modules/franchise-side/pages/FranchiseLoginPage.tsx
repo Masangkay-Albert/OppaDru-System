@@ -18,14 +18,13 @@ const FranchiseLoginPage: React.FC = () => {
     setError('');
     setIsLoading(true);
 
-    const success = await login(email, password);
-    if (success) {
+    try {
+      await login(email, password);
       navigate('/franchise/dashboard');
-      return;
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : 'Unable to sign in to the franchise portal.');
+      setIsLoading(false);
     }
-
-    setError('Invalid franchise email or password');
-    setIsLoading(false);
   };
 
   return (
@@ -39,8 +38,8 @@ const FranchiseLoginPage: React.FC = () => {
               <Store className="size-7 text-[var(--oppa-green)]" />
               <span className="text-2xl font-semibold text-[var(--oppa-green)]">Oppa Dru</span>
             </div>
-            <h1 className="mb-2 text-2xl font-semibold text-[var(--oppa-green)]">Franchise Manager</h1>
-            <p className="text-sm text-[var(--oppa-text-muted)]">Sign in to your branch dashboard</p>
+            <h1 className="mb-2 text-2xl font-semibold text-[var(--oppa-green)]">Franchisee Portal</h1>
+            <p className="text-sm text-[var(--oppa-text-muted)]">Sign in with your applicant account after franchise activation</p>
           </div>
 
           {error && (
@@ -51,7 +50,7 @@ const FranchiseLoginPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-[var(--oppa-border)] bg-white p-8 shadow-lg">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">Franchise Email</label>
+              <label className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">Registered email</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
                 <input

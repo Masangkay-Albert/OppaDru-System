@@ -31,6 +31,7 @@ export interface FranchiseApplication {
   id: string | number;
   reference_number?: string;
   user_id?: string | null;
+  franchise_applicant?: { id: string; full_name: string; email: string; phone?: string | null } | null;
   franchise_name: string;
   contact_name: string;
   email: string;
@@ -471,10 +472,10 @@ export const updateFranchiseApplicationRequirements = async (id: string | number
 };
 
 export const activateFranchiseApplication = async (id: string | number, data: {
-  manager_full_name: string;
-  manager_email: string;
+  manager_full_name?: string;
+  manager_email?: string;
   manager_phone?: string;
-  manager_password: string;
+  manager_password?: string;
   can_process_pos: boolean;
 }) => {
   const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications/${id}/activate`, {

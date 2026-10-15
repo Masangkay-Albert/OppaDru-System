@@ -10,6 +10,17 @@ trait AdminAuthTrait
     protected function checkAdminAuth(Request $request): bool
     {
         $token = $request->bearerToken();
-        return $token && Admin::where('api_token', hash('sha256', $token))->exists();
+        if (!$token) {
+            return false;
+        }
+
+        $hashedToken = hash('sha256', $token);
+
+        return Admin::query()
+            ->where(function ($query) use ($token, $hashedToken) {
+                $query->where('api_token', $hashedToken)
+                    ->orWhere('api_token', $token);
+            })
+            ->exists();
     }
 }

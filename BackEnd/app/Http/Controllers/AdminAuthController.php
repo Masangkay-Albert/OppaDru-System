@@ -70,7 +70,14 @@ class AdminAuthController extends Controller
     {
         $token = $request->bearerToken();
         if ($token) {
-            $admin = Admin::where('api_token', hash('sha256', $token))->first();
+            $hashedToken = hash('sha256', $token);
+            $admin = Admin::query()
+                ->where(function ($query) use ($token, $hashedToken) {
+                    $query->where('api_token', $hashedToken)
+                        ->orWhere('api_token', $token);
+                })
+                ->first();
+
             if ($admin) {
                 $admin->api_token = null;
                 $admin->save();

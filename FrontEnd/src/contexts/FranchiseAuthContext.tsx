@@ -1,12 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as franchiseAuthService from '../services/franchiseAuthService';
 import type { FranchiseUser } from '../services/franchiseAuthService';
 
 interface FranchiseAuthContextType {
   franchiseUser: FranchiseUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const FranchiseAuthContext = createContext<FranchiseAuthContextType | undefined>(undefined);
@@ -23,26 +23,33 @@ export const FranchiseAuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [franchiseUser, setFranchiseUser] = useState<FranchiseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const initializeFranchiseUser = useCallback(() => {
-    const current = franchiseAuthService.getCurrentFranchiseUser();
-    setFranchiseUser(current);
-    setIsLoading(false);
+  useEffect(() => {
+    let active = true;
+    franchiseAuthService.getAuthenticatedFranchiseUser()
+      .then((user) => {
+        if (active) {
+          setFranchiseUser(user);
+          if (user) franchiseAuthService.setCurrentFranchiseUser(user);
+        }
+      })
+      .catch(() => {
+        if (active) setFranchiseUser(null);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+    return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    initializeFranchiseUser();
-  }, [initializeFranchiseUser]);
-
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
 
     try {
       const response = await franchiseAuthService.apiFranchiseLogin(email, password);
       const rawUser = response.franchise_user ?? response.data ?? response.user;
-      const token = response.token;
 
-      if (!rawUser || !token) {
-        return false;
+      if (!rawUser) {
+        throw new Error('The franchise sign-in response was incomplete.');
       }
 
       const normalizedUser: FranchiseUser = {
@@ -54,23 +61,23 @@ export const FranchiseAuthProvider: React.FC<{ children: React.ReactNode }> = ({
         is_active: rawUser.is_active,
         can_process_pos: Boolean(rawUser.can_process_pos),
         franchise: rawUser.franchise,
-        token,
       };
 
+      franchiseAuthService.removeCurrentFranchiseUser();
       franchiseAuthService.setCurrentFranchiseUser(normalizedUser);
-      franchiseAuthService.setStoredFranchiseToken(token);
       setFranchiseUser(normalizedUser);
-      return true;
-    } catch {
-      return false;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    setFranchiseUser(null);
-    franchiseAuthService.removeCurrentFranchiseUser();
+  const logout = async () => {
+    try {
+      await franchiseAuthService.apiFranchiseLogout();
+    } finally {
+      setFranchiseUser(null);
+      franchiseAuthService.removeCurrentFranchiseUser();
+    }
   };
 
   return (
