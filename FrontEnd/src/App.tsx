@@ -32,6 +32,7 @@ const AdminAddonsPage = lazy(() => import("./modules/admin-side/pages/AdminAddon
 const AdminAddProductPage = lazy(() => import("./modules/admin-side/pages/AdminAddProductPage"));
 const AdminOrdersPage = lazy(() => import("./modules/admin-side/pages/AdminOrdersPage"));
 const AdminDiscountApprovalsPage = lazy(() => import("./modules/admin-side/pages/AdminDiscountApprovalsPage"));
+const AdminAnnouncementsPage = lazy(() => import("./modules/admin-side/pages/AdminAnnouncementsPage"));
 const AdminCustomersPage = lazy(() => import("./modules/admin-side/pages/AdminCustomersPage"));
 const AdminEmployeesPage = lazy(() => import("./modules/admin-side/pages/AdminEmployeesPage"));
 const AdminAdminsPage = lazy(() => import("./modules/admin-side/pages/AdminAdminsPage"));
@@ -129,6 +130,7 @@ function App() {
                       <Route path="/admin/products/add" element={<ProtectedAdminRoute><AdminAddProductPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/orders" element={<ProtectedAdminRoute><AdminOrdersPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/discount-approvals" element={<ProtectedAdminRoute><AdminDiscountApprovalsPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/announcements" element={<ProtectedAdminRoute><AdminAnnouncementsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/delivery" element={<ProtectedAdminRoute><AdminDelivery /></ProtectedAdminRoute>} />
                       <Route path="/admin/customers" element={<ProtectedAdminRoute><AdminCustomersPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/employees" element={<ProtectedAdminRoute><AdminEmployeesPage /></ProtectedAdminRoute>} />
