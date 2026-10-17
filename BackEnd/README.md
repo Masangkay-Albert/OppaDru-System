@@ -60,6 +60,18 @@ Inbox placement cannot be guaranteed by application code alone. Configure the se
 
 After DNS changes, verify SPF, DKIM, and DMARC pass on a received message's headers and check the provider's delivery/reputation dashboard. Gmail may still classify messages based on recipient-specific history and sender reputation.
 
+## Facebook announcement publishing
+
+To publish announcements to a Facebook Page, add these environment variables to the backend service in Render and redeploy:
+
+```text
+FACEBOOK_PAGE_ID=your-facebook-page-id
+FACEBOOK_PAGE_ACCESS_TOKEN=your-page-access-token
+FACEBOOK_API_VERSION=v26.0
+```
+
+Use a Page Access Token with permission to publish content to that Page. Keep the token private and set it only in the backend environment, never in frontend code or a committed `.env` file. The admin page's Facebook connection status should show the Page name when the configuration is valid. Announcements are saved even when Facebook publishing is not configured; enable Facebook publishing again after setting the variables and redeploying.
+
 ## Franchise ordering and POS
 
 - Admins can schedule a franchise interview online with a meeting link or onsite with a location that is shown to the applicant. Internal interview notes remain admin-only. Run `php artisan migrate --force` during deployment to add interview type and location fields.

@@ -10,6 +10,25 @@ use Tests\TestCase;
 
 class FacebookServiceTest extends TestCase
 {
+    public function test_it_uses_facebook_credentials_from_service_configuration(): void
+    {
+        config([
+            'services.facebook.page_id' => 'configured-page',
+            'services.facebook.page_access_token' => 'configured-token',
+        ]);
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['id' => 'configured-page_post_456'], 200),
+        ]);
+
+        $result = (new FacebookService())->publish('Configured page announcement.');
+
+        $this->assertTrue($result['success']);
+        Http::assertSent(fn (Request $request) =>
+            $request->url() === 'https://graph.facebook.com/v26.0/configured-page/feed'
+            && $request['access_token'] === 'configured-token'
+        );
+    }
+
     public function test_it_publishes_text_to_the_configured_page_feed(): void
     {
         Http::fake([

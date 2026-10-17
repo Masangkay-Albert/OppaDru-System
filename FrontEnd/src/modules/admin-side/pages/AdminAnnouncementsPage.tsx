@@ -5,12 +5,14 @@ import {
   Calendar,
   Check,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Copy,
   ExternalLink,
   Eye,
   FileText,
   Globe,
+  LoaderCircle,
   Megaphone,
   MessageCircle,
   Pencil,
@@ -29,7 +31,6 @@ import {
 import AdminLayout from '../components/AdminLayout';
 import {
   ConfirmDialog,
-  EmptyState,
   FilterBar,
   PageHeader,
   Toast,
@@ -457,28 +458,20 @@ ${item.content}
               <button
                 type="button"
                 onClick={() => setIsFbSettingsOpen(true)}
-                className="admin-button-secondary flex items-center gap-2 px-3.5 py-2 text-sm"
-                title="Facebook Integration Settings"
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3.5 py-2 text-sm font-medium text-[var(--oppa-text)] transition-colors hover:border-[#1877F2]/40 hover:bg-[#1877F2]/5"
+                title={fbStatus?.connected ? `Connected to ${fbStatus.page_name || 'Facebook Page'}` : 'Not connected to Facebook. Open settings to configure the Page.'}
+                aria-label={fbStatus?.connected ? `Facebook connected to ${fbStatus.page_name || 'Page'}. Open settings.` : 'Facebook not connected. Open Facebook settings.'}
               >
                 <span className="flex size-4 items-center justify-center rounded-full bg-[#1877F2] text-white text-[10px] font-bold">f</span>
-                <span className="hidden md:inline">
+                <span>
                   {fbStatus?.connected ? fbStatus.page_name || 'Facebook Connected' : 'Connect Facebook'}
                 </span>
-                <span className={`size-2 rounded-full ${fbStatus?.connected ? 'bg-emerald-500 ring-2 ring-emerald-300' : 'bg-amber-400'}`} />
-              </button>
-              <button
-                type="button"
-                onClick={() => loadAnnouncements()}
-                className="admin-button-secondary flex items-center gap-2 px-3.5 py-2 text-sm"
-                title="Refresh Announcements"
-              >
-                <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-                <span className="hidden sm:inline">Refresh</span>
+                <span className={`size-2 rounded-full ${fbStatus?.connected ? 'bg-emerald-500' : 'bg-amber-400'}`} />
               </button>
               <button
                 type="button"
                 onClick={handleOpenCreate}
-                className="admin-button-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold shadow-md shadow-[var(--oppa-green)]/20"
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green-dark)] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-[var(--oppa-green)]/20 transition-all duration-200 hover:-translate-y-px hover:bg-[var(--oppa-green)] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
               >
                 <Plus size={17} />
                 <span>New Announcement</span>
@@ -488,53 +481,53 @@ ${item.content}
         />
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 gap-3.5 sm:gap-4 lg:grid-cols-4">
-          <div className="admin-card flex items-center gap-3.5 p-4 sm:p-5">
+        <div className="grid grid-cols-1 gap-3.5 min-[420px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+          <div className="admin-card flex items-center gap-3.5 rounded-2xl border border-[var(--oppa-border)] p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-5">
             <div className="flex size-11 sm:size-12 shrink-0 items-center justify-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] dark:bg-[var(--oppa-green)]/20 dark:text-emerald-300">
               <Megaphone size={22} />
             </div>
             <div className="min-w-0">
               <p className="truncate text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Total Broadcasts</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-[var(--oppa-text)]">{stats.total}</h3>
+              <h3 className="font-serif text-[28px] font-bold leading-tight text-[#1A2B20] dark:text-[var(--oppa-text)]">{stats.total}</h3>
             </div>
           </div>
 
-          <div className="admin-card flex items-center gap-3.5 p-4 sm:p-5">
+          <div className="admin-card flex items-center gap-3.5 rounded-2xl border border-[var(--oppa-border)] p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-5">
             <div className="flex size-11 sm:size-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
               <CheckCircle2 size={22} />
             </div>
             <div className="min-w-0">
               <p className="truncate text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Active / Sent</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.published}</h3>
+              <h3 className="font-serif text-[28px] font-bold leading-tight text-[#1A2B20] dark:text-[var(--oppa-text)]">{stats.published}</h3>
             </div>
           </div>
 
-          <div className="admin-card flex items-center gap-3.5 p-4 sm:p-5">
+          <div className="admin-card flex items-center gap-3.5 rounded-2xl border border-[var(--oppa-border)] p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-5">
             <div className="flex size-11 sm:size-12 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300">
               <Calendar size={22} />
             </div>
             <div className="min-w-0">
               <p className="truncate text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Scheduled</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-sky-600 dark:text-sky-400">{stats.scheduled}</h3>
+              <h3 className="font-serif text-[28px] font-bold leading-tight text-[#1A2B20] dark:text-[var(--oppa-text)]">{stats.scheduled}</h3>
             </div>
           </div>
 
-          <div className="admin-card flex items-center gap-3.5 p-4 sm:p-5">
+          <div className="admin-card flex items-center gap-3.5 rounded-2xl border border-[var(--oppa-border)] p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-5">
             <div className="flex size-11 sm:size-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300">
               <FileText size={22} />
             </div>
             <div className="min-w-0">
               <p className="truncate text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Drafts</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.draft}</h3>
+              <h3 className="font-serif text-[28px] font-bold leading-tight text-[#1A2B20] dark:text-[var(--oppa-text)]">{stats.draft}</h3>
             </div>
           </div>
         </div>
 
         {/* Filter Bar */}
-        <FilterBar className="space-y-3.5 p-3.5 sm:p-4">
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
+        <FilterBar className="space-y-3.5 rounded-2xl p-3.5 sm:p-4">
+          <div className="grid grid-cols-2 gap-2.5 lg:flex lg:items-center">
             {/* Search Input */}
-            <div className="relative sm:col-span-2 lg:col-span-5">
+            <div className="relative col-span-2 min-w-0 lg:flex-1">
               <Search
                 size={16}
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]"
@@ -544,30 +537,31 @@ ${item.content}
                 placeholder="Search headline, message, or audience..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="admin-input h-10 pl-9 text-sm"
+                className="admin-input h-[42px] w-full rounded-xl pl-9 text-sm"
               />
             </div>
 
             {/* Target Audience Filter */}
-            <div className="lg:col-span-3">
+            <div className="relative min-w-0 lg:w-[180px] lg:shrink-0">
               <select
                 value={audienceFilter}
                 onChange={(e) => setAudienceFilter(e.target.value)}
-                className="admin-select h-10 text-sm"
+                className="admin-select h-[42px] w-full appearance-none rounded-xl pr-9 text-sm"
                 aria-label="Filter by target audience"
               >
                 <option value="all_filter">All Categories ({stats.total})</option>
                 <option value="all">🌐 All Category ({stats.audiences?.all ?? 0})</option>
                 <option value="customers">🛍️ Customers Only ({stats.audiences?.customers ?? 0})</option>
               </select>
+              <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
             </div>
 
             {/* Status Filter */}
-            <div className="lg:col-span-2">
+            <div className="relative min-w-0 lg:w-[170px] lg:shrink-0">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="admin-select h-10 text-sm"
+                className="admin-select h-[42px] w-full appearance-none rounded-xl pr-9 text-sm"
                 aria-label="Filter by announcement status"
               >
                 <option value="all">All Statuses</option>
@@ -575,57 +569,59 @@ ${item.content}
                 <option value="scheduled">⏰ Scheduled</option>
                 <option value="draft">📝 Drafts</option>
               </select>
+              <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
             </div>
 
             {/* Sort Order */}
-            <div className="lg:col-span-2">
+            <div className="relative min-w-0 lg:w-[170px] lg:shrink-0">
               <select
                 value={sortDirection}
                 onChange={(e) => setSortDirection(e.target.value as 'asc' | 'desc')}
-                className="admin-select h-10 text-sm"
+                className="admin-select h-[42px] w-full appearance-none rounded-xl pr-9 text-sm"
                 aria-label="Sort order"
               >
                 <option value="desc">Newest Sent</option>
                 <option value="asc">Oldest Sent</option>
               </select>
+              <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
             </div>
           </div>
 
           {/* Audience Quick Pills */}
-          <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--oppa-border)] pt-2.5 text-xs">
+          <div className="flex flex-wrap items-center gap-2 border-t border-[var(--oppa-border)] pt-3 text-xs">
             <span className="font-semibold text-[var(--oppa-text-muted)] mr-1">Category:</span>
             <button
               type="button"
               onClick={() => setAudienceFilter('all_filter')}
-              className={`rounded-full px-3 py-1 font-medium transition-all ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-medium transition-colors duration-150 ${
                 audienceFilter === 'all_filter'
-                  ? 'bg-[var(--oppa-green)] text-white shadow-sm'
-                  : 'bg-[var(--oppa-surface-raised)] text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)] border border-[var(--oppa-border)]'
+                  ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white shadow-sm'
+                  : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:border-[var(--oppa-green)]/40 hover:bg-[var(--oppa-green-soft)]/40 hover:text-[var(--oppa-text)]'
               }`}
             >
-              All ({stats.total})
+              All <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${audienceFilter === 'all_filter' ? 'bg-white/20' : 'bg-[var(--oppa-cream)]'}`}>{stats.total}</span>
             </button>
             <button
               type="button"
               onClick={() => setAudienceFilter('all')}
-              className={`rounded-full px-3 py-1 font-medium transition-all ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-medium transition-colors duration-150 ${
                 audienceFilter === 'all'
-                  ? 'bg-[var(--oppa-green)] text-white shadow-sm'
-                  : 'bg-[var(--oppa-surface-raised)] text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)] border border-[var(--oppa-border)]'
+                  ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white shadow-sm'
+                  : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:border-[var(--oppa-green)]/40 hover:bg-[var(--oppa-green-soft)]/40 hover:text-[var(--oppa-text)]'
               }`}
             >
-              🌐 All Category ({stats.audiences?.all ?? 0})
+              🌐 All Category <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${audienceFilter === 'all' ? 'bg-white/20' : 'bg-[var(--oppa-cream)]'}`}>{stats.audiences?.all ?? 0}</span>
             </button>
             <button
               type="button"
               onClick={() => setAudienceFilter('customers')}
-              className={`rounded-full px-3 py-1 font-medium transition-all ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-medium transition-colors duration-150 ${
                 audienceFilter === 'customers'
-                  ? 'bg-[var(--oppa-green)] text-white shadow-sm'
-                  : 'bg-[var(--oppa-surface-raised)] text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)] border border-[var(--oppa-border)]'
+                  ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white shadow-sm'
+                  : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:border-[var(--oppa-green)]/40 hover:bg-[var(--oppa-green-soft)]/40 hover:text-[var(--oppa-text)]'
               }`}
             >
-              🛍️ Customers Only ({stats.audiences?.customers ?? 0})
+              🛍️ Customers Only <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${audienceFilter === 'customers' ? 'bg-white/20' : 'bg-[var(--oppa-cream)]'}`}>{stats.audiences?.customers ?? 0}</span>
             </button>
           </div>
         </FilterBar>
@@ -645,26 +641,24 @@ ${item.content}
             ))}
           </div>
         ) : announcements.length === 0 ? (
-          <div className="admin-card">
-            <EmptyState
-              title="No announcements found"
-              description={
-                search || audienceFilter !== 'all_filter' || statusFilter !== 'all'
-                  ? 'Try adjusting your search criteria or audience filters.'
-                  : 'Create your first announcement to keep customers informed.'
-              }
-              icon={<Megaphone size={28} />}
-              action={
-                <button
-                  type="button"
-                  onClick={handleOpenCreate}
-                  className="admin-button-primary mt-2 flex items-center gap-2"
-                >
-                  <Plus size={16} />
-                  <span>Create Announcement</span>
-                </button>
-              }
-            />
+          <div className="admin-card flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-6 py-10 text-center shadow-sm">
+            <div className="mb-2 flex size-16 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] ring-8 ring-[var(--oppa-green-soft)]/30 dark:bg-[var(--oppa-green)]/20 dark:text-emerald-300 dark:ring-[var(--oppa-green)]/10">
+              <Megaphone size={27} aria-hidden="true" />
+            </div>
+            <h2 className="mt-2 font-serif text-xl font-bold text-[var(--oppa-text)]">No announcements found</h2>
+            <p className="mt-1 max-w-md text-sm text-[var(--oppa-text-muted)]">
+              {search || audienceFilter !== 'all_filter' || statusFilter !== 'all'
+                ? 'Try adjusting your search criteria or audience filters.'
+                : 'Create your first announcement to keep customers informed.'}
+            </p>
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-green)] bg-[var(--oppa-surface)] px-4 py-2.5 text-sm font-semibold text-[var(--oppa-green-dark)] transition-colors hover:bg-[var(--oppa-green)] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
+            >
+              <Plus size={16} aria-hidden="true" />
+              <span>Create Announcement</span>
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -859,20 +853,41 @@ ${item.content}
         {/* Modal: Create & Edit Announcement (Portaled directly to document.body for unobstructed viewport positioning) */}
         {isFormOpen && typeof document !== 'undefined' && createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto bg-black/70 backdrop-blur-xs"
+            className="fixed inset-0 z-[9999] flex items-stretch justify-center overflow-y-auto bg-[#10241a]/65 p-0 backdrop-blur-sm sm:items-center sm:p-5"
             onClick={(e) => {
               if (e.target === e.currentTarget && !isSubmitting) setIsFormOpen(false);
             }}
           >
             <div
-              className="admin-card relative my-auto mt-4 sm:mt-auto flex flex-col w-full max-w-2xl max-h-[88vh] rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+              className="admin-card relative flex h-dvh max-h-dvh w-full max-w-none flex-col overflow-hidden rounded-none border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-2xl animate-in fade-in zoom-in-95 duration-200 sm:h-auto sm:max-h-[calc(100vh-80px)] sm:max-w-[720px] sm:rounded-[20px]"
               role="dialog"
               aria-modal="true"
+              aria-labelledby="announcement-modal-title"
+              onKeyDown={(event) => {
+                if (event.key !== 'Tab') return;
+                const focusable = event.currentTarget.querySelectorAll<HTMLElement>(
+                  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                );
+                if (focusable.length === 0) {
+                  event.preventDefault();
+                  return;
+                }
+
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                  event.preventDefault();
+                  last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                  event.preventDefault();
+                  first.focus();
+                }
+              }}
             >
               {/* Sticky Top Header */}
-              <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4 sm:px-6 bg-[var(--oppa-surface-raised)] shrink-0">
+              <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] px-5 py-4 sm:px-6">
                 <div>
-                  <h2 className="font-serif text-lg sm:text-xl font-bold text-[var(--oppa-text)]">
+                  <h2 id="announcement-modal-title" className="font-serif text-lg sm:text-xl font-bold text-[var(--oppa-text)]">
                     {editingItem ? 'Edit Announcement' : 'Create New Announcement'}
                   </h2>
                   <p className="text-xs text-[var(--oppa-text-muted)] mt-0.5">
@@ -882,7 +897,7 @@ ${item.content}
                 <button
                   type="button"
                   onClick={() => setIsFormOpen(false)}
-                  className="rounded-xl p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)] transition-colors"
+                  className="rounded-xl p-2 text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]"
                   aria-label="Close modal"
                 >
                   <X size={19} />
@@ -891,13 +906,13 @@ ${item.content}
 
               {/* Scrollable Form Body */}
               <form onSubmit={handleSubmitForm} className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6 space-y-4">
+                <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
                   {/* 1. Target Audience / Category */}
                   <div>
-                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]" id="announcement-audience-label">
                       Target Category / Audience <span className="text-red-500">*</span>
                     </label>
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-2.5 min-[440px]:grid-cols-2" aria-labelledby="announcement-audience-label">
                       {AUDIENCE_OPTIONS.map((opt) => {
                         const Icon = opt.icon;
                         const isSelected = formData.target_audience === opt.id;
@@ -905,11 +920,12 @@ ${item.content}
                           <button
                             key={opt.id}
                             type="button"
+                            autoFocus={opt.id === AUDIENCE_OPTIONS[0].id}
                             onClick={() => setFormData({ ...formData, target_audience: opt.id })}
-                            className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-all ${
+                            className={`flex min-w-0 items-start gap-3 rounded-xl border p-3 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] ${
                               isSelected
-                                ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)]/40 shadow-xs ring-1 ring-[var(--oppa-green)] dark:bg-[var(--oppa-green)]/15'
-                                : 'border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] hover:border-[var(--oppa-border-strong)]'
+                                ? 'border-2 border-[var(--oppa-green)] bg-[#EAF5EE] shadow-sm dark:bg-[var(--oppa-green)]/15'
+                                : 'border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] hover:border-[var(--oppa-green)]/50 hover:bg-[var(--oppa-green-soft)]/20'
                             }`}
                           >
                             <div
@@ -923,7 +939,7 @@ ${item.content}
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center justify-between">
-                                <span className={`text-xs font-bold ${isSelected ? 'text-[var(--oppa-green-dark)] dark:text-emerald-300' : 'text-[var(--oppa-text)]'}`}>
+                                <span className={`text-xs font-bold ${isSelected ? 'text-[var(--oppa-green-dark)] dark:text-emerald-200' : 'text-[var(--oppa-text)]'}`}>
                                   {opt.label}
                                 </span>
                                 {isSelected && (
@@ -943,68 +959,75 @@ ${item.content}
                   {/* 2. Headline & Priority */}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="sm:col-span-2">
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                      <label htmlFor="announcement-title" className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
                         Headline / Title <span className="text-red-500">*</span>
                       </label>
                       <input
+                        id="announcement-title"
                         type="text"
                         required
                         placeholder="e.g. Weekend Special: 20% Off Korean Chicken!"
                         value={formData.title}
                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        className="admin-input h-10 text-sm"
+                        className="admin-input h-11 w-full rounded-xl px-3 text-base sm:text-sm"
                       />
                     </div>
 
                     <div>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                      <label htmlFor="announcement-priority" className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
                         Priority Tag
                       </label>
-                      <select
-                        value={formData.priority}
-                        onChange={(e) =>
-                          setFormData({ ...formData, priority: e.target.value as AnnouncementPriority })
-                        }
-                        className="admin-select h-10 text-sm"
-                      >
-                        <option value="normal">Standard / General</option>
-                        <option value="promo">✨ Special Promo</option>
-                        <option value="high">⚠️ High Priority</option>
-                        <option value="urgent">🚨 Urgent Alert</option>
-                      </select>
+                      <div className="relative">
+                        <select
+                          id="announcement-priority"
+                          value={formData.priority}
+                          onChange={(e) =>
+                            setFormData({ ...formData, priority: e.target.value as AnnouncementPriority })
+                          }
+                          className="admin-select h-11 w-full appearance-none rounded-xl px-3 pr-9 text-base sm:text-sm"
+                        >
+                          <option value="normal">Standard / General</option>
+                          <option value="promo">✨ Special Promo</option>
+                          <option value="high">⚠️ High Priority</option>
+                          <option value="urgent">🚨 Urgent Alert</option>
+                        </select>
+                        <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
+                      </div>
                     </div>
                   </div>
 
                   {/* 3. Text Message Body */}
                   <div>
                     <div className="mb-1 flex items-center justify-between">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                      <label htmlFor="announcement-content" className="block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
                         Message Content <span className="text-red-500">*</span>
                       </label>
-                      <span className="text-[11px] text-[var(--oppa-text-muted)]">{formData.content.length} characters</span>
+                      <span className={`text-[11px] ${formData.content.length >= 1800 ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--oppa-text-muted)]'}`}>{formData.content.length} characters</span>
                     </div>
                     <textarea
+                      id="announcement-content"
                       required
-                      rows={3}
+                      rows={6}
                       placeholder="Write detailed announcements, promotional details, schedule reminders, or operational instructions..."
                       value={formData.content}
                       onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                      className="admin-textarea text-sm"
+                      className="admin-textarea min-h-40 w-full resize-y rounded-xl px-3.5 py-3 text-base leading-relaxed sm:text-sm"
                     />
                   </div>
 
-                  {/* 4. Banner Image (Compact & Clean) */}
+                  {/* 4. Banner Image */}
                   <div>
-                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]" id="announcement-image-label">
                       Banner Image (Optional)
                     </label>
 
                     {imagePreview ? (
-                      <div className="relative overflow-hidden rounded-xl border border-[var(--oppa-border)]">
-                        <img src={imagePreview} alt="Preview" className="h-36 w-full object-cover" />
+                      <div className="relative overflow-hidden rounded-[14px] border border-[var(--oppa-border)]">
+                        <img src={imagePreview} alt="Announcement banner preview" className="h-40 w-full object-cover" />
                         <button
                           type="button"
                           onClick={handleRemoveImage}
+                          aria-label="Remove announcement image"
                           className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-lg bg-black/75 px-2.5 py-1 text-xs font-semibold text-white shadow backdrop-blur hover:bg-black transition-colors"
                         >
                           <X size={13} /> Remove
@@ -1013,14 +1036,15 @@ ${item.content}
                     ) : (
                       <div
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[var(--oppa-border)] p-4 transition-colors hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]/20"
+                        className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border-2 border-dashed border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] px-4 py-5 text-center transition-colors duration-150 hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]/30"
+                        aria-labelledby="announcement-image-label"
                       >
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]">
-                          <UploadCloud size={20} />
+                        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] ring-4 ring-[var(--oppa-green-soft)]/40">
+                          <UploadCloud size={21} />
                         </div>
                         <div>
                           <p className="text-xs font-semibold text-[var(--oppa-text)]">
-                            Click to upload announcement image
+                            Click to upload an announcement image
                           </p>
                           <p className="text-[11px] text-[var(--oppa-text-muted)]">
                             PNG, JPG, WebP up to 10MB
@@ -1038,9 +1062,10 @@ ${item.content}
                     />
 
                     {/* Image URL fallback */}
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-[11px] shrink-0 text-[var(--oppa-text-muted)]">Or paste URL:</span>
+                    <div className="mt-3">
+                      <label htmlFor="announcement-image-url" className="mb-1.5 block text-xs font-medium text-[var(--oppa-text-muted)]">Or paste image URL</label>
                       <input
+                        id="announcement-image-url"
                         type="url"
                         placeholder="https://..."
                         value={formData.image_url || ''}
@@ -1049,32 +1074,32 @@ ${item.content}
                           setFormData({ ...formData, image_url: val, imageFile: null });
                           setImagePreview(val || null);
                         }}
-                        className="admin-input flex-1 h-8 text-xs py-1"
+                        className="admin-input h-11 w-full rounded-xl px-3 text-base sm:text-sm"
                       />
                     </div>
                   </div>
 
                   {/* 5. Date Sent & Scheduling */}
-                  <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] p-3.5 space-y-2.5">
-                    <div className="flex items-center gap-4">
-                      <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-[var(--oppa-text)]">
+                  <div className="space-y-3 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] p-3.5 sm:p-4">
+                    <div className="grid grid-cols-2 rounded-xl bg-[var(--oppa-cream)] p-1 dark:bg-black/15">
+                      <label className={`flex cursor-pointer items-center justify-center rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-colors ${sendMode === 'immediate' ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'}`}>
                         <input
                           type="radio"
                           name="sendMode"
                           checked={sendMode === 'immediate'}
                           onChange={() => setSendMode('immediate')}
-                          className="text-[var(--oppa-green)] focus:ring-[var(--oppa-green)]"
+                          className="sr-only"
                         />
                         <span>Send Immediately</span>
                       </label>
 
-                      <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-[var(--oppa-text)]">
+                      <label className={`flex cursor-pointer items-center justify-center rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-colors ${sendMode === 'schedule' ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'}`}>
                         <input
                           type="radio"
                           name="sendMode"
                           checked={sendMode === 'schedule'}
                           onChange={() => setSendMode('schedule')}
-                          className="text-[var(--oppa-green)] focus:ring-[var(--oppa-green)]"
+                          className="sr-only"
                         />
                         <span>Schedule Date & Time</span>
                       </label>
@@ -1082,10 +1107,11 @@ ${item.content}
 
                     {sendMode === 'schedule' ? (
                       <div>
-                        <label className="mb-1 block text-[11px] font-medium text-[var(--oppa-text-muted)]">
+                        <label htmlFor="announcement-scheduled-at" className="mb-1.5 block text-xs font-medium text-[var(--oppa-text-muted)]">
                           Scheduled Broadcast Time:
                         </label>
                         <input
+                          id="announcement-scheduled-at"
                           type="datetime-local"
                           required={sendMode === 'schedule'}
                           value={formatDateForInput(formData.scheduled_at || formData.date_sent)}
@@ -1096,16 +1122,18 @@ ${item.content}
                               date_sent: e.target.value ? new Date(e.target.value).toISOString() : '',
                             })
                           }
-                          className="admin-input h-9 text-xs sm:max-w-xs"
+                          className="admin-input h-11 w-full rounded-xl px-3 text-base sm:text-sm"
                         />
                       </div>
                     ) : (
                       <div>
-                        <label className="mb-1 block text-[11px] font-medium text-[var(--oppa-text-muted)]">
-                          Date Sent Stamp (Current time auto-assigned upon publish):
+                        <label htmlFor="announcement-date-sent" className="mb-1.5 block text-xs font-medium text-[var(--oppa-text-muted)]">
+                          Date Sent Stamp
                         </label>
                         <input
+                          id="announcement-date-sent"
                           type="datetime-local"
+                          disabled={sendMode === 'immediate'}
                           value={formatDateForInput(formData.date_sent || new Date().toISOString())}
                           onChange={(e) =>
                             setFormData({
@@ -1113,26 +1141,27 @@ ${item.content}
                               date_sent: e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString(),
                             })
                           }
-                          className="admin-input h-9 text-xs sm:max-w-xs"
+                          className="admin-input h-11 w-full rounded-xl px-3 text-base disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
                         />
+                        <p className="mt-1.5 text-[11px] text-[var(--oppa-text-muted)]">Current time is auto-assigned upon publish.</p>
                       </div>
                     )}
                   </div>
 
                   {!editingItem && (
-                    <label className="flex items-center gap-2.5 cursor-pointer rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-xs dark:border-blue-900/40 dark:bg-blue-950/20">
+                    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--oppa-green)]/20 bg-[var(--oppa-green-soft)]/45 p-3.5 text-xs transition-colors hover:bg-[var(--oppa-green-soft)]/70 dark:bg-[var(--oppa-green)]/10 dark:hover:bg-[var(--oppa-green)]/15">
                       <input
                         type="checkbox"
                         checked={!!formData.publish_to_facebook}
                         onChange={(e) => setFormData({ ...formData, publish_to_facebook: e.target.checked })}
-                        className="size-4 rounded text-blue-600 focus:ring-blue-500"
+                        className="mt-0.5 size-4 shrink-0 rounded accent-[var(--oppa-green)] focus:ring-[var(--oppa-green)]"
                       />
                       <div className="min-w-0">
                         <span className="font-bold text-[var(--oppa-text)] flex items-center gap-1.5">
                           <span className="flex size-4 items-center justify-center rounded-full bg-[#1877F2] text-white text-[10px] font-bold">f</span>
                           Also publish to Oppa Dru Facebook Page
                         </span>
-                        <span className="block text-[11px] text-[var(--oppa-text-muted)] mt-0.5">
+                        <span className="mt-1 block text-xs leading-relaxed text-[var(--oppa-text-muted)]">
                           Checked by default. Publishes the headline, message, and optional image. Drafts and scheduled announcements are not posted early.
                         </span>
                       </div>
@@ -1141,12 +1170,12 @@ ${item.content}
                 </div>
 
                 {/* Sticky Bottom Actions Footer */}
-                <div className="flex flex-wrap items-center justify-end gap-2.5 border-t border-[var(--oppa-border)] px-5 py-3 sm:px-6 bg-[var(--oppa-surface-raised)] shrink-0">
+                <div className="sticky bottom-0 z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] px-5 py-3 sm:flex-row sm:items-center sm:justify-end sm:gap-2.5 sm:px-6">
                   <button
                     type="button"
                     onClick={() => setIsFormOpen(false)}
                     disabled={isSubmitting}
-                    className="admin-button-secondary px-3.5 py-1.5 text-xs font-medium"
+                    className="w-full rounded-xl px-4 py-2.5 text-sm font-medium text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-text)] sm:w-auto"
                   >
                     Cancel
                   </button>
@@ -1155,7 +1184,7 @@ ${item.content}
                     type="button"
                     onClick={(e) => handleSubmitForm(e, 'draft')}
                     disabled={isSubmitting}
-                    className="rounded-lg border border-[var(--oppa-border)] px-3.5 py-1.5 text-xs font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] transition-colors"
+                    className="w-full rounded-xl border border-[var(--oppa-green)]/50 bg-[var(--oppa-surface)] px-4 py-2.5 text-sm font-semibold text-[var(--oppa-green-dark)] transition-colors hover:bg-[var(--oppa-green-soft)]/40 disabled:opacity-60 sm:w-auto"
                   >
                     Save Draft
                   </button>
@@ -1163,9 +1192,9 @@ ${item.content}
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="admin-button-primary flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold shadow"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green-dark)] px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-[var(--oppa-green)]/20 transition-all duration-200 hover:-translate-y-px hover:bg-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
-                    <Send size={14} />
+                    {isSubmitting ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Send size={15} aria-hidden="true" />}
                     <span>
                       {isSubmitting
                         ? 'Saving…'

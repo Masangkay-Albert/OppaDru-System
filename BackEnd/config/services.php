@@ -47,4 +47,10 @@ return [
         'refresh_token' => env('GMAIL_REFRESH_TOKEN'),
     ],
 
+    'facebook' => [
+        'page_id' => env('FACEBOOK_PAGE_ID'),
+        'page_access_token' => env('FACEBOOK_PAGE_ACCESS_TOKEN'),
+        'api_version' => env('FACEBOOK_API_VERSION', 'v26.0'),
+    ],
+
 ];
