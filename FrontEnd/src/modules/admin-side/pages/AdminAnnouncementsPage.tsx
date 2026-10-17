@@ -1,0 +1,1562 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  AlertCircle,
+  Calendar,
+  Check,
+  CheckCircle2,
+  Clock,
+  Copy,
+  ExternalLink,
+  Eye,
+  FileText,
+  Globe,
+  Megaphone,
+  MessageCircle,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Send,
+  Share2,
+  Sparkles,
+  Tag,
+  ThumbsUp,
+  Trash2,
+  UploadCloud,
+  X,
+} from 'lucide-react';
+import AdminLayout from '../components/AdminLayout';
+import {
+  ConfirmDialog,
+  EmptyState,
+  FilterBar,
+  PageHeader,
+  Toast,
+} from '../components/AdminUI';
+import { announcementService } from '../../../services/announcementService';
+import type {
+  Announcement,
+  AnnouncementAudience,
+  AnnouncementFilters,
+  AnnouncementFormData,
+  AnnouncementPriority,
+  AnnouncementStats,
+  FacebookStatus,
+  TargetAudience,
+} from '../../../types/announcement.types';
+
+const AUDIENCE_OPTIONS: {
+  id: TargetAudience;
+  label: string;
+  shortLabel: string;
+  description: string;
+  icon: React.FC<{ size?: number; className?: string }>;
+  color: string;
+}[] = [
+  {
+    id: 'all',
+    label: 'All Category',
+    shortLabel: 'All',
+    description: 'Broadcasted to everyone across all platforms',
+    icon: Globe,
+    color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+  },
+  {
+    id: 'customers',
+    label: 'Customers Only',
+    shortLabel: 'Customers',
+    description: 'Food ordering menu & customer notifications',
+    icon: Tag,
+    color: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
+  },
+];
+
+const LEGACY_AUDIENCE_META = {
+  label: 'Legacy audience',
+  shortLabel: 'Legacy',
+  description: 'Previously targeted announcement',
+  icon: Megaphone,
+  color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700',
+};
+
+const PRIORITY_BADGES: Record<AnnouncementPriority, { label: string; style: string }> = {
+  normal: { label: 'General', style: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
+  promo: { label: 'Special Promo', style: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800' },
+  high: { label: 'High Priority', style: 'bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300 border border-orange-300 dark:border-orange-800' },
+  urgent: { label: 'Urgent Alert', style: 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-300 dark:border-red-800' },
+};
+
+const formatDateForInput = (isoDate?: string | null): string => {
+  if (!isoDate) return '';
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const formatDisplayDate = (isoDate?: string | null): string => {
+  if (!isoDate) return 'Immediate';
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) return 'Immediate';
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
+const AdminAnnouncementsPage: React.FC = () => {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [stats, setStats] = useState<AnnouncementStats>({
+    total: 0,
+    published: 0,
+    scheduled: 0,
+    draft: 0,
+    audiences: { all: 0, customers: 0 },
+  });
+  const [loading, setLoading] = useState(true);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
+
+  // Filter States
+  const [search, setSearch] = useState('');
+  const [audienceFilter, setAudienceFilter] = useState<string>('all_filter');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc');
+
+  // Modal States
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<Announcement | null>(null);
+  const [previewItem, setPreviewItem] = useState<Announcement | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Form Fields
+  const [formData, setFormData] = useState<AnnouncementFormData>({
+    title: '',
+    content: '',
+    target_audience: 'customers',
+    priority: 'normal',
+    status: 'published',
+    date_sent: '',
+    scheduled_at: '',
+    image_url: '',
+    imageFile: null,
+    remove_image: false,
+    publish_to_facebook: true,
+  });
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [sendMode, setSendMode] = useState<'immediate' | 'schedule'>('immediate');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Facebook Integration States
+  const [fbStatus, setFbStatus] = useState<FacebookStatus | null>(null);
+  const [isFbSettingsOpen, setIsFbSettingsOpen] = useState(false);
+  const [isPublishingToFb, setIsPublishingToFb] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState<'app' | 'facebook'>('app');
+
+  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastTone(tone);
+  };
+
+  const loadAnnouncements = async () => {
+    setLoading(true);
+    try {
+      const filters: AnnouncementFilters = {
+        audience: audienceFilter,
+        status: statusFilter,
+        search: search.trim(),
+        direction: sortDirection,
+      };
+      const result = await announcementService.getAnnouncements(filters);
+      setAnnouncements(result.announcements);
+      setStats(result.stats);
+    } catch {
+      showToast('Failed to load announcements.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAnnouncements();
+    announcementService.getFacebookStatus().then((status) => {
+      setFbStatus(status);
+    });
+  }, [audienceFilter, statusFilter, sortDirection]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      loadAnnouncements();
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  // Lock background scroll and handle Escape key when popups are active
+  useEffect(() => {
+    if (isFormOpen || previewItem || isFbSettingsOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          if (isFormOpen && !isSubmitting) setIsFormOpen(false);
+          if (previewItem) setPreviewItem(null);
+          if (isFbSettingsOpen) setIsFbSettingsOpen(false);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [isFormOpen, previewItem, isFbSettingsOpen, isSubmitting]);
+
+  const handleOpenCreate = () => {
+    setEditingItem(null);
+    setFormData({
+      title: '',
+      content: '',
+      target_audience: 'customers',
+      priority: 'normal',
+      status: 'published',
+      date_sent: new Date().toISOString(),
+      scheduled_at: '',
+      image_url: '',
+      imageFile: null,
+      remove_image: false,
+      publish_to_facebook: true,
+    });
+    setSendMode('immediate');
+    setImagePreview(null);
+    setIsFormOpen(true);
+  };
+
+  const handleOpenEdit = (item: Announcement) => {
+    setEditingItem(item);
+    const isScheduled = item.status === 'scheduled';
+    setSendMode(isScheduled ? 'schedule' : 'immediate');
+    setFormData({
+      title: item.title,
+      content: item.content,
+      target_audience: item.target_audience === 'all' ? 'all' : 'customers',
+      priority: item.priority,
+      status: item.status,
+      date_sent: item.date_sent || '',
+      scheduled_at: item.scheduled_at || '',
+      image_url: item.image_url || '',
+      imageFile: null,
+      remove_image: false,
+      publish_to_facebook: false,
+    });
+    setImagePreview(item.image_url || null);
+    setIsFormOpen(true);
+  };
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('Image file must be under 10MB.', 'error');
+        return;
+      }
+      setFormData((prev) => ({
+        ...prev,
+        imageFile: file,
+        remove_image: false,
+      }));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData((prev) => ({
+      ...prev,
+      imageFile: null,
+      image_url: '',
+      remove_image: true,
+    }));
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSubmitForm = async (e: React.SyntheticEvent, statusOverride?: 'draft') => {
+    e.preventDefault();
+    if (!formData.title.trim()) {
+      showToast('Announcement headline is required.', 'error');
+      return;
+    }
+    if (!formData.content.trim()) {
+      showToast('Announcement content is required.', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const submittedStatus = statusOverride ?? (sendMode === 'schedule' ? 'scheduled' : formData.status);
+      const submissionData: AnnouncementFormData = {
+        ...formData,
+        status: submittedStatus,
+        date_sent: submittedStatus === 'draft'
+          ? formData.date_sent
+          : sendMode === 'immediate'
+          ? (formData.date_sent || new Date().toISOString())
+          : (formData.scheduled_at || formData.date_sent || new Date().toISOString()),
+        scheduled_at: submittedStatus === 'scheduled' ? formData.scheduled_at : undefined,
+      };
+
+      if (editingItem) {
+        await announcementService.updateAnnouncement(editingItem.id, submissionData);
+        showToast('Announcement updated successfully!');
+      } else {
+        const result = await announcementService.createAnnouncement(submissionData);
+        if (result.facebookPublish && !result.facebookPublish.success) {
+          showToast(
+            `Announcement saved, but Facebook publishing failed: ${result.facebookPublish.message || 'Check the Facebook connection.'}`,
+            'error'
+          );
+        } else if (submissionData.status === 'scheduled') {
+          showToast('Announcement scheduled successfully!');
+        } else if (submissionData.status === 'draft') {
+          showToast('Announcement saved as a draft.');
+        } else {
+          showToast('Announcement posted successfully!');
+        }
+      }
+
+      setIsFormOpen(false);
+      loadAnnouncements();
+    } catch {
+      showToast('Failed to save announcement. Please try again.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleStatus = async (item: Announcement) => {
+    const nextStatus = item.status === 'published' ? 'draft' : 'published';
+    try {
+      await announcementService.toggleStatus(item.id, nextStatus);
+      showToast(`Announcement moved to ${nextStatus === 'published' ? 'Published' : 'Draft'}.`);
+      loadAnnouncements();
+    } catch {
+      showToast('Failed to toggle announcement status.', 'error');
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    try {
+      await announcementService.deleteAnnouncement(deleteTarget.id);
+      showToast('Announcement deleted.');
+      setDeleteTarget(null);
+      loadAnnouncements();
+    } catch {
+      showToast('Failed to delete announcement.', 'error');
+    }
+  };
+
+  const generateFbCaption = (item: Announcement) => {
+    const websiteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://oppadru.vercel.app';
+    return `📢 ${item.title}
+
+${item.content}
+
+🍗 Order directly on our website:
+👉 ${websiteUrl}/menu
+
+📍 Oppa Dru Korean Fried Chicken
+#OppaDru #KoreanFriedChicken #FoodTrip #CrispyChicken`;
+  };
+
+  const handleCopyFbCaption = (item: Announcement) => {
+    const caption = generateFbCaption(item);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(caption);
+      showToast('Facebook post caption copied to clipboard!');
+    }
+  };
+
+  const handleOpenFbPage = () => {
+    window.open('https://www.facebook.com/oppadruKFC', '_blank', 'noopener,noreferrer');
+  };
+
+  const handleOpenMetaBusinessSuite = (item?: Announcement) => {
+    if (item) {
+      handleCopyFbCaption(item);
+      showToast('Caption copied! Opening Meta Business Suite...', 'success');
+    }
+    setTimeout(() => {
+      window.open('https://business.facebook.com/latest/composer', '_blank', 'noopener,noreferrer');
+    }, 400);
+  };
+
+  const handleDirectPublishFacebook = async (item: Announcement) => {
+    setIsPublishingToFb(item.id);
+    try {
+      const res = await announcementService.publishToFacebook(item.id);
+      if (res.need_config) {
+        showToast('Please connect your Facebook Page credentials first.', 'error');
+        setIsFbSettingsOpen(true);
+        return;
+      }
+      if (res.success) {
+        showToast('Successfully published to Facebook Page!', 'success');
+        loadAnnouncements();
+        if (previewItem && previewItem.id === item.id) {
+          setPreviewItem(
+            res.announcement || {
+              ...previewItem,
+              metadata: { ...(previewItem.metadata || {}), facebook_post_url: res.post_url },
+            }
+          );
+        }
+      } else {
+        showToast(res.message || 'Failed to post to Facebook.', 'error');
+      }
+    } catch {
+      showToast('Error connecting to Facebook API.', 'error');
+    } finally {
+      setIsPublishingToFb(null);
+    }
+  };
+
+  const handleRefreshFacebookStatus = async () => {
+    try {
+      setFbStatus(await announcementService.getFacebookStatus());
+    } catch {
+      showToast('Unable to check the Facebook connection.', 'error');
+    }
+  };
+
+  const getAudienceMeta = (audience: AnnouncementAudience) => {
+    return AUDIENCE_OPTIONS.find((opt) => opt.id === audience) || LEGACY_AUDIENCE_META;
+  };
+
+  return (
+    <AdminLayout>
+      <div className="space-y-6">
+        {/* Page Header */}
+        <PageHeader
+          title="Announcements"
+          subtitle="Publish news, promotional deals, and important alerts for customers."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsFbSettingsOpen(true)}
+                className="admin-button-secondary flex items-center gap-2 px-3.5 py-2 text-sm"
+                title="Facebook Integration Settings"
+              >
+                <span className="flex size-4 items-center justify-center rounded-full bg-[#1877F2] text-white text-[10px] font-bold">f</span>
+                <span className="hidden md:inline">
+                  {fbStatus?.connected ? fbStatus.page_name || 'Facebook Connected' : 'Connect Facebook'}
+                </span>
+                <span className={`size-2 rounded-full ${fbStatus?.connected ? 'bg-emerald-500 ring-2 ring-emerald-300' : 'bg-amber-400'}`} />
+              </button>
+              <button
+                type="button"
+                onClick={() => loadAnnouncements()}
+                className="admin-button-secondary flex items-center gap-2 px-3.5 py-2 text-sm"
+                title="Refresh Announcements"
+              >
+                <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenCreate}
+                className="admin-button-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold shadow-md shadow-[var(--oppa-green)]/20"
+              >
+                <Plus size={17} />
+                <span>New Announcement</span>
+              </button>
+            </div>
+          }
+        />
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 gap-3.5 sm:gap-4 lg:grid-cols-4">
+          <div className="admin-card flex items-center gap-3.5 p-4 sm:p-5">
+            <div className="flex size-11 sm:size-12 shrink-0 items-center justify-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] dark:bg-[var(--oppa-green)]/20 dark:text-emerald-300">
+              <Megaphone size={22} />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Total Broadcasts</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-[var(--oppa-text)]">{stats.total}</h3>
+            </div>
+          </div>
+
+          <div className="admin-card flex items-center gap-3.5 p-4 sm:p-5">
+            <div className="flex size-11 sm:size-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300">
+              <CheckCircle2 size={22} />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Active / Sent</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.published}</h3>
+            </div>
+          </div>
+
+          <div className="admin-card flex items-center gap-3.5 p-4 sm:p-5">
+            <div className="flex size-11 sm:size-12 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300">
+              <Calendar size={22} />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Scheduled</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-sky-600 dark:text-sky-400">{stats.scheduled}</h3>
+            </div>
+          </div>
+
+          <div className="admin-card flex items-center gap-3.5 p-4 sm:p-5">
+            <div className="flex size-11 sm:size-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300">
+              <FileText size={22} />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Drafts</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.draft}</h3>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Bar */}
+        <FilterBar className="space-y-3.5 p-3.5 sm:p-4">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-12">
+            {/* Search Input */}
+            <div className="relative sm:col-span-2 lg:col-span-5">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]"
+              />
+              <input
+                type="text"
+                placeholder="Search headline, message, or audience..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="admin-input h-10 pl-9 text-sm"
+              />
+            </div>
+
+            {/* Target Audience Filter */}
+            <div className="lg:col-span-3">
+              <select
+                value={audienceFilter}
+                onChange={(e) => setAudienceFilter(e.target.value)}
+                className="admin-select h-10 text-sm"
+                aria-label="Filter by target audience"
+              >
+                <option value="all_filter">All Categories ({stats.total})</option>
+                <option value="all">🌐 All Category ({stats.audiences?.all ?? 0})</option>
+                <option value="customers">🛍️ Customers Only ({stats.audiences?.customers ?? 0})</option>
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="lg:col-span-2">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="admin-select h-10 text-sm"
+                aria-label="Filter by announcement status"
+              >
+                <option value="all">All Statuses</option>
+                <option value="published">🟢 Published / Sent</option>
+                <option value="scheduled">⏰ Scheduled</option>
+                <option value="draft">📝 Drafts</option>
+              </select>
+            </div>
+
+            {/* Sort Order */}
+            <div className="lg:col-span-2">
+              <select
+                value={sortDirection}
+                onChange={(e) => setSortDirection(e.target.value as 'asc' | 'desc')}
+                className="admin-select h-10 text-sm"
+                aria-label="Sort order"
+              >
+                <option value="desc">Newest Sent</option>
+                <option value="asc">Oldest Sent</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Audience Quick Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--oppa-border)] pt-2.5 text-xs">
+            <span className="font-semibold text-[var(--oppa-text-muted)] mr-1">Category:</span>
+            <button
+              type="button"
+              onClick={() => setAudienceFilter('all_filter')}
+              className={`rounded-full px-3 py-1 font-medium transition-all ${
+                audienceFilter === 'all_filter'
+                  ? 'bg-[var(--oppa-green)] text-white shadow-sm'
+                  : 'bg-[var(--oppa-surface-raised)] text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)] border border-[var(--oppa-border)]'
+              }`}
+            >
+              All ({stats.total})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAudienceFilter('all')}
+              className={`rounded-full px-3 py-1 font-medium transition-all ${
+                audienceFilter === 'all'
+                  ? 'bg-[var(--oppa-green)] text-white shadow-sm'
+                  : 'bg-[var(--oppa-surface-raised)] text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)] border border-[var(--oppa-border)]'
+              }`}
+            >
+              🌐 All Category ({stats.audiences?.all ?? 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAudienceFilter('customers')}
+              className={`rounded-full px-3 py-1 font-medium transition-all ${
+                audienceFilter === 'customers'
+                  ? 'bg-[var(--oppa-green)] text-white shadow-sm'
+                  : 'bg-[var(--oppa-surface-raised)] text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)] border border-[var(--oppa-border)]'
+              }`}
+            >
+              🛍️ Customers Only ({stats.audiences?.customers ?? 0})
+            </button>
+          </div>
+        </FilterBar>
+
+        {/* Content Section: Cards Grid */}
+        {loading ? (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="admin-card overflow-hidden animate-pulse">
+                <div className="h-40 bg-[var(--oppa-border)]/50" />
+                <div className="space-y-3 p-4">
+                  <div className="h-4 w-28 rounded bg-[var(--oppa-border)]/50" />
+                  <div className="h-5 w-3/4 rounded bg-[var(--oppa-border)]/50" />
+                  <div className="h-12 w-full rounded bg-[var(--oppa-border)]/40" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : announcements.length === 0 ? (
+          <div className="admin-card">
+            <EmptyState
+              title="No announcements found"
+              description={
+                search || audienceFilter !== 'all_filter' || statusFilter !== 'all'
+                  ? 'Try adjusting your search criteria or audience filters.'
+                  : 'Create your first announcement to keep customers informed.'
+              }
+              icon={<Megaphone size={28} />}
+              action={
+                <button
+                  type="button"
+                  onClick={handleOpenCreate}
+                  className="admin-button-primary mt-2 flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  <span>Create Announcement</span>
+                </button>
+              }
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {announcements.map((item) => {
+              const audienceMeta = getAudienceMeta(item.target_audience);
+              const AudienceIcon = audienceMeta.icon;
+              const priorityBadge = PRIORITY_BADGES[item.priority] || PRIORITY_BADGES.normal;
+              const displayDate = item.status === 'scheduled' ? item.scheduled_at : item.date_sent;
+
+              return (
+                <article
+                  key={item.id}
+                  className="admin-card group flex flex-col overflow-hidden border border-[var(--oppa-border)] transition-all hover:border-[var(--oppa-green)]/40 hover:shadow-lg"
+                >
+                  {/* Card Media Header */}
+                  <div className="relative h-44 w-full overflow-hidden bg-gradient-to-tr from-[var(--oppa-green-dark)]/15 via-[var(--oppa-green-soft)]/25 to-[var(--oppa-cream)]">
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        alt={item.title}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center">
+                        <div className="flex size-12 items-center justify-center rounded-xl bg-[var(--oppa-green)]/15 text-[var(--oppa-green-dark)] dark:text-emerald-300">
+                          <AudienceIcon size={24} />
+                        </div>
+                        <span className="mt-2 text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                          {audienceMeta.label}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Status & Priority Floating Badges */}
+                    <div className="absolute left-3 top-3 flex flex-wrap items-center gap-1.5">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold shadow-sm backdrop-blur-md ${priorityBadge.style}`}>
+                        {item.priority === 'promo' && <Sparkles size={11} />}
+                        {item.priority === 'urgent' && <AlertCircle size={11} />}
+                        {priorityBadge.label}
+                      </span>
+                    </div>
+
+                    <div className="absolute right-3 top-3">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold shadow-sm backdrop-blur-md ${
+                          item.status === 'published'
+                            ? 'bg-emerald-600/90 text-white'
+                            : item.status === 'scheduled'
+                            ? 'bg-sky-600/90 text-white'
+                            : 'bg-slate-700/85 text-white'
+                        }`}
+                      >
+                        <span className="size-1.5 rounded-full bg-white animate-pulse" />
+                        <span className="capitalize">{item.status}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Card Content Body */}
+                  <div className="flex flex-1 flex-col p-4 sm:p-5">
+                    {/* Audience Chip & Date Info */}
+                    <div className="mb-2 flex items-center justify-between gap-2 text-xs">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold ${audienceMeta.color}`}
+                      >
+                        <AudienceIcon size={12} />
+                        <span>{audienceMeta.label}</span>
+                      </span>
+
+                      <div className="flex items-center gap-1 text-[11px] text-[var(--oppa-text-muted)]" title="Date Sent / Scheduled">
+                        <Clock size={12} />
+                        <span>{formatDisplayDate(displayDate)}</span>
+                      </div>
+                    </div>
+
+                    {/* Title */}
+                    <h3 className="mb-1.5 font-serif text-base sm:text-lg font-bold leading-snug text-[var(--oppa-text)] line-clamp-2">
+                      {item.title}
+                    </h3>
+
+                    {/* Content Preview */}
+                    <p className="mb-4 flex-1 text-xs sm:text-sm leading-relaxed text-[var(--oppa-text-muted)] line-clamp-3">
+                      {item.content}
+                    </p>
+
+                    {/* Footer / Meta & Actions */}
+                    <div className="mt-auto border-t border-[var(--oppa-border)] pt-3.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[11px] text-[var(--oppa-text-muted)]">
+                            By <strong className="text-[var(--oppa-text)] font-medium">{item.author_name || 'Admin'}</strong>
+                          </span>
+                          {item.metadata?.facebook_post_url ? (
+                            <a
+                              href={item.metadata.facebook_post_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:underline dark:text-blue-400"
+                              title="View post on Facebook Page"
+                            >
+                              <span className="flex size-3.5 items-center justify-center rounded-full bg-[#1877F2] text-white text-[8px] font-bold">f</span>
+                              <span>Posted on FB</span>
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (fbStatus?.connected) {
+                                  handleDirectPublishFacebook(item);
+                                } else {
+                                  handleOpenMetaBusinessSuite(item);
+                                }
+                              }}
+                              disabled={isPublishingToFb === item.id}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-blue-600 transition-colors"
+                              title="Post text & image to Meta Business Suite / Facebook"
+                            >
+                              <span className="flex size-3.5 items-center justify-center rounded-full bg-[#1877F2] text-white text-[8px] font-bold">f</span>
+                              <span>{isPublishingToFb === item.id ? 'Posting…' : fbStatus?.connected ? 'Publish to FB' : 'Post on Meta Suite'}</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (fbStatus?.connected) {
+                                handleDirectPublishFacebook(item);
+                              } else {
+                                handleOpenMetaBusinessSuite(item);
+                              }
+                            }}
+                            disabled={isPublishingToFb === item.id}
+                            className="flex size-8 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/40 transition-colors disabled:opacity-50"
+                            title={fbStatus?.connected ? "Directly publish to Facebook Page" : "Copy caption & open Meta Business Suite"}
+                          >
+                            {isPublishingToFb === item.id ? (
+                              <RefreshCw size={14} className="animate-spin" />
+                            ) : (
+                              <Share2 size={15} />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewItem(item);
+                              setPreviewMode('app');
+                            }}
+                            className="flex size-8 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-green)] transition-colors"
+                            title="Live Preview"
+                          >
+                            <Eye size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(item)}
+                            className="flex size-8 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-green)] transition-colors"
+                            title={item.status === 'published' ? 'Unpublish to Draft' : 'Publish Immediately'}
+                          >
+                            <Send size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(item)}
+                            className="flex size-8 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-text)] transition-colors"
+                            title="Edit Announcement"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(item)}
+                            className="flex size-8 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] hover:bg-red-500/10 hover:text-red-600 transition-colors"
+                            title="Delete Announcement"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Modal: Create & Edit Announcement (Portaled directly to document.body for unobstructed viewport positioning) */}
+        {isFormOpen && typeof document !== 'undefined' && createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto bg-black/70 backdrop-blur-xs"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !isSubmitting) setIsFormOpen(false);
+            }}
+          >
+            <div
+              className="admin-card relative my-auto mt-4 sm:mt-auto flex flex-col w-full max-w-2xl max-h-[88vh] rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+              role="dialog"
+              aria-modal="true"
+            >
+              {/* Sticky Top Header */}
+              <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4 sm:px-6 bg-[var(--oppa-surface-raised)] shrink-0">
+                <div>
+                  <h2 className="font-serif text-lg sm:text-xl font-bold text-[var(--oppa-text)]">
+                    {editingItem ? 'Edit Announcement' : 'Create New Announcement'}
+                  </h2>
+                  <p className="text-xs text-[var(--oppa-text-muted)] mt-0.5">
+                    Share updates, promotional deals, and important notices with customers.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsFormOpen(false)}
+                  className="rounded-xl p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)] transition-colors"
+                  aria-label="Close modal"
+                >
+                  <X size={19} />
+                </button>
+              </div>
+
+              {/* Scrollable Form Body */}
+              <form onSubmit={handleSubmitForm} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6 space-y-4">
+                  {/* 1. Target Audience / Category */}
+                  <div>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                      Target Category / Audience <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                      {AUDIENCE_OPTIONS.map((opt) => {
+                        const Icon = opt.icon;
+                        const isSelected = formData.target_audience === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setFormData({ ...formData, target_audience: opt.id })}
+                            className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-all ${
+                              isSelected
+                                ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)]/40 shadow-xs ring-1 ring-[var(--oppa-green)] dark:bg-[var(--oppa-green)]/15'
+                                : 'border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] hover:border-[var(--oppa-border-strong)]'
+                            }`}
+                          >
+                            <div
+                              className={`flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                                isSelected
+                                  ? 'bg-[var(--oppa-green)] text-white'
+                                  : 'bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)]'
+                              }`}
+                            >
+                              <Icon size={16} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className={`text-xs font-bold ${isSelected ? 'text-[var(--oppa-green-dark)] dark:text-emerald-300' : 'text-[var(--oppa-text)]'}`}>
+                                  {opt.label}
+                                </span>
+                                {isSelected && (
+                                  <span className="flex size-4 items-center justify-center rounded-full bg-[var(--oppa-green)] text-[10px] text-white">✓</span>
+                                )}
+                              </div>
+                              <span className="mt-0.5 block text-[11px] text-[var(--oppa-text-muted)]">
+                                {opt.description}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 2. Headline & Priority */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                        Headline / Title <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Weekend Special: 20% Off Korean Chicken!"
+                        value={formData.title}
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                        className="admin-input h-10 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                        Priority Tag
+                      </label>
+                      <select
+                        value={formData.priority}
+                        onChange={(e) =>
+                          setFormData({ ...formData, priority: e.target.value as AnnouncementPriority })
+                        }
+                        className="admin-select h-10 text-sm"
+                      >
+                        <option value="normal">Standard / General</option>
+                        <option value="promo">✨ Special Promo</option>
+                        <option value="high">⚠️ High Priority</option>
+                        <option value="urgent">🚨 Urgent Alert</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* 3. Text Message Body */}
+                  <div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                        Message Content <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[11px] text-[var(--oppa-text-muted)]">{formData.content.length} characters</span>
+                    </div>
+                    <textarea
+                      required
+                      rows={3}
+                      placeholder="Write detailed announcements, promotional details, schedule reminders, or operational instructions..."
+                      value={formData.content}
+                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                      className="admin-textarea text-sm"
+                    />
+                  </div>
+
+                  {/* 4. Banner Image (Compact & Clean) */}
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                      Banner Image (Optional)
+                    </label>
+
+                    {imagePreview ? (
+                      <div className="relative overflow-hidden rounded-xl border border-[var(--oppa-border)]">
+                        <img src={imagePreview} alt="Preview" className="h-36 w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-lg bg-black/75 px-2.5 py-1 text-xs font-semibold text-white shadow backdrop-blur hover:bg-black transition-colors"
+                        >
+                          <X size={13} /> Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[var(--oppa-border)] p-4 transition-colors hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]/20"
+                      >
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]">
+                          <UploadCloud size={20} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-[var(--oppa-text)]">
+                            Click to upload announcement image
+                          </p>
+                          <p className="text-[11px] text-[var(--oppa-text-muted)]">
+                            PNG, JPG, WebP up to 10MB
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageFileChange}
+                      className="hidden"
+                    />
+
+                    {/* Image URL fallback */}
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-[11px] shrink-0 text-[var(--oppa-text-muted)]">Or paste URL:</span>
+                      <input
+                        type="url"
+                        placeholder="https://..."
+                        value={formData.image_url || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFormData({ ...formData, image_url: val, imageFile: null });
+                          setImagePreview(val || null);
+                        }}
+                        className="admin-input flex-1 h-8 text-xs py-1"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 5. Date Sent & Scheduling */}
+                  <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] p-3.5 space-y-2.5">
+                    <div className="flex items-center gap-4">
+                      <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-[var(--oppa-text)]">
+                        <input
+                          type="radio"
+                          name="sendMode"
+                          checked={sendMode === 'immediate'}
+                          onChange={() => setSendMode('immediate')}
+                          className="text-[var(--oppa-green)] focus:ring-[var(--oppa-green)]"
+                        />
+                        <span>Send Immediately</span>
+                      </label>
+
+                      <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-[var(--oppa-text)]">
+                        <input
+                          type="radio"
+                          name="sendMode"
+                          checked={sendMode === 'schedule'}
+                          onChange={() => setSendMode('schedule')}
+                          className="text-[var(--oppa-green)] focus:ring-[var(--oppa-green)]"
+                        />
+                        <span>Schedule Date & Time</span>
+                      </label>
+                    </div>
+
+                    {sendMode === 'schedule' ? (
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium text-[var(--oppa-text-muted)]">
+                          Scheduled Broadcast Time:
+                        </label>
+                        <input
+                          type="datetime-local"
+                          required={sendMode === 'schedule'}
+                          value={formatDateForInput(formData.scheduled_at || formData.date_sent)}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              scheduled_at: e.target.value ? new Date(e.target.value).toISOString() : '',
+                              date_sent: e.target.value ? new Date(e.target.value).toISOString() : '',
+                            })
+                          }
+                          className="admin-input h-9 text-xs sm:max-w-xs"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium text-[var(--oppa-text-muted)]">
+                          Date Sent Stamp (Current time auto-assigned upon publish):
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={formatDateForInput(formData.date_sent || new Date().toISOString())}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              date_sent: e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString(),
+                            })
+                          }
+                          className="admin-input h-9 text-xs sm:max-w-xs"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {!editingItem && (
+                    <label className="flex items-center gap-2.5 cursor-pointer rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-xs dark:border-blue-900/40 dark:bg-blue-950/20">
+                      <input
+                        type="checkbox"
+                        checked={!!formData.publish_to_facebook}
+                        onChange={(e) => setFormData({ ...formData, publish_to_facebook: e.target.checked })}
+                        className="size-4 rounded text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="min-w-0">
+                        <span className="font-bold text-[var(--oppa-text)] flex items-center gap-1.5">
+                          <span className="flex size-4 items-center justify-center rounded-full bg-[#1877F2] text-white text-[10px] font-bold">f</span>
+                          Also publish to Oppa Dru Facebook Page
+                        </span>
+                        <span className="block text-[11px] text-[var(--oppa-text-muted)] mt-0.5">
+                          Checked by default. Publishes the headline, message, and optional image. Drafts and scheduled announcements are not posted early.
+                        </span>
+                      </div>
+                    </label>
+                  )}
+                </div>
+
+                {/* Sticky Bottom Actions Footer */}
+                <div className="flex flex-wrap items-center justify-end gap-2.5 border-t border-[var(--oppa-border)] px-5 py-3 sm:px-6 bg-[var(--oppa-surface-raised)] shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsFormOpen(false)}
+                    disabled={isSubmitting}
+                    className="admin-button-secondary px-3.5 py-1.5 text-xs font-medium"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => handleSubmitForm(e, 'draft')}
+                    disabled={isSubmitting}
+                    className="rounded-lg border border-[var(--oppa-border)] px-3.5 py-1.5 text-xs font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] transition-colors"
+                  >
+                    Save Draft
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="admin-button-primary flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold shadow"
+                  >
+                    <Send size={14} />
+                    <span>
+                      {isSubmitting
+                        ? 'Saving…'
+                        : sendMode === 'schedule'
+                        ? 'Schedule Announcement'
+                        : editingItem
+                        ? 'Update & Publish'
+                        : 'Send Announcement'}
+                    </span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Modal: Live Recipient Preview (Portaled directly to document.body) */}
+        {previewItem && typeof document !== 'undefined' && createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto bg-black/70 backdrop-blur-xs"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setPreviewItem(null);
+            }}
+          >
+            <div
+              className="admin-card relative my-auto mt-4 sm:mt-auto flex flex-col w-full max-w-lg max-h-[85vh] rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+              role="dialog"
+              aria-modal="true"
+            >
+              {/* Sticky Top Header with View Switcher */}
+              <div className="flex items-center justify-between border-b border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-4 py-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="flex size-2.5 rounded-full bg-red-400" />
+                  <span className="flex size-2.5 rounded-full bg-amber-400" />
+                  <span className="flex size-2.5 rounded-full bg-emerald-400" />
+                  
+                  {/* View Mode Switcher */}
+                  <div className="ml-2 flex items-center rounded-lg bg-[var(--oppa-border)]/40 p-0.5 text-xs font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewMode('app')}
+                      className={`rounded-md px-2.5 py-1 transition-all ${
+                        previewMode === 'app'
+                          ? 'bg-white shadow-xs text-[var(--oppa-text)] font-bold dark:bg-slate-800'
+                          : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'
+                      }`}
+                    >
+                      App View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewMode('facebook')}
+                      className={`flex items-center gap-1 rounded-md px-2.5 py-1 transition-all ${
+                        previewMode === 'facebook'
+                          ? 'bg-[#1877F2] text-white font-bold shadow-xs'
+                          : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'
+                      }`}
+                    >
+                      <span className="font-bold">f</span> Facebook Post View
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewItem(null)}
+                  className="rounded-lg p-1 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-border)]/40 transition-colors"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+
+              {/* Scrollable Announcement Preview Body */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+                {previewMode === 'facebook' ? (
+                  /* Realistic Facebook Feed Post Mockup */
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#242526] text-slate-900 dark:text-slate-100 font-sans">
+                    {/* Post Header */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--oppa-green)] text-white font-bold text-sm shadow-xs overflow-hidden">
+                          {fbStatus?.page_picture ? (
+                            <img src={fbStatus.page_picture} alt="Avatar" className="size-full object-cover" />
+                          ) : (
+                            <span className="text-base">🍗</span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5 leading-tight">
+                            <span className="font-bold text-sm hover:underline cursor-pointer">
+                              {fbStatus?.page_name || 'Oppa Dru Korean Fried Chicken'}
+                            </span>
+                            <span className="flex size-3.5 items-center justify-center rounded-full bg-blue-500 text-white text-[9px]">✓</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            <span>{previewItem.date_sent ? formatDisplayDate(previewItem.date_sent) : 'Just now'}</span>
+                            <span>·</span>
+                            <span title="Public" className="inline-flex items-center"><Globe size={11} /></span>
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-slate-400 font-bold text-base cursor-pointer">···</span>
+                    </div>
+
+                    {/* Post Content */}
+                    <div className="mb-3 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">
+                      <p className="font-bold text-base mb-1.5">{previewItem.title}</p>
+                      <p>{previewItem.content}</p>
+                      <p className="mt-2 text-blue-600 dark:text-blue-400">
+                        🍗 Order directly on our website: <br />
+                        👉 {typeof window !== 'undefined' ? window.location.origin : 'https://oppadru.vercel.app'}/menu
+                      </p>
+                      <p className="mt-1 text-slate-500 text-xs">
+                        📍 Oppa Dru Korean Fried Chicken <br />
+                        #OppaDru #KoreanFriedChicken #FoodTrip #CrispyChicken
+                      </p>
+                    </div>
+
+                    {/* Attached Banner Image (full width) */}
+                    {previewItem.image_url && (
+                      <div className="-mx-4 mb-3 border-y border-slate-200 dark:border-slate-700 bg-black flex items-center justify-center overflow-hidden max-h-80">
+                        <img
+                          src={previewItem.image_url}
+                          alt={previewItem.title}
+                          className="w-full object-cover"
+                        />
+                      </div>
+                    )}
+
+                    {/* Engagement Counter Row */}
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 pb-2 mb-2 px-1">
+                      <div className="flex items-center gap-1">
+                        <span className="flex size-4 items-center justify-center rounded-full bg-[#1877F2] text-white text-[10px]">👍</span>
+                        <span className="flex size-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px]">❤️</span>
+                        <span className="ml-1">86</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span>14 comments</span>
+                        <span>·</span>
+                        <span>9 shares</span>
+                      </div>
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="grid grid-cols-3 gap-1 pt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      <button type="button" className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <ThumbsUp size={14} /> Like
+                      </button>
+                      <button type="button" className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <MessageCircle size={14} /> Comment
+                      </button>
+                      <button type="button" className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <Share2 size={14} /> Share
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Standard App View */
+                  <>
+                    {previewItem.image_url && (
+                      <img
+                        src={previewItem.image_url}
+                        alt={previewItem.title}
+                        className="max-h-52 w-full rounded-xl object-cover shadow-sm border border-[var(--oppa-border)]"
+                      />
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${PRIORITY_BADGES[previewItem.priority]?.style || ''}`}>
+                        {PRIORITY_BADGES[previewItem.priority]?.label || 'General'}
+                      </span>
+                      <span className="text-xs text-[var(--oppa-text-muted)]">
+                        {previewItem.date_sent ? formatDisplayDate(previewItem.date_sent) : 'Immediate'}
+                      </span>
+                      <span className="ml-auto text-xs font-semibold text-[var(--oppa-text-muted)]">
+                        {previewItem.target_audience === 'all' ? '🌐 All Category' : '🛍️ Customers Only'}
+                      </span>
+                    </div>
+
+                    <h3 className="font-serif text-lg sm:text-xl font-bold leading-snug text-[var(--oppa-text)]">
+                      {previewItem.title}
+                    </h3>
+
+                    <p className="whitespace-pre-wrap text-xs sm:text-sm leading-relaxed text-[var(--oppa-text-muted)]">
+                      {previewItem.content}
+                    </p>
+                  </>
+                )}
+
+                {/* Facebook Action Card */}
+                <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 dark:border-blue-900/40 dark:bg-blue-950/30">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="flex size-5 items-center justify-center rounded-full bg-[#1877F2] text-white font-bold text-[11px]">
+                        f
+                      </span>
+                      <span className="text-xs font-bold text-[var(--oppa-text)]">
+                        Post to Facebook Business Page
+                      </span>
+                    </div>
+                    {previewItem.metadata?.facebook_post_url ? (
+                      <a
+                        href={previewItem.metadata.facebook_post_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        ✓ View on FB Page
+                      </a>
+                    ) : (
+                      <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold">
+                        @oppadruKFC
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[var(--oppa-text-muted)] mb-3">
+                    Upload this announcement (headline, content, and image) directly to your official Facebook Business Page feed.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenMetaBusinessSuite(previewItem)}
+                      className="flex items-center gap-1.5 rounded-lg bg-[#1877F2] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#166fe5] shadow-xs transition-colors"
+                      title="Copies caption and opens Meta Business Suite Post Composer"
+                    >
+                      <ExternalLink size={13} />
+                      <span>Create on Meta Business Suite</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyFbCaption(previewItem)}
+                      className="flex items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-2.5 py-1.5 text-xs font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] shadow-xs transition-colors dark:bg-slate-800"
+                    >
+                      <Copy size={13} />
+                      <span>Copy Caption</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenFbPage()}
+                      className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-100/60 px-2.5 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-200 shadow-xs transition-colors dark:border-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
+                    >
+                      <ExternalLink size={13} />
+                      <span>View FB Page</span>
+                    </button>
+                    {fbStatus?.connected && (
+                      <button
+                        type="button"
+                        onClick={() => handleDirectPublishFacebook(previewItem)}
+                        disabled={isPublishingToFb === previewItem.id}
+                        className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 shadow-xs transition-colors disabled:opacity-50"
+                        title="Auto-upload via Facebook Graph API"
+                      >
+                        {isPublishingToFb === previewItem.id ? (
+                          <RefreshCw size={13} className="animate-spin" />
+                        ) : (
+                          <Send size={13} />
+                        )}
+                        <span>Direct API Post</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Sticky Bottom Footer */}
+              <div className="flex items-center justify-between border-t border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] px-5 py-3 text-xs text-[var(--oppa-text-muted)] shrink-0">
+                <span>Broadcasted via Oppa Dru</span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewItem(null)}
+                  className="admin-button-primary px-3.5 py-1.5 text-xs font-bold"
+                >
+                  Close Preview
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Facebook Settings Modal (Portaled to document.body) */}
+        {isFbSettingsOpen && typeof document !== 'undefined' && createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 overflow-y-auto bg-black/75 backdrop-blur-xs"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setIsFbSettingsOpen(false);
+            }}
+          >
+            <div
+              className="admin-card relative my-auto flex flex-col w-full max-w-lg rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4 bg-[var(--oppa-surface-raised)]">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex size-8 items-center justify-center rounded-xl bg-[#1877F2] text-white font-bold text-sm shadow-sm">
+                    f
+                  </span>
+                  <div>
+                    <h3 className="font-serif text-base font-bold text-[var(--oppa-text)]">
+                      Facebook Page Integration
+                    </h3>
+                    <p className="text-[11px] text-[var(--oppa-text-muted)]">
+                      Connect your Facebook Business Page for automated text & image posting
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsFbSettingsOpen(false)}
+                  className="rounded-lg p-1.5 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)] transition-colors"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {fbStatus?.connected ? (
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs dark:border-emerald-900 dark:bg-emerald-950/30">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white font-bold">
+                      <Check size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-emerald-900 dark:text-emerald-200">
+                        Connected to: {fbStatus.page_name}
+                      </p>
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                        Page ID: {fbStatus.page_id} · Direct posting is active.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 text-xs dark:border-amber-900 dark:bg-amber-950/30">
+                    <p className="font-bold text-amber-900 dark:text-amber-200">
+                      {fbStatus?.configured ? 'Facebook is not connected' : 'Facebook setup is required'}
+                    </p>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+                      {fbStatus?.error || fbStatus?.message || 'Set the Page Access Token in the backend environment to enable posting.'}
+                    </p>
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] p-3 text-xs text-[var(--oppa-text-muted)]">
+                  <p>Page ID: {fbStatus?.page_id || '1356325764233154'}</p>
+                  <p className="mt-2">
+                    Configure <code>FACEBOOK_PAGE_ACCESS_TOKEN</code> in the backend environment. The token stays server-side and needs <code>pages_manage_posts</code> and <code>pages_read_engagement</code> permissions. After setting it, reload this page and verify the connection.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[var(--oppa-border)]">
+                  <button
+                    type="button"
+                    onClick={() => setIsFbSettingsOpen(false)}
+                    className="admin-button-secondary px-3.5 py-1.5 text-xs font-medium"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRefreshFacebookStatus}
+                    className="admin-button-primary flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold shadow"
+                  >
+                    <RefreshCw size={13} />
+                    <span>Recheck connection</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        {deleteTarget && (
+          <ConfirmDialog
+            title="Delete Announcement?"
+            description={`Are you sure you want to permanently delete "${deleteTarget.title}"? This cannot be undone.`}
+            confirmLabel="Delete Announcement"
+            onConfirm={handleDeleteConfirm}
+            onCancel={() => setDeleteTarget(null)}
+          />
+        )}
+
+        {/* Toast Alert */}
+        {toastMessage && (
+          <Toast message={toastMessage} tone={toastTone} onDismiss={() => setToastMessage(null)} />
+        )}
+      </div>
+    </AdminLayout>
+  );
+};
+
+export default AdminAnnouncementsPage;
