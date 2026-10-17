@@ -25,20 +25,12 @@ trait FranchiseApplicationActivationActions
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $validator = Validator::make($request->all(), [
-            'override_reason' => 'nullable|string|min:10|max:2000',
-        ]);
-        if ($validator->fails()) {
-            return response()->json(['message' => 'The approval details are invalid.', 'errors' => $validator->errors()], 422);
-        }
-
         $admin = Admin::where('api_token', hash('sha256', $request->bearerToken() ?? ''))->first();
         $notificationWarning = null;
         try {
             $approved = app(\App\Services\FranchiseApplicationApprovalService::class)->approve(
                 $id,
                 $admin,
-                $request->input('override_reason'),
             );
         } catch (FranchiseApprovalReadinessException $exception) {
             return response()->json([

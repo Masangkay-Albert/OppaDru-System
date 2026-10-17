@@ -139,7 +139,7 @@ class FranchiseeLoginTest extends TestCase
         Mail::fake();
         [$applicant, $application] = $this->createApplicantApplication();
         $application->forceFill([
-            'status' => 'for_final_evaluation',
+            'status' => 'location_assessment',
             'agreement_status' => 'signed',
             'agreement_signed_at' => now(),
             'franchise_fee_payment_status' => 'not_applicable',
@@ -182,31 +182,68 @@ class FranchiseeLoginTest extends TestCase
             ->assertOk();
     }
 
-    public function test_final_approval_requires_readiness_or_a_documented_override(): void
+    public function test_final_approval_activates_after_required_documents_are_verified(): void
     {
         [$applicant, $application] = $this->createApplicantApplication();
-        $application->forceFill(['status' => 'for_final_evaluation'])->save();
-        $adminToken = 'franchise-final-approval-override-token';
+        $application->forceFill([
+            'status' => 'location_assessment',
+            'requirements_reviewed_at' => now(),
+            'required_documents' => [
+                ['label' => 'Business permit', 'required' => true, 'status' => 'verified'],
+            ],
+        ])->save();
+        $adminToken = 'franchise-final-approval-documents-token';
         Admin::create([
             'full_name' => 'Franchise Admin',
-            'email' => 'franchise-final-approval-override@example.test',
+            'email' => 'franchise-final-approval-documents@example.test',
             'password' => Hash::make('AdminPassword123!'),
             'api_token' => hash('sha256', $adminToken),
         ]);
         $headers = ['Authorization' => 'Bearer '.$adminToken];
 
         $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)
-            ->assertStatus(409)
-            ->assertJsonStructure(['requirements']);
-        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [
-            'override_reason' => 'Executive review confirms this exception is acceptable.',
-        ], $headers)->assertOk()->assertJsonPath('data.status', 'approved');
+            ->assertOk()
+            ->assertJsonPath('data.status', 'approved');
 
         $this->assertDatabaseHas('franchise_applications', [
             'id' => $application->id,
             'email' => $applicant->email,
             'status' => 'approved',
-            'approval_override_reason' => 'Executive review confirms this exception is acceptable.',
+            'approval_override_reason' => null,
+        ]);
+        $this->assertDatabaseHas('franchise_application_events', [
+            'application_id' => $application->id,
+            'title' => 'Opening readiness follow-up',
+            'is_internal' => true,
+        ]);
+    }
+
+    public function test_final_approval_still_requires_requested_documents_to_be_verified(): void
+    {
+        [, $application] = $this->createApplicantApplication();
+        $application->forceFill([
+            'status' => 'location_assessment',
+            'requirements_reviewed_at' => now(),
+            'required_documents' => [
+                ['label' => 'Business permit', 'required' => true, 'status' => 'submitted'],
+            ],
+        ])->save();
+        $adminToken = 'franchise-final-approval-unverified-token';
+        Admin::create([
+            'full_name' => 'Franchise Admin',
+            'email' => 'franchise-final-approval-unverified@example.test',
+            'password' => Hash::make('AdminPassword123!'),
+            'api_token' => hash('sha256', $adminToken),
+        ]);
+
+        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], [
+            'Authorization' => 'Bearer '.$adminToken,
+        ])->assertStatus(409)
+            ->assertJsonPath('requirements.0', 'Required document not verified: Business permit.');
+
+        $this->assertDatabaseHas('franchise_applications', [
+            'id' => $application->id,
+            'status' => 'location_assessment',
         ]);
     }
 

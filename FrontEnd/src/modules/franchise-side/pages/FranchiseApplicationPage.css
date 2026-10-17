@@ -434,14 +434,14 @@ button.franchise-step-button {
 
 .franchise-radio-card {
   display: flex;
-  min-height: 72px;
+  min-height: 88px;
   cursor: pointer;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
   border: 1px solid var(--oppa-border);
   border-radius: 14px;
   background: var(--franchise-card);
-  padding: 14px;
+  padding: 16px;
   color: var(--oppa-text);
   transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }

@@ -17,9 +17,9 @@ use Illuminate\Support\Str;
 
 class FranchiseApplicationApprovalService
 {
-    public function approve(string $applicationId, ?Admin $admin, ?string $overrideReason = null): FranchiseApplication
+    public function approve(string $applicationId, ?Admin $admin): FranchiseApplication
     {
-        return DB::transaction(function () use ($applicationId, $admin, $overrideReason) {
+        return DB::transaction(function () use ($applicationId, $admin) {
             $application = FranchiseApplication::whereKey($applicationId)->lockForUpdate()->firstOrFail();
             if ($application->status === 'approved' && $application->franchise_id) {
                 return $application->fresh(['franchise', 'franchiseAccount', 'franchiseApplicant', 'events']);
@@ -27,8 +27,8 @@ class FranchiseApplicationApprovalService
             if (in_array($application->status, ['rejected', 'withdrawn'], true)) {
                 throw new FranchiseApprovalException('Rejected or withdrawn applications cannot be approved.');
             }
-            if (! in_array($application->status, ['for_final_evaluation', 'approved_for_opening'], true)) {
-                throw new FranchiseApprovalException('Move the application to final evaluation or opening readiness before final approval.');
+            if (! in_array($application->status, ['location_assessment', 'for_final_evaluation', 'approved_for_opening'], true)) {
+                throw new FranchiseApprovalException('Move the application to location assessment or final evaluation before final approval.');
             }
 
             $applicant = $application->franchiseApplicant
@@ -40,10 +40,11 @@ class FranchiseApplicationApprovalService
                 throw new FranchiseApprovalException('Verify the applicant email before final approval.');
             }
 
-            $readinessIssues = $application->activationReadinessIssues();
-            if ($readinessIssues !== [] && ! trim((string) $overrideReason)) {
-                throw new FranchiseApprovalReadinessException($readinessIssues);
+            $documentIssues = $application->finalApprovalDocumentIssues();
+            if ($documentIssues !== []) {
+                throw new FranchiseApprovalReadinessException($documentIssues);
             }
+            $openingReadinessIssues = $application->activationReadinessIssues();
 
             $email = strtolower(trim($applicant->email));
             $applicantPasswordHash = DB::table('franchise_applicants')
@@ -147,7 +148,7 @@ class FranchiseApplicationApprovalService
                 'reviewed_by_admin_id' => $admin?->id,
                 'reviewed_at' => now(),
                 'next_step_instructions' => FranchiseApplication::defaultInstructionsFor('approved'),
-                'approval_override_reason' => $readinessIssues === [] ? null : trim((string) $overrideReason),
+                'approval_override_reason' => null,
             ])->save();
 
             FranchiseApplicationEvent::create([
@@ -156,22 +157,22 @@ class FranchiseApplicationApprovalService
                 'actor_id' => $admin?->id === null ? null : (string) $admin->id,
                 'status' => 'approved',
                 'title' => 'Application approved',
-                'message' => 'Application approved. Franchise dashboard access activated.',
+                'message' => 'Application approved after required documents were reviewed. Franchise dashboard access activated.',
                 'is_internal' => false,
                 'created_at' => now(),
             ]);
 
-            if ($readinessIssues !== []) {
+            if ($openingReadinessIssues !== []) {
                 FranchiseApplicationEvent::create([
                     'application_id' => $application->id,
                     'actor_type' => 'admin',
                     'actor_id' => $admin?->id === null ? null : (string) $admin->id,
                     'status' => 'approved',
-                    'title' => 'Approval readiness override',
+                    'title' => 'Opening readiness follow-up',
                     'message' => sprintf(
-                        'Final approval overrode readiness issues after status change from %s: %s',
+                        'Final approval activated dashboard access after required documents were verified. Remaining opening-readiness items from %s: %s',
                         $previousStatus,
-                        trim((string) $overrideReason),
+                        implode(' ', $openingReadinessIssues),
                     ),
                     'is_internal' => true,
                     'created_at' => now(),

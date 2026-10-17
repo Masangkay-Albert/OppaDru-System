@@ -259,11 +259,11 @@ const franchiseAdminRequest = async <T,>(url: string, init?: RequestInit): Promi
   return body?.data as T;
 };
 
-export const approveFranchiseApplication = async (id: string | number, overrideReason = '') => {
+export const approveFranchiseApplication = async (id: string | number) => {
   const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications/${id}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ override_reason: overrideReason || null }),
+    body: JSON.stringify({}),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {

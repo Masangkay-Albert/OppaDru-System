@@ -497,7 +497,6 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const [error, setError] = useState('');
   const [confirmationStatus, setConfirmationStatus] = useState<string | null>(null);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
-  const [approvalOverrideReason, setApprovalOverrideReason] = useState('');
   const [approving, setApproving] = useState(false);
   const [approvalNotice, setApprovalNotice] = useState('');
   const formDirty = useRef(false);
@@ -576,28 +575,9 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       ? 'location_assessment'
       : 'under_review'
     : storedStatus;
-  const approvalChecklist = application ? [
-    {
-      label: 'Agreement is signed and dated',
-      complete: application.agreement_status === 'signed' && !!application.agreement_signed_at,
-    },
-    {
-      label: 'Franchise fee is paid, waived, or not applicable',
-      complete: ['paid', 'waived', 'not_applicable'].includes(application.franchise_fee_payment_status || '')
-        && (application.franchise_fee_payment_status !== 'paid'
-          || (Number(application.franchise_fee_amount) > 0 && application.documents?.some((document) => document.document_type === 'payment_proof'))),
-    },
-    {
-      label: 'Requirements checklist has been reviewed and required documents verified',
-      complete: !!application.requirements_reviewed_at
-        && (application.required_documents || []).every((document) => !document.required || ['verified', 'not_applicable'].includes(document.status)),
-    },
-    { label: 'Location readiness is confirmed', complete: ['ready', 'not_applicable'].includes(application.location_readiness || '') },
-    { label: 'Permits and compliance are verified', complete: ['verified', 'not_applicable'].includes(application.permit_compliance_status || '') },
-    { label: 'Required training is complete', complete: ['complete', 'not_applicable'].includes(application.training_status || '') },
-    { label: 'Operational preparation is complete', complete: ['complete', 'not_applicable'].includes(application.operational_preparation_status || '') },
-  ] : [];
-  const approvalReady = approvalChecklist.every((item) => item.complete);
+  const requiredApprovalDocuments = (application?.required_documents || []).filter((document) => document.required);
+  const approvalReady = !!application?.requirements_reviewed_at
+    && requiredApprovalDocuments.every((document) => ['verified', 'not_applicable'].includes(document.status));
   const availableStatuses = useMemo(() => {
     const options = (application?.allowed_transitions || [currentStatus])
       .filter((option) => !['additional_information_required', 'on_hold', 'conditionally_approved', 'approved'].includes(option));
@@ -690,9 +670,8 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     setApproving(true);
     setError('');
     try {
-      const result = await approveFranchiseApplication(id, approvalOverrideReason.trim());
+      const result = await approveFranchiseApplication(id);
       setApprovalDialogOpen(false);
-      setApprovalOverrideReason('');
       formDirty.current = false;
       await load();
       setApprovalNotice(result.notification_warning || '');
@@ -759,10 +738,10 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             </div>
 
             <form noValidate onChange={() => { formDirty.current = true; }} onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-              <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Each status change is recorded. Final dashboard access is granted only through the separate final approval action after readiness checks.</p></div>
+              <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Review and verify the requested documents, then approve to activate dashboard access. Agreement, fee, and opening setup can be completed separately.</p></div>
               <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
               {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview is completed, select Location Assessment. This begins the combined final stage (site inspection, financial evaluation, and agreement). Add the required-document checklist in the panel below. A blank form is optional; saving the requirements automatically opens the applicant's upload area.</p>}
-              {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Complete the site and financial assessment and prepare the final decision/agreement in the requirements panel below. Saving the checklist opens the applicant's document upload area, whether or not templates are attached. The application remains in Location Assessment while documents are submitted.</p>}
+              {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Request and review any needed documents in the panel below. Once the requested documents are verified, approve the application to activate dashboard access.</p>}
               {application.status === 'approved' && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Final approval is complete and the franchise dashboard account is active.</p>}
               {approvalNotice && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{approvalNotice}</p>}
               <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or list the requested documents." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
@@ -778,7 +757,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                 <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Internal interview notes<textarea value={interviewNotes} onChange={(event) => setInterviewNotes(event.target.value)} rows={2} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
               </div>
               <button type="submit" disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60"><Save size={16} />{saving ? 'Saving review…' : 'Save review updates'}</button>
-              {['for_final_evaluation', 'approved_for_opening'].includes(currentStatus) && application.franchise_applicant && application.status !== 'approved' && (
+              {['location_assessment', 'for_final_evaluation', 'approved_for_opening'].includes(currentStatus) && application.franchise_applicant && application.status !== 'approved' && (
                 <button type="button" onClick={() => setApprovalDialogOpen(true)} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-[var(--oppa-green)] hover:bg-emerald-50">
                   <Check size={16} /> Final approval and activate dashboard
                 </button>
@@ -823,24 +802,19 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 id="final-approval-title" className="text-xl font-semibold text-[var(--oppa-text)]">Final approval</h2>
-                <p className="mt-1 text-sm leading-5 text-[var(--oppa-text-muted)]">Approval activates the franchise and grants dashboard access using the applicant’s existing credentials.</p>
+                <p className="mt-1 text-sm leading-5 text-[var(--oppa-text-muted)]">Approval activates the franchise and grants dashboard access using the applicant’s existing credentials. Agreement, fee, and opening-readiness items can be completed afterward.</p>
               </div>
               <button type="button" onClick={() => setApprovalDialogOpen(false)} aria-label="Close final approval dialog" className="grid size-11 shrink-0 place-items-center rounded-lg hover:bg-slate-100"><X size={18} /></button>
             </div>
-            <ul className="mt-5 space-y-2">
-              {approvalChecklist.map((item) => <li key={item.label} className={`flex items-start gap-2 rounded-lg p-2 text-sm ${item.complete ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}>
-                {item.complete ? <Check size={16} className="mt-0.5 shrink-0" /> : <span aria-hidden="true" className="mt-0.5 size-4 shrink-0 rounded-full border border-amber-600" />}
-                <span>{item.label}</span><span className="ml-auto text-xs font-semibold">{item.complete ? 'Ready' : 'Incomplete'}</span>
-              </li>)}
-            </ul>
-            {!approvalReady && <label className="mt-4 block text-sm font-medium text-[var(--oppa-text)]">
-              Documented override reason <span className="text-red-700">*</span>
-              <textarea value={approvalOverrideReason} onChange={(event) => setApprovalOverrideReason(event.target.value)} rows={3} maxLength={2000} minLength={10} required placeholder="Explain why final approval is appropriate despite incomplete readiness checks." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" />
-              <span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">At least 10 characters; this reason is saved to the internal application timeline.</span>
-            </label>}
+            <div className={`mt-5 flex items-start gap-2 rounded-xl p-3 text-sm ${approvalReady ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}>
+              {approvalReady ? <Check size={16} className="mt-0.5 shrink-0" /> : <span aria-hidden="true" className="mt-0.5 size-4 shrink-0 rounded-full border border-amber-600" />}
+              <span>{approvalReady
+                ? 'Required documents have been reviewed and verified. You can approve and activate dashboard access.'
+                : 'Review and verify the required documents in the checklist before final approval.'}</span>
+            </div>
             <div className="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row">
               <button type="button" onClick={() => setApprovalDialogOpen(false)} className="min-h-11 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold">Cancel</button>
-              <button type="button" onClick={() => void finalizeApproval()} disabled={approving || (!approvalReady && approvalOverrideReason.trim().length < 10)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" onClick={() => void finalizeApproval()} disabled={approving || !approvalReady} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
                 {approving && <Loader2 size={16} className="animate-spin" />}{approving ? 'Approving…' : 'Approve and activate'}
               </button>
             </div>

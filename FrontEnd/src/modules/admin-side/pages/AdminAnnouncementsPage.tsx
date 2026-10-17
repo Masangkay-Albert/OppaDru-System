@@ -28,6 +28,16 @@ import {
   UploadCloud,
   X,
 } from 'lucide-react';
+import {
+  FiArrowRight,
+  FiCheckCircle,
+  FiGlobe,
+  FiHeart,
+  FiMapPin,
+  FiShoppingBag,
+  FiThumbsUp,
+} from 'react-icons/fi';
+import { FaFacebookF } from 'react-icons/fa';
 import AdminLayout from '../components/AdminLayout';
 import {
   ConfirmDialog,
@@ -371,14 +381,14 @@ const AdminAnnouncementsPage: React.FC = () => {
 
   const generateFbCaption = (item: Announcement) => {
     const websiteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://oppadru.vercel.app';
-    return `📢 ${item.title}
+    return `${item.title}
 
 ${item.content}
 
-🍗 Order directly on our website:
-👉 ${websiteUrl}/menu
+Order directly on our website:
+${websiteUrl}/menu
 
-📍 Oppa Dru Korean Fried Chicken
+Oppa Dru Korean Fried Chicken
 #OppaDru #KoreanFriedChicken #FoodTrip #CrispyChicken`;
   };
 
@@ -462,7 +472,7 @@ ${item.content}
                 title={fbStatus?.connected ? `Connected to ${fbStatus.page_name || 'Facebook Page'}` : 'Not connected to Facebook. Open settings to configure the Page.'}
                 aria-label={fbStatus?.connected ? `Facebook connected to ${fbStatus.page_name || 'Page'}. Open settings.` : 'Facebook not connected. Open Facebook settings.'}
               >
-                <span className="flex size-4 items-center justify-center rounded-full bg-[#1877F2] text-white text-[10px] font-bold">f</span>
+                <span className="flex size-4 items-center justify-center rounded-full bg-[#1877F2] text-white"><FaFacebookF size={9} aria-hidden="true" /></span>
                 <span>
                   {fbStatus?.connected ? fbStatus.page_name || 'Facebook Connected' : 'Connect Facebook'}
                 </span>
@@ -550,8 +560,8 @@ ${item.content}
                 aria-label="Filter by target audience"
               >
                 <option value="all_filter">All Categories ({stats.total})</option>
-                <option value="all">🌐 All Category ({stats.audiences?.all ?? 0})</option>
-                <option value="customers">🛍️ Customers Only ({stats.audiences?.customers ?? 0})</option>
+                <option value="all">All Category ({stats.audiences?.all ?? 0})</option>
+                <option value="customers">Customers Only ({stats.audiences?.customers ?? 0})</option>
               </select>
               <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
             </div>
@@ -565,9 +575,9 @@ ${item.content}
                 aria-label="Filter by announcement status"
               >
                 <option value="all">All Statuses</option>
-                <option value="published">🟢 Published / Sent</option>
-                <option value="scheduled">⏰ Scheduled</option>
-                <option value="draft">📝 Drafts</option>
+                <option value="published">Published / Sent</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="draft">Drafts</option>
               </select>
               <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
             </div>
@@ -610,7 +620,7 @@ ${item.content}
                   : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:border-[var(--oppa-green)]/40 hover:bg-[var(--oppa-green-soft)]/40 hover:text-[var(--oppa-text)]'
               }`}
             >
-              🌐 All Category <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${audienceFilter === 'all' ? 'bg-white/20' : 'bg-[var(--oppa-cream)]'}`}>{stats.audiences?.all ?? 0}</span>
+              <FiGlobe aria-hidden="true" /> All Category <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${audienceFilter === 'all' ? 'bg-white/20' : 'bg-[var(--oppa-cream)]'}`}>{stats.audiences?.all ?? 0}</span>
             </button>
             <button
               type="button"
@@ -621,7 +631,7 @@ ${item.content}
                   : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:border-[var(--oppa-green)]/40 hover:bg-[var(--oppa-green-soft)]/40 hover:text-[var(--oppa-text)]'
               }`}
             >
-              🛍️ Customers Only <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${audienceFilter === 'customers' ? 'bg-white/20' : 'bg-[var(--oppa-cream)]'}`}>{stats.audiences?.customers ?? 0}</span>
+              <FiShoppingBag aria-hidden="true" /> Customers Only <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${audienceFilter === 'customers' ? 'bg-white/20' : 'bg-[var(--oppa-cream)]'}`}>{stats.audiences?.customers ?? 0}</span>
             </button>
           </div>
         </FilterBar>
@@ -762,7 +772,7 @@ ${item.content}
                               className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:underline dark:text-blue-400"
                               title="View post on Facebook Page"
                             >
-                              <span className="flex size-3.5 items-center justify-center rounded-full bg-[#1877F2] text-white text-[8px] font-bold">f</span>
+                              <span className="flex size-3.5 items-center justify-center rounded-full bg-[#1877F2] text-white"><FaFacebookF size={8} aria-hidden="true" /></span>
                               <span>Posted on FB</span>
                             </a>
                           ) : (
@@ -779,7 +789,7 @@ ${item.content}
                               className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 hover:text-blue-600 transition-colors"
                               title="Post text & image to Meta Business Suite / Facebook"
                             >
-                              <span className="flex size-3.5 items-center justify-center rounded-full bg-[#1877F2] text-white text-[8px] font-bold">f</span>
+                              <span className="flex size-3.5 items-center justify-center rounded-full bg-[#1877F2] text-white"><FaFacebookF size={8} aria-hidden="true" /></span>
                               <span>{isPublishingToFb === item.id ? 'Posting…' : fbStatus?.connected ? 'Publish to FB' : 'Post on Meta Suite'}</span>
                             </button>
                           )}
@@ -987,9 +997,9 @@ ${item.content}
                           className="admin-select h-11 w-full appearance-none rounded-xl px-3 pr-9 text-base sm:text-sm"
                         >
                           <option value="normal">Standard / General</option>
-                          <option value="promo">✨ Special Promo</option>
-                          <option value="high">⚠️ High Priority</option>
-                          <option value="urgent">🚨 Urgent Alert</option>
+                          <option value="promo">Special Promo</option>
+                          <option value="high">High Priority</option>
+                          <option value="urgent">Urgent Alert</option>
                         </select>
                         <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
                       </div>
@@ -1158,7 +1168,7 @@ ${item.content}
                       />
                       <div className="min-w-0">
                         <span className="font-bold text-[var(--oppa-text)] flex items-center gap-1.5">
-                          <span className="flex size-4 items-center justify-center rounded-full bg-[#1877F2] text-white text-[10px] font-bold">f</span>
+                          <span className="flex size-4 items-center justify-center rounded-full bg-[#1877F2] text-white"><FaFacebookF size={9} aria-hidden="true" /></span>
                           Also publish to Oppa Dru Facebook Page
                         </span>
                         <span className="mt-1 block text-xs leading-relaxed text-[var(--oppa-text-muted)]">
@@ -1254,7 +1264,7 @@ ${item.content}
                           : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'
                       }`}
                     >
-                      <span className="font-bold">f</span> Facebook Post View
+                      <FaFacebookF size={11} aria-hidden="true" /> Facebook Post View
                     </button>
                   </div>
                 </div>
@@ -1280,7 +1290,7 @@ ${item.content}
                           {fbStatus?.page_picture ? (
                             <img src={fbStatus.page_picture} alt="Avatar" className="size-full object-cover" />
                           ) : (
-                            <span className="text-base">🍗</span>
+                            <FiShoppingBag size={18} aria-hidden="true" />
                           )}
                         </div>
                         <div>
@@ -1288,7 +1298,7 @@ ${item.content}
                             <span className="font-bold text-sm hover:underline cursor-pointer">
                               {fbStatus?.page_name || 'Oppa Dru Korean Fried Chicken'}
                             </span>
-                            <span className="flex size-3.5 items-center justify-center rounded-full bg-blue-500 text-white text-[9px]">✓</span>
+                            <span className="flex size-3.5 items-center justify-center rounded-full bg-blue-500 text-white"><FiCheckCircle size={11} aria-hidden="true" /></span>
                           </div>
                           <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                             <span>{previewItem.date_sent ? formatDisplayDate(previewItem.date_sent) : 'Just now'}</span>
@@ -1305,11 +1315,11 @@ ${item.content}
                       <p className="font-bold text-base mb-1.5">{previewItem.title}</p>
                       <p>{previewItem.content}</p>
                       <p className="mt-2 text-blue-600 dark:text-blue-400">
-                        🍗 Order directly on our website: <br />
-                        👉 {typeof window !== 'undefined' ? window.location.origin : 'https://oppadru.vercel.app'}/menu
+                        <span className="inline-flex items-center gap-1"><FiShoppingBag aria-hidden="true" /> Order directly on our website:</span><br />
+                        <FiArrowRight className="mr-1 inline-block" aria-hidden="true" />{typeof window !== 'undefined' ? window.location.origin : 'https://oppadru.vercel.app'}/menu
                       </p>
                       <p className="mt-1 text-slate-500 text-xs">
-                        📍 Oppa Dru Korean Fried Chicken <br />
+                        <FiMapPin className="mr-1 inline-block" aria-hidden="true" />Oppa Dru Korean Fried Chicken <br />
                         #OppaDru #KoreanFriedChicken #FoodTrip #CrispyChicken
                       </p>
                     </div>
@@ -1328,8 +1338,8 @@ ${item.content}
                     {/* Engagement Counter Row */}
                     <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 pb-2 mb-2 px-1">
                       <div className="flex items-center gap-1">
-                        <span className="flex size-4 items-center justify-center rounded-full bg-[#1877F2] text-white text-[10px]">👍</span>
-                        <span className="flex size-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px]">❤️</span>
+                        <span className="flex size-4 items-center justify-center rounded-full bg-[#1877F2] text-white"><FiThumbsUp size={10} aria-hidden="true" /></span>
+                        <span className="flex size-4 items-center justify-center rounded-full bg-red-500 text-white"><FiHeart size={10} aria-hidden="true" /></span>
                         <span className="ml-1">86</span>
                       </div>
                       <div className="flex gap-2">
@@ -1371,7 +1381,9 @@ ${item.content}
                         {previewItem.date_sent ? formatDisplayDate(previewItem.date_sent) : 'Immediate'}
                       </span>
                       <span className="ml-auto text-xs font-semibold text-[var(--oppa-text-muted)]">
-                        {previewItem.target_audience === 'all' ? '🌐 All Category' : '🛍️ Customers Only'}
+                        {previewItem.target_audience === 'all'
+                          ? <><FiGlobe className="mr-1 inline-block" aria-hidden="true" />All Category</>
+                          : <><FiShoppingBag className="mr-1 inline-block" aria-hidden="true" />Customers Only</>}
                       </span>
                     </div>
 
@@ -1389,8 +1401,8 @@ ${item.content}
                 <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 dark:border-blue-900/40 dark:bg-blue-950/30">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <div className="flex items-center gap-2">
-                      <span className="flex size-5 items-center justify-center rounded-full bg-[#1877F2] text-white font-bold text-[11px]">
-                        f
+                      <span className="flex size-5 items-center justify-center rounded-full bg-[#1877F2] text-white">
+                        <FaFacebookF size={10} aria-hidden="true" />
                       </span>
                       <span className="text-xs font-bold text-[var(--oppa-text)]">
                         Post to Facebook Business Page
@@ -1491,8 +1503,8 @@ ${item.content}
             >
               <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4 bg-[var(--oppa-surface-raised)]">
                 <div className="flex items-center gap-2.5">
-                  <span className="flex size-8 items-center justify-center rounded-xl bg-[#1877F2] text-white font-bold text-sm shadow-sm">
-                    f
+                  <span className="flex size-8 items-center justify-center rounded-xl bg-[#1877F2] text-white shadow-sm">
+                    <FaFacebookF size={15} aria-hidden="true" />
                   </span>
                   <div>
                     <h3 className="font-serif text-base font-bold text-[var(--oppa-text)]">

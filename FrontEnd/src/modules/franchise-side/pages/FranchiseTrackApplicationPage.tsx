@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, BriefcaseBusiness, CheckCircle2, Clock3, Download, Loader2, Search, Upload } from 'lucide-react';
+import { ArrowLeft, BriefcaseBusiness, CalendarDays, Check, CheckCircle2, Clock3, Copy, Download, File as FileIcon, FileImage, FileText, Loader2, LockKeyhole, MapPin, Search, ShieldCheck, Upload } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import './FranchiseTrackApplicationPage.css';
 import {
   downloadMyFranchiseApplicationDocument,
   downloadTrackedFranchiseDocumentTemplate,
@@ -37,6 +38,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
   const [actionMessage, setActionMessage] = useState('');
   const [actionBusy, setActionBusy] = useState('');
   const [documentFiles, setDocumentFiles] = useState<Record<number, File>>({});
+  const [referenceCopyFeedback, setReferenceCopyFeedback] = useState('');
 
   useEffect(() => {
     if (!routeState?.referenceNumber || !routeState.email) return;
@@ -203,39 +205,98 @@ const FranchiseTrackApplicationPage: React.FC = () => {
     }
   };
 
+  const copyReferenceNumber = async () => {
+    if (!application) return;
+    try {
+      await navigator.clipboard.writeText(application.reference_number);
+      setReferenceCopyFeedback('Copied');
+      window.setTimeout(() => setReferenceCopyFeedback(''), 1600);
+    } catch {
+      setReferenceCopyFeedback('Unable to copy');
+      window.setTimeout(() => setReferenceCopyFeedback(''), 2200);
+    }
+  };
+
   const status = application?.status || 'under_review';
   const applicantStatusLabel = franchiseStatusLabel(status);
   const stageIndex = application ? franchiseStageIndex(application) : -1;
+  const latestEventIndex = application?.events?.reduce(
+    (latestIndex, event, index, events) => Date.parse(event.created_at) > Date.parse(events[latestIndex].created_at) ? index : latestIndex,
+    0,
+  ) ?? -1;
   const showProgress = status !== 'rejected' && status !== 'withdrawn';
+  const statusTone = status === 'rejected'
+    ? 'rejected'
+    : ['approved', 'active', 'approved_for_opening', 'completed'].includes(status)
+      ? 'approved'
+      : ['pending', 'submitted'].includes(status)
+        ? 'pending'
+        : 'review';
   return (
-    <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-8 sm:px-6">
-      <div className="mx-auto max-w-3xl">
-        <Link to="/franchise-opportunities" className="mb-6 inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)]"><ArrowLeft size={16} /> Back to franchise opportunities</Link>
-        <header className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--oppa-green)]">Franchise partner portal</p>
-          <h1 className="mt-1 font-serif text-3xl font-bold text-[var(--oppa-text)]">Track your application</h1>
-          <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">Enter the application reference number and contact email you used when applying.</p>
+    <main className="franchise-track-page min-h-screen px-4 py-6 sm:px-6 sm:py-10">
+      <div className="franchise-track-container mx-auto">
+        <Link to="/franchise-opportunities" className="track-back-link mb-7 inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold">
+          <ArrowLeft size={16} /> Back to franchise opportunities
+        </Link>
+        <header className="track-page-header mb-7">
+          <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--oppa-green)]">Franchise partner portal</p>
+          <h1 className="mt-2 font-serif text-3xl font-bold text-[var(--oppa-text)] sm:text-4xl">Track your application</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--oppa-text-muted)]">Enter the application reference number and contact email you used when applying.</p>
         </header>
 
         {!application && (!routeState?.referenceNumber || !routeState.email || error) && (
-          <form onSubmit={handleSubmit} className="mb-6 grid gap-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:grid-cols-2">
-            <label className="text-sm font-medium text-[var(--oppa-text)]">Application reference number<input required maxLength={32} value={referenceNumber} onChange={(event) => setReferenceNumber(event.target.value)} placeholder="OPPA-2026-XXXXXXXX" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2.5 text-sm font-normal text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus:outline-none focus:ring-0" style={{ WebkitTextFillColor: 'var(--oppa-text)', WebkitBoxShadow: '0 0 0 1000px white inset' }} /></label>
-            <label className="text-sm font-medium text-[var(--oppa-text)]">Contact email<input required type="email" maxLength={255} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2.5 text-sm font-normal text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus:outline-none focus:ring-0" style={{ WebkitTextFillColor: 'var(--oppa-text)', WebkitBoxShadow: '0 0 0 1000px white inset' }} /></label>
-            <button type="submit" disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 sm:col-span-2"><Search size={16} />{loading ? 'Checking application…' : 'Check application status'}</button>
+          <form onSubmit={handleSubmit} className="track-card mb-6 grid gap-4 rounded-2xl border p-5 shadow-sm sm:grid-cols-2 sm:p-6">
+            <label className="text-sm font-semibold text-[var(--oppa-text)]">Application reference number<input required maxLength={32} value={referenceNumber} onChange={(event) => setReferenceNumber(event.target.value)} placeholder="OPPA-2026-XXXXXXXX" className="track-input mt-2 w-full rounded-xl border px-3 py-3 text-base font-normal" /></label>
+            <label className="text-sm font-semibold text-[var(--oppa-text)]">Contact email<input required type="email" maxLength={255} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="track-input mt-2 w-full rounded-xl border px-3 py-3 text-base font-normal" /></label>
+            <button type="submit" disabled={loading} className="track-primary-button inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-60 sm:col-span-2"><Search size={16} />{loading ? 'Checking application…' : 'Check application status'}</button>
           </form>
         )}
 
-        {error && <p role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-        {loading && !application && <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)]"><Loader2 className="mx-auto size-6 animate-spin text-[var(--oppa-green)]" /><p className="mt-3">Looking up your application…</p></div>}
+        {error && <p role="alert" className="track-error mb-5 rounded-xl border p-3 text-sm">{error}</p>}
+        {loading && !application && <div className="track-card rounded-2xl border p-8 text-center text-sm text-[var(--oppa-text-muted)]"><Loader2 className="mx-auto size-6 animate-spin text-[var(--oppa-green)]" /><p className="mt-3">Looking up your application…</p></div>}
         {application && (
-          <article className="overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
-            <header className="flex flex-col gap-3 border-b border-[var(--oppa-border)] p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
-              <div><p className="font-mono text-xs text-[var(--oppa-text-muted)]">{application.reference_number}</p><h2 className="mt-1 text-xl font-bold text-[var(--oppa-text)]">{application.franchise_name}</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Proposed location: {application.location}</p></div>
-              <span className={`w-fit rounded-full px-3 py-1.5 text-sm font-semibold ${status === 'rejected' ? 'bg-red-50 text-red-700' : ['approved', 'active', 'approved_for_opening'].includes(status) ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800'}`}>{applicantStatusLabel}</span>
+          <article className="track-result space-y-5">
+            <header className="track-card track-summary-card flex flex-col gap-5 rounded-2xl border p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-7">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="track-reference-chip font-mono text-xs font-semibold">{application.reference_number}</span>
+                  <button type="button" onClick={() => void copyReferenceNumber()} aria-label="Copy application reference number" title={referenceCopyFeedback || 'Copy reference number'} className="track-icon-button relative inline-flex size-8 items-center justify-center rounded-lg">
+                    {referenceCopyFeedback === 'Copied' ? <Check size={15} /> : <Copy size={15} />}
+                    <span className={`track-copy-tooltip ${referenceCopyFeedback ? 'is-visible' : ''}`} role="status">{referenceCopyFeedback || 'Copy reference number'}</span>
+                  </button>
+                </div>
+                <h2 className="mt-3 truncate font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">{application.franchise_name}</h2>
+                <p className="mt-2 flex items-center gap-2 text-sm text-[var(--oppa-text-muted)]"><MapPin size={16} className="shrink-0 text-[var(--oppa-green)]" /><span>Proposed location: {application.location}</span></p>
+                <p className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[var(--oppa-text-muted)]">
+                  <span className="inline-flex items-center gap-1.5"><CalendarDays size={14} /> Submitted {formatPhilippineDateTime(application.created_at)}</span>
+                  {showProgress && stageIndex >= 0 && <span>Stage {stageIndex + 1} of {FRANCHISE_APPLICATION_STAGES.length}</span>}
+                </p>
+              </div>
+              <span className={`track-status-badge status-${statusTone}`}><span className="track-status-dot" aria-hidden="true" />{applicantStatusLabel}</span>
             </header>
-            <div className="space-y-5 p-5 sm:p-6">
-              {status === 'rejected' && <section role="status" className="rounded-2xl border border-red-200 bg-red-50 p-4"><h3 className="font-semibold text-red-900">Application not approved</h3><p className="mt-1 text-sm leading-6 text-red-800">{application.next_step_instructions || 'The franchisor has reviewed your application and decided not to proceed.'}</p></section>}
-              {['approved', 'active'].includes(status) && <section role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+            {showProgress && <section className="track-card track-stepper-card rounded-2xl border p-5 shadow-sm sm:p-7">
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                <div><p className="text-xs font-bold uppercase tracking-[.14em] text-[var(--oppa-green)]">Application journey</p><h3 className="mt-1 font-serif text-xl font-bold text-[var(--oppa-text)]">Franchise process</h3></div>
+                {stageIndex >= 0 && <span className="track-stage-count">Stage {stageIndex + 1} of {FRANCHISE_APPLICATION_STAGES.length}</span>}
+              </div>
+              <div className="track-stepper-scroll">
+                {stageIndex >= 0 && <div className="track-progress-track" aria-hidden="true"><span style={{ width: `${Math.max(0, Math.min(100, (stageIndex / (FRANCHISE_APPLICATION_STAGES.length - 1)) * 100))}%` }} /></div>}
+                <ol className="track-stepper">
+                  {FRANCHISE_APPLICATION_STAGES.map((stage, index) => {
+                    const complete = index < stageIndex;
+                    const current = index === stageIndex;
+                    return <li key={stage.status} aria-current={current ? 'step' : undefined} className={`track-stage ${complete ? 'is-complete' : current ? 'is-current' : 'is-upcoming'}`}>
+                      <span className="track-stage-marker">{complete ? <Check size={16} strokeWidth={2.5} /> : index + 1}</span>
+                      <span className="track-stage-copy"><span className="track-stage-title">{stage.label}</span><span className="track-stage-state">{current ? `Current: ${franchiseStatusLabel(status)}` : complete ? 'Completed' : 'Next stage'}</span></span>
+                    </li>;
+                  })}
+                </ol>
+              </div>
+            </section>}
+            <div className="track-content-grid">
+              <div className="track-main-column">
+              {status === 'rejected' && <section role="status" className="track-alert track-alert-rejected rounded-2xl border p-4"><h3 className="font-semibold">Application not approved</h3><p className="mt-1 text-sm leading-6">{application.next_step_instructions || 'The franchisor has reviewed your application and decided not to proceed.'}</p></section>}
+              {['approved', 'active'].includes(status) && <section role="status" className="track-alert track-alert-approved rounded-2xl border p-5">
                 <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-6 shrink-0 text-emerald-700" /><div>
                   <h3 className="text-lg font-semibold text-emerald-950">Your franchise is approved</h3>
                   <p className="mt-1 text-sm leading-6 text-emerald-900">Your franchise dashboard is active. Sign in with the registered email and password you used for your applicant account.</p>
@@ -245,43 +306,23 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                   {['Received', 'Under review', 'Interview', 'Decision'].map((item, index) => <li key={item} className="rounded-xl border border-emerald-200 bg-white/80 p-3 text-sm text-emerald-950"><span className="font-semibold">{index + 1}. {item}</span><span className="mt-1 block text-xs text-emerald-800">{index === 3 ? 'Approved' : 'Completed'}</span></li>)}
                 </ol>
               </section>}
-              {showProgress && <section className="rounded-2xl border border-[var(--oppa-border)] p-4">
-                <h3 className="mb-3 text-sm font-semibold">Franchise process</h3>
-                <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                  {FRANCHISE_APPLICATION_STAGES.map((stage, index) => {
-                    const complete = index < stageIndex;
-                    const current = index === stageIndex;
-                    return <li key={stage.status} aria-current={current ? 'step' : undefined} className={`rounded-xl p-3 text-xs ${current ? 'bg-[var(--oppa-green)] text-white' : complete ? 'bg-green-50 text-green-800' : 'bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)]'}`}><span className="font-semibold">{index + 1}. {stage.label}</span><span className="mt-1 block">{current ? `Current: ${franchiseStatusLabel(status)}` : complete ? 'Completed' : 'Next stage'}</span></li>;
-                  })}
-                </ol>
-              </section>}
-              {application.documents?.length ? <section className="rounded-2xl border border-[var(--oppa-border)] p-4">
-                <h3 className="mb-3 font-semibold">Submitted documents</h3>
-                <ul className="space-y-2">{application.documents.map((document, index) => <li key={`${document.name}-${index}`} className="flex items-center gap-3 rounded-xl bg-[var(--oppa-cream)] p-3">
-                  <BriefcaseBusiness className="size-5 shrink-0 text-[var(--oppa-green)]" />
-                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{document.name}</span><span className="text-xs text-[var(--oppa-text-muted)]">{(document.size / (1024 * 1024)).toFixed(document.size < 1024 * 1024 ? 0 : 1)} MB</span></span>
-                  <span className="text-xs font-medium text-[var(--oppa-text-muted)]">Read only</span>
-                </li>)}</ul>
+              {application.documents?.length ? <section className="track-card rounded-2xl border p-4 shadow-sm sm:p-5">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-[var(--oppa-green)]">Your files</p><h3 className="mt-1 font-serif text-xl font-bold text-[var(--oppa-text)]">Submitted documents</h3></div><span className="track-count-badge">{application.documents.length} {application.documents.length === 1 ? 'file' : 'files'}</span></div>
+                <ul className="space-y-2">{application.documents.map((document, index) => {
+                  const extension = document.name.split('.').pop()?.toLowerCase() || '';
+                  const DocumentIcon = ['jpg', 'jpeg', 'png', 'webp'].includes(extension) ? FileImage : extension === 'pdf' ? FileText : ['doc', 'docx'].includes(extension) ? FileText : FileIcon;
+                  const fileSize = document.size < 1024 * 1024 * 0.05 ? '<0.1 MB' : `${(document.size / (1024 * 1024)).toFixed(1)} MB`;
+                  return <li key={`${document.name}-${index}`} className="track-document-row flex items-center gap-3 rounded-xl border p-3 sm:p-4">
+                  <span className="track-file-icon"><DocumentIcon size={19} /></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[var(--oppa-text)]" title={document.name}>{document.name}</span><span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">{fileSize}</span></span>
+                  <span className="track-readonly-badge"><LockKeyhole size={12} /> Read only</span>
+                </li>})}</ul>
               </section> : null}
-              {status !== 'rejected' && !['approved', 'active'].includes(status) && <section className="rounded-2xl bg-[var(--oppa-cream)] p-4">
-                <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>
-                <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
-                {(application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 text-sm">
-                  {application.interview_at && <p className="font-medium">Interview (Philippine time): {formatPhilippineDateTime(application.interview_at)}</p>}
-                  {application.interview_type && <p className="mt-1">Type: {application.interview_type === 'onsite' ? 'Onsite' : 'Online'}</p>}
-                  {application.interview_location && <p className="mt-1">Location: {application.interview_location}</p>}
-                  {application.interview_meeting_url && <div className="mt-2">
-                    <p className="font-medium text-[var(--oppa-text)]">Online meeting link</p>
-                    <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all font-medium text-[var(--oppa-green)] underline">{application.interview_meeting_url}</a>
-                    <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex rounded-lg bg-[var(--oppa-green)] px-3 py-2 font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Join online interview</a>
-                  </div>}
-                </div>}
-              </section>}
               {showRequirements && <>
                 {(actionError || actionMessage) && <p role={actionError ? 'alert' : 'status'} className={`rounded-xl p-3 text-sm ${actionError ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'}`}>{actionError || actionMessage}</p>}
-                <section className="rounded-2xl border border-[var(--oppa-border)] p-4 sm:p-5">
+                <section className="track-card rounded-2xl border p-4 shadow-sm sm:p-5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div><h3 className="font-semibold">Upload requested documents</h3><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Upload a file for each requirement below. If the franchise team attached a template, download and complete it first. Templates are optional. Submit all required files together. PDF, DOC, DOCX, JPG, or PNG; up to 10 MB each.</p></div>
+                    <div><h3 className="font-serif text-xl font-bold">Upload requested documents</h3><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Upload a file for each requirement below. If the franchise team attached a template, download and complete it first. Templates are optional. Submit all required files together. PDF, DOC, DOCX, JPG, or PNG; up to 10 MB each.</p></div>
                     <span className="w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900">{selectedDocumentCount} of {documentsToSubmit.length} files selected</span>
                   </div>
                   {!requiredDocuments.length ? <p className="mt-4 rounded-xl bg-[var(--oppa-cream)] p-3 text-sm text-[var(--oppa-text-muted)]">The franchise team is preparing your document packet.</p> : <div className="mt-4 space-y-3">
@@ -344,12 +385,29 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                   </div>}
                 </section>
               </>}
-              <section>
-                <h3 className="mb-3 flex items-center gap-2 font-semibold"><BriefcaseBusiness size={16} className="text-[var(--oppa-green)]" /> Application timeline</h3>
-                {!application.events?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No timeline updates yet.</p> : <ol className="space-y-4">{application.events.map((event) => <li key={event.id} className="border-l border-[var(--oppa-border)] pl-4"><p className="text-sm font-semibold">{event.title}</p>{event.message && <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[var(--oppa-text-muted)]">{event.message}</p>}<p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{formatPhilippineDateTime(event.created_at)}</p></li>)}</ol>}
+              </div>
+              <aside className="track-side-column">
+              {status !== 'rejected' && status !== 'location_assessment' && !['approved', 'active'].includes(status) && <section className="track-next-step rounded-2xl p-4 sm:p-5">
+                <div className="track-next-step-heading"><span className="track-next-step-icon"><Clock3 size={17} /></span><span className="font-serif text-lg font-bold">Your next step</span></div>
+                <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
+                {(application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 text-sm">
+                  {application.interview_at && <p className="font-medium">Interview (Philippine time): {formatPhilippineDateTime(application.interview_at)}</p>}
+                  {application.interview_type && <p className="mt-1">Type: {application.interview_type === 'onsite' ? 'Onsite' : 'Online'}</p>}
+                  {application.interview_location && <p className="mt-1">Location: {application.interview_location}</p>}
+                  {application.interview_meeting_url && <div className="mt-2">
+                    <p className="font-medium text-[var(--oppa-text)]">Online meeting link</p>
+                    <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all font-medium text-[var(--oppa-green)] underline">{application.interview_meeting_url}</a>
+                    <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex rounded-lg bg-[var(--oppa-green)] px-3 py-2 font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Join online interview</a>
+                  </div>}
+                </div>}
+              </section>}
+              <section className="track-card track-timeline-card rounded-2xl border p-4 shadow-sm sm:p-5">
+                <h3 className="mb-4 flex items-center gap-2 font-serif text-xl font-bold"><BriefcaseBusiness size={17} className="text-[var(--oppa-green)]" /> Application timeline</h3>
+                {!application.events?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No timeline updates yet.</p> : <ol className="track-timeline">{application.events.map((event, index) => <li key={event.id} className={`track-timeline-entry ${index === latestEventIndex ? 'is-latest' : ''}`}><span className="track-timeline-dot" aria-hidden="true" /><div className="min-w-0"><p className="text-sm font-semibold text-[var(--oppa-text)]">{event.title}</p>{event.message && <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[var(--oppa-text-muted)]">{event.message}</p>}<p className="track-timeline-time"><Clock3 size={13} />{formatPhilippineDateTime(event.created_at)}</p></div></li>)}</ol>}
               </section>
-              <p className="text-xs leading-5 text-[var(--oppa-text-muted)]">For privacy, this lookup requires both your reference number and contact email. Keep your reference number for future updates.</p>
+              </aside>
             </div>
+            <p className="track-privacy-note"><ShieldCheck size={17} /><span>For privacy, this lookup requires both your reference number and contact email. Keep your reference number for future updates.</span></p>
           </article>
         )}
       </div>

@@ -237,4 +237,19 @@ class FranchiseApplication extends Model
 
         return $issues;
     }
+
+    public function finalApprovalDocumentIssues(): array
+    {
+        $issues = [];
+        if (! $this->requirements_reviewed_at) {
+            $issues[] = 'An administrator must review and save the requested documents before final approval.';
+        }
+        foreach ($this->required_documents ?? [] as $document) {
+            if (($document['required'] ?? false) && ! in_array($document['status'] ?? null, ['verified', 'not_applicable'], true)) {
+                $issues[] = 'Required document not verified: '.($document['label'] ?? 'Unnamed document').'.';
+            }
+        }
+
+        return $issues;
+    }
 }

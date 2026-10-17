@@ -618,7 +618,7 @@ const FranchiseApplicationPage: React.FC = () => {
               </FormSection>
               <FormSection title="Property and timeline">
                 <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
-                  <FormField id="property_status" label="Do you have a proposed property?" required helper="You can update the team if your plans change." error={fieldErrors.has_proposed_property}>
+                  <FormField id="property_status" label="Do you have a proposed property?" required helper="You can update the team if your plans change." error={fieldErrors.has_proposed_property} className="sm:col-span-2">
                     <SegmentedRadio
                       id="property_status"
                       name="property_status"

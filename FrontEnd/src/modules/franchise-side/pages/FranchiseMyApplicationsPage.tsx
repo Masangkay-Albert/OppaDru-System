@@ -261,7 +261,7 @@ const FranchiseMyApplicationsPage: React.FC = () => {
 
                     {currentStatus === 'active' && <p className="mb-5 rounded-xl bg-green-50 p-3 text-sm text-green-800">Your franchise is active. Authorized franchise operations, sales reporting, and compliance monitoring are now managed through the franchise portal.</p>}
 
-                    {currentStatus !== 'rejected' && !packetRequestOpen && <section className="mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
+                    {currentStatus !== 'rejected' && currentStatus !== 'location_assessment' && !packetRequestOpen && <section className="mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
                       <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>
                       <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
                       {currentStatus === 'for_interview' && (application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl bg-white p-3 text-sm">
