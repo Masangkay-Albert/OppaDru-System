@@ -51,6 +51,9 @@ export const FranchiseAuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!rawUser) {
         throw new Error('The franchise sign-in response was incomplete.');
       }
+      if (typeof response.token !== 'string' || response.token.length === 0) {
+        throw new Error('The franchise sign-in response did not include an authentication token.');
+      }
 
       const normalizedUser: FranchiseUser = {
         id: rawUser.id ?? rawUser.franchise_id ?? 'franchise-user-1',
@@ -61,10 +64,12 @@ export const FranchiseAuthProvider: React.FC<{ children: React.ReactNode }> = ({
         is_active: rawUser.is_active,
         can_process_pos: Boolean(rawUser.can_process_pos),
         franchise: rawUser.franchise,
+        token: response.token,
       };
 
       franchiseAuthService.removeCurrentFranchiseUser();
       franchiseAuthService.setCurrentFranchiseUser(normalizedUser);
+      franchiseAuthService.setStoredFranchiseToken(response.token);
       setFranchiseUser(normalizedUser);
     } finally {
       setIsLoading(false);

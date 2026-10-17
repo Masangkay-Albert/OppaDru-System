@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, BriefcaseBusiness, CalendarDays, Check, CheckCircle2, Clock3, Copy, Download, File as FileIcon, FileImage, FileText, Loader2, LockKeyhole, MapPin, Search, ShieldCheck, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Check, CheckCircle2, CircleX, Clock3, Copy, Download, File as FileIcon, FileImage, FileText, History, Loader2, LockKeyhole, MapPin, Search, ShieldCheck, Upload } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import './FranchiseTrackApplicationPage.css';
 import {
@@ -24,6 +24,79 @@ const requirementCategoryLabel = (category?: string) => ({
   permits_compliance: 'Permits and compliance',
   operational_preparation: 'System and operational preparation',
 }[category || ''] || 'Required document');
+
+type StatusTone = 'approved' | 'review' | 'rejected' | 'pending';
+
+const StatusBadge: React.FC<{ label: string; tone: StatusTone }> = ({ label, tone }) => (
+  <span className={`track-status-badge status-${tone}`}>
+    {tone === 'approved' ? <CheckCircle2 size={16} aria-hidden="true" /> : tone === 'rejected' ? <CircleX size={16} aria-hidden="true" /> : <span className="track-status-dot" aria-hidden="true" />}
+    {label}
+  </span>
+);
+
+const ProcessStepper: React.FC<{ status: string; stageIndex: number }> = ({ status, stageIndex }) => {
+  const progress = Math.max(0, Math.min(100, (stageIndex / (FRANCHISE_APPLICATION_STAGES.length - 1)) * 100));
+  const finalDecision = ['approved', 'active', 'completed'].includes(status);
+  return (
+    <section className="track-card track-stepper-card rounded-2xl border p-5 shadow-sm sm:p-7">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div><p className="text-xs font-bold uppercase tracking-[.14em] text-[var(--oppa-green)]">Application journey</p><h3 className="mt-1 font-serif text-xl font-bold text-[var(--oppa-text)]">Franchise process</h3></div>
+        {stageIndex >= 0 && <span className="track-stage-count">Stage {stageIndex + 1} of {FRANCHISE_APPLICATION_STAGES.length}</span>}
+      </div>
+      <div className="track-stepper-scroll">
+        {stageIndex >= 0 && <div className="track-progress-track" aria-hidden="true"><span style={{ width: `${progress}%` }} /></div>}
+        <ol className="track-stepper">
+          {FRANCHISE_APPLICATION_STAGES.map((stage, index) => {
+            const complete = index < stageIndex;
+            const current = index === stageIndex;
+            const showFinalCheck = finalDecision && current;
+            const state = current ? `Current: ${franchiseStatusLabel(status)}` : complete ? 'Completed' : 'Next stage';
+            return <li key={stage.status} aria-current={current ? 'step' : undefined} className={`track-stage ${complete ? 'is-complete' : current ? 'is-current' : 'is-upcoming'}`}>
+              <span className="track-stage-marker">{complete || showFinalCheck ? <Check size={18} strokeWidth={2.5} /> : index + 1}</span>
+              <span className="track-stage-copy">
+                <span className="track-stage-title">{stage.label}</span>
+                <span className={`track-stage-state ${complete ? 'state-complete' : current ? 'state-current' : 'state-upcoming'}`}>{state}</span>
+              </span>
+            </li>;
+          })}
+        </ol>
+      </div>
+    </section>
+  );
+};
+
+const StatusCallout: React.FC<{
+  tone: StatusTone;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  role?: 'status';
+  children?: React.ReactNode;
+}> = ({ tone, icon, title, description, role, children }) => (
+  <section role={role} className={`track-callout track-callout-${tone}`}>
+    <div className="track-callout-heading">
+      <span className="track-callout-icon">{icon}</span>
+      <h3>{title}</h3>
+    </div>
+    <p className="track-callout-description">{description}</p>
+    {children}
+  </section>
+);
+
+const TimelineItem: React.FC<{
+  event: NonNullable<ApplicantFranchiseApplication['events']>[number];
+  latest: boolean;
+  formatDate: (value: string) => string;
+}> = ({ event, latest, formatDate }) => (
+  <li className={`track-timeline-entry ${latest ? 'is-latest' : ''}`}>
+    <span className="track-timeline-dot" aria-hidden="true" />
+    <div className="min-w-0">
+      <p className="track-timeline-title">{event.title}</p>
+      {event.message && <p className="track-timeline-description">{event.message}</p>}
+      <p className="track-timeline-time"><Clock3 size={13} />{formatDate(event.created_at)}</p>
+    </div>
+  </li>
+);
 
 const FranchiseTrackApplicationPage: React.FC = () => {
   const location = useLocation();
@@ -256,7 +329,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
         {loading && !application && <div className="track-card rounded-2xl border p-8 text-center text-sm text-[var(--oppa-text-muted)]"><Loader2 className="mx-auto size-6 animate-spin text-[var(--oppa-green)]" /><p className="mt-3">Looking up your application…</p></div>}
         {application && (
           <article className="track-result space-y-5">
-            <header className="track-card track-summary-card flex flex-col gap-5 rounded-2xl border p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-7">
+            <header className="track-card track-summary-card flex flex-col gap-4 rounded-2xl border p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between sm:p-7">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="track-reference-chip font-mono text-xs font-semibold">{application.reference_number}</span>
@@ -272,40 +345,24 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                   {showProgress && stageIndex >= 0 && <span>Stage {stageIndex + 1} of {FRANCHISE_APPLICATION_STAGES.length}</span>}
                 </p>
               </div>
-              <span className={`track-status-badge status-${statusTone}`}><span className="track-status-dot" aria-hidden="true" />{applicantStatusLabel}</span>
+              <StatusBadge label={applicantStatusLabel} tone={statusTone} />
             </header>
-            {showProgress && <section className="track-card track-stepper-card rounded-2xl border p-5 shadow-sm sm:p-7">
-              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-                <div><p className="text-xs font-bold uppercase tracking-[.14em] text-[var(--oppa-green)]">Application journey</p><h3 className="mt-1 font-serif text-xl font-bold text-[var(--oppa-text)]">Franchise process</h3></div>
-                {stageIndex >= 0 && <span className="track-stage-count">Stage {stageIndex + 1} of {FRANCHISE_APPLICATION_STAGES.length}</span>}
-              </div>
-              <div className="track-stepper-scroll">
-                {stageIndex >= 0 && <div className="track-progress-track" aria-hidden="true"><span style={{ width: `${Math.max(0, Math.min(100, (stageIndex / (FRANCHISE_APPLICATION_STAGES.length - 1)) * 100))}%` }} /></div>}
-                <ol className="track-stepper">
-                  {FRANCHISE_APPLICATION_STAGES.map((stage, index) => {
-                    const complete = index < stageIndex;
-                    const current = index === stageIndex;
-                    return <li key={stage.status} aria-current={current ? 'step' : undefined} className={`track-stage ${complete ? 'is-complete' : current ? 'is-current' : 'is-upcoming'}`}>
-                      <span className="track-stage-marker">{complete ? <Check size={16} strokeWidth={2.5} /> : index + 1}</span>
-                      <span className="track-stage-copy"><span className="track-stage-title">{stage.label}</span><span className="track-stage-state">{current ? `Current: ${franchiseStatusLabel(status)}` : complete ? 'Completed' : 'Next stage'}</span></span>
-                    </li>;
-                  })}
-                </ol>
-              </div>
-            </section>}
+            {showProgress && <ProcessStepper status={status} stageIndex={stageIndex} />}
             <div className="track-content-grid">
               <div className="track-main-column">
-              {status === 'rejected' && <section role="status" className="track-alert track-alert-rejected rounded-2xl border p-4"><h3 className="font-semibold">Application not approved</h3><p className="mt-1 text-sm leading-6">{application.next_step_instructions || 'The franchisor has reviewed your application and decided not to proceed.'}</p></section>}
-              {['approved', 'active'].includes(status) && <section role="status" className="track-alert track-alert-approved rounded-2xl border p-5">
-                <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-6 shrink-0 text-emerald-700" /><div>
-                  <h3 className="text-lg font-semibold text-emerald-950">Your franchise is approved</h3>
-                  <p className="mt-1 text-sm leading-6 text-emerald-900">Your franchise dashboard is active. Sign in with the registered email and password you used for your applicant account.</p>
-                  <Link to={`/franchise/login?email=${encodeURIComponent(application.email)}`} className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Go to franchise login</Link>
-                </div></div>
-                <ol className="mt-5 grid gap-2 sm:grid-cols-4">
-                  {['Received', 'Under review', 'Interview', 'Decision'].map((item, index) => <li key={item} className="rounded-xl border border-emerald-200 bg-white/80 p-3 text-sm text-emerald-950"><span className="font-semibold">{index + 1}. {item}</span><span className="mt-1 block text-xs text-emerald-800">{index === 3 ? 'Approved' : 'Completed'}</span></li>)}
+              {status === 'rejected' && <StatusCallout role="status" tone="rejected" icon={<CircleX size={23} />} title="Application not approved" description={application.next_step_instructions || 'The franchisor has reviewed your application and decided not to proceed.'} />}
+              {['approved', 'active'].includes(status) && <StatusCallout role="status" tone="approved" icon={<Check size={25} strokeWidth={2.5} />} title="Your franchise is approved" description="Your franchise dashboard is active. Sign in with the registered email and password you used for your applicant account.">
+                <Link to={`/franchise/login?email=${encodeURIComponent(application.email)}`} className="track-callout-button mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 text-sm font-bold">
+                  Go to franchise login <ArrowRight size={16} />
+                </Link>
+                <ol className="track-mini-progress mt-5">
+                  {['Received', 'Under review', 'Interview', 'Decision'].map((item, index) => <li key={item} className="track-mini-progress-item">
+                    <span className="track-mini-progress-marker"><Check size={13} strokeWidth={2.5} /></span>
+                    <span className="track-mini-progress-title">{index + 1}. {item}</span>
+                    <span className="track-mini-progress-state">{index === 3 ? 'Approved' : 'Completed'}</span>
+                  </li>)}
                 </ol>
-              </section>}
+              </StatusCallout>}
               {application.documents?.length ? <section className="track-card rounded-2xl border p-4 shadow-sm sm:p-5">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-[var(--oppa-green)]">Your files</p><h3 className="mt-1 font-serif text-xl font-bold text-[var(--oppa-text)]">Submitted documents</h3></div><span className="track-count-badge">{application.documents.length} {application.documents.length === 1 ? 'file' : 'files'}</span></div>
                 <ul className="space-y-2">{application.documents.map((document, index) => {
@@ -387,9 +444,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
               </>}
               </div>
               <aside className="track-side-column">
-              {status !== 'rejected' && status !== 'location_assessment' && !['approved', 'active'].includes(status) && <section className="track-next-step rounded-2xl p-4 sm:p-5">
-                <div className="track-next-step-heading"><span className="track-next-step-icon"><Clock3 size={17} /></span><span className="font-serif text-lg font-bold">Your next step</span></div>
-                <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
+              {status !== 'rejected' && status !== 'location_assessment' && !['approved', 'active'].includes(status) && <StatusCallout tone={statusTone} icon={<Clock3 size={19} />} title="Your next step" description={application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}>
                 {(application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 text-sm">
                   {application.interview_at && <p className="font-medium">Interview (Philippine time): {formatPhilippineDateTime(application.interview_at)}</p>}
                   {application.interview_type && <p className="mt-1">Type: {application.interview_type === 'onsite' ? 'Onsite' : 'Online'}</p>}
@@ -400,10 +455,10 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                     <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex rounded-lg bg-[var(--oppa-green)] px-3 py-2 font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Join online interview</a>
                   </div>}
                 </div>}
-              </section>}
+              </StatusCallout>}
               <section className="track-card track-timeline-card rounded-2xl border p-4 shadow-sm sm:p-5">
-                <h3 className="mb-4 flex items-center gap-2 font-serif text-xl font-bold"><BriefcaseBusiness size={17} className="text-[var(--oppa-green)]" /> Application timeline</h3>
-                {!application.events?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No timeline updates yet.</p> : <ol className="track-timeline">{application.events.map((event, index) => <li key={event.id} className={`track-timeline-entry ${index === latestEventIndex ? 'is-latest' : ''}`}><span className="track-timeline-dot" aria-hidden="true" /><div className="min-w-0"><p className="text-sm font-semibold text-[var(--oppa-text)]">{event.title}</p>{event.message && <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[var(--oppa-text-muted)]">{event.message}</p>}<p className="track-timeline-time"><Clock3 size={13} />{formatPhilippineDateTime(event.created_at)}</p></div></li>)}</ol>}
+                <h3 className="mb-4 flex items-center gap-2 font-serif text-xl font-bold"><History size={18} className="text-[var(--oppa-green)]" /> Application timeline</h3>
+                {!application.events?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No timeline updates yet.</p> : <div className="track-timeline-scroll"><ol className="track-timeline">{application.events.map((event, index) => <TimelineItem key={event.id} event={event} latest={index === latestEventIndex} formatDate={formatPhilippineDateTime} />)}</ol></div>}
               </section>
               </aside>
             </div>

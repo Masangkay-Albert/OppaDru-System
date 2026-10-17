@@ -83,14 +83,21 @@ class FranchiseeLoginTest extends TestCase
         $login = $this->postJson('/api/franchise/login', [
             'email' => $applicant->email,
             'password' => 'ApplicantPass123!',
-        ])->assertOk()->assertJsonMissingPath('token');
+        ])->assertOk()->assertJsonStructure(['token', 'franchise_user', 'expires_at']);
+        $token = $login->json('token');
+        $this->assertIsString($token);
+        $this->assertNotEmpty($token);
         $cookie = collect($login->headers->getCookies())
             ->first(fn (Cookie $candidate) => $candidate->getName() === 'oppa_franchise_session');
         $this->assertNotNull($cookie);
         $this->assertTrue($cookie->isHttpOnly());
         $this->assertNotNull($franchiseeUser->fresh()->api_token_expires_at);
 
-        $this->withHeader('Authorization', 'Bearer '.$cookie->getValue())
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/franchise/me')
+            ->assertOk()
+            ->assertJsonPath('franchise_user.email', $applicant->email);
+        $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/franchise/dashboard')
             ->assertOk();
 
@@ -102,13 +109,15 @@ class FranchiseeLoginTest extends TestCase
         $reviewStatusCookie = collect($reviewStatusLogin->headers->getCookies())
             ->first(fn (Cookie $candidate) => $candidate->getName() === 'oppa_franchise_session');
         $this->assertNotNull($reviewStatusCookie);
-        $this->withHeader('Authorization', 'Bearer '.$reviewStatusCookie->getValue())
+        $reviewStatusToken = $reviewStatusLogin->json('token');
+        $this->assertIsString($reviewStatusToken);
+        $this->withHeader('Authorization', 'Bearer '.$reviewStatusToken)
             ->getJson('/api/franchise/dashboard')
             ->assertOk();
         $this->assertNotNull($franchiseeUser->fresh()->api_token);
 
         $franchiseeUser->franchise->forceFill(['status' => 'inactive'])->save();
-        $this->withHeader('Authorization', 'Bearer '.$reviewStatusCookie->getValue())
+        $this->withHeader('Authorization', 'Bearer '.$reviewStatusToken)
             ->getJson('/api/franchise/dashboard')
             ->assertForbidden()
             ->assertJsonPath('message', 'Your franchise access has been deactivated. Contact support.');
@@ -173,11 +182,13 @@ class FranchiseeLoginTest extends TestCase
         $login = $this->postJson('/api/franchise/login', [
             'email' => $applicant->email,
             'password' => 'ApplicantPass123!',
-        ])->assertOk();
+        ])->assertOk()->assertJsonStructure(['token', 'franchise_user', 'expires_at']);
+        $token = $login->json('token');
+        $this->assertIsString($token);
         $cookie = collect($login->headers->getCookies())
             ->first(fn (Cookie $candidate) => $candidate->getName() === 'oppa_franchise_session');
         $this->assertNotNull($cookie);
-        $this->withHeader('Authorization', 'Bearer '.$cookie->getValue())
+        $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/franchise/dashboard')
             ->assertOk();
     }

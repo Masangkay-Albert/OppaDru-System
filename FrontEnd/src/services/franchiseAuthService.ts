@@ -109,9 +109,13 @@ export const apiFranchiseLogin = async (email: string, password: string) => {
 };
 
 export const getAuthenticatedFranchiseUser = async (): Promise<FranchiseUser | null> => {
+  const token = getStoredFranchiseToken();
   const response = await fetch(`${API_URL}/franchise/me`, {
     credentials: 'include',
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
   const data = await response.json().catch(() => ({}));
   if (response.status === 401 || response.status === 403) {
@@ -128,10 +132,14 @@ export const getAuthenticatedFranchiseUser = async (): Promise<FranchiseUser | n
 };
 
 export const apiFranchiseLogout = async (): Promise<void> => {
+  const token = getStoredFranchiseToken();
   const response = await fetch(`${API_URL}/franchise/logout`, {
     method: 'POST',
     credentials: 'include',
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
@@ -141,9 +149,14 @@ export const apiFranchiseLogout = async (): Promise<void> => {
 
 export const fetchWithFranchiseAuth = async (url: string, init: RequestInit = {}): Promise<Response> => {
   const headers = new Headers(init.headers || {});
+  const token = getStoredFranchiseToken();
 
   if (!headers.has('Accept')) {
     headers.set('Accept', 'application/json');
+  }
+
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
   }
 
   if (!headers.has('Content-Type') && !(init.body instanceof FormData)) {

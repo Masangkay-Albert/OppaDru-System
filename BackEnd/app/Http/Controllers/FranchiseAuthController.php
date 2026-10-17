@@ -109,6 +109,7 @@ class FranchiseAuthController extends Controller
 
         return response()->json([
             'franchise_user' => $franchiseUser->load('franchise')->makeHidden(['password', 'api_token', 'api_token_expires_at']),
+            'token' => $token,
             'expires_at' => $franchiseUser->api_token_expires_at->toIso8601String(),
             'message' => 'Franchise login successful.',
         ])->cookie($this->sessionCookie($request, $token));
