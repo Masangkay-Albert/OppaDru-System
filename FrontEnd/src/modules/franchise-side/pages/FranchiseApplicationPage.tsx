@@ -335,7 +335,6 @@ const FranchiseApplicationPage: React.FC = () => {
                   </div>
                 )) : <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-sm text-[var(--oppa-text-muted)]">No supporting documents attached.</p>}
               </section>
-              <p className="rounded-xl bg-[var(--oppa-cream)] p-4 text-sm text-[var(--oppa-text-muted)]">No account or sign-in is required. Enter an email address you can access so the franchise team can contact you about this application.</p>
             </div>
           )}
 

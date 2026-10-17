@@ -110,6 +110,11 @@ class FranchiseApplicationReviewTest extends TestCase
             'https://meet.example.test/franchise-interview',
             $applicantView->json('data.0.interview_meeting_url'),
         );
+        $this->postJson('/api/franchise-applications/track', [
+            'reference_number' => $application->reference_number,
+            'email' => $applicant['applicant']->email,
+        ])->assertOk()
+            ->assertJsonPath('data.interview_meeting_url', 'https://meet.example.test/franchise-interview');
         $this->assertArrayNotHasKey('admin_notes', $applicantView->json('data.0'));
         $this->assertArrayNotHasKey('interview_notes', $applicantView->json('data.0'));
 

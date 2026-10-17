@@ -46,7 +46,7 @@ export const Toast: React.FC<{
     const timeout = window.setTimeout(onDismiss, 3500);
     return () => window.clearTimeout(timeout);
   }, [message, onDismiss]);
-  return <div role={tone === 'error' ? 'alert' : 'status'} className={`fixed bottom-5 right-5 z-[150] flex max-w-sm items-start gap-2 rounded-xl border px-4 py-3 text-sm font-medium shadow-xl ${tone === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
+  return <div role={tone === 'error' ? 'alert' : 'status'} className={`admin-toast fixed bottom-5 right-5 z-[150] flex max-w-sm items-start gap-2 rounded-xl border px-4 py-3 text-sm font-medium shadow-xl ${tone === 'error' ? 'admin-toast--error' : 'admin-toast--success'}`}>
     <Icon size={17} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{message}</span>
     <button type="button" aria-label="Dismiss notification" onClick={onDismiss} className="ml-2 rounded p-0.5 hover:bg-black/5">×</button>
   </div>;
@@ -121,7 +121,7 @@ export const AvailabilitySwitch: React.FC<{
     title={checked ? activeText : inactiveText}
     disabled={disabled}
     onClick={onChange}
-    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors duration-[160ms] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60 ${checked ? 'bg-green-600' : 'bg-stone-300'}`}
+    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors duration-[160ms] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60 ${checked ? 'bg-green-600' : 'bg-[var(--oppa-border)]'}`}
   >
     <span aria-hidden="true" className={`size-5 rounded-full bg-white shadow-sm transition-transform duration-[160ms] ease-out ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
   </button>

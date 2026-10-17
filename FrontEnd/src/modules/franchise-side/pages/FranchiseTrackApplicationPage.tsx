@@ -245,11 +245,15 @@ const FranchiseTrackApplicationPage: React.FC = () => {
               {status !== 'rejected' && <section className="rounded-2xl bg-[var(--oppa-cream)] p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>
                 <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
-                {status === 'for_interview' && (application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl bg-white p-3 text-sm">
+                {(application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 text-sm">
                   {application.interview_at && <p className="font-medium">Interview (Philippine time): {formatPhilippineDateTime(application.interview_at)}</p>}
                   {application.interview_type && <p className="mt-1">Type: {application.interview_type === 'onsite' ? 'Onsite' : 'Online'}</p>}
                   {application.interview_location && <p className="mt-1">Location: {application.interview_location}</p>}
-                  {application.interview_meeting_url && <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex font-semibold text-[var(--oppa-green)] underline">Join online interview</a>}
+                  {application.interview_meeting_url && <div className="mt-2">
+                    <p className="font-medium text-[var(--oppa-text)]">Online meeting link</p>
+                    <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-1 block break-all font-medium text-[var(--oppa-green)] underline">{application.interview_meeting_url}</a>
+                    <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex rounded-lg bg-[var(--oppa-green)] px-3 py-2 font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Join online interview</a>
+                  </div>}
                 </div>}
               </section>}
               {showRequirements && <>

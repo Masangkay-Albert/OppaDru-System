@@ -136,6 +136,30 @@ body {
   text-overflow: ellipsis;
 }
 
+.products-table th,
+.products-table td {
+  height: 58px;
+  padding-right: 12px;
+  padding-left: 12px;
+}
+
+.products-table th {
+  height: 44px;
+}
+
+.products-table thead th {
+  background: var(--oppa-green-soft);
+}
+
+.products-table thead {
+  top: 68px;
+  z-index: 10;
+}
+
+.products-table tbody tr {
+  transition: background-color 150ms ease;
+}
+
 @media (min-width: 768px) {
   .dashboard-orders-table > div,
   .customers-table > div {
@@ -151,29 +175,22 @@ body {
   }
 
   .data-table th,
-  .data-table td,
-  .products-table th,
-  .products-table td {
+  .data-table td {
     height: 64px;
     padding: 0 16px;
   }
 
-  .data-table th,
-  .products-table th {
+  .data-table th {
     height: 44px;
   }
 
   .data-table th:first-child,
-  .data-table td:first-child,
-  .products-table th:first-child,
-  .products-table td:first-child {
+  .data-table td:first-child {
     padding-left: 20px;
   }
 
   .data-table th:last-child,
-  .data-table td:last-child,
-  .products-table th:last-child,
-  .products-table td:last-child {
+  .data-table td:last-child {
     padding-right: 20px;
   }
 
@@ -181,6 +198,23 @@ body {
 
 .admin-card--brand {
   background: var(--oppa-green);
+}
+
+.admin-toast--success {
+  border-color: color-mix(in srgb, var(--oppa-green) 35%, var(--oppa-border));
+  background: var(--oppa-surface);
+  color: var(--oppa-text);
+}
+
+.admin-toast--error {
+  border-color: #fca5a5;
+  background: var(--oppa-surface);
+  color: #991b1b;
+}
+
+[data-theme='dark'] .admin-toast--error {
+  border-color: #7f1d1d;
+  color: #fecaca;
 }
 
 .admin-skeleton {
@@ -289,15 +323,23 @@ body {
   background: #4ade80;
 }
 
+.admin-page-enter .admin-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--oppa-green) 42%, transparent);
+}
+
+.admin-page-enter .admin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--oppa-green);
+}
+
 :where(input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea) {
-  border: 1px solid #e7e5e4;
+  border: 1px solid var(--oppa-border);
   border-radius: var(--radius-md);
   background-color: var(--oppa-surface);
   color: var(--oppa-text);
 }
 
 :where(input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea)::placeholder {
-  color: #a8a29e;
+  color: var(--oppa-text-muted);
   opacity: 1;
 }
 
