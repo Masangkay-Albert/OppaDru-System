@@ -47,7 +47,7 @@ class FranchiseApplicationSubmissionTest extends TestCase
         ]);
     }
 
-    public function test_applicant_can_provide_a_contact_email_different_from_their_account_email(): void
+    public function test_application_uses_the_registered_applicant_email_even_if_request_email_is_tampered_with(): void
     {
         $applicant = $this->createVerifiedApplicant();
         $contactEmail = 'franchise.contact@example.test';
@@ -58,8 +58,32 @@ class FranchiseApplicationSubmissionTest extends TestCase
         ), [
             'Authorization' => 'Bearer '.$applicant['token'],
         ])->assertCreated()
-            ->assertJsonPath('data.email', $contactEmail)
+            ->assertJsonPath('data.email', $applicant['applicant']->email)
             ->assertJsonMissingPath('data.user_id');
+    }
+
+    public function test_applicant_can_optionally_update_account_profile_and_duplicate_submission_is_rejected(): void
+    {
+        $applicant = $this->createVerifiedApplicant();
+        $data = array_merge($this->applicationData(), [
+            'email' => 'tampered@example.test',
+            'contact_name' => 'Updated Applicant Name',
+            'phone' => '0928 555 0199',
+            'update_profile' => true,
+        ]);
+
+        $this->postJson('/api/franchise-applications', $data, [
+            'Authorization' => 'Bearer '.$applicant['token'],
+        ])->assertCreated()->assertJsonPath('data.email', $applicant['applicant']->email);
+
+        $this->assertDatabaseHas('franchise_applicants', [
+            'id' => $applicant['applicant']->id,
+            'full_name' => 'Updated Applicant Name',
+            'phone' => '09285550199',
+        ]);
+        $this->postJson('/api/franchise-applications', $data, [
+            'Authorization' => 'Bearer '.$applicant['token'],
+        ])->assertStatus(409);
     }
 
     public function test_applicant_can_submit_still_looking_property_status(): void

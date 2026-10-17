@@ -17,10 +17,12 @@ class FranchiseApplication extends Model
         'for_interview',
         'location_assessment',
         'conditionally_approved',
+        'for_final_evaluation',
         'agreement_pending',
         'requirements_pending',
         'approved_for_opening',
         'active',
+        'approved',
         'rejected',
         'withdrawn',
         'on_hold',
@@ -29,11 +31,12 @@ class FranchiseApplication extends Model
     public const STATUS_TRANSITIONS = [
         'pending' => ['under_review', 'on_hold', 'rejected'],
         'submitted' => ['under_review', 'on_hold', 'rejected'],
-        'under_review' => ['additional_information_required', 'for_interview', 'location_assessment', 'conditionally_approved', 'on_hold', 'rejected'],
+        'under_review' => ['additional_information_required', 'for_interview', 'location_assessment', 'for_final_evaluation', 'conditionally_approved', 'on_hold', 'rejected'],
         'additional_information_required' => ['under_review', 'on_hold', 'rejected'],
-        'for_interview' => ['under_review', 'location_assessment', 'conditionally_approved', 'on_hold', 'rejected'],
-        'location_assessment' => ['under_review', 'additional_information_required', 'conditionally_approved', 'on_hold', 'rejected'],
-        'conditionally_approved' => ['agreement_pending', 'on_hold', 'rejected'],
+        'for_interview' => ['under_review', 'location_assessment', 'for_final_evaluation', 'conditionally_approved', 'on_hold', 'rejected'],
+        'location_assessment' => ['under_review', 'additional_information_required', 'for_final_evaluation', 'conditionally_approved', 'on_hold', 'rejected'],
+        'conditionally_approved' => ['agreement_pending', 'requirements_pending', 'approved_for_opening', 'on_hold', 'rejected'],
+        'for_final_evaluation' => ['location_assessment', 'agreement_pending', 'requirements_pending', 'approved_for_opening', 'on_hold', 'rejected'],
         'agreement_pending' => ['requirements_pending', 'on_hold', 'rejected'],
         'requirements_pending' => ['agreement_pending', 'approved_for_opening', 'on_hold', 'rejected'],
         'approved_for_opening' => ['requirements_pending', 'on_hold'],
@@ -91,6 +94,9 @@ class FranchiseApplication extends Model
         'franchise_id',
         'activated_at',
         'activated_by_admin_id',
+        'approved_at',
+        'approved_by_admin_id',
+        'approval_override_reason',
     ];
 
     protected $casts = [
@@ -106,6 +112,7 @@ class FranchiseApplication extends Model
         'required_documents' => 'array',
         'requirements_reviewed_at' => 'datetime',
         'activated_at' => 'datetime',
+        'approved_at' => 'datetime',
     ];
 
     protected static function boot()
@@ -160,7 +167,7 @@ class FranchiseApplication extends Model
         $transitions = self::STATUS_TRANSITIONS[$currentStatus] ?? [];
         $transitions = array_values(array_diff($transitions, ['additional_information_required']));
 
-        if (! in_array($currentStatus, ['active', 'rejected', 'withdrawn'], true)) {
+        if (! in_array($currentStatus, ['active', 'approved', 'rejected', 'withdrawn'], true)) {
             array_unshift($transitions, $currentStatus);
         }
 
@@ -185,6 +192,8 @@ class FranchiseApplication extends Model
             'requirements_pending' => 'Complete the agreed payment, location, permits, construction/equipment, staffing, training, and system setup requirements that apply to your franchise.',
             'approved_for_opening' => 'Opening readiness is approved. Await final authorized activation before beginning operations.',
             'active' => 'Your franchise is active. Follow the operations, reporting, and compliance instructions in the franchise portal.',
+                'for_final_evaluation' => 'Your application is in its final evaluation. The franchise team will contact you with its decision.',
+                'approved' => 'Your franchise is approved. Sign in to the Franchisee Portal to access your dashboard.',
             'rejected' => 'The franchise team has completed its review and this application was not approved.',
             'withdrawn' => 'This application has been withdrawn.',
             'on_hold' => 'Your application is temporarily on hold. Follow the instructions below or contact the franchise team.',

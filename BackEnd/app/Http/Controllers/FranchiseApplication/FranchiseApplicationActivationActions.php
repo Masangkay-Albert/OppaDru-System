@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\FranchiseApplication;
 
+use App\Exceptions\FranchiseApprovalReadinessException;
+use App\Exceptions\FranchiseApprovalException;
 use App\Models\Admin;
 use App\Models\Franchise;
 use App\Models\FranchiseAccount;
@@ -10,11 +12,71 @@ use App\Models\FranchiseUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
 trait FranchiseApplicationActivationActions
 {
+    public function approve(Request $request, string $id)
+    {
+        if (! $this->checkAdminAuth($request)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'override_reason' => 'nullable|string|min:10|max:2000',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['message' => 'The approval details are invalid.', 'errors' => $validator->errors()], 422);
+        }
+
+        $admin = Admin::where('api_token', hash('sha256', $request->bearerToken() ?? ''))->first();
+        $notificationWarning = null;
+        try {
+            $approved = app(\App\Services\FranchiseApplicationApprovalService::class)->approve(
+                $id,
+                $admin,
+                $request->input('override_reason'),
+            );
+        } catch (FranchiseApprovalReadinessException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'requirements' => $exception->issues,
+            ], 409);
+        } catch (FranchiseApprovalException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 409);
+        }
+
+        try {
+            $loginUrl = rtrim((string) config('app.frontend_url', config('app.url')), '/').'/franchise/login?email='.rawurlencode($approved->email);
+            Mail::raw(
+                "Congratulations, {$approved->contact_name}! Your Oppa Dru franchise application has been approved.\n\n"
+                ."Franchise ID: {$approved->franchise_id}\n"
+                ."Application reference: {$approved->reference_number}\n\n"
+                ."Your franchise dashboard is active. Sign in using the email and password from your applicant account:\n{$loginUrl}\n\n"
+                ."You can now set up your menu, staff, inventory, and orders.",
+                fn ($message) => $message->to($approved->email)
+                    ->subject('Your Oppa Dru franchise application is approved'),
+            );
+        } catch (\Throwable $exception) {
+            $notificationWarning = 'Approval succeeded, but the notification email could not be delivered. Contact the applicant directly and check the mail delivery logs.';
+            Log::error('Franchise approval email could not be sent.', [
+                'application_id' => $approved->id,
+                'franchise_id' => $approved->franchise_id,
+                'exception_class' => get_class($exception),
+                'exception_message' => $exception->getMessage(),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Application approved and franchise dashboard access activated.',
+            'notification_warning' => $notificationWarning,
+            'data' => $approved,
+        ]);
+    }
+
     public function activate(Request $request, string $id)
     {
         if (! $this->checkAdminAuth($request)) {
@@ -131,8 +193,14 @@ trait FranchiseApplicationActivationActions
             ];
             $franchiseUser = FranchiseUser::create($franchiseUserPayload);
             if ($applicant) {
-                DB::table('franchise_users')->whereKey($franchiseUser->id)->update([
-                    'password' => $applicant->getAuthPassword(),
+                $applicantPasswordHash = DB::table('franchise_applicants')
+                    ->where('id', $applicant->id)
+                    ->value('password');
+                if (! is_string($applicantPasswordHash) || $applicantPasswordHash === '') {
+                    throw new \RuntimeException('The applicant password credential could not be linked to the franchise account.');
+                }
+                DB::table('franchise_users')->where('id', $franchiseUser->id)->update([
+                    'password' => $applicantPasswordHash,
                 ]);
                 $franchiseUser->refresh();
             }

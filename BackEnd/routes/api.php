@@ -242,6 +242,7 @@ Route::middleware(['admin.access'])->prefix('admin')->group(function () {
     Route::get('/franchise-applications', [FranchiseApplicationController::class, 'index']);
     Route::get('/franchise-applications/stats', [FranchiseApplicationController::class, 'stats']);
     Route::get('/franchise-applications/{id}', [FranchiseApplicationController::class, 'showAdmin']);
+    Route::post('/franchise-applications/{id}/approve', [FranchiseApplicationController::class, 'approve']);
     Route::patch('/franchise-applications/{id}', [FranchiseApplicationController::class, 'review']);
     Route::patch('/franchise-applications/{id}/requirements', [FranchiseApplicationController::class, 'updateRequirements']);
     Route::get('/franchise-applications/{id}/required-documents/{document}/template', [FranchiseApplicationController::class, 'downloadRequirementTemplate']);

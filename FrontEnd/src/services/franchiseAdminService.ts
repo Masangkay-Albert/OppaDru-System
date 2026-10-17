@@ -259,6 +259,20 @@ const franchiseAdminRequest = async <T,>(url: string, init?: RequestInit): Promi
   return body?.data as T;
 };
 
+export const approveFranchiseApplication = async (id: string | number, overrideReason = '') => {
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/franchise-applications/${id}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ override_reason: overrideReason || null }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const readiness = Array.isArray(body.requirements) ? ` ${body.requirements.join(' ')}` : '';
+    throw new Error(`${body.message || 'Unable to approve this application.'}${readiness}`);
+  }
+  return body;
+};
+
 export const getFranchiseDetail = (id: string | number) =>
   franchiseAdminRequest<FranchiseSummary>(`${API_URL}/admin/franchises/${id}`);
 

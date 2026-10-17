@@ -9,6 +9,65 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+Artisan::command('franchise:backfill-final-approval {--approve : Final-approve eligible applications instead of only migrating the legacy status} {--override-reason= : Audited reason required when approving with incomplete readiness checks}', function () {
+    $legacyApplications = \App\Models\FranchiseApplication::query()
+        ->where('status', 'conditionally_approved')
+        ->get();
+
+    foreach ($legacyApplications as $application) {
+        $application->forceFill([
+            'status' => 'for_final_evaluation',
+            'next_step_instructions' => \App\Models\FranchiseApplication::defaultInstructionsFor('for_final_evaluation'),
+        ])->save();
+        $this->line("Mapped {$application->reference_number} to final evaluation.");
+    }
+
+    if (! $this->option('approve')) {
+        $this->info('Legacy statuses have been mapped. No franchise accounts or dashboard access were created.');
+        return 0;
+    }
+
+    $approved = 0;
+    $failed = 0;
+    $reason = trim((string) $this->option('override-reason'));
+    $applications = \App\Models\FranchiseApplication::query()
+        ->whereIn('status', ['for_final_evaluation', 'approved_for_opening'])
+        ->get();
+    foreach ($applications as $application) {
+        try {
+            $approvedApplication = app(\App\Services\FranchiseApplicationApprovalService::class)
+                ->approve($application->id, null, $reason ?: null);
+            try {
+                $loginUrl = rtrim((string) config('app.frontend_url'), '/').'/franchise/login?email='.rawurlencode($approvedApplication->email);
+                Mail::raw(
+                    "Congratulations, {$approvedApplication->contact_name}! Your Oppa Dru franchise application has been approved.\n\n"
+                    ."Franchise ID: {$approvedApplication->franchise_id}\n"
+                    ."Application reference: {$approvedApplication->reference_number}\n\n"
+                    ."Your franchise dashboard is active. Sign in using your applicant account email and password:\n{$loginUrl}",
+                    fn ($message) => $message->to($approvedApplication->email)
+                        ->subject('Your Oppa Dru franchise application is approved'),
+                );
+            } catch (\Throwable $exception) {
+                Log::error('Backfill franchise approval email could not be sent.', [
+                    'application_id' => $approvedApplication->id,
+                    'franchise_id' => $approvedApplication->franchise_id,
+                    'exception_class' => get_class($exception),
+                    'exception_message' => $exception->getMessage(),
+                ]);
+                $this->warn("Approval email could not be sent for {$approvedApplication->reference_number}; check the mail delivery logs.");
+            }
+            $approved++;
+            $this->info("Approved {$application->reference_number} and activated dashboard access.");
+        } catch (\Throwable $exception) {
+            $failed++;
+            $this->error("Could not approve {$application->reference_number}: {$exception->getMessage()}");
+        }
+    }
+
+    $this->info("Backfill complete: {$approved} approved; {$failed} failed.");
+    return $failed === 0 ? 0 : 1;
+})->purpose('Migrate legacy conditional approvals and optionally activate franchise dashboard access');
+
 Artisan::command('mail:test {recipient}', function (string $recipient) {
     $this->info('Mailer: '.config('mail.default'));
     $this->info('Host: '.config('mail.mailers.smtp.host'));

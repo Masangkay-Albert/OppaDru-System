@@ -7,8 +7,8 @@ import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 
 const statusClass = (status?: string) => {
   if (status === 'rejected' || status === 'withdrawn') return 'bg-red-50 text-red-700';
-  if (status === 'active' || status === 'approved_for_opening') return 'bg-green-50 text-green-700';
-  if (status === 'conditionally_approved' || status === 'agreement_pending' || status === 'requirements_pending') return 'bg-blue-50 text-blue-700';
+  if (status === 'approved' || status === 'active') return 'bg-green-50 text-green-700';
+  if (['conditionally_approved', 'for_final_evaluation', 'location_assessment', 'agreement_pending', 'requirements_pending', 'approved_for_opening'].includes(status || '')) return 'bg-blue-50 text-blue-700';
   if (status === 'on_hold') return 'bg-gray-100 text-gray-700';
   return 'bg-amber-50 text-amber-800';
 };
@@ -69,7 +69,7 @@ const AdminFranchiseApplicationsPage: React.FC = () => {
     <AdminLayout>
       <div className="mb-6">
         <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Franchise Applications</h1>
-        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Evaluate each applicant and proposed site through the full review process. Final approval activates registered applicants automatically after all opening-readiness checks pass. New applications appear automatically while this page is open.</p>
+        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Evaluate each applicant and proposed site through the full review process. Final approval activates the registered applicant’s dashboard after readiness checks pass or a documented override is approved. New applications appear automatically while this page is open.</p>
       </div>
       {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">

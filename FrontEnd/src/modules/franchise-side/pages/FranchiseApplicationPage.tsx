@@ -7,6 +7,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { franchiseApplicantAuthService } from '../../../services/franchiseApplicantAuthService';
+import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
 import './FranchiseApplicationPage.css';
 
 type PropertyStatus = '' | 'yes' | 'no' | 'looking';
@@ -106,6 +107,7 @@ const readDraft = (): { draft: Draft | null; error: string } => {
 
 const FranchiseApplicationPage: React.FC = () => {
   const navigate = useNavigate();
+  const { applicant } = useFranchiseApplicantAuth();
   const [draftBootstrap] = useState(readDraft);
   const [form, setForm] = useState<ApplicationForm>(initialForm);
   const [documents, setDocuments] = useState<File[]>([]);
@@ -130,11 +132,24 @@ const FranchiseApplicationPage: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [showStepOneNotes, setShowStepOneNotes] = useState(false);
   const [showReviewNotes, setShowReviewNotes] = useState(false);
+  const [updateApplicantProfile, setUpdateApplicantProfile] = useState(false);
+  const profileInitialized = useRef(false);
   const hasFormData = Object.values(form).some((value) => value.trim()) || documents.length > 0;
   const cardRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isFirstStepRender = useRef(true);
+
+  useEffect(() => {
+    if (!applicant || profileInitialized.current) return;
+    profileInitialized.current = true;
+    setForm((current) => ({
+      ...current,
+      contact_name: applicant.full_name || current.contact_name,
+      email: applicant.email,
+      phone: formatPhone(applicant.phone || current.phone),
+    }));
+  }, [applicant]);
 
   useEffect(() => {
     let cancelled = false;
@@ -249,7 +264,12 @@ const FranchiseApplicationPage: React.FC = () => {
 
   const restoreDraft = () => {
     if (!savedDraft) return;
-    setForm(savedDraft.form);
+    setForm({
+      ...savedDraft.form,
+      contact_name: applicant?.full_name || savedDraft.form.contact_name,
+      email: applicant?.email || savedDraft.form.email,
+      phone: formatPhone(applicant?.phone || savedDraft.form.phone),
+    });
     setStep(savedDraft.step);
     setSavedDraft(null);
     setDraftResolved(true);
@@ -314,7 +334,8 @@ const FranchiseApplicationPage: React.FC = () => {
     const body = new FormData();
     body.append('franchise_name', form.franchise_name);
     body.append('contact_name', form.contact_name);
-    body.append('email', form.email);
+    body.append('email', applicant?.email || form.email);
+    body.append('update_profile', updateApplicantProfile ? '1' : '0');
     body.append('phone', form.phone);
     body.append('applicant_address', addressValue(form));
     body.append('business_experience', form.business_experience);
@@ -447,8 +468,8 @@ const FranchiseApplicationPage: React.FC = () => {
               </FormField>
               <FormField id="email" label="Contact email" required helper="We’ll send application updates to this address." error={fieldErrors.email}>
                 <input id="email" required type="email" inputMode="email" autoComplete="email" maxLength={255} value={form.email}
-                  onChange={(event) => updateField('email', event.target.value)} onBlur={() => validateField('email')}
-                  placeholder="you@example.com" className="franchise-control" aria-invalid={!!fieldErrors.email}
+                  readOnly aria-readonly="true" onBlur={() => validateField('email')}
+                  placeholder="you@example.com" className="franchise-control read-only:cursor-not-allowed read-only:bg-stone-50"
                   aria-describedby={fieldDescription('email', !!fieldErrors.email)} />
               </FormField>
               <FormField id="phone" label="Philippine mobile number" required helper="Format: 09XX XXX XXXX." error={fieldErrors.phone}>
@@ -457,6 +478,10 @@ const FranchiseApplicationPage: React.FC = () => {
                   placeholder="0917 123 4567" className="franchise-control" aria-invalid={!!fieldErrors.phone}
                   aria-describedby={fieldDescription('phone', !!fieldErrors.phone)} />
               </FormField>
+              <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-3 text-sm leading-5 text-[var(--oppa-text-muted)] sm:col-span-2">
+                <input type="checkbox" checked={updateApplicantProfile} onChange={(event) => setUpdateApplicantProfile(event.target.checked)} className="mt-0.5 size-4 accent-[var(--oppa-green)]" />
+                <span>Also update my applicant account name and mobile number with these details.</span>
+              </label>
               <div className="hidden sm:block" aria-hidden="true" />
               <FormField id="province" label="Province" required helper="Start typing to see common options." error={fieldErrors.province}>
                 <input id="province" required list="ph-provinces" autoComplete="address-level1" maxLength={100} value={form.province}

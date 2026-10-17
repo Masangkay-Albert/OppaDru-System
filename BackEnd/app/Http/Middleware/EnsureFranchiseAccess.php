@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use App\Models\FranchiseUser;
-use App\Models\FranchiseApplication;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -32,24 +31,8 @@ class EnsureFranchiseAccess
             return $this->denyAndRevoke($request, $franchiseUser, 'Franchise account inactive.');
         }
 
-        $application = FranchiseApplication::query()
-            ->where('franchise_id', $franchiseUser->franchise_id)
-            ->latest()
-            ->first();
-        if ($application && ($application->status !== 'active' || ! $application->activated_at)) {
-            $message = match ($application->status) {
-                'on_hold' => 'Your application is currently on hold. Please contact support.',
-                'rejected' => 'Your application was not approved.',
-                'agreement_pending' => 'Please complete your franchise agreement first.',
-                'approved', 'approved_for_opening' => 'Your application is approved. Franchise activation is pending.',
-                default => 'Your application is still under review.',
-            };
-
-            return $this->denyAndRevoke($request, $franchiseUser, $message);
-        }
-
         if (!$franchiseUser->franchise || !$franchiseUser->franchise->isOperationallyActive()) {
-            return $this->denyAndRevoke($request, $franchiseUser, 'This branch is not currently active.');
+            return $this->denyAndRevoke($request, $franchiseUser, 'Your franchise access has been deactivated. Contact support.');
         }
 
         $request->setUserResolver(fn () => $franchiseUser);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, BriefcaseBusiness, Clock3, Download, Loader2, Search, Upload } from 'lucide-react';
+import { ArrowLeft, BriefcaseBusiness, CheckCircle2, Clock3, Download, Loader2, Search, Upload } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   downloadMyFranchiseApplicationDocument,
@@ -121,6 +121,8 @@ const FranchiseTrackApplicationPage: React.FC = () => {
   const packetNeedsApplicantAction = requiredDocuments.some((item) => ['pending', 'rejected'].includes(item.status));
   const showRequirements = Boolean(
     application
+      && application.status !== 'approved'
+      && application.status !== 'active'
       && application.status !== 'rejected'
       && application.status !== 'withdrawn'
       && (application.status === 'location_assessment'
@@ -202,7 +204,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
   };
 
   const status = application?.status || 'under_review';
-  const applicantStatusLabel = status === 'active' ? 'Approved' : franchiseStatusLabel(status);
+  const applicantStatusLabel = franchiseStatusLabel(status);
   const stageIndex = application ? franchiseStageIndex(application) : -1;
   const showProgress = status !== 'rejected' && status !== 'withdrawn';
   return (
@@ -229,13 +231,23 @@ const FranchiseTrackApplicationPage: React.FC = () => {
           <article className="overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
             <header className="flex flex-col gap-3 border-b border-[var(--oppa-border)] p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
               <div><p className="font-mono text-xs text-[var(--oppa-text-muted)]">{application.reference_number}</p><h2 className="mt-1 text-xl font-bold text-[var(--oppa-text)]">{application.franchise_name}</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Proposed location: {application.location}</p></div>
-              <span className={`w-fit rounded-full px-3 py-1.5 text-sm font-semibold ${status === 'rejected' ? 'bg-red-50 text-red-700' : status === 'active' || status === 'approved_for_opening' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800'}`}>{applicantStatusLabel}</span>
+              <span className={`w-fit rounded-full px-3 py-1.5 text-sm font-semibold ${status === 'rejected' ? 'bg-red-50 text-red-700' : ['approved', 'active', 'approved_for_opening'].includes(status) ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800'}`}>{applicantStatusLabel}</span>
             </header>
             <div className="space-y-5 p-5 sm:p-6">
               {status === 'rejected' && <section role="status" className="rounded-2xl border border-red-200 bg-red-50 p-4"><h3 className="font-semibold text-red-900">Application not approved</h3><p className="mt-1 text-sm leading-6 text-red-800">{application.next_step_instructions || 'The franchisor has reviewed your application and decided not to proceed.'}</p></section>}
+              {['approved', 'active'].includes(status) && <section role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-6 shrink-0 text-emerald-700" /><div>
+                  <h3 className="text-lg font-semibold text-emerald-950">Your franchise is approved</h3>
+                  <p className="mt-1 text-sm leading-6 text-emerald-900">Your franchise dashboard is active. Sign in with the registered email and password you used for your applicant account.</p>
+                  <Link to={`/franchise/login?email=${encodeURIComponent(application.email)}`} className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Go to franchise login</Link>
+                </div></div>
+                <ol className="mt-5 grid gap-2 sm:grid-cols-4">
+                  {['Received', 'Under review', 'Interview', 'Decision'].map((item, index) => <li key={item} className="rounded-xl border border-emerald-200 bg-white/80 p-3 text-sm text-emerald-950"><span className="font-semibold">{index + 1}. {item}</span><span className="mt-1 block text-xs text-emerald-800">{index === 3 ? 'Approved' : 'Completed'}</span></li>)}
+                </ol>
+              </section>}
               {showProgress && <section className="rounded-2xl border border-[var(--oppa-border)] p-4">
                 <h3 className="mb-3 text-sm font-semibold">Franchise process</h3>
-                <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                   {FRANCHISE_APPLICATION_STAGES.map((stage, index) => {
                     const complete = index < stageIndex;
                     const current = index === stageIndex;
@@ -243,7 +255,15 @@ const FranchiseTrackApplicationPage: React.FC = () => {
                   })}
                 </ol>
               </section>}
-              {status !== 'rejected' && <section className="rounded-2xl bg-[var(--oppa-cream)] p-4">
+              {application.documents?.length ? <section className="rounded-2xl border border-[var(--oppa-border)] p-4">
+                <h3 className="mb-3 font-semibold">Submitted documents</h3>
+                <ul className="space-y-2">{application.documents.map((document, index) => <li key={`${document.name}-${index}`} className="flex items-center gap-3 rounded-xl bg-[var(--oppa-cream)] p-3">
+                  <BriefcaseBusiness className="size-5 shrink-0 text-[var(--oppa-green)]" />
+                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{document.name}</span><span className="text-xs text-[var(--oppa-text-muted)]">{(document.size / (1024 * 1024)).toFixed(document.size < 1024 * 1024 ? 0 : 1)} MB</span></span>
+                  <span className="text-xs font-medium text-[var(--oppa-text-muted)]">Read only</span>
+                </li>)}</ul>
+              </section> : null}
+              {status !== 'rejected' && !['approved', 'active'].includes(status) && <section className="rounded-2xl bg-[var(--oppa-cream)] p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>
                 <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
                 {(application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 text-sm">

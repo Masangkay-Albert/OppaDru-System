@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Lock, Mail, Store } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import LoginBrandPanel from '../../../components/LoginBrandPanel';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 
 const FranchiseLoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useFranchiseAuth();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => searchParams.get('email') || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -39,7 +40,7 @@ const FranchiseLoginPage: React.FC = () => {
               <span className="text-2xl font-semibold text-[var(--oppa-green)]">Oppa Dru</span>
             </div>
             <h1 className="mb-2 text-2xl font-semibold text-[var(--oppa-green)]">Franchisee Portal</h1>
-            <p className="text-sm text-[var(--oppa-text-muted)]">Sign in with your applicant account after franchise activation</p>
+            <p className="text-sm text-[var(--oppa-text-muted)]">After final approval, sign in with the registered email and password from your applicant account.</p>
           </div>
 
           {error && (
@@ -50,30 +51,34 @@ const FranchiseLoginPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-[var(--oppa-border)] bg-white p-8 shadow-lg">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">Registered email</label>
+              <label htmlFor="franchise-login-email" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">Registered email</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
                 <input
+                  id="franchise-login-email"
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   required
-                  className="w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm transition-colors focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)]"
+                  autoComplete="username"
+                  className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-base transition-colors focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)]"
                   placeholder="manager@oppadru.com"
                 />
               </div>
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">Password</label>
+              <label htmlFor="franchise-login-password" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
                 <input
+                  id="franchise-login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required
-                  className="w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-12 text-sm transition-colors focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)]"
+                  autoComplete="current-password"
+                  className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-12 text-base transition-colors focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)]"
                   placeholder="••••••••"
                 />
                 <button

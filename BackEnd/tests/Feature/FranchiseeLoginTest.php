@@ -8,6 +8,7 @@ use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Cookie;
 use Tests\TestCase;
@@ -19,21 +20,15 @@ class FranchiseeLoginTest extends TestCase
     public function test_login_reports_application_eligibility_after_validating_applicant_password(): void
     {
         [$applicant, $application] = $this->createApplicantApplication();
-        $cases = [
-            ['under_review', 'Your application is still under review.'],
-            ['agreement_pending', 'Please complete your franchise agreement first.'],
-            ['on_hold', 'Your application is currently on hold. Please contact support.'],
-            ['rejected', 'Your application was not approved.'],
-            ['approved_for_opening', 'Your application is approved. Franchise activation is pending.'],
-        ];
+        $cases = ['under_review', 'agreement_pending', 'on_hold', 'rejected', 'approved_for_opening'];
 
-        foreach ($cases as $index => [$status, $message]) {
+        foreach ($cases as $index => $status) {
             $application->forceFill(['status' => $status])->save();
             $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.'.($index + 1)])
                 ->postJson('/api/franchise/login', [
                     'email' => $applicant->email,
                     'password' => 'ApplicantPass123!',
-                ])->assertForbidden()->assertJsonPath('message', $message);
+                ])->assertForbidden()->assertJsonPath('status', $status);
         }
 
         $this->assertDatabaseCount('franchise_auth_events', 5);
@@ -71,8 +66,19 @@ class FranchiseeLoginTest extends TestCase
             'can_process_pos' => true,
         ], ['Authorization' => 'Bearer '.$adminToken])->assertCreated();
 
+        FranchiseApplication::create([
+            'franchise_applicant_id' => $applicant->id,
+            'franchise_name' => 'A later application',
+            'contact_name' => $applicant->full_name,
+            'email' => $applicant->email,
+            'phone' => $applicant->phone,
+            'location' => 'Davao City',
+            'status' => 'under_review',
+        ]);
         $franchiseeUser = FranchiseUser::where('email', $applicant->email)->firstOrFail();
-        $this->assertTrue(Hash::check('ApplicantPass123!', $franchiseeUser->password));
+        $this->assertTrue(Hash::check('ApplicantPass123!', \Illuminate\Support\Facades\DB::table('franchise_applicants')->where('id', $applicant->id)->value('password')), 'Applicant source credential must be valid.');
+        $this->assertTrue(Hash::check('ApplicantPass123!', \Illuminate\Support\Facades\DB::table('franchise_users')->where('id', $franchiseeUser->id)->value('password')), 'Copied credential must be valid in storage.');
+        $this->assertTrue(Hash::check('ApplicantPass123!', $franchiseeUser->password), 'The activated franchise user must retain the applicant password.');
 
         $login = $this->postJson('/api/franchise/login', [
             'email' => $applicant->email,
@@ -84,15 +90,28 @@ class FranchiseeLoginTest extends TestCase
         $this->assertTrue($cookie->isHttpOnly());
         $this->assertNotNull($franchiseeUser->fresh()->api_token_expires_at);
 
-        $this->withCookie('oppa_franchise_session', $cookie->getValue())
+        $this->withHeader('Authorization', 'Bearer '.$cookie->getValue())
             ->getJson('/api/franchise/dashboard')
             ->assertOk();
 
         $application->forceFill(['status' => 'on_hold'])->save();
-        $this->withCookie('oppa_franchise_session', $cookie->getValue())
+        $reviewStatusLogin = $this->postJson('/api/franchise/login', [
+            'email' => $applicant->email,
+            'password' => 'ApplicantPass123!',
+        ])->assertOk();
+        $reviewStatusCookie = collect($reviewStatusLogin->headers->getCookies())
+            ->first(fn (Cookie $candidate) => $candidate->getName() === 'oppa_franchise_session');
+        $this->assertNotNull($reviewStatusCookie);
+        $this->withHeader('Authorization', 'Bearer '.$reviewStatusCookie->getValue())
+            ->getJson('/api/franchise/dashboard')
+            ->assertOk();
+        $this->assertNotNull($franchiseeUser->fresh()->api_token);
+
+        $franchiseeUser->franchise->forceFill(['status' => 'inactive'])->save();
+        $this->withHeader('Authorization', 'Bearer '.$reviewStatusCookie->getValue())
             ->getJson('/api/franchise/dashboard')
             ->assertForbidden()
-            ->assertJsonPath('message', 'Your application is currently on hold. Please contact support.');
+            ->assertJsonPath('message', 'Your franchise access has been deactivated. Contact support.');
         $this->assertNull($franchiseeUser->fresh()->api_token);
     }
 
@@ -103,7 +122,7 @@ class FranchiseeLoginTest extends TestCase
         $this->postJson('/api/franchise/login', [
             'email' => $applicant->email,
             'password' => 'WrongPassword123!',
-        ])->assertUnauthorized()->assertJsonPath('message', 'Invalid email or password.');
+        ])->assertUnauthorized()->assertJsonPath('message', 'Incorrect email or password.');
 
         $this->assertDatabaseHas('franchise_auth_events', [
             'email_fingerprint' => hash('sha256', $applicant->email),
@@ -112,6 +131,82 @@ class FranchiseeLoginTest extends TestCase
         ]);
         $this->assertDatabaseMissing('franchise_auth_events', [
             'user_agent' => 'WrongPassword123!',
+        ]);
+    }
+
+    public function test_final_approval_atomically_activates_franchise_and_login_uses_applicant_credentials(): void
+    {
+        Mail::fake();
+        [$applicant, $application] = $this->createApplicantApplication();
+        $application->forceFill([
+            'status' => 'for_final_evaluation',
+            'agreement_status' => 'signed',
+            'agreement_signed_at' => now(),
+            'franchise_fee_payment_status' => 'not_applicable',
+            'required_documents' => [],
+            'requirements_reviewed_at' => now(),
+            'location_readiness' => 'ready',
+            'permit_compliance_status' => 'verified',
+            'training_status' => 'complete',
+            'operational_preparation_status' => 'complete',
+        ])->save();
+        $adminToken = 'franchise-final-approval-admin-token';
+        Admin::create([
+            'full_name' => 'Franchise Admin',
+            'email' => 'franchise-final-approval-admin@example.test',
+            'password' => Hash::make('AdminPassword123!'),
+            'api_token' => hash('sha256', $adminToken),
+        ]);
+
+        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], [
+            'Authorization' => 'Bearer '.$adminToken,
+        ])->assertOk()->assertJsonPath('data.status', 'approved');
+
+        $application->refresh();
+        $franchiseUser = FranchiseUser::where('email', $applicant->email)->firstOrFail();
+        $this->assertNotNull($application->approved_at);
+        $this->assertNotNull($application->activated_at);
+        $this->assertSame('active', $franchiseUser->franchise->status);
+        $this->assertTrue(Hash::check('ApplicantPass123!', \Illuminate\Support\Facades\DB::table('franchise_users')->where('id', $franchiseUser->id)->value('password')), 'Approved applicant credentials must be copied to the franchise-user record.');
+        $this->assertTrue(Hash::check('ApplicantPass123!', $franchiseUser->password), 'The approved franchise user must retain the applicant password.');
+
+        $login = $this->postJson('/api/franchise/login', [
+            'email' => $applicant->email,
+            'password' => 'ApplicantPass123!',
+        ])->assertOk();
+        $cookie = collect($login->headers->getCookies())
+            ->first(fn (Cookie $candidate) => $candidate->getName() === 'oppa_franchise_session');
+        $this->assertNotNull($cookie);
+        $this->withHeader('Authorization', 'Bearer '.$cookie->getValue())
+            ->getJson('/api/franchise/dashboard')
+            ->assertOk();
+    }
+
+    public function test_final_approval_requires_readiness_or_a_documented_override(): void
+    {
+        [$applicant, $application] = $this->createApplicantApplication();
+        $application->forceFill(['status' => 'for_final_evaluation'])->save();
+        $adminToken = 'franchise-final-approval-override-token';
+        Admin::create([
+            'full_name' => 'Franchise Admin',
+            'email' => 'franchise-final-approval-override@example.test',
+            'password' => Hash::make('AdminPassword123!'),
+            'api_token' => hash('sha256', $adminToken),
+        ]);
+        $headers = ['Authorization' => 'Bearer '.$adminToken];
+
+        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)
+            ->assertStatus(409)
+            ->assertJsonStructure(['requirements']);
+        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [
+            'override_reason' => 'Executive review confirms this exception is acceptable.',
+        ], $headers)->assertOk()->assertJsonPath('data.status', 'approved');
+
+        $this->assertDatabaseHas('franchise_applications', [
+            'id' => $application->id,
+            'email' => $applicant->email,
+            'status' => 'approved',
+            'approval_override_reason' => 'Executive review confirms this exception is acceptable.',
         ]);
     }
 

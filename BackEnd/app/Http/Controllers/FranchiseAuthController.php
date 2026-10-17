@@ -8,6 +8,7 @@ use App\Models\FranchiseUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -27,7 +28,7 @@ class FranchiseAuthController extends Controller
         if ($validator->fails()) {
             $this->recordLoginAttempt($request, $email, null, null, 'blocked', 'invalid_request');
 
-            return response()->json(['message' => 'Invalid email or password.'], 422);
+            return response()->json(['message' => 'Incorrect email or password.'], 422);
         }
 
         $franchiseUser = FranchiseUser::with(['franchise', 'franchiseAccount'])
@@ -39,57 +40,72 @@ class FranchiseAuthController extends Controller
             if (! $applicant || ! Hash::check($request->input('password'), $applicant->password) || ! $applicant->hasVerifiedEmail()) {
                 $this->recordLoginAttempt($request, $email, $applicant?->id, null, 'blocked', 'invalid_credentials');
 
-                return response()->json(['message' => 'Invalid email or password.'], 401);
+                return response()->json(['message' => 'Incorrect email or password.'], 401);
             }
 
-            $application = $applicant->applications()->latest()->first();
-            $message = $this->eligibilityMessage($application)
-                ?? 'Your application is approved. Franchise activation is pending.';
-            $this->recordLoginAttempt($request, $email, $applicant->id, null, 'blocked', 'not_eligible');
+            $application = $applicant->applications()
+                ->orderByRaw("CASE status WHEN 'approved' THEN 0 WHEN 'active' THEN 0 WHEN 'rejected' THEN 1 WHEN 'on_hold' THEN 2 ELSE 3 END")
+                ->latest()
+                ->first();
+            $this->recordLoginAttempt(
+                $request,
+                $email,
+                $applicant->id,
+                null,
+                'blocked',
+                $application?->status === 'rejected' ? 'rejected' : ($application?->status === 'on_hold' ? 'on_hold' : 'not_eligible'),
+            );
+            Log::notice('Franchise applicant login blocked because no dashboard user is linked.', [
+                'franchise_applicant_id' => $applicant->id,
+                'application_id' => $application?->id,
+                'application_status' => $application?->status,
+                'franchise_found' => false,
+                'role' => null,
+            ]);
 
-            return response()->json(['message' => $message], 403);
+            return response()->json([
+                'message' => $this->eligibilityMessage($application),
+                'status' => $application?->status,
+                'reference_number' => $application?->reference_number,
+            ], 403);
         }
 
         if (! Hash::check($request->input('password'), $franchiseUser->password)) {
             $this->recordLoginAttempt($request, $email, null, $franchiseUser->id, 'blocked', 'invalid_credentials');
 
-            return response()->json(['message' => 'Invalid email or password.'], 401);
-        }
-
-        $application = FranchiseApplication::query()
-            ->where('franchise_id', $franchiseUser->franchise_id)
-            ->latest()
-            ->first();
-        $message = $application ? $this->eligibilityMessage($application) : null;
-        if ($message !== null) {
-            $this->recordLoginAttempt(
-                $request,
-                $email,
-                $application?->franchise_applicant_id,
-                $franchiseUser->id,
-                'blocked',
-                'not_eligible',
-            );
-
-            return response()->json(['message' => $message], 403);
+            return response()->json(['message' => 'Incorrect email or password.'], 401);
         }
 
         if (! $franchiseUser->is_active) {
-            $this->recordLoginAttempt($request, $email, $application?->franchise_applicant_id, $franchiseUser->id, 'blocked', 'inactive_user');
+            $this->recordLoginAttempt($request, $email, null, $franchiseUser->id, 'blocked', 'inactive_user');
+            Log::notice('Franchise login blocked because the franchise user is inactive.', [
+                'franchise_user_id' => $franchiseUser->id,
+                'franchise_id' => $franchiseUser->franchise_id,
+                'franchise_status' => $franchiseUser->franchise?->status,
+                'role' => 'franchisee',
+            ]);
 
-            return response()->json(['message' => 'This franchise account is inactive.'], 403);
+            return response()->json(['message' => 'Your franchise access has been deactivated. Contact support.'], 403);
         }
-        if (! $franchiseUser->franchise || ! $franchiseUser->franchise->isOperationallyActive()) {
-            $this->recordLoginAttempt($request, $email, $application?->franchise_applicant_id, $franchiseUser->id, 'blocked', 'inactive_franchise');
 
-            return response()->json(['message' => 'This branch is not currently active.'], 403);
+        if (! $franchiseUser->franchise || ! $franchiseUser->franchise->isOperationallyActive()) {
+            $this->recordLoginAttempt($request, $email, null, $franchiseUser->id, 'blocked', 'inactive_franchise');
+            Log::notice('Franchise login blocked because the franchise record is inactive or missing.', [
+                'franchise_user_id' => $franchiseUser->id,
+                'franchise_id' => $franchiseUser->franchise_id,
+                'franchise_status' => $franchiseUser->franchise?->status,
+                'franchise_found' => (bool) $franchiseUser->franchise,
+                'role' => 'franchisee',
+            ]);
+
+            return response()->json(['message' => 'Your franchise access has been deactivated. Contact support.'], 403);
         }
 
         $token = Str::random(64);
         $franchiseUser->api_token = hash('sha256', $token);
         $franchiseUser->api_token_expires_at = now()->addHours(8);
         $franchiseUser->save();
-        $this->recordLoginAttempt($request, $email, $application?->franchise_applicant_id, $franchiseUser->id, 'success', 'login');
+        $this->recordLoginAttempt($request, $email, null, $franchiseUser->id, 'success', 'login');
 
         return response()->json([
             'franchise_user' => $franchiseUser->load('franchise')->makeHidden(['password', 'api_token', 'api_token_expires_at']),
@@ -124,32 +140,22 @@ class FranchiseAuthController extends Controller
         ]);
     }
 
-    private function eligibilityMessage(?FranchiseApplication $application): ?string
+    private function eligibilityMessage(?FranchiseApplication $application): string
     {
         if (! $application) {
             return 'Your application is still under review.';
         }
-
         if ($application->status === 'rejected') {
-            return 'Your application was not approved.';
+            return 'Your application was not approved. Contact franchise support for assistance.';
         }
         if ($application->status === 'on_hold') {
-            return 'Your application is currently on hold. Please contact support.';
+            return 'Your application is on hold. Contact franchise support for assistance.';
         }
-        if ($application->status === 'agreement_pending'
-            || ($application->status === 'requirements_pending'
-                && ($application->agreement_status !== 'signed' || ! $application->agreement_signed_at))) {
-            return 'Please complete your franchise agreement first.';
-        }
-        if ($application->status !== 'active' || ! $application->activated_at || ! $application->franchise_id) {
-            if (in_array($application->status, ['approved', 'approved_for_opening'], true)) {
-                return 'Your application is approved. Franchise activation is pending.';
-            }
-
-            return 'Your application is still under review.';
+        if ($application->status === 'approved') {
+            return 'Your franchise is approved, but its dashboard access is not active. Contact franchise support.';
         }
 
-        return null;
+        return 'Your application is still being reviewed. Current stage: '.FranchiseApplication::defaultInstructionsFor($application->status);
     }
 
     private function recordLoginAttempt(

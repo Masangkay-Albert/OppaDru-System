@@ -21,8 +21,8 @@ trait FranchiseApplicationApplicantActions
         $validator = Validator::make($request->all(), [
             'franchise_name' => 'nullable|string|max:255',
             'contact_name' => 'required|string|max:255',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'required|string|max:50',
+            'phone' => ['required', 'string', 'max:50', 'regex:/^09\d{2}\s?\d{3}\s?\d{4}$/'],
+            'update_profile' => 'nullable|boolean',
             'location' => 'required|string|max:2000',
             'applicant_address' => 'required|string|max:2000',
             'business_experience' => 'required|string|max:5000',
@@ -44,7 +44,13 @@ trait FranchiseApplicationApplicantActions
         try {
             $application = DB::transaction(function () use ($request, $applicant, &$storedPaths) {
                 $lockedApplicant = FranchiseApplicant::whereKey($applicant->id)->lockForUpdate()->firstOrFail();
-                $email = strtolower(trim((string) ($request->filled('email') ? $request->input('email') : $lockedApplicant->email)));
+                $email = strtolower(trim((string) $lockedApplicant->email));
+                $phone = preg_replace('/\D+/', '', (string) $request->input('phone'));
+                if ($request->boolean('update_profile')) {
+                    $lockedApplicant->full_name = trim((string) $request->input('contact_name'));
+                    $lockedApplicant->phone = $phone;
+                    $lockedApplicant->save();
+                }
                 $hasOpenApplication = FranchiseApplication::query()
                     ->where(function ($query) use ($lockedApplicant, $email) {
                         $query->where('franchise_applicant_id', $lockedApplicant->id)
@@ -71,7 +77,7 @@ trait FranchiseApplicationApplicantActions
                         ?: 'Oppa Dru - '.$location,
                     'contact_name' => trim((string) $request->input('contact_name')),
                     'email' => $email,
-                    'phone' => trim((string) $request->input('phone')),
+                    'phone' => $phone,
                     'location' => $location,
                     'applicant_address' => trim((string) $request->input('applicant_address')),
                     'business_experience' => trim((string) $request->input('business_experience')),
