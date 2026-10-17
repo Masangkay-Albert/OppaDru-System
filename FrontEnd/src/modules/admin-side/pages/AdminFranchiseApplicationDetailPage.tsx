@@ -573,7 +573,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     : storedStatus;
   const availableStatuses = useMemo(() => {
     const options = (application?.allowed_transitions || [currentStatus])
-      .filter((option) => option !== 'additional_information_required');
+      .filter((option) => option !== 'additional_information_required' && option !== 'on_hold');
     return options.includes(status) ? options : [status, ...options];
   }, [application?.allowed_transitions, currentStatus, status]);
   const saveReviewUpdates = async () => {
@@ -596,8 +596,11 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       setApplication((current) => current
         ? { ...current, status, next_step_instructions: instructions }
         : current);
+      if (status === 'approved_for_opening' && application?.franchise_applicant) {
+        await activateFranchiseApplication(id, { can_process_pos: false });
+      }
       formDirty.current = false;
-      await load();
+      await load(false);
       if (status === 'location_assessment') {
         window.setTimeout(() => {
           document.getElementById('franchise-requirements-panel')?.scrollIntoView({
@@ -627,7 +630,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       setError('Enter the location for the onsite interview.');
       return;
     }
-    if (status === 'conditionally_approved' || status === 'rejected') {
+    if (status === 'conditionally_approved' || status === 'approved_for_opening' || status === 'rejected') {
       setConfirmationStatus(status);
       return;
     }
@@ -714,7 +717,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             </div>
 
             <form noValidate onChange={() => { formDirty.current = true; }} onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-              <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Each status change is recorded. Approval does not create access; franchise activation is a separate gated action.</p></div>
+              <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Each status change is recorded. Final approval activates dashboard access after all agreement, payment, and readiness checks are complete.</p></div>
               <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
               {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview is completed, select Location Assessment. This begins the combined final stage (site inspection, financial evaluation, and agreement). Add the required-document checklist in the panel below. A blank form is optional; saving the requirements automatically opens the applicant's upload area.</p>}
               {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Complete the site and financial assessment and prepare the final decision/agreement in the requirements panel below. Saving the checklist opens the applicant's document upload area, whether or not templates are attached. The application remains in Location Assessment while documents are submitted.</p>}
@@ -736,18 +739,28 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
           {['location_assessment', 'conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening'].includes(currentStatus) && (
             <div id="franchise-requirements-panel" className="scroll-mt-6">
-              <FranchiseRequirementsForm application={application} onSaved={load} onDownload={(index, name) => void downloadDocument(index, name)} onDownloadTemplate={(index, name) => void downloadTemplate(index, name)} onPreview={previewDocument} />
+              <FranchiseRequirementsForm application={application} onSaved={() => load(false)} onDownload={(index, name) => void downloadDocument(index, name)} onDownloadTemplate={(index, name) => void downloadTemplate(index, name)} onPreview={previewDocument} />
             </div>
           )}
-          <FranchiseActivationPanel application={application} onActivated={load} />
+          {(application.status === 'active' || !application.franchise_applicant) && <FranchiseActivationPanel application={application} onActivated={load} />}
         </>
       )}
       {confirmationStatus && <ConfirmDialog
-        title={confirmationStatus === 'rejected' ? 'Reject this application?' : 'Approve this application?'}
+        title={confirmationStatus === 'rejected'
+          ? 'Reject this application?'
+          : confirmationStatus === 'approved_for_opening'
+            ? 'Approve and activate this franchise?'
+            : 'Conditionally approve this application?'}
         description={confirmationStatus === 'rejected'
           ? 'The applicant will see that their application was not approved and any instructions you provide. This decision will be recorded in the application timeline.'
-          : 'The applicant will be notified that they passed the review and may proceed to the agreement and final requirements.'}
-        confirmLabel={confirmationStatus === 'rejected' ? 'Reject application' : 'Approve application'}
+          : confirmationStatus === 'approved_for_opening'
+            ? 'After all agreement, payment, and opening-readiness checks pass, the franchise will be activated automatically. The applicant will use their existing registered email and password to access the franchise dashboard.'
+            : 'The applicant will be notified of conditional approval and may proceed to the agreement and final requirements.'}
+        confirmLabel={confirmationStatus === 'rejected'
+          ? 'Reject application'
+          : confirmationStatus === 'approved_for_opening'
+            ? 'Approve and activate'
+            : 'Conditionally approve'}
         onCancel={() => setConfirmationStatus(null)}
         onConfirm={() => {
           setConfirmationStatus(null);

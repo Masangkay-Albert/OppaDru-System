@@ -69,7 +69,7 @@ const AdminFranchiseApplicationsPage: React.FC = () => {
     <AdminLayout>
       <div className="mb-6">
         <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Franchise Applications</h1>
-        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Evaluate each applicant and proposed site through the full review process. Applications never activate a franchise by themselves. New applications appear automatically while this page is open.</p>
+        <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Evaluate each applicant and proposed site through the full review process. Final approval activates registered applicants automatically after all opening-readiness checks pass. New applications appear automatically while this page is open.</p>
       </div>
       {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">

@@ -202,6 +202,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
   };
 
   const status = application?.status || 'under_review';
+  const applicantStatusLabel = status === 'active' ? 'Approved' : franchiseStatusLabel(status);
   const stageIndex = application ? franchiseStageIndex(application) : -1;
   const showProgress = status !== 'rejected' && status !== 'withdrawn';
   return (
@@ -228,7 +229,7 @@ const FranchiseTrackApplicationPage: React.FC = () => {
           <article className="overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
             <header className="flex flex-col gap-3 border-b border-[var(--oppa-border)] p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
               <div><p className="font-mono text-xs text-[var(--oppa-text-muted)]">{application.reference_number}</p><h2 className="mt-1 text-xl font-bold text-[var(--oppa-text)]">{application.franchise_name}</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Proposed location: {application.location}</p></div>
-              <span className={`w-fit rounded-full px-3 py-1.5 text-sm font-semibold ${status === 'rejected' ? 'bg-red-50 text-red-700' : status === 'active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800'}`}>{franchiseStatusLabel(status)}</span>
+              <span className={`w-fit rounded-full px-3 py-1.5 text-sm font-semibold ${status === 'rejected' ? 'bg-red-50 text-red-700' : status === 'active' || status === 'approved_for_opening' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800'}`}>{applicantStatusLabel}</span>
             </header>
             <div className="space-y-5 p-5 sm:p-6">
               {status === 'rejected' && <section role="status" className="rounded-2xl border border-red-200 bg-red-50 p-4"><h3 className="font-semibold text-red-900">Application not approved</h3><p className="mt-1 text-sm leading-6 text-red-800">{application.next_step_instructions || 'The franchisor has reviewed your application and decided not to proceed.'}</p></section>}
