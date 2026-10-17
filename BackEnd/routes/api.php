@@ -26,6 +26,7 @@ use App\Http\Controllers\FranchiseAuthController;
 use App\Http\Controllers\FranchiseApplicantAuthController;
 use App\Http\Controllers\FranchiseController;
 use App\Http\Controllers\FranchiseAccountController;
+use App\Http\Controllers\AnnouncementController;
 use Illuminate\Http\Request;
 
 
@@ -47,6 +48,7 @@ Route::get('/storage/{path}', function (string $path) {
 })->where('path', '.*');
 
 Route::get('/settings/pricing', [SettingController::class, 'index']);
+Route::get('/announcements', [AnnouncementController::class, 'publicList']);
 Route::get('/franchise-opportunities', [FranchiseApplicationController::class, 'opportunities']);
 Route::post('/franchise-applications/track', [FranchiseApplicationController::class, 'trackByReference'])->middleware('throttle:30,1,franchise-track-lookup');
 Route::post('/franchise-applications/track/documents', [FranchiseApplicationController::class, 'respond'])->middleware('throttle:5,1,franchise-track-documents');
@@ -200,6 +202,15 @@ Route::middleware('franchise.applicant.access')->group(function () {
 });
 
 Route::middleware(['admin.access'])->prefix('admin')->group(function () {
+    Route::get('/announcements', [AnnouncementController::class, 'index']);
+    Route::post('/announcements', [AnnouncementController::class, 'store']);
+    Route::get('/announcements/{id}', [AnnouncementController::class, 'show']);
+    Route::post('/announcements/{id}', [AnnouncementController::class, 'update']);
+    Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy']);
+    Route::patch('/announcements/{id}/status', [AnnouncementController::class, 'toggleStatus']);
+    Route::post('/announcements/{id}/publish-facebook', [AnnouncementController::class, 'publishToFacebook']);
+    Route::get('/facebook/status', [AnnouncementController::class, 'getFacebookStatus']);
+
     Route::post('/addon-groups', [AddonController::class, 'storeGroup']);
     Route::put('/addon-groups/{addonGroup}', [AddonController::class, 'updateGroup']);
     Route::delete('/addon-groups/{addonGroup}', [AddonController::class, 'destroyGroup']);
