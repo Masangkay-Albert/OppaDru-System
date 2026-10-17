@@ -1,0 +1,679 @@
+.franchise-application-page {
+  --franchise-card: #fff;
+  --franchise-surface: #fbf8f1;
+  --franchise-label: #2e7a45;
+}
+
+.franchise-application-card {
+  min-height: min(76vh, 760px);
+  box-shadow: 0 14px 28px -20px rgb(39 49 40 / 35%), 0 3px 8px rgb(39 49 40 / 7%);
+  transition: box-shadow 180ms ease;
+}
+
+.franchise-control {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--oppa-border);
+  border-radius: 12px;
+  background-color: var(--franchise-card);
+  padding: 11px 14px;
+  color: var(--oppa-text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.45;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.franchise-control::placeholder {
+  color: #68766c;
+  opacity: 1;
+}
+
+.franchise-control:focus {
+  border-color: var(--oppa-green);
+  outline: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--oppa-green) 20%, transparent);
+}
+
+.franchise-control[aria-invalid='true'] {
+  border-color: #b42318;
+}
+
+.franchise-select {
+  appearance: none;
+  padding-right: 42px;
+}
+
+.franchise-textarea {
+  min-height: 104px;
+  resize: vertical;
+  overflow: hidden;
+}
+
+.franchise-currency-prefix {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  z-index: 1;
+  transform: translateY(-50%);
+  color: var(--oppa-text-muted);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.franchise-currency-control {
+  padding-left: 34px;
+}
+
+.franchise-control-icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  z-index: 1;
+  transform: translateY(-50%);
+  color: var(--oppa-green);
+}
+
+.franchise-control-with-icon {
+  padding-left: 42px;
+}
+
+.franchise-stepper {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.franchise-stepper-item {
+  position: relative;
+  min-width: 0;
+}
+
+.franchise-stepper-item.has-connector::after {
+  position: absolute;
+  z-index: 0;
+  top: 16px;
+  left: calc(50% + 20px);
+  width: calc(100% - 40px);
+  height: 2px;
+  background: var(--oppa-border);
+  content: '';
+}
+
+.franchise-stepper-item.is-complete.has-connector::after {
+  background: var(--oppa-green);
+}
+
+.franchise-step-button {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  background: transparent;
+  padding: 0 5px;
+  color: var(--oppa-text-muted);
+  text-align: left;
+  text-decoration: none;
+}
+
+button.franchise-step-button {
+  cursor: pointer;
+}
+
+.franchise-step-button:focus-visible {
+  border-radius: 999px;
+  outline: 2px solid var(--oppa-green);
+  outline-offset: 2px;
+}
+
+.franchise-step-circle {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--oppa-border);
+  border-radius: 999px;
+  background: var(--franchise-card);
+  color: var(--oppa-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.is-current .franchise-step-circle {
+  border-color: var(--oppa-green);
+  background: var(--oppa-green);
+  color: white;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--oppa-green) 18%, transparent);
+}
+
+.is-complete .franchise-step-circle {
+  border-color: var(--oppa-green);
+  background: var(--oppa-green);
+  color: white;
+}
+
+.is-current .franchise-step-label,
+.is-complete .franchise-step-label {
+  color: var(--oppa-green);
+}
+
+.franchise-step-label {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.franchise-step-panel {
+  animation: franchise-step-enter 220ms ease both;
+}
+
+.franchise-radio-card {
+  display: flex;
+  min-height: 72px;
+  cursor: pointer;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--oppa-border);
+  border-radius: 14px;
+  background: var(--franchise-card);
+  padding: 14px;
+  color: var(--oppa-text);
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.franchise-radio-card:focus-within {
+  outline: 2px solid var(--oppa-green);
+  outline-offset: 2px;
+}
+
+.franchise-radio-card.is-selected {
+  border-color: var(--oppa-green);
+  background: color-mix(in srgb, var(--oppa-green) 7%, var(--franchise-card));
+  box-shadow: inset 0 0 0 1px var(--oppa-green);
+}
+
+.franchise-radio-card input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.franchise-radio-check {
+  display: inline-flex;
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #68766c;
+  border-radius: 50%;
+  color: white;
+}
+
+.is-selected .franchise-radio-check {
+  border-color: var(--oppa-green);
+  background: var(--oppa-green);
+}
+
+.franchise-dropzone {
+  display: flex;
+  min-height: 142px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed #9eaa9f;
+  border-radius: 16px;
+  background: var(--franchise-card);
+  padding: 18px;
+  text-align: center;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.franchise-dropzone.is-dragging {
+  border-color: var(--oppa-green);
+  background: color-mix(in srgb, var(--oppa-green) 8%, var(--franchise-card));
+}
+
+.franchise-upload-icon,
+.franchise-file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--oppa-green);
+}
+
+.franchise-upload-icon {
+  margin-bottom: 9px;
+}
+
+.franchise-file-card {
+  display: flex;
+  min-height: 84px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--oppa-border);
+  border-radius: 14px;
+  background: var(--franchise-card);
+  padding: 12px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.franchise-file-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--oppa-green) 40%, var(--oppa-border));
+  box-shadow: 0 8px 18px -12px rgb(30 43 34 / 34%);
+}
+
+.franchise-file-icon {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--oppa-green) 10%, var(--franchise-card));
+}
+
+.franchise-upload-progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--oppa-green) 15%, var(--franchise-card));
+}
+
+.franchise-upload-progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--oppa-green);
+}
+
+.franchise-file-action,
+.franchise-remove-button {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--oppa-green);
+}
+
+.franchise-file-action {
+  padding: 0 9px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.franchise-file-action:hover,
+.franchise-remove-button:hover {
+  background: var(--franchise-surface);
+}
+
+.franchise-remove-button {
+  color: #a61b1b;
+}
+
+.franchise-checkbox {
+  accent-color: var(--oppa-green);
+}
+
+.franchise-primary-button,
+.franchise-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background-color 160ms ease, color 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
+}
+
+.franchise-primary-button {
+  background: var(--oppa-green);
+  color: white;
+}
+
+.franchise-primary-button:hover:not(:disabled) {
+  background: var(--oppa-green-dark);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--oppa-green) 22%, transparent);
+}
+
+.franchise-primary-button:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}
+
+.franchise-secondary-button {
+  border: 1px solid var(--oppa-border);
+  background: var(--franchise-card);
+  color: var(--oppa-text);
+}
+
+.franchise-secondary-button:hover:not(:disabled) {
+  background: var(--franchise-surface);
+}
+
+.franchise-primary-button:focus-visible,
+.franchise-secondary-button:focus-visible,
+.franchise-file-action:focus-visible,
+.franchise-remove-button:focus-visible,
+.franchise-radio-card:focus-within {
+  outline: 2px solid var(--oppa-green);
+  outline-offset: 2px;
+}
+
+.franchise-dialog-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(14 24 17 / 54%);
+  padding: 20px;
+}
+
+.franchise-dialog {
+  position: relative;
+  width: min(100%, 440px);
+  border: 1px solid var(--oppa-border);
+  border-radius: 22px;
+  background: var(--franchise-card);
+  padding: 28px;
+  box-shadow: 0 24px 70px rgb(0 0 0 / 25%);
+  animation: franchise-dialog-enter 180ms ease both;
+}
+
+.franchise-dialog-symbol {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  margin-bottom: 14px;
+  border-radius: 13px;
+  background: var(--franchise-surface);
+  color: var(--oppa-green);
+}
+
+.franchise-dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--oppa-text-muted);
+}
+
+.franchise-success-check {
+  animation: franchise-success-pop 480ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.franchise-success-timeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.franchise-success-timeline li {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--oppa-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.franchise-success-timeline li:not(:last-child)::after {
+  position: absolute;
+  top: 10px;
+  left: calc(50% + 13px);
+  width: calc(100% - 26px);
+  height: 2px;
+  background: var(--oppa-border);
+  content: '';
+}
+
+.franchise-timeline-dot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 2px solid var(--oppa-border);
+  border-radius: 50%;
+  background: var(--franchise-card);
+  color: white;
+}
+
+.franchise-success-timeline .is-active {
+  color: var(--oppa-green);
+}
+
+.franchise-success-timeline .is-active .franchise-timeline-dot {
+  border-color: var(--oppa-green);
+  background: var(--oppa-green);
+}
+
+@keyframes franchise-step-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes franchise-dialog-enter {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes franchise-success-pop {
+  0% { opacity: 0; transform: scale(.75); }
+  70% { opacity: 1; transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+[data-theme='dark'] .franchise-application-page,
+.dark .franchise-application-page {
+  --franchise-card: #1c2a20;
+  --franchise-surface: #25362a;
+  --oppa-cream: #111a14;
+  --oppa-text: #eff5ef;
+  --oppa-text-muted: #bdc9bf;
+  --oppa-border: #405447;
+  --oppa-green: #76ca8d;
+  --oppa-green-dark: #5eb878;
+  --oppa-green-soft: #294332;
+}
+
+[data-theme='dark'] .franchise-application-page .franchise-control::placeholder,
+.dark .franchise-application-page .franchise-control::placeholder {
+  color: #a9b7ac;
+}
+
+[data-theme='dark'] .franchise-application-page .franchise-dialog,
+.dark .franchise-application-page .franchise-dialog {
+  color-scheme: dark;
+}
+
+[data-theme='dark'] .franchise-application-page [role='alert'],
+.dark .franchise-application-page [role='alert'] {
+  border-color: #7f3030;
+  background: #3b2020;
+  color: #ffd7d7;
+}
+
+[data-theme='dark'] .franchise-application-page .text-red-700,
+.dark .franchise-application-page .text-red-700 {
+  color: #ffb4ab;
+}
+
+[data-theme='dark'] .franchise-application-page .franchise-primary-button,
+[data-theme='dark'] .franchise-application-page .franchise-draft-continue,
+[data-theme='dark'] .franchise-application-page .franchise-dialog-confirm:not(.bg-red-700),
+[data-theme='dark'] .franchise-application-page .franchise-success-track,
+.dark .franchise-application-page .franchise-primary-button,
+.dark .franchise-application-page .franchise-draft-continue,
+.dark .franchise-application-page .franchise-dialog-confirm:not(.bg-red-700),
+.dark .franchise-application-page .franchise-success-track {
+  background-color: #236d3b;
+  color: #fff;
+}
+
+[data-theme='dark'] .franchise-application-page .franchise-primary-button:hover:not(:disabled),
+[data-theme='dark'] .franchise-application-page .franchise-draft-continue:hover,
+[data-theme='dark'] .franchise-application-page .franchise-success-track:hover,
+.dark .franchise-application-page .franchise-primary-button:hover:not(:disabled),
+.dark .franchise-application-page .franchise-draft-continue:hover,
+.dark .franchise-application-page .franchise-success-track:hover {
+  background-color: #1b5d31;
+}
+
+@media (prefers-color-scheme: dark) {
+  .franchise-application-page:not([data-theme='light']) {
+    --franchise-card: #1c2a20;
+    --franchise-surface: #25362a;
+    --oppa-cream: #111a14;
+    --oppa-text: #eff5ef;
+    --oppa-text-muted: #bdc9bf;
+    --oppa-border: #405447;
+    --oppa-green: #76ca8d;
+    --oppa-green-dark: #5eb878;
+    --oppa-green-soft: #294332;
+  }
+
+  .franchise-application-page:not([data-theme='light']) .franchise-primary-button,
+  .franchise-application-page:not([data-theme='light']) .franchise-draft-continue,
+  .franchise-application-page:not([data-theme='light']) .franchise-dialog-confirm:not(.bg-red-700),
+  .franchise-application-page:not([data-theme='light']) .franchise-success-track {
+    background-color: #236d3b;
+    color: #fff;
+  }
+
+  .franchise-application-page:not([data-theme='light']) .franchise-primary-button:hover:not(:disabled),
+  .franchise-application-page:not([data-theme='light']) .franchise-draft-continue:hover,
+  .franchise-application-page:not([data-theme='light']) .franchise-success-track:hover {
+    background-color: #1b5d31;
+  }
+
+  .franchise-application-page:not([data-theme='light']) [role='alert'] {
+    border-color: #7f3030;
+    background: #3b2020;
+    color: #ffd7d7;
+  }
+
+  .franchise-application-page:not([data-theme='light']) .text-red-700 {
+    color: #ffb4ab;
+  }
+}
+
+[data-theme='light'] .franchise-application-page,
+.light .franchise-application-page {
+  --franchise-card: #fff;
+  --franchise-surface: #fbf8f1;
+  --oppa-cream: #fbf8f1;
+  --oppa-text: #1e2b22;
+  --oppa-text-muted: #66766b;
+  --oppa-border: #e4ded0;
+  --oppa-green: #2e7a45;
+  --oppa-green-dark: #176334;
+  --oppa-green-soft: #dff0e3;
+}
+
+@media (max-width: 640px) {
+  .franchise-application-card {
+    min-height: calc(100dvh - 3rem);
+    padding-bottom: 20px;
+  }
+
+  .franchise-stepper-item.has-connector::after {
+    top: 14px;
+    left: calc(50% + 16px);
+    width: calc(100% - 32px);
+  }
+
+  .franchise-step-button {
+    min-height: 50px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding-inline: 0;
+    text-align: center;
+  }
+
+  .franchise-step-circle {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+  }
+
+  .franchise-step-label {
+    max-width: 100%;
+    font-size: 10px;
+  }
+
+  .franchise-form-actions {
+    position: sticky;
+    z-index: 5;
+    bottom: 0;
+    margin-right: -20px;
+    margin-left: -20px;
+    border-top: 1px solid var(--oppa-border);
+    background: var(--franchise-card);
+    padding: 12px 20px max(12px, env(safe-area-inset-bottom));
+    box-shadow: 0 -10px 20px -17px rgb(20 30 22 / 45%);
+  }
+
+  .franchise-primary-button,
+  .franchise-secondary-button {
+    min-height: 44px;
+    padding-inline: 15px;
+    font-size: 13px;
+  }
+
+  .franchise-file-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .franchise-file-card > div:last-child {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .franchise-application-card,
+  .franchise-step-panel,
+  .franchise-dialog,
+  .franchise-success-check,
+  .franchise-file-card,
+  .franchise-control,
+  .franchise-radio-card {
+    animation: none !important;
+    transition: none !important;
+  }
+}

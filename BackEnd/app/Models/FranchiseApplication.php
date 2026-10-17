@@ -58,6 +58,7 @@ class FranchiseApplication extends Model
         'business_experience',
         'investment_capacity',
         'has_proposed_property',
+        'property_status',
         'opening_timeline',
         'business_information',
         'documents',

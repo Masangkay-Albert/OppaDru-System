@@ -1,57 +1,46 @@
-import React, { useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Building2, Check, CheckCircle2, FileText, Mail, MapPin, Phone, UserRound } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AlertCircle, ArrowLeft, ArrowRight, Building2, Check, CheckCircle2, ChevronDown,
+  CircleHelp, Clock3, Copy, FileText, FileUp, Info, LoaderCircle,
+  Trash2, X,
+} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { franchiseApplicantAuthService } from '../../../services/franchiseApplicantAuthService';
+import './FranchiseApplicationPage.css';
 
+type PropertyStatus = '' | 'yes' | 'no' | 'looking';
 type ApplicationForm = {
   franchise_name: string;
   contact_name: string;
   email: string;
   phone: string;
-  applicant_address: string;
+  province: string;
+  city: string;
+  street: string;
   business_experience: string;
   investment_capacity: string;
   location: string;
-  has_proposed_property: '' | 'yes' | 'no';
+  has_proposed_property: PropertyStatus;
   opening_timeline: string;
   business_information: string;
   notes: string;
 };
+type Draft = { form: ApplicationForm; step: number };
+type FormFieldName = keyof ApplicationForm;
 
 const initialForm: ApplicationForm = {
-  franchise_name: '',
-  contact_name: '',
-  email: '',
-  phone: '',
-  applicant_address: '',
-  business_experience: '',
-  investment_capacity: '',
-  location: '',
-  has_proposed_property: '',
-  opening_timeline: '',
-  business_information: '',
-  notes: '',
+  franchise_name: '', contact_name: '', email: '', phone: '', province: '', city: '', street: '',
+  business_experience: '', investment_capacity: '', location: '', has_proposed_property: '',
+  opening_timeline: '', business_information: '', notes: '',
 };
 
 const draftKey = 'franchise-application-draft';
-const steps = ['Your details', 'Business plan', 'Review'];
+const stepLabels = ['Your details', 'Business plan', 'Review'];
+const stepHeadings = ['Tell us about yourself', 'Tell us about your plans', 'Review your application'];
 const maxSupportingDocuments = 8;
 const maxSupportingDocumentSize = 10 * 1024 * 1024;
-type ApiPayload = Record<string, unknown>;
-
-const asPayload = (value: unknown): ApiPayload | null =>
-  value !== null && typeof value === 'object' && !Array.isArray(value) ? value as ApiPayload : null;
-
-const getReferenceNumber = (value: unknown): string => {
-  const payload = asPayload(value);
-  if (!payload) return '';
-  if (typeof payload.reference_number === 'string') return payload.reference_number;
-  return getReferenceNumber(payload.data)
-    || getReferenceNumber(payload.application)
-    || getReferenceNumber(payload.result);
-};
-
+const acceptedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
 const timelineLabels: Record<string, string> = {
   within_6_months: 'Within 6 months',
   '6_to_12_months': '6–12 months',
@@ -60,92 +49,279 @@ const timelineLabels: Record<string, string> = {
   not_sure: 'Not sure yet',
 };
 
-const FranchiseApplicationPage: React.FC = () => {
-  const [form, setForm] = useState<ApplicationForm>(() => {
-    const saved = sessionStorage.getItem(draftKey);
-    if (!saved) return initialForm;
-    const savedDraft = JSON.parse(saved) as Partial<ApplicationForm> & { contactEmailEntered?: boolean };
+const getReferenceNumber = (value: unknown): string => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  const payload = value as Record<string, unknown>;
+  if (typeof payload.reference_number === 'string') return payload.reference_number;
+  return getReferenceNumber(payload.data) || getReferenceNumber(payload.application) || getReferenceNumber(payload.result);
+};
+
+const formatPhone = (value: string) => {
+  let digits = value.replace(/\D/g, '');
+  if (digits.startsWith('63')) digits = `0${digits.slice(2)}`;
+  if (digits.length === 10 && digits.startsWith('9')) digits = `0${digits}`;
+  digits = digits.slice(0, 11);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+  return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+};
+
+const formatCurrencyInput = (value: string) => {
+  const normalized = value.replace(/[^\d.]/g, '');
+  const [whole = '', ...fractionParts] = normalized.split('.');
+  const fraction = fractionParts.join('').slice(0, 2);
+  const formattedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return normalized.includes('.') ? `${formattedWhole}.${fraction}` : formattedWhole;
+};
+
+const currencyValue = (value: string) => value.replace(/,/g, '');
+const formatCurrency = (value: string) => {
+  const amount = Number(currencyValue(value));
+  return value && Number.isFinite(amount) ? `₱${amount.toLocaleString('en-PH', { maximumFractionDigits: 2 })}` : 'Not provided';
+};
+const fileSize = (size: number) => size < 1024 * 1024
+  ? `${(size / 1024).toFixed(0)} KB`
+  : `${(size / 1024 / 1024).toFixed(2)} MB`;
+const addressValue = (form: ApplicationForm) => [form.street, form.city, form.province].filter(Boolean).join(', ');
+
+const readDraft = (): { draft: Draft | null; error: string } => {
+  const rawDraft = localStorage.getItem(draftKey);
+  if (!rawDraft) return { draft: null, error: '' };
+  try {
+    const parsed = JSON.parse(rawDraft) as Partial<Draft>;
+    if (!parsed.form || typeof parsed.form !== 'object') {
+      return { draft: null, error: 'We couldn’t read your saved draft. You can start a new application.' };
+    }
     return {
-      ...initialForm,
-      ...savedDraft,
-      email: savedDraft.contactEmailEntered ? savedDraft.email || '' : '',
+      draft: {
+        form: { ...initialForm, ...parsed.form },
+        step: typeof parsed.step === 'number' ? Math.max(0, Math.min(2, parsed.step)) : 0,
+      },
+      error: '',
     };
-  });
+  } catch {
+    return { draft: null, error: 'We couldn’t read your saved draft. You can start a new application.' };
+  }
+};
+
+const FranchiseApplicationPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [draftBootstrap] = useState(readDraft);
+  const [form, setForm] = useState<ApplicationForm>(initialForm);
   const [documents, setDocuments] = useState<File[]>([]);
   const [step, setStep] = useState(0);
-  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<FormFieldName, string>>>({});
+  const [error, setError] = useState(draftBootstrap.error);
+  const [submissionFailed, setSubmissionFailed] = useState(false);
+  const [fileError, setFileError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [submissionConfirmed, setSubmissionConfirmed] = useState(false);
-  const [canTrackInPortal, setCanTrackInPortal] = useState(false);
-  const activeFieldsRef = useRef<HTMLDivElement>(null);
+  const [consentAccurate, setConsentAccurate] = useState(false);
+  const [consentPrivacy, setConsentPrivacy] = useState(false);
+  const [savedDraft, setSavedDraft] = useState<Draft | null>(draftBootstrap.draft);
+  const [draftResolved, setDraftResolved] = useState(!draftBootstrap.draft);
+  const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>(draftBootstrap.draft ? 'saved' : 'idle');
+  const [minimumInvestment, setMinimumInvestment] = useState<string | null>(null);
+  const [minimumInvestmentError, setMinimumInvestmentError] = useState(false);
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [removeIndex, setRemoveIndex] = useState<number | null>(null);
+  const [copyMessage, setCopyMessage] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [showStepOneNotes, setShowStepOneNotes] = useState(false);
+  const [showReviewNotes, setShowReviewNotes] = useState(false);
+  const hasFormData = Object.values(form).some((value) => value.trim()) || documents.length > 0;
+  const cardRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isFirstStepRender = useRef(true);
 
-  const handleChange = (field: keyof ApplicationForm, value: string) => {
-    const updated = { ...form, [field]: value };
-    setForm(updated);
-    sessionStorage.setItem(draftKey, JSON.stringify({
-      ...updated,
-      contactEmailEntered: field === 'email' || form.email.length > 0,
-    }));
-  };
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_URL}/franchise-opportunities`, { headers: { Accept: 'application/json' } })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Unable to load franchise investment details.');
+        const minimum = result?.data?.investment?.minimum;
+        if (!cancelled && (typeof minimum === 'string' || typeof minimum === 'number')) {
+          setMinimumInvestment(String(minimum));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMinimumInvestmentError(true);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
-  const handleDocumentSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(event.target.files || []);
-    event.target.value = '';
-    setError('');
-
-    const invalidFile = selected.find((file) => file.size > maxSupportingDocumentSize);
-    if (invalidFile) {
-      setError(`${invalidFile.name} is larger than the 10 MB limit.`);
+  useEffect(() => {
+    if (!draftResolved) return;
+    if (!hasFormData) {
+      localStorage.removeItem(draftKey);
       return;
     }
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(draftKey, JSON.stringify({ form, step } satisfies Draft));
+        setDraftStatus('saved');
+      } catch {
+        setDraftStatus('failed');
+        setError('Your browser couldn’t save this draft. Keep this page open to avoid losing your changes.');
+      }
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [form, step, draftResolved, hasFormData]);
 
-    const uniqueSelection = selected.filter((file, index) =>
+  useEffect(() => {
+    if (isFirstStepRender.current) {
+      isFirstStepRender.current = false;
+      return;
+    }
+    cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    headingRef.current?.focus({ preventScroll: true });
+  }, [step]);
+
+  const stepOneValid = useMemo(() => (
+    !!form.contact_name.trim()
+    && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
+    && /^09\d{9}$/.test(form.phone.replace(/\D/g, ''))
+    && !!form.province.trim()
+    && !!form.city.trim()
+    && !!form.street.trim()
+  ), [form]);
+
+  const stepTwoValid = useMemo(() => (
+    !!form.location.trim()
+    && !!form.business_experience.trim()
+    && !!form.investment_capacity.trim()
+    && Number(currencyValue(form.investment_capacity)) >= 0
+    && !!form.has_proposed_property
+    && !!form.opening_timeline
+  ), [form]);
+
+  const updateField = (field: FormFieldName, value: string) => {
+    setDraftStatus('saving');
+    setForm((current) => ({ ...current, [field]: value }));
+    setError('');
+  };
+
+  const validateField = (field: FormFieldName, value = form[field]) => {
+    let message = '';
+    const required = ['contact_name', 'email', 'phone', 'province', 'city', 'street', 'location',
+      'business_experience', 'investment_capacity', 'has_proposed_property', 'opening_timeline'].includes(field);
+    if (required && !value.trim()) {
+      message = 'This field is required.';
+    } else if (field === 'email' && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+      message = 'Enter a valid email address.';
+    } else if (field === 'phone' && !/^09\d{9}$/.test(value.replace(/\D/g, ''))) {
+      message = 'Enter an 11-digit Philippine mobile number, such as 0917 123 4567.';
+    } else if (field === 'investment_capacity' && value && (!Number.isFinite(Number(currencyValue(value))) || Number(currencyValue(value)) < 0)) {
+      message = 'Enter a valid investment amount.';
+    }
+    setFieldErrors((current) => ({ ...current, [field]: message || undefined }));
+    return !message;
+  };
+
+  const validateStep = () => {
+    const requiredFields: FormFieldName[] = step === 0
+      ? ['contact_name', 'email', 'phone', 'province', 'city', 'street']
+      : ['location', 'business_experience', 'investment_capacity', 'has_proposed_property', 'opening_timeline'];
+    let valid = true;
+    for (const field of requiredFields) {
+      if (!validateField(field)) valid = false;
+    }
+    return valid;
+  };
+
+  const goToStep = (nextStep: number) => {
+    setDraftStatus('saving');
+    setStep(Math.max(0, Math.min(2, nextStep)));
+    setError('');
+  };
+
+  const continueToNextStep = () => {
+    if (!validateStep()) {
+      const firstInvalid = document.querySelector<HTMLElement>('[aria-invalid="true"]');
+      firstInvalid?.focus();
+      return;
+    }
+    goToStep(step + 1);
+  };
+
+  const restoreDraft = () => {
+    if (!savedDraft) return;
+    setForm(savedDraft.form);
+    setStep(savedDraft.step);
+    setSavedDraft(null);
+    setDraftResolved(true);
+    setError('');
+  };
+
+  const discardDraft = () => {
+    localStorage.removeItem(draftKey);
+    setSavedDraft(null);
+    setDraftResolved(true);
+    setDraftStatus('idle');
+  };
+
+  const validateFiles = (selected: File[]) => {
+    setFileError('');
+    const validFiles: File[] = [];
+    for (const file of selected) {
+      const extension = file.name.split('.').pop()?.toLowerCase() || '';
+      if (!acceptedExtensions.includes(extension)) {
+        setFileError(`${file.name} isn’t a supported file. Choose a PDF, JPG, PNG, DOC, or DOCX file.`);
+        continue;
+      }
+      if (file.size > maxSupportingDocumentSize) {
+        setFileError(`${file.name} is larger than the 10 MB limit. Choose a smaller file.`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+    const uniqueFiles = validFiles.filter((file, index) =>
       !documents.some((existing) =>
         existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified,
       )
-      && selected.findIndex((candidate) =>
+      && validFiles.findIndex((candidate) =>
         candidate.name === file.name && candidate.size === file.size && candidate.lastModified === file.lastModified,
       ) === index,
     );
     const availableSlots = maxSupportingDocuments - documents.length;
-    if (uniqueSelection.length > availableSlots) {
-      setError(`You can upload up to ${maxSupportingDocuments} files total. ${availableSlots} slot(s) remain.`);
+    if (uniqueFiles.length > availableSlots) {
+      setFileError(`You can attach up to ${maxSupportingDocuments} files. ${availableSlots} slot(s) remain.`);
     }
-    setDocuments((current) => [...current, ...uniqueSelection.slice(0, availableSlots)]);
+    if (uniqueFiles.length) {
+      setDocuments((current) => [...current, ...uniqueFiles.slice(0, availableSlots)]);
+    }
   };
 
-  const removeDocument = (indexToRemove: number) => {
-    setDocuments((current) => current.filter((_, index) => index !== indexToRemove));
+  const onFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    validateFiles(Array.from(event.target.files || []));
+    event.target.value = '';
   };
 
-  const continueToNextStep = () => {
-    const fields = activeFieldsRef.current?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
-      'input[required], textarea[required], select[required]',
-    );
-    const invalidField = fields && Array.from(fields).find((field) => !field.checkValidity());
-    if (invalidField) {
-      invalidField.reportValidity();
-      return;
-    }
-    setError('');
-    setStep((current) => Math.min(current + 1, steps.length - 1));
+  const removeDocument = () => {
+    if (removeIndex === null) return;
+    setDocuments((current) => current.filter((_, index) => index !== removeIndex));
+    setRemoveIndex(null);
   };
 
   const handleSubmit = async () => {
-    if (step !== steps.length - 1 || isSubmitting) return;
+    if (step !== 2 || isSubmitting || !consentAccurate || !consentPrivacy) return;
     setError('');
+    setSubmissionFailed(false);
     setIsSubmitting(true);
     const body = new FormData();
     body.append('franchise_name', form.franchise_name);
     body.append('contact_name', form.contact_name);
     body.append('email', form.email);
     body.append('phone', form.phone);
-    body.append('applicant_address', form.applicant_address);
+    body.append('applicant_address', addressValue(form));
     body.append('business_experience', form.business_experience);
-    body.append('investment_capacity', form.investment_capacity);
+    body.append('investment_capacity', currencyValue(form.investment_capacity));
     body.append('location', form.location);
     body.append('has_proposed_property', form.has_proposed_property === 'yes' ? '1' : '0');
+    body.append('property_status', form.has_proposed_property);
     body.append('opening_timeline', form.opening_timeline);
     body.append('business_information', form.business_information);
     body.append('notes', form.notes);
@@ -156,7 +332,9 @@ const FranchiseApplicationPage: React.FC = () => {
         method: 'POST',
         headers: {
           Accept: 'application/json',
-          ...(franchiseApplicantAuthService.getToken() ? { Authorization: `Bearer ${franchiseApplicantAuthService.getToken()}` } : {}),
+          ...(franchiseApplicantAuthService.getToken()
+            ? { Authorization: `Bearer ${franchiseApplicantAuthService.getToken()}` }
+            : {}),
         },
         body,
       });
@@ -166,223 +344,668 @@ const FranchiseApplicationPage: React.FC = () => {
         throw new Error(validationMessages || result.message || 'Unable to submit your application.');
       }
       const reference = getReferenceNumber(result);
-      sessionStorage.removeItem(draftKey);
+      localStorage.removeItem(draftKey);
       setReferenceNumber(reference);
-      setCanTrackInPortal(true);
       setSubmissionConfirmed(true);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Unable to submit your application. Please try again.');
+      setSubmissionFailed(true);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const leaveApplication = () => {
+    if (hasFormData) setLeaveDialogOpen(true);
+    else navigate('/franchise-opportunities');
+  };
+
+  const copyReference = async () => {
+    try {
+      await navigator.clipboard.writeText(referenceNumber);
+      setCopyMessage('Reference number copied.');
+    } catch {
+      setCopyMessage('Copy failed. Select and copy the reference number instead.');
+    }
+  };
+
   if (submissionConfirmed) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[var(--oppa-cream)] px-4 py-10">
-        <section className="w-full max-w-xl rounded-3xl border border-[var(--oppa-border)] bg-white p-8 text-center shadow-lg sm:p-10">
-          <CheckCircle2 className="mx-auto mb-4 size-14 text-[var(--oppa-green)]" aria-hidden="true" />
-          <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--oppa-green)]">Application received</p>
-          <h1 className="mt-2 font-serif text-3xl font-bold text-[var(--oppa-text)]">Thank you, {form.contact_name}</h1>
-          <p className="mt-3 text-sm leading-6 text-[var(--oppa-text-muted)]">
-            Your application has been submitted and is now under review. Keep this reference number for your records. You can follow updates in your applicant account.
-          </p>
-          {referenceNumber ? (
-            <div className="mt-6 rounded-2xl bg-[var(--oppa-cream)] p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Application reference</p>
-              <p className="mt-1 font-mono text-xl font-bold tracking-wide text-[var(--oppa-green)]">{referenceNumber}</p>
-              <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm font-medium text-[var(--oppa-text)]">
-                <span className="size-2 rounded-full bg-amber-500" /> Under Review
-              </p>
-            </div>
-          ) : (
-            <p role="status" className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-              Your application was received. Keep your reference number; the franchise team can use the contact email you provided for updates. Please do not submit it again.
-            </p>
-          )}
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <Link to="/franchise/track-application" state={{ referenceNumber, email: form.email }} className="rounded-xl bg-[var(--oppa-green)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Track application status</Link>
-            {canTrackInPortal && <Link to="/franchise/my-applications" className="rounded-xl bg-[var(--oppa-green)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">View My Applications</Link>}
-            <Link to="/franchise-opportunities" className="rounded-xl border border-[var(--oppa-border)] px-5 py-3 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Back to opportunities</Link>
-          </div>
-        </section>
-      </main>
+      <SuccessScreen
+        name={form.contact_name}
+        email={form.email}
+        referenceNumber={referenceNumber}
+        copyMessage={copyMessage}
+        onCopy={() => void copyReference()}
+      />
     );
   }
 
   return (
-    <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-8 sm:py-12">
-      <div className="mx-auto max-w-3xl rounded-[28px] border border-[var(--oppa-border)] bg-white p-5 shadow-lg sm:p-9">
-        <Link to="/franchise-opportunities" className="mb-6 inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)]">
-          <ArrowLeft size={16} /> Back to opportunities
-        </Link>
+    <main className="franchise-application-page min-h-screen bg-[var(--oppa-cream)] px-4 py-6 text-[var(--oppa-text)] sm:py-10">
+      <section ref={cardRef} className="franchise-application-card mx-auto w-full max-w-[880px] rounded-[28px] border border-[var(--oppa-border)] bg-white px-5 py-6 shadow-lg sm:px-10 sm:py-9">
+        <button type="button" onClick={leaveApplication} className="mb-7 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]">
+          <ArrowLeft size={16} aria-hidden="true" /> Back to opportunities
+        </button>
+
         <header className="mb-7">
-          <div className="mb-3 flex items-center gap-2 text-[var(--oppa-green)]">
-            <Building2 size={20} aria-hidden="true" />
-            <span className="text-sm font-semibold uppercase tracking-[.12em]">Franchise application</span>
+          <div className="mb-2 flex items-center gap-2 text-[var(--oppa-green)]">
+            <Building2 size={19} aria-hidden="true" />
+            <span className="text-xs font-bold uppercase tracking-[.14em]">Franchise application</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold text-[var(--oppa-text)]">Tell us about your plans</h1>
-          <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">Your application is reviewed by our team. Submission does not guarantee approval or authorize franchise operations.</p>
+          <h1 ref={headingRef} tabIndex={-1} className="font-serif text-3xl font-bold leading-tight text-[var(--oppa-text)] focus:outline-none sm:text-[2.1rem]">
+            {stepHeadings[step]}
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--oppa-text-muted)]">
+            Our team reviews applications; submission does not guarantee approval or authorize operations.
+          </p>
+          <div className="mt-3 flex min-h-6 items-center justify-between gap-3 text-xs text-[var(--oppa-text-muted)]" aria-live="polite">
+            <span className="inline-flex items-center gap-1.5">
+              {draftStatus === 'saving' ? <LoaderCircle className="size-3.5 animate-spin" /> : draftStatus === 'saved' ? <CheckCircle2 className="size-3.5 text-[var(--oppa-green)]" /> : draftStatus === 'failed' ? <AlertCircle className="size-3.5 text-amber-700" /> : <Info className="size-3.5" />}
+              {draftStatus === 'saving' ? 'Saving draft…' : draftStatus === 'saved' ? 'Draft saved' : draftStatus === 'failed' ? 'Draft not saved' : 'Draft autosaves as you type'}
+            </span>
+            {minimumInvestment && step === 1 && (
+              <span className="hidden items-center gap-1 sm:inline-flex">
+                <Info size={14} /> Minimum investment: ₱{Number(minimumInvestment).toLocaleString('en-PH')}
+              </span>
+            )}
+          </div>
         </header>
 
-        <ol className="mb-8 grid grid-cols-3 gap-2" aria-label="Application form progress">
-          {steps.map((label, index) => (
-            <li key={label} className={`border-t-2 pt-2 text-xs font-semibold sm:text-sm ${index <= step ? 'border-[var(--oppa-green)] text-[var(--oppa-green)]' : 'border-[var(--oppa-border)] text-[var(--oppa-text-muted)]'}`}>
-              <span className="mr-1.5 inline-flex size-5 items-center justify-center rounded-full bg-[var(--oppa-cream)] text-[11px]">{index < step ? <Check size={12} /> : index + 1}</span>{label}
-            </li>
-          ))}
-        </ol>
+        <Stepper currentStep={step} onStepChange={goToStep} />
 
-        {error && <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+        {savedDraft && (
+          <div className="my-5 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-4" role="region" aria-label="Saved application draft">
+            <div className="flex items-start gap-3">
+              <Clock3 className="mt-0.5 size-5 shrink-0 text-[var(--oppa-green)]" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-[var(--oppa-text)]">Continue where you left off?</p>
+                <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">A saved draft is available on this device. Uploaded files are not saved.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={restoreDraft} className="franchise-draft-continue min-h-11 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white">Continue draft</button>
+                  <button type="button" onClick={discardDraft} className="min-h-11 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold text-[var(--oppa-text)]">Start fresh</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-        <div>
+        {error && (
+          <div className="my-5 flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800" role="alert">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /> <span>{error}</span>
+          </div>
+        )}
+
+        <div key={step} className="franchise-step-panel">
           {step === 0 && (
-            <div ref={activeFieldsRef} className="grid gap-5 md:grid-cols-2">
-              <Field label="Full name" icon={<UserRound size={16} />}>
-                <input required maxLength={255} autoComplete="name" value={form.contact_name} onChange={(event) => handleChange('contact_name', event.target.value)} placeholder="Your full legal name" className={inputClass} />
-              </Field>
-              <Field label="Contact email" icon={<Mail size={16} />}>
-                <input required maxLength={255} type="email" autoComplete="email" value={form.email} onChange={(event) => handleChange('email', event.target.value)} placeholder="you@example.com" className={inputClass} />
-              </Field>
-              <Field label="Contact number" icon={<Phone size={16} />}>
-                <input required maxLength={50} type="tel" autoComplete="tel" value={form.phone} onChange={(event) => handleChange('phone', event.target.value)} placeholder="09XX XXX XXXX" className={inputClass} />
-              </Field>
-              <Field label="Applicant address" icon={<MapPin size={16} />}>
-                <input required maxLength={2000} autoComplete="street-address" value={form.applicant_address} onChange={(event) => handleChange('applicant_address', event.target.value)} placeholder="City, province, and street address" className={inputClass} />
-              </Field>
+            <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+              <FormField id="contact_name" label="Full legal name" required helper="Enter the name shown on your valid ID." error={fieldErrors.contact_name}>
+                <input id="contact_name" required autoComplete="name" maxLength={255} value={form.contact_name}
+                  onChange={(event) => updateField('contact_name', event.target.value)} onBlur={() => validateField('contact_name')}
+                  placeholder="Your full legal name" className="franchise-control" aria-invalid={!!fieldErrors.contact_name}
+                  aria-describedby={fieldDescription('contact_name', !!fieldErrors.contact_name)} />
+              </FormField>
+              <FormField id="email" label="Contact email" required helper="We’ll send application updates to this address." error={fieldErrors.email}>
+                <input id="email" required type="email" inputMode="email" autoComplete="email" maxLength={255} value={form.email}
+                  onChange={(event) => updateField('email', event.target.value)} onBlur={() => validateField('email')}
+                  placeholder="you@example.com" className="franchise-control" aria-invalid={!!fieldErrors.email}
+                  aria-describedby={fieldDescription('email', !!fieldErrors.email)} />
+              </FormField>
+              <FormField id="phone" label="Philippine mobile number" required helper="Format: 09XX XXX XXXX." error={fieldErrors.phone}>
+                <input id="phone" required type="tel" inputMode="tel" autoComplete="tel" maxLength={13} value={form.phone}
+                  onChange={(event) => updateField('phone', formatPhone(event.target.value))} onBlur={() => validateField('phone')}
+                  placeholder="0917 123 4567" className="franchise-control" aria-invalid={!!fieldErrors.phone}
+                  aria-describedby={fieldDescription('phone', !!fieldErrors.phone)} />
+              </FormField>
+              <div className="hidden sm:block" aria-hidden="true" />
+              <FormField id="province" label="Province" required helper="Start typing to see common options." error={fieldErrors.province}>
+                <input id="province" required list="ph-provinces" autoComplete="address-level1" maxLength={100} value={form.province}
+                  onChange={(event) => updateField('province', event.target.value)} onBlur={() => validateField('province')}
+                  placeholder="Select or enter a province" className="franchise-control" aria-invalid={!!fieldErrors.province}
+                  aria-describedby={fieldDescription('province', !!fieldErrors.province)} />
+                <datalist id="ph-provinces">{['Metro Manila', 'Cavite', 'Laguna', 'Rizal', 'Bulacan', 'Batangas', 'Cebu', 'Pampanga', 'Davao del Sur'].map((province) => <option key={province} value={province} />)}</datalist>
+              </FormField>
+              <FormField id="city" label="City / Municipality" required helper="Enter the city or municipality where you live." error={fieldErrors.city}>
+                <input id="city" required autoComplete="address-level2" maxLength={150} value={form.city}
+                  onChange={(event) => updateField('city', event.target.value)} onBlur={() => validateField('city')}
+                  placeholder="City or municipality" className="franchise-control" aria-invalid={!!fieldErrors.city}
+                  aria-describedby={fieldDescription('city', !!fieldErrors.city)} />
+              </FormField>
+              <FormField id="street" label="Street / Barangay" required helper="Include your street, building, or barangay." error={fieldErrors.street}>
+                <input id="street" required autoComplete="street-address" maxLength={500} value={form.street}
+                  onChange={(event) => updateField('street', event.target.value)} onBlur={() => validateField('street')}
+                  placeholder="Street, building, or barangay" className="franchise-control" aria-invalid={!!fieldErrors.street}
+                  aria-describedby={fieldDescription('street', !!fieldErrors.street)} />
+              </FormField>
+              <div className="sm:col-span-2">
+                <button type="button" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--oppa-green)] hover:underline" aria-expanded={showStepOneNotes} onClick={() => setShowStepOneNotes((value) => !value)}>
+                  <CircleHelp size={16} /> Important notes <ChevronDown size={15} className={showStepOneNotes ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                </button>
+                {showStepOneNotes && <ImportantNotes />}
+              </div>
             </div>
           )}
 
           {step === 1 && (
-            <div ref={activeFieldsRef} className="grid gap-5">
-              <Field label="Proposed franchise location" icon={<MapPin size={16} />}>
-                <input required maxLength={2000} value={form.location} onChange={(event) => handleChange('location', event.target.value)} placeholder="City, district, or specific area" className={inputClass} />
-              </Field>
-              <Field label="Relevant business or management experience" icon={<Building2 size={16} />}>
-                <textarea required maxLength={5000} rows={4} value={form.business_experience} onChange={(event) => handleChange('business_experience', event.target.value)} placeholder="Describe your experience operating a business, managing teams, or working in food service." className={inputClass} />
-              </Field>
-              <Field label="Estimated investment capacity (PHP)">
-                <input required min="0" max="9999999999.99" step="0.01" type="number" value={form.investment_capacity} onChange={(event) => handleChange('investment_capacity', event.target.value)} placeholder="e.g. 2500000" className={inputClass} />
-              </Field>
-              <Field label="Do you have a proposed property?">
-                <select required value={form.has_proposed_property} onChange={(event) => handleChange('has_proposed_property', event.target.value as ApplicationForm['has_proposed_property'])} className={inputClass}>
-                  <option value="">Choose one</option><option value="yes">Yes, I have a proposed property</option><option value="no">Not yet</option>
-                </select>
-              </Field>
-              <Field label="Expected opening timeline">
-                <select required value={form.opening_timeline} onChange={(event) => handleChange('opening_timeline', event.target.value)} className={inputClass}>
-                  <option value="">Choose a timeframe</option>
-                  {Object.entries(timelineLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-              </Field>
-              <Field label="Proposed business name (optional)">
-                <input maxLength={255} value={form.franchise_name} onChange={(event) => handleChange('franchise_name', event.target.value)} placeholder="Optional name for your proposed location" className={inputClass} />
-              </Field>
-              <Field label="Other relevant business information">
-                <textarea maxLength={5000} rows={3} value={form.business_information} onChange={(event) => handleChange('business_information', event.target.value)} placeholder="Partners, operating plans, or other details the review team should know." className={inputClass} />
-              </Field>
-              <Field label="Additional notes">
-                <textarea maxLength={5000} rows={3} value={form.notes} onChange={(event) => handleChange('notes', event.target.value)} placeholder="Anything else you would like to include." className={inputClass} />
-              </Field>
-              <div>
-                <label htmlFor="supporting-documents" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">Supporting documents (optional)</label>
-                <p className="mb-2 text-xs text-[var(--oppa-text-muted)]">You may attach up to {maxSupportingDocuments} files total: a business profile, proof of funds, or proposed-site information. PDF, JPG, PNG, DOC, or DOCX; up to 10 MB each.</p>
-                <div className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--oppa-border)] p-4">
-                  <FileText size={20} className="shrink-0 text-[var(--oppa-green)]" />
-                  <input id="supporting-documents" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={handleDocumentSelection} className="min-w-0 text-sm" />
+            <div className="space-y-7">
+              <FormSection title="Location">
+                <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+                  <FormField id="location" label="Proposed franchise location" required helper="A city, district, or specific area is helpful." error={fieldErrors.location} className="sm:col-span-2">
+                    <input id="location" required maxLength={2000} value={form.location} onChange={(event) => updateField('location', event.target.value)}
+                      onBlur={() => validateField('location')} placeholder="City, district, or specific area" className="franchise-control"
+                      aria-invalid={!!fieldErrors.location} aria-describedby={fieldDescription('location', !!fieldErrors.location)} />
+                  </FormField>
                 </div>
-                {documents.length > 0 && (
-                  <ul className="mt-3 space-y-2" aria-label="Selected supporting documents">
-                    {documents.map((file, index) => (
-                      <li key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-[var(--oppa-cream)] px-3 py-2 text-sm">
-                        <span className="min-w-0 break-all text-[var(--oppa-text)]">{file.name}<span className="ml-2 text-xs text-[var(--oppa-text-muted)]">({(file.size / 1024 / 1024).toFixed(2)} MB)</span></span>
-                        <button type="button" onClick={() => removeDocument(index)} className="shrink-0 text-xs font-semibold text-red-700 underline">Remove</button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              </FormSection>
+              <FormSection title="Experience and capacity">
+                <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+                  <FormField id="business_experience" label="Relevant business or management experience" required helper="Share your experience in business, team leadership, or food service." error={fieldErrors.business_experience} className="sm:col-span-2">
+                    <AutoGrowTextarea id="business_experience" required maxLength={5000} rows={4} value={form.business_experience}
+                      onChange={(value) => updateField('business_experience', value)} onBlur={() => validateField('business_experience')}
+                      placeholder="Describe your experience operating a business, managing teams, or working in food service."
+                      invalid={!!fieldErrors.business_experience} describedBy={fieldDescription('business_experience', !!fieldErrors.business_experience)} />
+                  </FormField>
+                  <FormField id="investment_capacity" label="Estimated investment capacity" required helper={
+                    minimumInvestment
+                      ? `Minimum required investment: ₱${Number(minimumInvestment).toLocaleString('en-PH')}.`
+                      : minimumInvestmentError ? 'The minimum investment is currently unavailable.' : 'Enter your available investment in Philippine pesos.'
+                  } error={fieldErrors.investment_capacity}>
+                    <CurrencyInput id="investment_capacity" value={form.investment_capacity}
+                      onChange={(value) => updateField('investment_capacity', value)}
+                      onBlur={() => validateField('investment_capacity')}
+                      invalid={!!fieldErrors.investment_capacity}
+                      describedBy={fieldDescription('investment_capacity', !!fieldErrors.investment_capacity)} />
+                  </FormField>
+                  <FormField id="franchise_name" label="Proposed business name" helper="Optional — the team can help you choose a final name.">
+                    <input id="franchise_name" maxLength={255} value={form.franchise_name} onChange={(event) => updateField('franchise_name', event.target.value)} placeholder="Name for your proposed location" className="franchise-control" />
+                  </FormField>
+                </div>
+              </FormSection>
+              <FormSection title="Property and timeline">
+                <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+                  <FormField id="property_status" label="Do you have a proposed property?" required helper="You can update the team if your plans change." error={fieldErrors.has_proposed_property} className="sm:col-span-2">
+                    <SegmentedRadio
+                      id="property_status"
+                      name="property_status"
+                      value={form.has_proposed_property}
+                      options={[{ value: 'yes', label: 'Yes', description: 'I have a site in mind' }, { value: 'no', label: 'No', description: 'I do not have a site yet' }, { value: 'looking', label: 'Still looking', description: 'I am exploring locations' }]}
+                      onChange={(value) => {
+                        updateField('has_proposed_property', value as PropertyStatus);
+                        setFieldErrors((current) => ({ ...current, has_proposed_property: undefined }));
+                      }}
+                      onBlur={() => validateField('has_proposed_property')}
+                      invalid={!!fieldErrors.has_proposed_property}
+                      describedBy={fieldDescription('property_status', !!fieldErrors.has_proposed_property)}
+                    />
+                  </FormField>
+                  <FormField id="opening_timeline" label="Expected opening timeline" required helper="Choose the timeframe that best matches your current plan." error={fieldErrors.opening_timeline}>
+                    <StyledSelect id="opening_timeline" required value={form.opening_timeline}
+                      onChange={(value) => updateField('opening_timeline', value)} onBlur={() => validateField('opening_timeline')}
+                      invalid={!!fieldErrors.opening_timeline} describedBy={fieldDescription('opening_timeline', !!fieldErrors.opening_timeline)}
+                      options={Object.entries(timelineLabels).map(([value, label]) => ({ value, label }))} placeholder="Choose a timeframe" />
+                  </FormField>
+                </div>
+              </FormSection>
+              <FormSection title="Additional information">
+                <div className="grid gap-5">
+                  <FormField id="business_information" label="Other relevant business information" helper="Partners, operating plans, or other details that support your business plan.">
+                    <AutoGrowTextarea id="business_information" maxLength={5000} rows={3} value={form.business_information}
+                      onChange={(value) => updateField('business_information', value)}
+                      placeholder="Partners, operating plans, or other relevant business information." />
+                  </FormField>
+                  <FormField id="notes" label="Additional notes" helper="Use this for anything not covered above.">
+                    <AutoGrowTextarea id="notes" maxLength={5000} rows={3} value={form.notes}
+                      onChange={(value) => updateField('notes', value)} placeholder="Anything else you would like to include." />
+                  </FormField>
+                  <FileDropzone
+                    inputRef={fileInputRef}
+                    documents={documents}
+                    error={fileError}
+                    isDragging={isDragging}
+                    onFileChange={onFileInputChange}
+                    onDrop={(files) => validateFiles(files)}
+                    onDragChange={setIsDragging}
+                    onBrowse={() => fileInputRef.current?.click()}
+                    onRemove={(index) => setRemoveIndex(index)}
+                  />
+                </div>
+              </FormSection>
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-5">
-              <p className="text-sm leading-6 text-[var(--oppa-text-muted)]">Review all your information and open each supporting file below before confirming. Nothing is submitted until you press “Confirm and submit application”.</p>
-              <div className="grid gap-3 rounded-2xl bg-[var(--oppa-cream)] p-5 sm:grid-cols-2">
-                <ReviewItem label="Full name" value={form.contact_name} />
-                <ReviewItem label="Contact email" value={form.email || 'Not provided'} />
-                <ReviewItem label="Contact number" value={form.phone} />
-                <ReviewItem label="Address" value={form.applicant_address} />
-                <ReviewItem label="Proposed location" value={form.location} />
-                <ReviewItem label="Investment capacity" value={`₱${Number(form.investment_capacity || 0).toLocaleString('en-PH')}`} />
-                <ReviewItem label="Proposed property" value={form.has_proposed_property === 'yes' ? 'Yes' : 'No'} />
-                <ReviewItem label="Expected opening" value={timelineLabels[form.opening_timeline] || ''} />
+              <p className="text-sm leading-6 text-[var(--oppa-text-muted)]">Review the details below before sending your application. You can edit any section or remove a document.</p>
+              <ReviewSection title="Your details" onEdit={() => goToStep(0)}>
+                <ReviewItem label="Full legal name" value={form.contact_name} />
+                <ReviewItem label="Contact email" value={form.email} />
+                <ReviewItem label="Mobile number" value={formatPhone(form.phone)} />
+                <ReviewItem label="Province" value={form.province} />
+                <ReviewItem label="City / Municipality" value={form.city} />
+                <ReviewItem label="Street / Barangay" value={form.street} />
+              </ReviewSection>
+              <ReviewSection title="Business plan" onEdit={() => goToStep(1)}>
+                <ReviewItem label="Proposed business name" value={form.franchise_name} optional />
+                <ReviewItem label="Proposed franchise location" value={form.location} />
                 <ReviewItem label="Business experience" value={form.business_experience} />
-                <ReviewItem label="Other information" value={form.business_information || form.notes || 'Not provided'} />
+                <ReviewItem label="Investment capacity" value={formatCurrency(form.investment_capacity)} />
+                <ReviewItem label="Proposed property" value={propertyLabel(form.has_proposed_property)} />
+                <ReviewItem label="Expected opening" value={timelineLabels[form.opening_timeline]} />
+                <ReviewItem label="Other relevant business information" value={form.business_information} optional />
+                <ReviewItem label="Additional notes" value={form.notes} optional />
+              </ReviewSection>
+              <ReviewSection title={`Documents (${documents.length}/${maxSupportingDocuments})`} onEdit={() => goToStep(1)}>
+                {documents.length ? (
+                  <ul className="space-y-3 sm:col-span-2" aria-label="Uploaded documents">
+                    {documents.map((file, index) => (
+                      <FileCard key={`${file.name}-${file.lastModified}-${index}`} file={file} onRemove={() => setRemoveIndex(index)} />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-[var(--oppa-text-muted)] sm:col-span-2">Not provided</p>
+                )}
+              </ReviewSection>
+
+              <div className="rounded-2xl border border-[var(--oppa-border)] p-4 sm:p-5">
+                <button type="button" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--oppa-green)] hover:underline" aria-expanded={showReviewNotes} onClick={() => setShowReviewNotes((value) => !value)}>
+                  <CircleHelp size={16} /> Important notes <ChevronDown size={15} className={showReviewNotes ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                </button>
+                {showReviewNotes && <ImportantNotes />}
               </div>
-              <section className="space-y-3" aria-labelledby="review-supporting-documents">
-                <div>
-                  <h2 id="review-supporting-documents" className="flex items-center gap-2 text-sm font-semibold text-[var(--oppa-text)]"><FileText size={16} /> Supporting documents ({documents.length}/{maxSupportingDocuments})</h2>
-                  <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Check the selected files before you confirm. You can go back to add or remove files.</p>
-                </div>
-                {documents.length ? documents.map((file, index) => (
-                  <div key={`${file.name}-${file.lastModified}-${index}`} className="rounded-xl border border-[var(--oppa-border)] p-3">
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <p className="min-w-0 break-all text-sm font-medium text-[var(--oppa-text)]">{file.name}<span className="ml-2 text-xs font-normal text-[var(--oppa-text-muted)]">{(file.size / 1024 / 1024).toFixed(2)} MB</span></p>
-                      <button type="button" onClick={() => removeDocument(index)} className="shrink-0 text-xs font-semibold text-red-700 underline">Remove</button>
-                    </div>
-                    <SupportingDocumentPreview file={file} />
-                  </div>
-                )) : <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-sm text-[var(--oppa-text-muted)]">No supporting documents attached.</p>}
-              </section>
+              <div className="space-y-3 rounded-2xl bg-[var(--oppa-cream)] p-4 sm:p-5">
+                <ConsentCheckbox id="consent-accurate" checked={consentAccurate} onChange={setConsentAccurate}>
+                  I confirm the information in this application is accurate and complete.
+                </ConsentCheckbox>
+                <ConsentCheckbox id="consent-privacy" checked={consentPrivacy} onChange={setConsentPrivacy}>
+                  I agree to the Privacy Policy and consent to the processing of my information under the Data Privacy Act.
+                </ConsentCheckbox>
+              </div>
             </div>
           )}
-
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--oppa-border)] pt-5">
-            <button type="button" disabled={step === 0} onClick={() => setStep((current) => Math.max(0, current - 1))} className="rounded-xl border border-[var(--oppa-border)] px-4 py-2.5 text-sm font-medium text-[var(--oppa-text)] disabled:invisible">
-              Back
-            </button>
-            {step < steps.length - 1 ? (
-              <button type="button" onClick={continueToNextStep} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">
-                {step === 1 ? 'Review application' : 'Continue'} <ArrowRight size={16} />
-              </button>
-            ) : (
-              <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting} className="rounded-xl bg-[var(--oppa-green)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-55">
-                {isSubmitting ? 'Submitting application…' : 'Confirm and submit application'}
-              </button>
-            )}
-          </div>
         </div>
-      </div>
+
+        <footer className="franchise-form-actions mt-8 flex items-center justify-between gap-3 border-t border-[var(--oppa-border)] pt-5">
+          <button type="button" onClick={() => goToStep(step - 1)} disabled={step === 0} className="franchise-secondary-button min-h-11">
+            <ArrowLeft size={15} /> Back
+          </button>
+          {step < 2 ? (
+            <button type="button" onClick={continueToNextStep} disabled={step === 0 ? !stepOneValid : !stepTwoValid} className="franchise-primary-button min-h-11">
+              {step === 1 ? 'Review application' : 'Continue'} <ArrowRight size={16} />
+            </button>
+          ) : (
+            <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting || !consentAccurate || !consentPrivacy} className="franchise-primary-button min-h-11">
+              {isSubmitting ? <><LoaderCircle size={16} className="animate-spin" /> Submitting…</> : <>{submissionFailed ? 'Retry submission' : 'Confirm and submit application'} <ArrowRight size={16} /></>}
+            </button>
+          )}
+        </footer>
+      </section>
+
+      {leaveDialogOpen && (
+        <ConfirmationDialog
+          title="Leave your application?"
+          message="Your changes are saved as a draft on this device. You can continue later."
+          confirmLabel="Back to opportunities"
+          onCancel={() => setLeaveDialogOpen(false)}
+          onConfirm={() => navigate('/franchise-opportunities')}
+        />
+      )}
+      {removeIndex !== null && (
+        <ConfirmationDialog
+          title="Remove this document?"
+          message={`“${documents[removeIndex]?.name || 'This document'}” will be removed from your application.`}
+          confirmLabel="Remove document"
+          destructive
+          onCancel={() => setRemoveIndex(null)}
+          onConfirm={removeDocument}
+        />
+      )}
     </main>
   );
 };
 
-const inputClass = 'w-full rounded-xl border border-[var(--oppa-border)] px-3.5 py-3 text-sm text-[var(--oppa-text)] placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/15';
+const fieldDescription = (id: string, hasError: boolean) => hasError ? `${id}-help ${id}-error` : `${id}-help`;
 
-const Field: React.FC<{ label: string; icon?: React.ReactNode; children: React.ReactNode }> = ({ label, icon, children }) => (
-  <label className="block text-sm font-medium text-[var(--oppa-green)]">
-    <span className="mb-1.5 flex items-center gap-2">{icon}{label}</span>
+const FormField: React.FC<{
+  id: string;
+  label: string;
+  required?: boolean;
+  helper: string;
+  error?: string;
+  className?: string;
+  children: React.ReactNode;
+}> = ({ id, label, required = false, helper, error, className = '', children }) => (
+  <div className={`franchise-field min-w-0 ${className}`}>
+    <label id={`${id}-label`} htmlFor={id} className="mb-1.5 block text-sm font-semibold text-[var(--oppa-green)]">
+      {label}{required && <span className="ml-1 text-red-700" aria-hidden="true">*</span>}
+      {required && <span className="sr-only"> (required)</span>}
+    </label>
     {children}
+    <p id={`${id}-help`} className="mt-1.5 text-xs leading-5 text-[var(--oppa-text-muted)]">{helper}</p>
+    {error && <p id={`${id}-error`} className="mt-1 inline-flex items-start gap-1.5 text-xs font-medium text-red-700" aria-live="polite"><AlertCircle size={14} className="mt-px shrink-0" />{error}</p>}
+  </div>
+);
+
+const FormSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <section className="space-y-4" aria-label={title}>
+    <h2 className="border-b border-[var(--oppa-border)] pb-2 text-sm font-bold uppercase tracking-[.08em] text-[var(--oppa-text-muted)]">{title}</h2>
+    {children}
+  </section>
+);
+
+const Stepper: React.FC<{ currentStep: number; onStepChange: (step: number) => void }> = ({ currentStep, onStepChange }) => (
+  <nav aria-label="Application steps" className="mb-8">
+    <p className="mb-2 text-right text-xs text-[var(--oppa-text-muted)]" aria-live="polite">
+      Step {currentStep + 1} of 3 <span aria-hidden="true">•</span> about {currentStep === 2 ? '1' : '3'} min left
+    </p>
+    <ol className="franchise-stepper">
+      {stepLabels.map((label, index) => {
+        const completed = index < currentStep;
+        const current = index === currentStep;
+        return (
+          <li key={label} className={`franchise-stepper-item ${index < 2 ? 'has-connector' : ''} ${completed ? 'is-complete' : ''} ${current ? 'is-current' : ''}`}>
+            {completed ? (
+              <button type="button" onClick={() => onStepChange(index)} className="franchise-step-button" aria-label={`Return to completed step ${index + 1}: ${label}`}>
+                <span className="franchise-step-circle"><Check size={16} aria-hidden="true" /></span>
+                <span className="franchise-step-label">{label}</span>
+              </button>
+            ) : (
+              <span className="franchise-step-button" aria-current={current ? 'step' : undefined}>
+                <span className="franchise-step-circle">{index + 1}</span>
+                <span className="franchise-step-label">{label}</span>
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  </nav>
+);
+
+const StyledSelect: React.FC<{
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  onBlur: () => void;
+  options: Array<{ value: string; label: string }>;
+  placeholder: string;
+  required?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+}> = ({ id, value, onChange, onBlur, options, placeholder, required, invalid, describedBy }) => (
+  <div className="relative">
+    <select id={id} required={required} value={value} onChange={(event) => onChange(event.target.value)} onBlur={onBlur}
+      className="franchise-control franchise-select" aria-invalid={invalid} aria-describedby={describedBy}>
+      <option value="">{placeholder}</option>
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
+    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
+  </div>
+);
+
+const CurrencyInput: React.FC<{
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  onBlur: () => void;
+  invalid: boolean;
+  describedBy: string;
+}> = ({ id, value, onChange, onBlur, invalid, describedBy }) => (
+  <div className="relative">
+    <span className="franchise-currency-prefix" aria-hidden="true">₱</span>
+    <input id={id} required inputMode="decimal" maxLength={16} value={value}
+      onChange={(event) => onChange(formatCurrencyInput(event.target.value))}
+      onBlur={onBlur} placeholder="2,500,000" className="franchise-control franchise-currency-control"
+      aria-invalid={invalid} aria-describedby={describedBy} />
+  </div>
+);
+
+const SegmentedRadio: React.FC<{
+  id: string;
+  name: string;
+  value: string;
+  options: Array<{ value: string; label: string; description: string }>;
+  onChange: (value: string) => void;
+  onBlur: () => void;
+  invalid: boolean;
+  describedBy: string;
+}> = ({ id, name, value, options, onChange, onBlur, invalid, describedBy }) => (
+  <div id={id} role="radiogroup" tabIndex={-1} aria-labelledby={`${id}-label`} aria-describedby={describedBy} aria-invalid={invalid} className="grid gap-2 sm:grid-cols-3">
+    {options.map((option) => (
+      <label key={option.value} className={`franchise-radio-card ${value === option.value ? 'is-selected' : ''}`}>
+        <input type="radio" name={name} value={option.value} checked={value === option.value}
+          onChange={() => onChange(option.value)} onBlur={onBlur} />
+        <span className="franchise-radio-check" aria-hidden="true">{value === option.value && <Check size={13} />}</span>
+        <span><span className="block text-sm font-semibold">{option.label}</span><span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">{option.description}</span></span>
+      </label>
+    ))}
+  </div>
+);
+
+const AutoGrowTextarea: React.FC<{
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  onBlur?: () => void;
+  placeholder: string;
+  maxLength: number;
+  rows: number;
+  required?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+}> = ({ id, value, onChange, onBlur, placeholder, maxLength, rows, required, invalid, describedBy }) => (
+  <div>
+    <textarea id={id} required={required} maxLength={maxLength} rows={rows} value={value} placeholder={placeholder}
+      onChange={(event) => {
+        onChange(event.target.value);
+        event.target.style.height = 'auto';
+        event.target.style.height = `${event.target.scrollHeight}px`;
+      }}
+      onBlur={onBlur} className="franchise-control franchise-textarea" aria-invalid={invalid} aria-describedby={describedBy} />
+    <p className="mt-1 text-right text-xs text-[var(--oppa-text-muted)]" aria-live="polite">{value.length} / {maxLength}</p>
+  </div>
+);
+
+const FileDropzone: React.FC<{
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  documents: File[];
+  error: string;
+  isDragging: boolean;
+  onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onDrop: (files: File[]) => void;
+  onDragChange: (dragging: boolean) => void;
+  onBrowse: () => void;
+  onRemove: (index: number) => void;
+}> = ({ inputRef, documents, error, isDragging, onFileChange, onDrop, onDragChange, onBrowse, onRemove }) => (
+  <div>
+    <div className="mb-2">
+      <h3 className="text-sm font-semibold text-[var(--oppa-green)]">Supporting documents <span className="font-normal text-[var(--oppa-text-muted)]">(optional)</span></h3>
+      <p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">PDF, JPG, PNG, DOC, or DOCX · Maximum 10 MB per file · Up to 8 files</p>
+    </div>
+    <div className={`franchise-dropzone ${isDragging ? 'is-dragging' : ''}`}
+      onDragOver={(event) => { event.preventDefault(); onDragChange(true); }}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onDragChange(false); }}
+      onDrop={(event) => { event.preventDefault(); onDragChange(false); onDrop(Array.from(event.dataTransfer.files)); }}>
+      <input ref={inputRef} id="supporting-documents" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+        onChange={onFileChange} className="sr-only" aria-label="Browse for supporting documents" />
+      <span className="franchise-upload-icon"><FileUp size={22} aria-hidden="true" /></span>
+      <p className="text-sm font-semibold text-[var(--oppa-text)]">Drag files here or <button type="button" onClick={onBrowse} className="font-bold text-[var(--oppa-green)] underline underline-offset-2">browse</button></p>
+      <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Files are attached when you submit this application.</p>
+    </div>
+    {error && <p className="mt-2 flex items-start gap-1.5 text-sm font-medium text-red-700" role="alert"><AlertCircle size={15} className="mt-0.5 shrink-0" />{error}</p>}
+    {documents.length > 0 && (
+      <ul className="mt-3 space-y-2" aria-label="Selected supporting documents">
+        {documents.map((file, index) => <FileCard key={`${file.name}-${file.lastModified}-${index}`} file={file} onRemove={() => onRemove(index)} />)}
+      </ul>
+    )}
+  </div>
+);
+
+const FileCard: React.FC<{ file: File; onRemove: () => void }> = ({ file, onRemove }) => {
+  const [previewError, setPreviewError] = useState('');
+  const isImage = /\.(jpe?g|png)$/i.test(file.name);
+  const imageUrl = useMemo(() => isImage ? URL.createObjectURL(file) : '', [file, isImage]);
+  useEffect(() => {
+    if (imageUrl) return () => URL.revokeObjectURL(imageUrl);
+  }, [imageUrl]);
+  const preview = () => {
+    const url = URL.createObjectURL(file);
+    const opened = window.open(url, '_blank');
+    if (!opened) setPreviewError('Allow pop-ups to preview this file.');
+    else opened.opener = null;
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+  return (
+    <li className="franchise-file-card">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        {isImage && imageUrl ? <img src={imageUrl} alt="" className="size-11 shrink-0 rounded-lg object-cover" /> : <span className="franchise-file-icon"><FileText size={20} aria-hidden="true" /></span>}
+        <div className="min-w-0 flex-1">
+          <p className="break-all text-sm font-semibold text-[var(--oppa-text)]">{file.name}</p>
+          <p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">{fileSize(file.size)} <span aria-hidden="true">·</span> Ready to submit</p>
+          <div className="franchise-upload-progress mt-2" role="progressbar" aria-label={`${file.name} ready`} aria-valuenow={100} aria-valuemin={0} aria-valuemax={100}><span /></div>
+          {previewError && <p className="mt-1 text-xs text-red-700" role="status">{previewError}</p>}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button type="button" onClick={preview} className="franchise-file-action">Preview</button>
+        <button type="button" onClick={onRemove} className="franchise-remove-button" aria-label={`Remove ${file.name}`}><Trash2 size={17} /></button>
+      </div>
+    </li>
+  );
+};
+
+const ReviewSection: React.FC<{ title: string; onEdit: () => void; children: React.ReactNode }> = ({ title, onEdit, children }) => (
+  <section className="rounded-2xl border border-[var(--oppa-border)] p-4 sm:p-5">
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <h2 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">{title}</h2>
+      <button type="button" onClick={onEdit} className="min-h-11 rounded-lg px-3 text-sm font-semibold text-[var(--oppa-green)] hover:bg-[var(--oppa-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">Edit</button>
+    </div>
+    <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">{children}</div>
+  </section>
+);
+
+const ReviewItem: React.FC<{ label: string; value?: string; optional?: boolean }> = ({ label, value, optional = false }) => (
+  <div className="min-w-0">
+    <p className="text-xs font-semibold text-[var(--oppa-text-muted)]">{label}</p>
+    <p className={`mt-1 whitespace-pre-wrap break-words text-sm font-medium leading-6 ${optional && !value ? 'text-[var(--oppa-text-muted)]' : 'text-[var(--oppa-text)]'}`}>{value?.trim() || 'Not provided'}</p>
+  </div>
+);
+
+const ConsentCheckbox: React.FC<{ id: string; checked: boolean; onChange: (checked: boolean) => void; children: React.ReactNode }> = ({ id, checked, onChange, children }) => (
+  <label htmlFor={id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg p-2 text-sm leading-6 text-[var(--oppa-text)]">
+    <input id={id} type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="franchise-checkbox mt-1 size-5 shrink-0" />
+    <span>{children}<span className="ml-1 text-red-700" aria-hidden="true">*</span><span className="sr-only"> (required)</span></span>
   </label>
 );
 
-const ReviewItem: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">{label}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-[var(--oppa-text)]">{value}</p></div>
+const ImportantNotes = () => (
+  <div className="mt-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-4 text-sm leading-6 text-[var(--oppa-text-muted)]">
+    <p>Your application is reviewed by our team. Submission does not guarantee approval or authorize franchise operations. Please ensure the information and documents you provide are accurate. Your application information will be used to review your franchise proposal and communicate with you about its progress.</p>
+  </div>
 );
 
-const SupportingDocumentPreview: React.FC<{ file: File }> = ({ file }) => (
-  <button
-    type="button"
-    onClick={() => {
-      const previewUrl = URL.createObjectURL(file);
-      window.open(previewUrl, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60_000);
-    }}
-    className="text-sm font-medium text-[var(--oppa-green)] underline"
-  >
-    Open this document to review
-  </button>
+const propertyLabel = (value: PropertyStatus) => ({
+  yes: 'Yes — I have a site in mind',
+  no: 'No — I do not have a site yet',
+  looking: 'Still looking',
+}[value] || '');
+
+const ConfirmationDialog: React.FC<{
+  title: string;
+  message: string;
+  confirmLabel: string;
+  destructive?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}> = ({ title, message, confirmLabel, destructive = false, onCancel, onConfirm }) => {
+  const dialogRef = useRef<HTMLElement>(null);
+  const cancelRef = useRef(onCancel);
+  useEffect(() => { cancelRef.current = onCancel; });
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusable = () => dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), [tabindex]:not([tabindex="-1"])') || [];
+    focusable()[0]?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = Array.from(focusable());
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) {
+        event.preventDefault();
+        items[items.length - 1].focus();
+      } else if (!event.shiftKey && document.activeElement === items[items.length - 1]) {
+        event.preventDefault();
+        items[0].focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      returnFocus?.focus();
+    };
+  }, []);
+
+  return (
+    <div className="franchise-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
+      <section ref={dialogRef} className="franchise-dialog" role="alertdialog" aria-modal="true" aria-labelledby="franchise-dialog-title" aria-describedby="franchise-dialog-message">
+        <button type="button" onClick={onCancel} aria-label="Close dialog" className="franchise-dialog-close"><X size={19} /></button>
+        <div className="franchise-dialog-symbol"><Info size={22} /></div>
+        <h2 id="franchise-dialog-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">{title}</h2>
+        <p id="franchise-dialog-message" className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{message}</p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={onCancel} className="franchise-secondary-button min-h-11">Keep editing</button>
+          <button type="button" onClick={onConfirm} className={`franchise-dialog-confirm min-h-11 rounded-xl px-4 text-sm font-semibold text-white ${destructive ? 'bg-red-700 hover:bg-red-800' : 'bg-[var(--oppa-green)] hover:bg-[var(--oppa-green-dark)]'}`}>{confirmLabel}</button>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+const SuccessScreen: React.FC<{
+  name: string;
+  email: string;
+  referenceNumber: string;
+  copyMessage: string;
+  onCopy: () => void;
+}> = ({ name, email, referenceNumber, copyMessage, onCopy }) => (
+  <main className="franchise-application-page flex min-h-screen items-center justify-center bg-[var(--oppa-cream)] px-4 py-8 text-[var(--oppa-text)]">
+    <section className="franchise-application-card w-full max-w-2xl rounded-[28px] border border-[var(--oppa-border)] bg-white p-6 shadow-lg sm:p-10">
+      <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] franchise-success-check"><CheckCircle2 size={36} aria-hidden="true" /></div>
+      <p className="mt-5 text-center text-xs font-bold uppercase tracking-[.16em] text-[var(--oppa-green)]">Application submitted</p>
+      <h1 className="mt-2 text-center font-serif text-3xl font-bold text-[var(--oppa-text)]">Thank you, {name}</h1>
+      <p className="mx-auto mt-3 max-w-lg text-center text-sm leading-6 text-[var(--oppa-text-muted)]">Your application has been received. Keep your reference number to track its progress.</p>
+      {referenceNumber ? (
+        <div className="mt-6 rounded-2xl bg-[var(--oppa-cream)] p-5 text-center">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Application reference</p>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            <p className="font-mono text-xl font-bold tracking-wide text-[var(--oppa-green)]">{referenceNumber}</p>
+            <button type="button" onClick={onCopy} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-sm font-semibold text-[var(--oppa-green)]" aria-label="Copy reference number"><Copy size={15} /> Copy</button>
+          </div>
+          {copyMessage && <p className="mt-2 text-xs text-[var(--oppa-text-muted)]" role="status">{copyMessage}</p>}
+        </div>
+      ) : (
+        <p role="status" className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">Your application was received. The reference number was not included in the response; please check your email for updates and avoid submitting again.</p>
+      )}
+      <section className="mt-8">
+        <h2 className="mb-4 font-serif text-xl font-semibold">What happens next</h2>
+        <ol className="franchise-success-timeline">
+          {['Received', 'Under review', 'Interview', 'Decision'].map((label, index) => (
+            <li key={label} className={index <= 1 ? 'is-active' : ''}><span className="franchise-timeline-dot">{index <= 1 && <Check size={12} />}</span><span>{label}</span></li>
+          ))}
+        </ol>
+      </section>
+      <p className="mt-6 text-center text-sm text-[var(--oppa-text-muted)]">A confirmation and future updates will be sent to <span className="font-semibold text-[var(--oppa-text)]">{email}</span>.</p>
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <Link to="/franchise/track-application" state={{ referenceNumber, email }} className="franchise-success-track inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Track my application <ArrowRight size={16} /></Link>
+        <Link to="/franchise-opportunities" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--oppa-border)] px-5 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Back to opportunities</Link>
+      </div>
+    </section>
+  </main>
 );
 
 export default FranchiseApplicationPage;

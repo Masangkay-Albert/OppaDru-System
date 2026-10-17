@@ -702,7 +702,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                   <Info label="Proposed location" value={application.location || 'Not provided'} />
                   <Info label="Proposed business name" value={application.franchise_name} />
                   <Info label="Investment capacity" value={money(application.investment_capacity)} />
-                  <Info label="Property identified" value={application.has_proposed_property ? 'Yes' : 'No'} />
+                  <Info label="Proposed property" value={application.property_status === 'looking' ? 'Still looking' : application.property_status === 'yes' || application.has_proposed_property ? 'Yes' : 'No'} />
                   <Info label="Expected opening" value={application.opening_timeline || 'Not provided'} />
                   <Info label="Business experience" value={application.business_experience || 'Not provided'} wide />
                   <Info label="Other business information" value={application.business_information || application.notes || 'Not provided'} wide />

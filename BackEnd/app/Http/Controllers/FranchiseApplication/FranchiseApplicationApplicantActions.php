@@ -28,6 +28,7 @@ trait FranchiseApplicationApplicantActions
             'business_experience' => 'required|string|max:5000',
             'investment_capacity' => 'required|numeric|min:0|max:9999999999.99',
             'has_proposed_property' => 'required|boolean',
+            'property_status' => 'nullable|string|in:yes,no,looking',
             'opening_timeline' => 'required|string|in:within_6_months,6_to_12_months,12_to_18_months,more_than_18_months,not_sure',
             'business_information' => 'nullable|string|max:5000',
             'notes' => 'nullable|string|max:5000',
@@ -62,6 +63,8 @@ trait FranchiseApplicationApplicantActions
                 }
 
                 $location = trim((string) $request->input('location'));
+                $propertyStatus = $request->input('property_status')
+                    ?: ($request->boolean('has_proposed_property') ? 'yes' : 'no');
                 $application = FranchiseApplication::create([
                     'franchise_applicant_id' => $lockedApplicant->id,
                     'franchise_name' => trim((string) $request->input('franchise_name'))
@@ -73,7 +76,8 @@ trait FranchiseApplicationApplicantActions
                     'applicant_address' => trim((string) $request->input('applicant_address')),
                     'business_experience' => trim((string) $request->input('business_experience')),
                     'investment_capacity' => $request->input('investment_capacity'),
-                    'has_proposed_property' => $request->boolean('has_proposed_property'),
+                    'has_proposed_property' => $propertyStatus === 'yes',
+                    'property_status' => $propertyStatus,
                     'opening_timeline' => $request->input('opening_timeline'),
                     'business_information' => $request->input('business_information'),
                     'notes' => $request->input('notes'),

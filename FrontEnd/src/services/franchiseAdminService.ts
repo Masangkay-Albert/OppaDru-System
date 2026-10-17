@@ -41,6 +41,7 @@ export interface FranchiseApplication {
   business_experience?: string;
   investment_capacity?: string | number;
   has_proposed_property?: boolean;
+  property_status?: 'yes' | 'no' | 'looking' | null;
   opening_timeline?: string;
   business_information?: string;
   documents?: Array<{ name: string; size: number; mime_type: string; uploaded_at?: string; required_document_label?: string; document_type?: string }>;

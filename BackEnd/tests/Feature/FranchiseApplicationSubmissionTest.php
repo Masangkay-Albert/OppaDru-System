@@ -62,6 +62,26 @@ class FranchiseApplicationSubmissionTest extends TestCase
             ->assertJsonMissingPath('data.user_id');
     }
 
+    public function test_applicant_can_submit_still_looking_property_status(): void
+    {
+        $applicant = $this->createVerifiedApplicant();
+
+        $response = $this->postJson('/api/franchise-applications', array_merge(
+            $this->applicationData(),
+            ['has_proposed_property' => false, 'property_status' => 'looking'],
+        ), [
+            'Authorization' => 'Bearer '.$applicant['token'],
+        ])->assertCreated()
+            ->assertJsonPath('data.has_proposed_property', false)
+            ->assertJsonPath('data.property_status', 'looking');
+
+        $this->assertDatabaseHas('franchise_applications', [
+            'id' => $response->json('data.id'),
+            'has_proposed_property' => false,
+            'property_status' => 'looking',
+        ]);
+    }
+
     public function test_franchise_application_submission_requires_a_verified_account(): void
     {
         $this->postJson('/api/franchise-applications', array_merge(
