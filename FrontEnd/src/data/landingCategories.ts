@@ -7,7 +7,7 @@ export interface LandingCategory {
   image: string;
   color: string;
 }
-
+/* test */
 export const landingCategories: LandingCategory[] = [
   {
     id: 'fresh-lemonade',
