@@ -1,0 +1,72 @@
+.franchise-application-page {
+  --bg-page: #fbf8f1;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --bg-muted: #f7f4ec;
+  --border: #e3ddcf;
+  --text-primary: #1b2a21;
+  --text-secondary: #4b5563;
+  --text-muted: #59655d;
+  --primary: #237a45;
+  --primary-contrast: #ffffff;
+  --label: #1f6b3a;
+  --danger: #a61b1b;
+  --danger-bg: #fff1f0;
+  --danger-border: #e2a39d;
+  --warning-bg: #fff7e6;
+  --warning-border: #e2bd73;
+  --warning-text: #704b0e;
+  --focus-ring: color-mix(in srgb, var(--primary) 22%, transparent);
+  --shadow-card: 0 14px 28px -20px color-mix(in srgb, var(--text-primary) 25%, transparent), 0 3px 8px color-mix(in srgb, var(--text-primary) 7%, transparent);
+  --shadow-hover: 0 8px 18px -12px color-mix(in srgb, var(--text-primary) 30%, transparent);
+  --shadow-sticky: 0 -10px 20px -17px color-mix(in srgb, var(--text-primary) 40%, transparent);
+  --shadow-dialog: 0 24px 70px color-mix(in srgb, var(--text-primary) 28%, transparent);
+  --overlay: color-mix(in srgb, var(--text-primary) 55%, transparent);
+  --franchise-card: var(--bg-card);
+  --franchise-surface: var(--bg-muted);
+  --franchise-label: var(--label);
+  --oppa-cream: var(--bg-page);
+  --oppa-text: var(--text-primary);
+  --oppa-text-muted: var(--text-muted);
+  --oppa-border: var(--border);
+  --oppa-surface: var(--bg-card);
+  --oppa-green: var(--label);
+  --oppa-green-dark: #175d34;
+  --oppa-green-soft: color-mix(in srgb, var(--primary) 12%, var(--bg-card));
+  color-scheme: light;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .franchise-application-page {
+  --bg-page: #0f1712;
+  --bg-card: #16211b;
+  --bg-input: #1b2a22;
+  --bg-muted: #202e25;
+  --border: #405247;
+  --text-primary: #f0f5f1;
+  --text-secondary: #d0d9d2;
+  --text-muted: #bdc9c1;
+  --primary: #237a45;
+  --primary-contrast: #ffffff;
+  --label: #9cddb0;
+  --danger: #ffb4ab;
+  --danger-bg: #3b2020;
+  --danger-border: #7f4542;
+  --warning-bg: #382e1b;
+  --warning-border: #806a3e;
+  --warning-text: #f2d795;
+  --focus-ring: color-mix(in srgb, #8ed7a5 30%, transparent);
+  --oppa-green-dark: #1b5d35;
+  color-scheme: dark;
+}
+
+.franchise-application-page .franchise-application-card,
+.franchise-application-page .franchise-card-surface {
+  background-color: var(--bg-card);
+}
+
+.franchise-application-page .franchise-locked-control {
+  background-color: var(--bg-muted);
+  color: var(--text-secondary);
+}

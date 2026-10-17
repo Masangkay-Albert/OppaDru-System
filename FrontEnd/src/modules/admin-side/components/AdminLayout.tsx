@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
+import { applyTheme, getSavedTheme } from '../../../services/theme';
 
 interface AdminErrorBoundaryState { hasError: boolean }
 
@@ -43,12 +44,11 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [menu, setMenu] = useState<'notifications' | 'profile' | null>(null);
-  const [dark, setDark] = useState(() => localStorage.getItem('admin-theme') === 'dark');
+  const [dark, setDark] = useState(() => getSavedTheme() === 'dark');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    localStorage.setItem('admin-theme', dark ? 'dark' : 'light');
+    applyTheme(dark ? 'dark' : 'light');
   }, [dark]);
 
   useEffect(() => {

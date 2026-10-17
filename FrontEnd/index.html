@@ -5,6 +5,12 @@
     <link rel="icon" type="image/jpeg" href="/src/assets/oppadrulogo.jpg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OPPA DRU KOREAN FRIED CHICKEN</title>
+    <script>
+      (() => {
+        const theme = localStorage.getItem('oppa-theme') || localStorage.getItem('admin-theme');
+        document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

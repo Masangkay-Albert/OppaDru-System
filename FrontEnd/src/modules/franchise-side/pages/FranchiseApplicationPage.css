@@ -1,13 +1,79 @@
-.franchise-application-page {
-  --franchise-card: #fff;
-  --franchise-surface: #fbf8f1;
-  --franchise-label: #2e7a45;
-}
-
 .franchise-application-card {
   min-height: min(76vh, 760px);
-  box-shadow: 0 14px 28px -20px rgb(39 49 40 / 35%), 0 3px 8px rgb(39 49 40 / 7%);
+  box-shadow: var(--shadow-card);
   transition: box-shadow 180ms ease;
+}
+
+.franchise-heading-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.franchise-top-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.franchise-disclaimer {
+  white-space: nowrap;
+}
+
+.franchise-back-opportunities {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.franchise-theme-toggle {
+  display: inline-grid;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--label);
+}
+
+.franchise-theme-toggle:hover {
+  background: var(--bg-muted);
+}
+
+.franchise-theme-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.franchise-draft-status {
+  display: inline-flex;
+  min-height: 24px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.franchise-back-opportunities {
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  padding: 0 12px;
+  color: var(--text-secondary);
+  transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease;
+}
+
+.franchise-back-opportunities:hover {
+  border-color: var(--primary);
+  background: var(--bg-muted);
+  color: var(--label);
+}
+
+.franchise-back-opportunities:focus-visible,
+.franchise-search-options button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .franchise-control {
@@ -16,7 +82,7 @@
   min-height: 48px;
   border: 1px solid var(--oppa-border);
   border-radius: 12px;
-  background-color: var(--franchise-card);
+  background-color: var(--bg-input);
   padding: 11px 14px;
   color: var(--oppa-text);
   font: inherit;
@@ -26,23 +92,141 @@
 }
 
 .franchise-control::placeholder {
-  color: #68766c;
+  color: var(--text-muted);
   opacity: 1;
 }
 
+.franchise-control:-webkit-autofill,
+.franchise-control:-webkit-autofill:hover,
+.franchise-control:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  box-shadow: 0 0 0 1000px var(--bg-input) inset;
+  caret-color: var(--text-primary);
+}
+
+.franchise-control:autofill {
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+}
+
 .franchise-control:focus {
-  border-color: var(--oppa-green);
+  border-color: var(--primary);
   outline: 0;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--oppa-green) 20%, transparent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .franchise-control[aria-invalid='true'] {
-  border-color: #b42318;
+  border-color: var(--danger);
 }
 
-.franchise-select {
-  appearance: none;
-  padding-right: 42px;
+.franchise-alert {
+  border: 1px solid var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.franchise-danger-text,
+.franchise-required-mark {
+  color: var(--danger);
+}
+
+.franchise-warning {
+  border: 1px solid var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.franchise-draft-continue,
+.franchise-success-track,
+.franchise-dialog-confirm:not(.is-destructive) {
+  background: var(--primary);
+  color: var(--primary-contrast);
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.franchise-draft-continue:hover,
+.franchise-success-track:hover,
+.franchise-dialog-confirm:not(.is-destructive):hover {
+  background: var(--oppa-green-dark);
+}
+
+.franchise-dialog-confirm.is-destructive {
+  border: 1px solid var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.franchise-copy-button {
+  background: var(--bg-card);
+  color: var(--label);
+}
+
+.franchise-custom-select {
+  position: relative;
+}
+
+.franchise-select-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.franchise-select-button.is-placeholder {
+  color: var(--text-muted);
+}
+
+.franchise-select-button svg {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  transition: transform 160ms ease;
+}
+
+.franchise-select-button svg.is-open {
+  transform: rotate(180deg);
+}
+
+.franchise-select-options {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 5px);
+  right: 0;
+  left: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  list-style: none;
+}
+
+.franchise-select-options button {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.franchise-select-options button:hover,
+.franchise-select-options button.is-active,
+.franchise-select-options [aria-selected='true'] button {
+  background: var(--bg-muted);
+  color: var(--label);
+}
+
+.franchise-select-options button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
 }
 
 .franchise-textarea {
@@ -79,6 +263,72 @@
   padding-left: 42px;
 }
 
+.franchise-locked-control {
+  cursor: not-allowed;
+}
+
+.franchise-searchable-select {
+  position: relative;
+}
+
+.franchise-search-input {
+  padding-right: 42px;
+}
+
+.franchise-search-input.is-selected {
+  color: color-mix(in srgb, var(--label) 75%, var(--text-primary));
+}
+
+.franchise-search-input::selection {
+  background: color-mix(in srgb, var(--primary) 25%, var(--bg-card));
+  color: var(--text-primary);
+}
+
+.franchise-search-chevron {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.franchise-search-options {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 5px);
+  right: 0;
+  left: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  list-style: none;
+}
+
+.franchise-search-options button {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.franchise-search-options button:hover,
+.franchise-search-options button.is-active,
+.franchise-search-options [aria-selected='true'] button {
+  background: var(--bg-muted);
+  color: var(--label);
+}
+
 .franchise-stepper {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -96,8 +346,8 @@
   position: absolute;
   z-index: 0;
   top: 16px;
-  left: calc(50% + 20px);
-  width: calc(100% - 40px);
+  left: calc(50% + 18px);
+  width: calc(100% - 36px);
   height: 2px;
   background: var(--oppa-border);
   content: '';
@@ -113,14 +363,16 @@
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 48px;
+  min-height: 68px;
+  flex-direction: column;
   align-items: center;
-  gap: 9px;
+  justify-content: flex-start;
+  gap: 8px;
   border: 0;
   background: transparent;
   padding: 0 5px;
-  color: var(--oppa-text-muted);
-  text-align: left;
+  color: var(--text-muted);
+  text-align: center;
   text-decoration: none;
 }
 
@@ -130,7 +382,7 @@ button.franchise-step-button {
 
 .franchise-step-button:focus-visible {
   border-radius: 999px;
-  outline: 2px solid var(--oppa-green);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -143,24 +395,24 @@ button.franchise-step-button {
   justify-content: center;
   border: 1px solid var(--oppa-border);
   border-radius: 999px;
-  background: var(--franchise-card);
-  color: var(--oppa-text-muted);
+  background: var(--bg-card);
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
   transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
 }
 
 .is-current .franchise-step-circle {
-  border-color: var(--oppa-green);
-  background: var(--oppa-green);
-  color: white;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--oppa-green) 18%, transparent);
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-contrast);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 .is-complete .franchise-step-circle {
-  border-color: var(--oppa-green);
-  background: var(--oppa-green);
-  color: white;
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-contrast);
 }
 
 .is-current .franchise-step-label,
@@ -170,7 +422,7 @@ button.franchise-step-button {
 
 .franchise-step-label {
   overflow: hidden;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -195,14 +447,14 @@ button.franchise-step-button {
 }
 
 .franchise-radio-card:focus-within {
-  outline: 2px solid var(--oppa-green);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
 .franchise-radio-card.is-selected {
-  border-color: var(--oppa-green);
-  background: color-mix(in srgb, var(--oppa-green) 7%, var(--franchise-card));
-  box-shadow: inset 0 0 0 1px var(--oppa-green);
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, var(--bg-card));
+  box-shadow: inset 0 0 0 1px var(--primary);
 }
 
 .franchise-radio-card input {
@@ -219,14 +471,14 @@ button.franchise-step-button {
   flex: 0 0 19px;
   align-items: center;
   justify-content: center;
-  border: 1.5px solid #68766c;
+  border: 1.5px solid var(--border);
   border-radius: 50%;
-  color: white;
+  color: var(--primary-contrast);
 }
 
 .is-selected .franchise-radio-check {
-  border-color: var(--oppa-green);
-  background: var(--oppa-green);
+  border-color: var(--primary);
+  background: var(--primary);
 }
 
 .franchise-dropzone {
@@ -235,7 +487,7 @@ button.franchise-step-button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 1.5px dashed #9eaa9f;
+  border: 1.5px dashed var(--text-muted);
   border-radius: 16px;
   background: var(--franchise-card);
   padding: 18px;
@@ -244,8 +496,8 @@ button.franchise-step-button {
 }
 
 .franchise-dropzone.is-dragging {
-  border-color: var(--oppa-green);
-  background: color-mix(in srgb, var(--oppa-green) 8%, var(--franchise-card));
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--bg-card));
 }
 
 .franchise-upload-icon,
@@ -275,8 +527,8 @@ button.franchise-step-button {
 
 .franchise-file-card:hover {
   transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--oppa-green) 40%, var(--oppa-border));
-  box-shadow: 0 8px 18px -12px rgb(30 43 34 / 34%);
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  box-shadow: var(--shadow-hover);
 }
 
 .franchise-file-icon {
@@ -284,14 +536,14 @@ button.franchise-step-button {
   height: 44px;
   flex: 0 0 44px;
   border-radius: 11px;
-  background: color-mix(in srgb, var(--oppa-green) 10%, var(--franchise-card));
+  background: color-mix(in srgb, var(--primary) 10%, var(--bg-card));
 }
 
 .franchise-upload-progress {
   height: 4px;
   overflow: hidden;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--oppa-green) 15%, var(--franchise-card));
+  background: color-mix(in srgb, var(--primary) 15%, var(--bg-card));
 }
 
 .franchise-upload-progress span {
@@ -325,7 +577,7 @@ button.franchise-step-button {
 }
 
 .franchise-remove-button {
-  color: #a61b1b;
+  color: var(--danger);
 }
 
 .franchise-checkbox {
@@ -335,6 +587,7 @@ button.franchise-step-button {
 .franchise-primary-button,
 .franchise-secondary-button {
   display: inline-flex;
+  min-height: 44px;
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -346,28 +599,36 @@ button.franchise-step-button {
 }
 
 .franchise-primary-button {
-  background: var(--oppa-green);
-  color: white;
+  background: var(--primary);
+  color: var(--primary-contrast);
 }
 
 .franchise-primary-button:hover:not(:disabled) {
   background: var(--oppa-green-dark);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--oppa-green) 22%, transparent);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 .franchise-primary-button:disabled {
   cursor: not-allowed;
-  opacity: .48;
+  border: 1px solid var(--border);
+  background: var(--bg-muted);
+  color: var(--text-muted);
 }
 
 .franchise-secondary-button {
-  border: 1px solid var(--oppa-border);
-  background: var(--franchise-card);
-  color: var(--oppa-text);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
 }
 
 .franchise-secondary-button:hover:not(:disabled) {
   background: var(--franchise-surface);
+}
+
+.franchise-secondary-button:disabled {
+  cursor: not-allowed;
+  background: var(--bg-muted);
+  color: var(--text-muted);
 }
 
 .franchise-primary-button:focus-visible,
@@ -385,7 +646,7 @@ button.franchise-step-button {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgb(14 24 17 / 54%);
+  background: var(--overlay);
   padding: 20px;
 }
 
@@ -396,7 +657,7 @@ button.franchise-step-button {
   border-radius: 22px;
   background: var(--franchise-card);
   padding: 28px;
-  box-shadow: 0 24px 70px rgb(0 0 0 / 25%);
+  box-shadow: var(--shadow-dialog);
   animation: franchise-dialog-enter 180ms ease both;
 }
 
@@ -468,7 +729,7 @@ button.franchise-step-button {
   border: 2px solid var(--oppa-border);
   border-radius: 50%;
   background: var(--franchise-card);
-  color: white;
+  color: var(--primary-contrast);
 }
 
 .franchise-success-timeline .is-active {
@@ -476,8 +737,8 @@ button.franchise-step-button {
 }
 
 .franchise-success-timeline .is-active .franchise-timeline-dot {
-  border-color: var(--oppa-green);
-  background: var(--oppa-green);
+  border-color: var(--primary);
+  background: var(--primary);
 }
 
 @keyframes franchise-step-enter {
@@ -496,130 +757,14 @@ button.franchise-step-button {
   100% { transform: scale(1); }
 }
 
-[data-theme='dark'] .franchise-application-page,
-.dark .franchise-application-page {
-  --franchise-card: #1c2a20;
-  --franchise-surface: #25362a;
-  --oppa-cream: #111a14;
-  --oppa-text: #eff5ef;
-  --oppa-text-muted: #bdc9bf;
-  --oppa-border: #405447;
-  --oppa-green: #76ca8d;
-  --oppa-green-dark: #5eb878;
-  --oppa-green-soft: #294332;
-}
-
-[data-theme='dark'] .franchise-application-page .franchise-control::placeholder,
-.dark .franchise-application-page .franchise-control::placeholder {
-  color: #a9b7ac;
-}
-
-[data-theme='dark'] .franchise-application-page .franchise-dialog,
-.dark .franchise-application-page .franchise-dialog {
-  color-scheme: dark;
-}
-
-[data-theme='dark'] .franchise-application-page [role='alert'],
-.dark .franchise-application-page [role='alert'] {
-  border-color: #7f3030;
-  background: #3b2020;
-  color: #ffd7d7;
-}
-
-[data-theme='dark'] .franchise-application-page .text-red-700,
-.dark .franchise-application-page .text-red-700 {
-  color: #ffb4ab;
-}
-
-[data-theme='dark'] .franchise-application-page .franchise-primary-button,
-[data-theme='dark'] .franchise-application-page .franchise-draft-continue,
-[data-theme='dark'] .franchise-application-page .franchise-dialog-confirm:not(.bg-red-700),
-[data-theme='dark'] .franchise-application-page .franchise-success-track,
-.dark .franchise-application-page .franchise-primary-button,
-.dark .franchise-application-page .franchise-draft-continue,
-.dark .franchise-application-page .franchise-dialog-confirm:not(.bg-red-700),
-.dark .franchise-application-page .franchise-success-track {
-  background-color: #236d3b;
-  color: #fff;
-}
-
-[data-theme='dark'] .franchise-application-page .franchise-primary-button:hover:not(:disabled),
-[data-theme='dark'] .franchise-application-page .franchise-draft-continue:hover,
-[data-theme='dark'] .franchise-application-page .franchise-success-track:hover,
-.dark .franchise-application-page .franchise-primary-button:hover:not(:disabled),
-.dark .franchise-application-page .franchise-draft-continue:hover,
-.dark .franchise-application-page .franchise-success-track:hover {
-  background-color: #1b5d31;
-}
-
-@media (prefers-color-scheme: dark) {
-  .franchise-application-page:not([data-theme='light']) {
-    --franchise-card: #1c2a20;
-    --franchise-surface: #25362a;
-    --oppa-cream: #111a14;
-    --oppa-text: #eff5ef;
-    --oppa-text-muted: #bdc9bf;
-    --oppa-border: #405447;
-    --oppa-green: #76ca8d;
-    --oppa-green-dark: #5eb878;
-    --oppa-green-soft: #294332;
-  }
-
-  .franchise-application-page:not([data-theme='light']) .franchise-primary-button,
-  .franchise-application-page:not([data-theme='light']) .franchise-draft-continue,
-  .franchise-application-page:not([data-theme='light']) .franchise-dialog-confirm:not(.bg-red-700),
-  .franchise-application-page:not([data-theme='light']) .franchise-success-track {
-    background-color: #236d3b;
-    color: #fff;
-  }
-
-  .franchise-application-page:not([data-theme='light']) .franchise-primary-button:hover:not(:disabled),
-  .franchise-application-page:not([data-theme='light']) .franchise-draft-continue:hover,
-  .franchise-application-page:not([data-theme='light']) .franchise-success-track:hover {
-    background-color: #1b5d31;
-  }
-
-  .franchise-application-page:not([data-theme='light']) [role='alert'] {
-    border-color: #7f3030;
-    background: #3b2020;
-    color: #ffd7d7;
-  }
-
-  .franchise-application-page:not([data-theme='light']) .text-red-700 {
-    color: #ffb4ab;
-  }
-}
-
-[data-theme='light'] .franchise-application-page,
-.light .franchise-application-page {
-  --franchise-card: #fff;
-  --franchise-surface: #fbf8f1;
-  --oppa-cream: #fbf8f1;
-  --oppa-text: #1e2b22;
-  --oppa-text-muted: #66766b;
-  --oppa-border: #e4ded0;
-  --oppa-green: #2e7a45;
-  --oppa-green-dark: #176334;
-  --oppa-green-soft: #dff0e3;
-}
-
 @media (max-width: 640px) {
   .franchise-application-card {
     min-height: calc(100dvh - 3rem);
     padding-bottom: 20px;
   }
 
-  .franchise-stepper-item.has-connector::after {
-    top: 14px;
-    left: calc(50% + 16px);
-    width: calc(100% - 32px);
-  }
-
   .franchise-step-button {
-    min-height: 50px;
-    flex-direction: column;
-    justify-content: center;
-    gap: 4px;
+    min-height: 66px;
     padding-inline: 0;
     text-align: center;
   }
@@ -632,7 +777,7 @@ button.franchise-step-button {
 
   .franchise-step-label {
     max-width: 100%;
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .franchise-form-actions {
@@ -644,7 +789,7 @@ button.franchise-step-button {
     border-top: 1px solid var(--oppa-border);
     background: var(--franchise-card);
     padding: 12px 20px max(12px, env(safe-area-inset-bottom));
-    box-shadow: 0 -10px 20px -17px rgb(20 30 22 / 45%);
+    box-shadow: var(--shadow-sticky);
   }
 
   .franchise-primary-button,
@@ -665,6 +810,29 @@ button.franchise-step-button {
   }
 }
 
+@media (max-width: 520px) {
+  .franchise-disclaimer {
+    white-space: normal;
+  }
+
+  .franchise-heading-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .franchise-draft-status {
+    min-height: 20px;
+  }
+
+  .franchise-step-label {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    line-height: 1.2;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .franchise-application-card,
   .franchise-step-panel,
@@ -674,6 +842,458 @@ button.franchise-step-button {
   .franchise-control,
   .franchise-radio-card {
     animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Responsive application shell */
+.franchise-application-page {
+  min-height: 100vh;
+  padding: 24px clamp(16px, 3vw, 42px) 48px;
+}
+
+.franchise-application-shell {
+  width: min(100%, 1280px);
+  margin: 0 auto;
+}
+
+.franchise-top-actions {
+  margin-bottom: 22px;
+}
+
+.franchise-application-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(24px, 4vw, 56px);
+}
+
+.franchise-sidebar {
+  position: sticky;
+  top: 28px;
+  display: flex;
+  min-height: min(720px, calc(100vh - 110px));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 24px;
+  background:
+    radial-gradient(ellipse at 10% 100%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 55%),
+    var(--bg-muted);
+  padding: clamp(24px, 3vw, 36px);
+}
+
+.franchise-sidebar-heading {
+  max-width: 12ch;
+}
+
+.franchise-application-card {
+  min-height: 0;
+  border-radius: 24px;
+  background: var(--bg-card);
+  padding: clamp(24px, 3vw, 42px);
+}
+
+.franchise-compact-header {
+  display: none;
+}
+
+.franchise-stepper-nav {
+  margin-top: 26px;
+}
+
+.franchise-step-progress {
+  margin: 0 0 9px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.franchise-progress-track,
+.franchise-document-meter {
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--primary) 16%, var(--bg-card));
+}
+
+.franchise-progress-track {
+  margin-bottom: 24px;
+}
+
+.franchise-progress-track > span,
+.franchise-document-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 200ms ease;
+}
+
+.franchise-stepper-nav.is-vertical .franchise-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.franchise-stepper-nav.is-vertical .franchise-stepper-item {
+  min-height: 92px;
+}
+
+.franchise-stepper-nav.is-vertical .franchise-stepper-item:last-child {
+  min-height: 58px;
+}
+
+.franchise-stepper-nav.is-vertical .franchise-stepper-item.has-connector::after {
+  top: 34px;
+  bottom: 0;
+  left: 15px;
+  width: 2px;
+  height: auto;
+}
+
+.franchise-stepper-nav.is-vertical .franchise-step-button {
+  min-height: 58px;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 0;
+  text-align: left;
+}
+
+.franchise-stepper-nav.is-vertical .franchise-step-circle {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+}
+
+.franchise-step-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding-top: 1px;
+}
+
+.franchise-stepper-nav.is-vertical .franchise-step-label {
+  overflow: visible;
+  color: var(--text-primary);
+  font-size: 14px;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.franchise-stepper-nav.is-vertical .is-current .franchise-step-label,
+.franchise-stepper-nav.is-vertical .is-complete .franchise-step-label {
+  color: var(--label);
+}
+
+.franchise-step-description {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.franchise-stepper-nav.is-vertical .franchise-step-description {
+  display: block;
+}
+
+.franchise-stepper-nav.is-horizontal .franchise-stepper {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.franchise-stepper-nav.is-horizontal .franchise-stepper-item.has-connector::after {
+  top: 16px;
+}
+
+.franchise-stepper-nav.is-horizontal .franchise-step-button {
+  min-height: 68px;
+}
+
+.franchise-stepper-nav.is-horizontal .franchise-step-description {
+  display: none;
+}
+
+.franchise-draft-status {
+  width: fit-content;
+  min-height: 30px;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--bg-card));
+  padding: 4px 10px;
+  color: var(--label);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.franchise-draft-status.is-saving,
+.franchise-draft-status.is-failed {
+  border-color: var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+}
+
+.franchise-draft-status.is-failed {
+  color: var(--danger);
+}
+
+.franchise-investment-callout {
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+  background: color-mix(in srgb, var(--primary) 9%, var(--bg-card));
+  color: var(--label);
+}
+
+.franchise-important-notes {
+  margin-top: 18px;
+}
+
+.franchise-important-notes-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  color: var(--label);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.franchise-important-notes-toggle svg {
+  flex: 0 0 auto;
+  transition: transform 160ms ease;
+}
+
+.franchise-important-notes-toggle svg.is-open {
+  transform: rotate(180deg);
+}
+
+.franchise-important-notes .mt-2 {
+  margin-top: 0;
+}
+
+.franchise-reassurance {
+  max-width: 31ch;
+}
+
+.franchise-form-subsection h2 {
+  color: var(--label);
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 17px;
+  font-variant: small-caps;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+
+.franchise-application-card .space-y-4 > h2 {
+  color: var(--label);
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 14px;
+  font-variant: small-caps;
+  letter-spacing: .06em;
+}
+
+.franchise-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+.franchise-review-intro,
+.franchise-review-grid > .franchise-review-consents,
+.franchise-review-grid > section:last-of-type {
+  grid-column: 1 / -1;
+}
+
+.franchise-file-ready {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--primary) 11%, var(--bg-card));
+  padding: 2px 8px;
+  color: var(--label);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.franchise-form-actions {
+  margin-top: 32px;
+}
+
+.franchise-primary-button:not(:disabled):hover,
+.franchise-secondary-button:not(:disabled):hover,
+.franchise-review-edit:hover {
+  transform: translateY(-1px);
+}
+
+.franchise-primary-button,
+.franchise-secondary-button {
+  box-shadow: 0 0 0 transparent;
+  transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.franchise-review-edit {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9px;
+  padding: 0 10px;
+  color: var(--label);
+  font-size: 13px;
+  font-weight: 700;
+  transition: transform 180ms ease, background-color 180ms ease;
+}
+
+.franchise-review-edit:hover {
+  background: var(--bg-muted);
+}
+
+.franchise-document-count {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -4px 0 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.franchise-document-meter {
+  width: 86px;
+  height: 5px;
+}
+
+.franchise-file-card {
+  box-shadow: 0 0 0 transparent;
+}
+
+.franchise-file-card:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.franchise-profile-consent {
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
+  background: color-mix(in srgb, var(--primary) 7%, var(--bg-card));
+}
+
+.franchise-form-actions button:disabled {
+  opacity: .8;
+}
+
+.franchise-application-card > .franchise-form-actions {
+  position: sticky;
+  z-index: 6;
+  bottom: -1px;
+  background: var(--bg-card);
+  padding: 16px 0 4px;
+}
+
+@media (max-width: 1023px) {
+  .franchise-application-page {
+    padding: 22px clamp(16px, 3vw, 32px) 36px;
+  }
+
+  .franchise-application-layout {
+    display: block;
+  }
+
+  .franchise-sidebar {
+    display: none;
+  }
+
+  .franchise-compact-header {
+    display: block;
+  }
+
+  .franchise-application-card {
+    max-width: none;
+  }
+
+  .franchise-stepper-nav.is-horizontal {
+    margin-top: 24px;
+  }
+}
+
+@media (max-width: 639px) {
+  .franchise-application-page {
+    padding: 0 0 max(12px, env(safe-area-inset-bottom));
+  }
+
+  .franchise-application-shell {
+    width: 100%;
+  }
+
+  .franchise-top-actions {
+    margin: 0;
+    padding: 12px 16px;
+  }
+
+  .franchise-application-card {
+    min-height: calc(100dvh - 68px);
+    border-right: 0;
+    border-left: 0;
+    border-radius: 20px 20px 0 0;
+    padding: 22px 16px 14px;
+  }
+
+  .franchise-review-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .franchise-disclaimer {
+    white-space: normal;
+  }
+
+  .franchise-heading-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .franchise-stepper-nav.is-horizontal .franchise-stepper {
+    gap: 2px;
+  }
+
+  .franchise-stepper-nav.is-horizontal .franchise-step-button {
+    min-height: 60px;
+    gap: 6px;
+  }
+
+  .franchise-stepper-nav.is-horizontal .franchise-step-label {
+    font-size: 11px;
+    white-space: normal;
+  }
+
+  .franchise-stepper-nav.is-horizontal .franchise-stepper-item.has-connector::after {
+    top: 15px;
+  }
+
+  .franchise-application-card > .franchise-form-actions {
+    margin: 28px -16px 0;
+    border-top: 1px solid var(--border);
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+    box-shadow: var(--shadow-sticky);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .franchise-stepper *,
+  .franchise-progress-track > span,
+  .franchise-document-meter > span,
+  .franchise-primary-button,
+  .franchise-secondary-button,
+  .franchise-review-edit,
+  .franchise-important-notes-toggle svg {
     transition: none !important;
   }
 }

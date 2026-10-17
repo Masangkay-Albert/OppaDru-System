@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, ArrowLeft, ArrowRight, Building2, Check, CheckCircle2, ChevronDown,
-  CircleHelp, Clock3, Copy, FileText, FileUp, Info, LoaderCircle,
+  Clock3, Copy, FileText, FileUp, Info, LoaderCircle, Lock, Moon, Pencil, Sun,
   Trash2, X,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { franchiseApplicantAuthService } from '../../../services/franchiseApplicantAuthService';
 import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
+import { applyTheme, getSavedTheme, type Theme } from '../../../services/theme';
+import '../../../styles/franchise-application-theme.css';
 import './FranchiseApplicationPage.css';
 
 type PropertyStatus = '' | 'yes' | 'no' | 'looking';
@@ -38,7 +40,31 @@ const initialForm: ApplicationForm = {
 
 const draftKey = 'franchise-application-draft';
 const stepLabels = ['Your details', 'Business plan', 'Review'];
+const stepDescriptions = ['Contact and address details', 'Location, experience, and capacity', 'Check details and submit'];
 const stepHeadings = ['Tell us about yourself', 'Tell us about your plans', 'Review your application'];
+const provinceOptions = [
+  'Metro Manila', 'Abra', 'Agusan del Norte', 'Agusan del Sur', 'Aklan', 'Albay', 'Antique', 'Apayao', 'Aurora',
+  'Basilan', 'Bataan', 'Batanes', 'Batangas', 'Benguet', 'Biliran', 'Bohol', 'Bukidnon', 'Bulacan', 'Cagayan',
+  'Camarines Norte', 'Camarines Sur', 'Camiguin', 'Capiz', 'Catanduanes', 'Cavite', 'Cebu', 'Davao de Oro',
+  'Davao del Norte', 'Davao del Sur', 'Davao Occidental', 'Davao Oriental', 'Dinagat Islands', 'Eastern Samar',
+  'Guimaras', 'Ifugao', 'Ilocos Norte', 'Ilocos Sur', 'Iloilo', 'Isabela', 'Kalinga', 'La Union', 'Laguna',
+  'Lanao del Norte', 'Lanao del Sur', 'Leyte', 'Maguindanao del Norte', 'Maguindanao del Sur', 'Marinduque',
+  'Masbate', 'Misamis Occidental', 'Misamis Oriental', 'Mountain Province', 'Negros Occidental',
+  'Negros Oriental', 'Northern Samar', 'Nueva Ecija', 'Nueva Vizcaya', 'Occidental Mindoro',
+  'Oriental Mindoro', 'Palawan', 'Pampanga', 'Pangasinan', 'Quezon', 'Quirino', 'Rizal', 'Romblon',
+  'Samar', 'Sarangani', 'Siquijor', 'Sorsogon', 'South Cotabato', 'Southern Leyte', 'Sultan Kudarat',
+  'Sulu', 'Surigao del Norte', 'Surigao del Sur', 'Tarlac', 'Tawi-Tawi', 'Zambales', 'Zamboanga del Norte',
+  'Zamboanga del Sur', 'Zamboanga Sibugay',
+];
+const cityOptions = [
+  'Makati', 'Manila', 'Quezon City', 'Pasig', 'Taguig', 'Pasay', 'Mandaluyong', 'Marikina', 'Parañaque',
+  'Las Piñas', 'Muntinlupa', 'Caloocan', 'Valenzuela', 'Malabon', 'Navotas', 'San Juan', 'Pateros',
+  'Bacoor', 'Cavite City', 'Dasmariñas', 'Imus', 'General Trias', 'Tagaytay', 'Santa Rosa', 'Biñan',
+  'Calamba', 'San Pablo', 'Antipolo', 'Cainta', 'Taytay', 'Angeles', 'San Fernando', 'Olongapo',
+  'Baguio', 'Dagupan', 'Laoag', 'Vigan', 'Tuguegarao', 'Iloilo City', 'Bacolod', 'Cebu City',
+  'Lapu-Lapu', 'Mandaue', 'Dumaguete', 'Tacloban', 'Ormoc', 'Cagayan de Oro', 'Iligan', 'Davao City',
+  'General Santos', 'Zamboanga City', 'Butuan', 'Puerto Princesa', 'Legazpi', 'Naga', 'Sorsogon City',
+];
 const maxSupportingDocuments = 8;
 const maxSupportingDocumentSize = 10 * 1024 * 1024;
 const acceptedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
@@ -136,7 +162,8 @@ const FranchiseApplicationPage: React.FC = () => {
   const profileInitialized = useRef(false);
   const hasFormData = Object.values(form).some((value) => value.trim()) || documents.length > 0;
   const cardRef = useRef<HTMLElement>(null);
-  const headingRef = useRef<HTMLHeadingElement>(null);
+  const sidebarHeadingRef = useRef<HTMLHeadingElement>(null);
+  const compactHeadingRef = useRef<HTMLHeadingElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isFirstStepRender = useRef(true);
 
@@ -192,7 +219,10 @@ const FranchiseApplicationPage: React.FC = () => {
       return;
     }
     cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    headingRef.current?.focus({ preventScroll: true });
+    const heading = window.matchMedia('(min-width: 1024px)').matches
+      ? sidebarHeadingRef.current
+      : compactHeadingRef.current;
+    heading?.focus({ preventScroll: true });
   }, [step]);
 
   const stepOneValid = useMemo(() => (
@@ -403,37 +433,75 @@ const FranchiseApplicationPage: React.FC = () => {
   }
 
   return (
-    <main className="franchise-application-page min-h-screen bg-[var(--oppa-cream)] px-4 py-6 text-[var(--oppa-text)] sm:py-10">
-      <section ref={cardRef} className="franchise-application-card mx-auto w-full max-w-[880px] rounded-[28px] border border-[var(--oppa-border)] bg-white px-5 py-6 shadow-lg sm:px-10 sm:py-9">
-        <button type="button" onClick={leaveApplication} className="mb-7 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]">
-          <ArrowLeft size={16} aria-hidden="true" /> Back to opportunities
-        </button>
+    <main className="franchise-application-page min-h-screen">
+      <div className="franchise-application-shell">
+        <div className="franchise-top-actions">
+          <button type="button" onClick={leaveApplication} className="franchise-back-opportunities inline-flex min-h-11 items-center gap-2 rounded-lg text-sm">
+            <ArrowLeft size={16} aria-hidden="true" /> Back to opportunities
+          </button>
+          <ThemeToggle />
+        </div>
 
-        <header className="mb-7">
+        <div className="franchise-application-layout">
+          <aside className="franchise-sidebar">
+            <div className="franchise-brand-eyebrow mb-4 flex items-center gap-2 text-[var(--oppa-green)]">
+              <Building2 size={19} aria-hidden="true" />
+              <span className="text-xs font-bold uppercase tracking-[.14em]">Franchise application</span>
+            </div>
+            <h1 ref={sidebarHeadingRef} tabIndex={-1} className="franchise-sidebar-heading font-serif text-3xl font-bold leading-tight text-[var(--oppa-text)] focus:outline-none">
+              {stepHeadings[step]}
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-[var(--oppa-text-muted)]">
+              Application review is required; submitting does not guarantee approval.
+            </p>
+            <Stepper currentStep={step} onStepChange={goToStep} orientation="vertical" />
+            <DraftStatus status={draftStatus} />
+            {minimumInvestment && step === 1 && (
+              <p className="franchise-investment-callout mt-5 flex items-center gap-2 rounded-2xl p-4 text-sm font-semibold">
+                <Info size={17} /> Minimum investment: ₱{Number(minimumInvestment).toLocaleString('en-PH')}
+              </p>
+            )}
+            {(step === 0 || step === 2) && (
+              <ImportantNotesToggle
+                expanded={step === 0 ? showStepOneNotes : showReviewNotes}
+                onToggle={() => (step === 0 ? setShowStepOneNotes((value) => !value) : setShowReviewNotes((value) => !value))}
+                className="franchise-sidebar-notes"
+              />
+            )}
+            <p className="franchise-reassurance mt-auto pt-6 text-xs leading-5 text-[var(--oppa-text-muted)]">
+              Your details are handled with care and used only to review your franchise proposal.
+            </p>
+          </aside>
+
+          <section ref={cardRef} className="franchise-application-card w-full rounded-[24px] border border-[var(--oppa-border)] px-5 py-6 sm:px-8 sm:py-8">
+        <header className="franchise-compact-header mb-7">
           <div className="mb-2 flex items-center gap-2 text-[var(--oppa-green)]">
             <Building2 size={19} aria-hidden="true" />
             <span className="text-xs font-bold uppercase tracking-[.14em]">Franchise application</span>
           </div>
-          <h1 ref={headingRef} tabIndex={-1} className="font-serif text-3xl font-bold leading-tight text-[var(--oppa-text)] focus:outline-none sm:text-[2.1rem]">
-            {stepHeadings[step]}
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--oppa-text-muted)]">
-            Our team reviews applications; submission does not guarantee approval or authorize operations.
-          </p>
-          <div className="mt-3 flex min-h-6 items-center justify-between gap-3 text-xs text-[var(--oppa-text-muted)]" aria-live="polite">
-            <span className="inline-flex items-center gap-1.5">
-              {draftStatus === 'saving' ? <LoaderCircle className="size-3.5 animate-spin" /> : draftStatus === 'saved' ? <CheckCircle2 className="size-3.5 text-[var(--oppa-green)]" /> : draftStatus === 'failed' ? <AlertCircle className="size-3.5 text-amber-700" /> : <Info className="size-3.5" />}
-              {draftStatus === 'saving' ? 'Saving draft…' : draftStatus === 'saved' ? 'Draft saved' : draftStatus === 'failed' ? 'Draft not saved' : 'Draft autosaves as you type'}
-            </span>
-            {minimumInvestment && step === 1 && (
-              <span className="hidden items-center gap-1 sm:inline-flex">
-                <Info size={14} /> Minimum investment: ₱{Number(minimumInvestment).toLocaleString('en-PH')}
-              </span>
-            )}
+          <div className="franchise-heading-row">
+            <h1 ref={compactHeadingRef} tabIndex={-1} className="font-serif text-3xl font-bold leading-tight text-[var(--oppa-text)] focus:outline-none sm:text-[2.1rem]">
+              {stepHeadings[step]}
+            </h1>
+            <DraftStatus status={draftStatus} />
           </div>
+          <p className="franchise-disclaimer mt-2 max-w-3xl text-sm leading-6 text-[var(--oppa-text-muted)]">
+            Application review is required; submitting does not guarantee approval.
+          </p>
+          <Stepper currentStep={step} onStepChange={goToStep} orientation="horizontal" />
+          {minimumInvestment && step === 1 && (
+            <p className="franchise-investment-callout mt-4 flex items-center gap-2 rounded-xl p-3 text-sm font-semibold">
+              <Info size={17} /> Minimum investment: ₱{Number(minimumInvestment).toLocaleString('en-PH')}
+            </p>
+          )}
+          {(step === 0 || step === 2) && (
+            <ImportantNotesToggle
+              expanded={step === 0 ? showStepOneNotes : showReviewNotes}
+              onToggle={() => (step === 0 ? setShowStepOneNotes((value) => !value) : setShowReviewNotes((value) => !value))}
+              className="franchise-compact-notes"
+            />
+          )}
         </header>
-
-        <Stepper currentStep={step} onStepChange={goToStep} />
 
         {savedDraft && (
           <div className="my-5 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-4" role="region" aria-label="Saved application draft">
@@ -443,7 +511,7 @@ const FranchiseApplicationPage: React.FC = () => {
                 <p className="font-semibold text-[var(--oppa-text)]">Continue where you left off?</p>
                 <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">A saved draft is available on this device. Uploaded files are not saved.</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" onClick={restoreDraft} className="franchise-draft-continue min-h-11 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white">Continue draft</button>
+                  <button type="button" onClick={restoreDraft} className="franchise-draft-continue min-h-11 rounded-xl px-4 text-sm font-semibold">Continue draft</button>
                   <button type="button" onClick={discardDraft} className="min-h-11 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold text-[var(--oppa-text)]">Start fresh</button>
                 </div>
               </div>
@@ -452,62 +520,64 @@ const FranchiseApplicationPage: React.FC = () => {
         )}
 
         {error && (
-          <div className="my-5 flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800" role="alert">
+          <div className="franchise-alert my-5 flex items-start gap-2 rounded-xl p-3 text-sm" role="alert">
             <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" /> <span>{error}</span>
           </div>
         )}
 
         <div key={step} className="franchise-step-panel">
           {step === 0 && (
-            <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
-              <FormField id="contact_name" label="Full legal name" required helper="Enter the name shown on your valid ID." error={fieldErrors.contact_name}>
-                <input id="contact_name" required autoComplete="name" maxLength={255} value={form.contact_name}
-                  onChange={(event) => updateField('contact_name', event.target.value)} onBlur={() => validateField('contact_name')}
-                  placeholder="Your full legal name" className="franchise-control" aria-invalid={!!fieldErrors.contact_name}
-                  aria-describedby={fieldDescription('contact_name', !!fieldErrors.contact_name)} />
-              </FormField>
-              <FormField id="email" label="Contact email" required helper="We’ll send application updates to this address." error={fieldErrors.email}>
-                <input id="email" required type="email" inputMode="email" autoComplete="email" maxLength={255} value={form.email}
-                  readOnly aria-readonly="true" onBlur={() => validateField('email')}
-                  placeholder="you@example.com" className="franchise-control read-only:cursor-not-allowed read-only:bg-stone-50"
-                  aria-describedby={fieldDescription('email', !!fieldErrors.email)} />
-              </FormField>
-              <FormField id="phone" label="Philippine mobile number" required helper="Format: 09XX XXX XXXX." error={fieldErrors.phone}>
-                <input id="phone" required type="tel" inputMode="tel" autoComplete="tel" maxLength={13} value={form.phone}
-                  onChange={(event) => updateField('phone', formatPhone(event.target.value))} onBlur={() => validateField('phone')}
-                  placeholder="0917 123 4567" className="franchise-control" aria-invalid={!!fieldErrors.phone}
-                  aria-describedby={fieldDescription('phone', !!fieldErrors.phone)} />
-              </FormField>
-              <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-3 text-sm leading-5 text-[var(--oppa-text-muted)] sm:col-span-2">
+            <div className="space-y-7">
+              <FormSection title="Personal information" className="franchise-form-subsection">
+                <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+                  <FormField id="contact_name" label="Full legal name" required helper="Enter the name shown on your valid ID." error={fieldErrors.contact_name}>
+                    <input id="contact_name" required autoComplete="name" maxLength={255} value={form.contact_name}
+                      onChange={(event) => updateField('contact_name', event.target.value)} onBlur={() => validateField('contact_name')}
+                      placeholder="Your full legal name" className="franchise-control" aria-invalid={!!fieldErrors.contact_name}
+                      aria-describedby={fieldDescription('contact_name', !!fieldErrors.contact_name)} />
+                  </FormField>
+                  <FormField id="email" label="Contact email" required helper="Linked to your signed-in account and cannot be changed here." error={fieldErrors.email}>
+                    <LockedEmailField id="email" value={form.email} onBlur={() => validateField('email')}
+                      describedBy={fieldDescription('email', !!fieldErrors.email)} />
+                  </FormField>
+                  <FormField id="phone" label="Philippine mobile number" required helper="Format: 09XX XXX XXXX." error={fieldErrors.phone}>
+                    <PhoneInput id="phone" value={form.phone}
+                      onChange={(value) => updateField('phone', value)} onBlur={() => validateField('phone')}
+                      describedBy={fieldDescription('phone', !!fieldErrors.phone)} invalid={!!fieldErrors.phone}
+                      placeholder="0917 123 4567" />
+                  </FormField>
+                </div>
+              </FormSection>
+              <FormSection title="Address" className="franchise-form-subsection">
+                <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+                  <FormField id="province" label="Province" required helper="Start typing to see common options." error={fieldErrors.province}>
+                    <SearchableSelect id="province" required value={form.province} onChange={(value) => {
+                      updateField('province', value);
+                      setFieldErrors((current) => ({ ...current, province: undefined }));
+                    }}
+                      onBlur={() => validateField('province')} options={provinceOptions} placeholder="Select or enter a province"
+                      invalid={!!fieldErrors.province} describedBy={fieldDescription('province', !!fieldErrors.province)} />
+                  </FormField>
+                  <FormField id="city" label="City / Municipality" required helper="Enter the city or municipality where you live." error={fieldErrors.city}>
+                    <SearchableSelect id="city" required value={form.city} onChange={(value) => {
+                      updateField('city', value);
+                      setFieldErrors((current) => ({ ...current, city: undefined }));
+                    }}
+                      onBlur={() => validateField('city')} options={cityOptions} placeholder="Select or enter a city"
+                      invalid={!!fieldErrors.city} describedBy={fieldDescription('city', !!fieldErrors.city)} />
+                  </FormField>
+                  <FormField id="street" label="Street / Barangay" required helper="Include your street, building, or barangay." error={fieldErrors.street} className="sm:col-span-2">
+                    <input id="street" required autoComplete="street-address" maxLength={500} value={form.street}
+                      onChange={(event) => updateField('street', event.target.value)} onBlur={() => validateField('street')}
+                      placeholder="Street, building, or barangay" className="franchise-control" aria-invalid={!!fieldErrors.street}
+                      aria-describedby={fieldDescription('street', !!fieldErrors.street)} />
+                  </FormField>
+                </div>
+              </FormSection>
+              <label className="franchise-profile-consent flex min-h-11 items-start gap-3 rounded-xl p-3 text-sm leading-5 text-[var(--oppa-text-muted)]">
                 <input type="checkbox" checked={updateApplicantProfile} onChange={(event) => setUpdateApplicantProfile(event.target.checked)} className="mt-0.5 size-4 accent-[var(--oppa-green)]" />
                 <span>Also update my applicant account name and mobile number with these details.</span>
               </label>
-              <div className="hidden sm:block" aria-hidden="true" />
-              <FormField id="province" label="Province" required helper="Start typing to see common options." error={fieldErrors.province}>
-                <input id="province" required list="ph-provinces" autoComplete="address-level1" maxLength={100} value={form.province}
-                  onChange={(event) => updateField('province', event.target.value)} onBlur={() => validateField('province')}
-                  placeholder="Select or enter a province" className="franchise-control" aria-invalid={!!fieldErrors.province}
-                  aria-describedby={fieldDescription('province', !!fieldErrors.province)} />
-                <datalist id="ph-provinces">{['Metro Manila', 'Cavite', 'Laguna', 'Rizal', 'Bulacan', 'Batangas', 'Cebu', 'Pampanga', 'Davao del Sur'].map((province) => <option key={province} value={province} />)}</datalist>
-              </FormField>
-              <FormField id="city" label="City / Municipality" required helper="Enter the city or municipality where you live." error={fieldErrors.city}>
-                <input id="city" required autoComplete="address-level2" maxLength={150} value={form.city}
-                  onChange={(event) => updateField('city', event.target.value)} onBlur={() => validateField('city')}
-                  placeholder="City or municipality" className="franchise-control" aria-invalid={!!fieldErrors.city}
-                  aria-describedby={fieldDescription('city', !!fieldErrors.city)} />
-              </FormField>
-              <FormField id="street" label="Street / Barangay" required helper="Include your street, building, or barangay." error={fieldErrors.street}>
-                <input id="street" required autoComplete="street-address" maxLength={500} value={form.street}
-                  onChange={(event) => updateField('street', event.target.value)} onBlur={() => validateField('street')}
-                  placeholder="Street, building, or barangay" className="franchise-control" aria-invalid={!!fieldErrors.street}
-                  aria-describedby={fieldDescription('street', !!fieldErrors.street)} />
-              </FormField>
-              <div className="sm:col-span-2">
-                <button type="button" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--oppa-green)] hover:underline" aria-expanded={showStepOneNotes} onClick={() => setShowStepOneNotes((value) => !value)}>
-                  <CircleHelp size={16} /> Important notes <ChevronDown size={15} className={showStepOneNotes ? 'rotate-180 transition-transform' : 'transition-transform'} />
-                </button>
-                {showStepOneNotes && <ImportantNotes />}
-              </div>
             </div>
           )}
 
@@ -548,7 +618,7 @@ const FranchiseApplicationPage: React.FC = () => {
               </FormSection>
               <FormSection title="Property and timeline">
                 <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
-                  <FormField id="property_status" label="Do you have a proposed property?" required helper="You can update the team if your plans change." error={fieldErrors.has_proposed_property} className="sm:col-span-2">
+                  <FormField id="property_status" label="Do you have a proposed property?" required helper="You can update the team if your plans change." error={fieldErrors.has_proposed_property}>
                     <SegmentedRadio
                       id="property_status"
                       name="property_status"
@@ -565,7 +635,10 @@ const FranchiseApplicationPage: React.FC = () => {
                   </FormField>
                   <FormField id="opening_timeline" label="Expected opening timeline" required helper="Choose the timeframe that best matches your current plan." error={fieldErrors.opening_timeline}>
                     <StyledSelect id="opening_timeline" required value={form.opening_timeline}
-                      onChange={(value) => updateField('opening_timeline', value)} onBlur={() => validateField('opening_timeline')}
+                      onChange={(value) => {
+                        updateField('opening_timeline', value);
+                        setFieldErrors((current) => ({ ...current, opening_timeline: undefined }));
+                      }} onBlur={() => validateField('opening_timeline')}
                       invalid={!!fieldErrors.opening_timeline} describedBy={fieldDescription('opening_timeline', !!fieldErrors.opening_timeline)}
                       options={Object.entries(timelineLabels).map(([value, label]) => ({ value, label }))} placeholder="Choose a timeframe" />
                   </FormField>
@@ -599,8 +672,8 @@ const FranchiseApplicationPage: React.FC = () => {
           )}
 
           {step === 2 && (
-            <div className="space-y-5">
-              <p className="text-sm leading-6 text-[var(--oppa-text-muted)]">Review the details below before sending your application. You can edit any section or remove a document.</p>
+            <div className="franchise-review-grid">
+              <p className="franchise-review-intro text-sm leading-6 text-[var(--oppa-text-muted)]">Review the details below before sending your application. You can edit any section or remove a document.</p>
               <ReviewSection title="Your details" onEdit={() => goToStep(0)}>
                 <ReviewItem label="Full legal name" value={form.contact_name} />
                 <ReviewItem label="Contact email" value={form.email} />
@@ -608,6 +681,7 @@ const FranchiseApplicationPage: React.FC = () => {
                 <ReviewItem label="Province" value={form.province} />
                 <ReviewItem label="City / Municipality" value={form.city} />
                 <ReviewItem label="Street / Barangay" value={form.street} />
+                <ReviewItem label="Update applicant account" value={updateApplicantProfile ? 'Yes' : 'No'} />
               </ReviewSection>
               <ReviewSection title="Business plan" onEdit={() => goToStep(1)}>
                 <ReviewItem label="Proposed business name" value={form.franchise_name} optional />
@@ -619,7 +693,7 @@ const FranchiseApplicationPage: React.FC = () => {
                 <ReviewItem label="Other relevant business information" value={form.business_information} optional />
                 <ReviewItem label="Additional notes" value={form.notes} optional />
               </ReviewSection>
-              <ReviewSection title={`Documents (${documents.length}/${maxSupportingDocuments})`} onEdit={() => goToStep(1)}>
+              <ReviewSection title={`Documents (${documents.length}/${maxSupportingDocuments})`} onEdit={() => goToStep(1)} progress={{ value: documents.length, max: maxSupportingDocuments }}>
                 {documents.length ? (
                   <ul className="space-y-3 sm:col-span-2" aria-label="Uploaded documents">
                     {documents.map((file, index) => (
@@ -631,13 +705,7 @@ const FranchiseApplicationPage: React.FC = () => {
                 )}
               </ReviewSection>
 
-              <div className="rounded-2xl border border-[var(--oppa-border)] p-4 sm:p-5">
-                <button type="button" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--oppa-green)] hover:underline" aria-expanded={showReviewNotes} onClick={() => setShowReviewNotes((value) => !value)}>
-                  <CircleHelp size={16} /> Important notes <ChevronDown size={15} className={showReviewNotes ? 'rotate-180 transition-transform' : 'transition-transform'} />
-                </button>
-                {showReviewNotes && <ImportantNotes />}
-              </div>
-              <div className="space-y-3 rounded-2xl bg-[var(--oppa-cream)] p-4 sm:p-5">
+              <div className="franchise-review-consents space-y-3 rounded-2xl bg-[var(--oppa-cream)] p-4 sm:p-5">
                 <ConsentCheckbox id="consent-accurate" checked={consentAccurate} onChange={setConsentAccurate}>
                   I confirm the information in this application is accurate and complete.
                 </ConsentCheckbox>
@@ -650,20 +718,22 @@ const FranchiseApplicationPage: React.FC = () => {
         </div>
 
         <footer className="franchise-form-actions mt-8 flex items-center justify-between gap-3 border-t border-[var(--oppa-border)] pt-5">
-          <button type="button" onClick={() => goToStep(step - 1)} disabled={step === 0} className="franchise-secondary-button min-h-11">
+          <Button type="button" variant="secondary" onClick={() => goToStep(step - 1)} disabled={step === 0}>
             <ArrowLeft size={15} /> Back
-          </button>
+          </Button>
           {step < 2 ? (
-            <button type="button" onClick={continueToNextStep} disabled={step === 0 ? !stepOneValid : !stepTwoValid} className="franchise-primary-button min-h-11">
+            <Button type="button" variant="primary" onClick={continueToNextStep} disabled={step === 0 ? !stepOneValid : !stepTwoValid}>
               {step === 1 ? 'Review application' : 'Continue'} <ArrowRight size={16} />
-            </button>
+            </Button>
           ) : (
-            <button type="button" onClick={() => void handleSubmit()} disabled={isSubmitting || !consentAccurate || !consentPrivacy} className="franchise-primary-button min-h-11">
+            <Button type="button" variant="primary" onClick={() => void handleSubmit()} disabled={isSubmitting || !consentAccurate || !consentPrivacy}>
               {isSubmitting ? <><LoaderCircle size={16} className="animate-spin" /> Submitting…</> : <>{submissionFailed ? 'Retry submission' : 'Confirm and submit application'} <ArrowRight size={16} /></>}
-            </button>
+            </Button>
           )}
         </footer>
       </section>
+        </div>
+      </div>
 
       {leaveDialogOpen && (
         <ConfirmationDialog
@@ -700,43 +770,88 @@ const FormField: React.FC<{
   children: React.ReactNode;
 }> = ({ id, label, required = false, helper, error, className = '', children }) => (
   <div className={`franchise-field min-w-0 ${className}`}>
-    <label id={`${id}-label`} htmlFor={id} className="mb-1.5 block text-sm font-semibold text-[var(--oppa-green)]">
-      {label}{required && <span className="ml-1 text-red-700" aria-hidden="true">*</span>}
+    <label id={`${id}-label`} htmlFor={id} className="mb-1.5 block text-sm font-semibold text-[var(--label)]">
+      {label}{required && <span className="franchise-required-mark ml-1" aria-hidden="true">*</span>}
       {required && <span className="sr-only"> (required)</span>}
     </label>
     {children}
     <p id={`${id}-help`} className="mt-1.5 text-xs leading-5 text-[var(--oppa-text-muted)]">{helper}</p>
-    {error && <p id={`${id}-error`} className="mt-1 inline-flex items-start gap-1.5 text-xs font-medium text-red-700" aria-live="polite"><AlertCircle size={14} className="mt-px shrink-0" />{error}</p>}
+    {error && <p id={`${id}-error`} className="franchise-danger-text mt-1 inline-flex items-start gap-1.5 text-xs font-medium" aria-live="polite"><AlertCircle size={14} className="mt-px shrink-0" />{error}</p>}
   </div>
 );
 
-const FormSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <section className="space-y-4" aria-label={title}>
+const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant: 'primary' | 'secondary' }> = ({ variant, className = '', children, ...props }) => (
+  <button {...props} className={`franchise-${variant}-button ${className}`}>{children}</button>
+);
+
+const ThemeToggle: React.FC = () => {
+  const [theme, setTheme] = useState<Theme>(getSavedTheme);
+  const nextTheme = theme === 'dark' ? 'light' : 'dark';
+  return (
+    <button type="button" className="franchise-theme-toggle" aria-label={`Switch to ${nextTheme} mode`}
+      title={`Switch to ${nextTheme} mode`} onClick={() => { applyTheme(nextTheme); setTheme(nextTheme); }}>
+      {theme === 'dark' ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
+    </button>
+  );
+};
+
+const FormSection: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({ title, children, className = '' }) => (
+  <section className={`space-y-4 ${className}`} aria-label={title}>
     <h2 className="border-b border-[var(--oppa-border)] pb-2 text-sm font-bold uppercase tracking-[.08em] text-[var(--oppa-text-muted)]">{title}</h2>
     {children}
   </section>
 );
 
-const Stepper: React.FC<{ currentStep: number; onStepChange: (step: number) => void }> = ({ currentStep, onStepChange }) => (
-  <nav aria-label="Application steps" className="mb-8">
-    <p className="mb-2 text-right text-xs text-[var(--oppa-text-muted)]" aria-live="polite">
+const DraftStatus: React.FC<{ status: 'idle' | 'saving' | 'saved' | 'failed' }> = ({ status }) => (
+  <span className={`franchise-draft-status is-${status}`} role="status" aria-live="polite">
+    {status === 'saved' && <Check size={14} aria-hidden="true" />}
+    {status === 'saving' ? 'Saving draft…' : status === 'failed' ? 'Draft not saved' : status === 'saved' ? 'Draft saved' : 'Draft ready'}
+  </span>
+);
+
+const ImportantNotesToggle: React.FC<{ expanded: boolean; onToggle: () => void; className?: string }> = ({ expanded, onToggle, className = '' }) => (
+  <div className={`franchise-important-notes ${className}`}>
+    <button type="button" className="franchise-important-notes-toggle" aria-expanded={expanded} onClick={onToggle}>
+      Important notes <ChevronDown size={16} className={expanded ? 'is-open' : ''} aria-hidden="true" />
+    </button>
+    {expanded && <ImportantNotes />}
+  </div>
+);
+
+const Stepper: React.FC<{
+  currentStep: number;
+  onStepChange: (step: number) => void;
+  orientation?: 'vertical' | 'horizontal';
+}> = ({ currentStep, onStepChange, orientation = 'horizontal' }) => (
+  <nav aria-label="Application steps" className={`franchise-stepper-nav is-${orientation}`}>
+    <p className="franchise-step-progress" aria-live="polite">
       Step {currentStep + 1} of 3 <span aria-hidden="true">•</span> about {currentStep === 2 ? '1' : '3'} min left
     </p>
+    <div className="franchise-progress-track" role="progressbar" aria-label="Application progress" aria-valuemin={1} aria-valuemax={3} aria-valuenow={currentStep + 1}>
+      <span style={{ width: `${((currentStep + 1) / 3) * 100}%` }} />
+    </div>
     <ol className="franchise-stepper">
       {stepLabels.map((label, index) => {
         const completed = index < currentStep;
         const current = index === currentStep;
+        const contents = (
+          <>
+            <span className="franchise-step-circle">{completed ? <Check size={16} aria-hidden="true" /> : index + 1}</span>
+            <span className="franchise-step-copy">
+              <span className="franchise-step-label">{label}</span>
+              <span className="franchise-step-description">{stepDescriptions[index]}</span>
+            </span>
+          </>
+        );
         return (
           <li key={label} className={`franchise-stepper-item ${index < 2 ? 'has-connector' : ''} ${completed ? 'is-complete' : ''} ${current ? 'is-current' : ''}`}>
             {completed ? (
               <button type="button" onClick={() => onStepChange(index)} className="franchise-step-button" aria-label={`Return to completed step ${index + 1}: ${label}`}>
-                <span className="franchise-step-circle"><Check size={16} aria-hidden="true" /></span>
-                <span className="franchise-step-label">{label}</span>
+                {contents}
               </button>
             ) : (
               <span className="franchise-step-button" aria-current={current ? 'step' : undefined}>
-                <span className="franchise-step-circle">{index + 1}</span>
-                <span className="franchise-step-label">{label}</span>
+                {contents}
               </span>
             )}
           </li>
@@ -756,16 +871,149 @@ const StyledSelect: React.FC<{
   required?: boolean;
   invalid?: boolean;
   describedBy?: string;
-}> = ({ id, value, onChange, onBlur, options, placeholder, required, invalid, describedBy }) => (
+}> = ({ id, value, onChange, onBlur, options, placeholder, required, invalid, describedBy }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(() => options.findIndex((option) => option.value === value));
+  const listId = `${id}-options`;
+  const selectedOption = options.find((option) => option.value === value);
+  const chooseOption = (option: { value: string; label: string }) => {
+    onChange(option.value);
+    setActiveIndex(options.findIndex((candidate) => candidate.value === option.value));
+    setIsOpen(false);
+  };
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((index) => {
+        if (index < 0) return event.key === 'ArrowDown' ? 0 : options.length - 1;
+        return event.key === 'ArrowDown'
+          ? (index + 1) % options.length
+          : (index <= 0 ? options.length - 1 : index - 1);
+      });
+    } else if ((event.key === 'Enter' || event.key === ' ') && !isOpen) {
+      event.preventDefault();
+      setIsOpen(true);
+    } else if (event.key === 'Enter' && isOpen) {
+      event.preventDefault();
+      chooseOption(options[activeIndex] || options[0]);
+    } else if (event.key === 'Escape') {
+      setIsOpen(false);
+    }
+  };
+
+  return (
+    <div className="franchise-custom-select">
+      <button id={id} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={isOpen}
+        aria-controls={listId} aria-activedescendant={isOpen && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
+        aria-required={required} aria-invalid={invalid} aria-describedby={describedBy}
+        onClick={() => setIsOpen((open) => !open)} onKeyDown={handleKeyDown} onBlur={onBlur}
+        className={`franchise-control franchise-select-button ${selectedOption ? '' : 'is-placeholder'}`}>
+        <span>{selectedOption?.label || placeholder}</span>
+        <ChevronDown size={16} className={isOpen ? 'is-open' : ''} aria-hidden="true" />
+      </button>
+      {isOpen && (
+        <ul id={listId} className="franchise-select-options" role="listbox" aria-labelledby={`${id}-label`}>
+          {options.map((option, index) => (
+            <li key={option.value} id={`${listId}-${index}`} role="option" aria-selected={option.value === value}>
+              <button type="button" tabIndex={-1} className={index === activeIndex ? 'is-active' : ''}
+                onMouseDown={(event) => event.preventDefault()} onClick={() => chooseOption(option)}>
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+const LockedEmailField: React.FC<{ id: string; value: string; onBlur: () => void; describedBy: string }> = ({ id, value, onBlur, describedBy }) => (
   <div className="relative">
-    <select id={id} required={required} value={value} onChange={(event) => onChange(event.target.value)} onBlur={onBlur}
-      className="franchise-control franchise-select" aria-invalid={invalid} aria-describedby={describedBy}>
-      <option value="">{placeholder}</option>
-      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
-    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
+    <Lock className="franchise-control-icon" size={16} aria-hidden="true" />
+    <input id={id} type="email" autoComplete="email" value={value} readOnly aria-readonly="true" onBlur={onBlur}
+      className="franchise-control franchise-control-with-icon franchise-locked-control" aria-describedby={describedBy} />
   </div>
 );
+
+const PhoneInput: React.FC<{
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  onBlur: () => void;
+  invalid: boolean;
+  describedBy: string;
+  placeholder: string;
+}> = ({ id, value, onChange, onBlur, invalid, describedBy, placeholder }) => (
+  <input id={id} required type="tel" inputMode="tel" autoComplete="tel" maxLength={13} value={value}
+    onChange={(event) => onChange(formatPhone(event.target.value))} onBlur={onBlur}
+    placeholder={placeholder} className="franchise-control" aria-invalid={invalid} aria-describedby={describedBy} />
+);
+
+const SearchableSelect: React.FC<{
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  onBlur: () => void;
+  options: string[];
+  placeholder: string;
+  required?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+}> = ({ id, value, onChange, onBlur, options, placeholder, required, invalid, describedBy }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const filteredOptions = options.filter((option) => option.toLowerCase().includes(value.trim().toLowerCase())).slice(0, 8);
+  const listId = `${id}-options`;
+  const selectOption = (option: string) => {
+    onChange(option);
+    setIsOpen(false);
+    setActiveIndex(-1);
+  };
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown' && filteredOptions.length) {
+      event.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((index) => (index + 1) % filteredOptions.length);
+    } else if (event.key === 'ArrowUp' && filteredOptions.length) {
+      event.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((index) => index <= 0 ? filteredOptions.length - 1 : index - 1);
+    } else if (event.key === 'Enter' && isOpen && filteredOptions.length) {
+      event.preventDefault();
+      selectOption(filteredOptions[activeIndex >= 0 ? activeIndex : 0]);
+    } else if (event.key === 'Escape') {
+      setIsOpen(false);
+      setActiveIndex(-1);
+    }
+  };
+
+  return (
+    <div className="franchise-searchable-select">
+      <input id={id} required={required} role="combobox" aria-autocomplete="list" aria-expanded={isOpen}
+        aria-controls={listId} aria-activedescendant={isOpen && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
+        autoComplete="off" maxLength={150} value={value}
+        onChange={(event) => { onChange(event.target.value); setIsOpen(true); setActiveIndex(-1); }}
+        onFocus={() => setIsOpen(true)} onBlur={() => { window.setTimeout(() => setIsOpen(false), 100); onBlur(); }}
+        onKeyDown={handleKeyDown} placeholder={placeholder}
+        className={`franchise-control franchise-search-input ${options.some((option) => option.toLowerCase() === value.toLowerCase()) ? 'is-selected' : ''}`}
+        aria-invalid={invalid} aria-describedby={describedBy} />
+      <ChevronDown className="franchise-search-chevron" size={16} aria-hidden="true" />
+      {isOpen && filteredOptions.length > 0 && (
+        <ul id={listId} className="franchise-search-options" role="listbox">
+          {filteredOptions.map((option, index) => (
+            <li key={option} id={`${listId}-${index}`} role="option" aria-selected={option.toLowerCase() === value.toLowerCase()}>
+              <button type="button" tabIndex={-1} className={index === activeIndex ? 'is-active' : ''}
+                onMouseDown={(event) => event.preventDefault()} onClick={() => selectOption(option)}>
+                {option}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
 
 const CurrencyInput: React.FC<{
   id: string;
@@ -856,7 +1104,7 @@ const FileDropzone: React.FC<{
       <p className="text-sm font-semibold text-[var(--oppa-text)]">Drag files here or <button type="button" onClick={onBrowse} className="font-bold text-[var(--oppa-green)] underline underline-offset-2">browse</button></p>
       <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Files are attached when you submit this application.</p>
     </div>
-    {error && <p className="mt-2 flex items-start gap-1.5 text-sm font-medium text-red-700" role="alert"><AlertCircle size={15} className="mt-0.5 shrink-0" />{error}</p>}
+    {error && <p className="franchise-danger-text mt-2 flex items-start gap-1.5 text-sm font-medium" role="alert"><AlertCircle size={15} className="mt-0.5 shrink-0" />{error}</p>}
     {documents.length > 0 && (
       <ul className="mt-3 space-y-2" aria-label="Selected supporting documents">
         {documents.map((file, index) => <FileCard key={`${file.name}-${file.lastModified}-${index}`} file={file} onRemove={() => onRemove(index)} />)}
@@ -867,6 +1115,7 @@ const FileDropzone: React.FC<{
 
 const FileCard: React.FC<{ file: File; onRemove: () => void }> = ({ file, onRemove }) => {
   const [previewError, setPreviewError] = useState('');
+  const [imageFailed, setImageFailed] = useState(false);
   const isImage = /\.(jpe?g|png)$/i.test(file.name);
   const imageUrl = useMemo(() => isImage ? URL.createObjectURL(file) : '', [file, isImage]);
   useEffect(() => {
@@ -882,12 +1131,15 @@ const FileCard: React.FC<{ file: File; onRemove: () => void }> = ({ file, onRemo
   return (
     <li className="franchise-file-card">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        {isImage && imageUrl ? <img src={imageUrl} alt="" className="size-11 shrink-0 rounded-lg object-cover" /> : <span className="franchise-file-icon"><FileText size={20} aria-hidden="true" /></span>}
+        {isImage && imageUrl && !imageFailed ? <img src={imageUrl} alt="" onError={() => setImageFailed(true)} className="size-11 shrink-0 rounded-lg object-cover" /> : <span className="franchise-file-icon"><FileText size={20} aria-hidden="true" /></span>}
         <div className="min-w-0 flex-1">
           <p className="break-all text-sm font-semibold text-[var(--oppa-text)]">{file.name}</p>
-          <p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">{fileSize(file.size)} <span aria-hidden="true">·</span> Ready to submit</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="text-xs text-[var(--oppa-text-muted)]">{fileSize(file.size)}</p>
+            <span className="franchise-file-ready">Ready to submit</span>
+          </div>
           <div className="franchise-upload-progress mt-2" role="progressbar" aria-label={`${file.name} ready`} aria-valuenow={100} aria-valuemin={0} aria-valuemax={100}><span /></div>
-          {previewError && <p className="mt-1 text-xs text-red-700" role="status">{previewError}</p>}
+          {previewError && <p className="franchise-danger-text mt-1 text-xs" role="status">{previewError}</p>}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
@@ -898,12 +1150,21 @@ const FileCard: React.FC<{ file: File; onRemove: () => void }> = ({ file, onRemo
   );
 };
 
-const ReviewSection: React.FC<{ title: string; onEdit: () => void; children: React.ReactNode }> = ({ title, onEdit, children }) => (
+const ReviewSection: React.FC<{
+  title: string;
+  onEdit: () => void;
+  children: React.ReactNode;
+  progress?: { value: number; max: number };
+}> = ({ title, onEdit, children, progress }) => (
   <section className="rounded-2xl border border-[var(--oppa-border)] p-4 sm:p-5">
     <div className="mb-4 flex items-center justify-between gap-3">
       <h2 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">{title}</h2>
-      <button type="button" onClick={onEdit} className="min-h-11 rounded-lg px-3 text-sm font-semibold text-[var(--oppa-green)] hover:bg-[var(--oppa-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">Edit</button>
+      <button type="button" onClick={onEdit} className="franchise-review-edit"><Pencil size={14} aria-hidden="true" /> Edit</button>
     </div>
+    {progress && <div className="franchise-document-count" aria-label={`${progress.value} of ${progress.max} documents attached`}>
+      <span>{progress.value}/{progress.max} documents</span>
+      <span className="franchise-document-meter"><span style={{ width: `${(progress.value / progress.max) * 100}%` }} /></span>
+    </div>}
     <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">{children}</div>
   </section>
 );
@@ -917,8 +1178,8 @@ const ReviewItem: React.FC<{ label: string; value?: string; optional?: boolean }
 
 const ConsentCheckbox: React.FC<{ id: string; checked: boolean; onChange: (checked: boolean) => void; children: React.ReactNode }> = ({ id, checked, onChange, children }) => (
   <label htmlFor={id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg p-2 text-sm leading-6 text-[var(--oppa-text)]">
-    <input id={id} type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="franchise-checkbox mt-1 size-5 shrink-0" />
-    <span>{children}<span className="ml-1 text-red-700" aria-hidden="true">*</span><span className="sr-only"> (required)</span></span>
+    <input id={id} type="checkbox" required checked={checked} onChange={(event) => onChange(event.target.checked)} className="franchise-checkbox mt-1 size-5 shrink-0" />
+    <span>{children}<span className="franchise-required-mark ml-1" aria-hidden="true">*</span><span className="sr-only"> (required)</span></span>
   </label>
 );
 
@@ -984,7 +1245,7 @@ const ConfirmationDialog: React.FC<{
         <p id="franchise-dialog-message" className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{message}</p>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <button type="button" onClick={onCancel} className="franchise-secondary-button min-h-11">Keep editing</button>
-          <button type="button" onClick={onConfirm} className={`franchise-dialog-confirm min-h-11 rounded-xl px-4 text-sm font-semibold text-white ${destructive ? 'bg-red-700 hover:bg-red-800' : 'bg-[var(--oppa-green)] hover:bg-[var(--oppa-green-dark)]'}`}>{confirmLabel}</button>
+          <button type="button" onClick={onConfirm} className={`franchise-dialog-confirm min-h-11 rounded-xl px-4 text-sm font-semibold ${destructive ? 'is-destructive' : ''}`}>{confirmLabel}</button>
         </div>
       </section>
     </div>
@@ -997,24 +1258,33 @@ const SuccessScreen: React.FC<{
   referenceNumber: string;
   copyMessage: string;
   onCopy: () => void;
-}> = ({ name, email, referenceNumber, copyMessage, onCopy }) => (
+}> = ({ name, email, referenceNumber, copyMessage, onCopy }) => {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
+    headingRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  return (
   <main className="franchise-application-page flex min-h-screen items-center justify-center bg-[var(--oppa-cream)] px-4 py-8 text-[var(--oppa-text)]">
-    <section className="franchise-application-card w-full max-w-2xl rounded-[28px] border border-[var(--oppa-border)] bg-white p-6 shadow-lg sm:p-10">
+    <section className="franchise-application-card franchise-card-surface w-full max-w-2xl rounded-[28px] border border-[var(--oppa-border)] p-6 sm:p-10">
+      <div className="mb-4 flex justify-end"><ThemeToggle /></div>
       <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] franchise-success-check"><CheckCircle2 size={36} aria-hidden="true" /></div>
       <p className="mt-5 text-center text-xs font-bold uppercase tracking-[.16em] text-[var(--oppa-green)]">Application submitted</p>
-      <h1 className="mt-2 text-center font-serif text-3xl font-bold text-[var(--oppa-text)]">Thank you, {name}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="mt-2 text-center font-serif text-3xl font-bold text-[var(--oppa-text)] focus:outline-none">Thank you, {name}</h1>
       <p className="mx-auto mt-3 max-w-lg text-center text-sm leading-6 text-[var(--oppa-text-muted)]">Your application has been received. Keep your reference number to track its progress.</p>
       {referenceNumber ? (
         <div className="mt-6 rounded-2xl bg-[var(--oppa-cream)] p-5 text-center">
           <p className="text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Application reference</p>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
             <p className="font-mono text-xl font-bold tracking-wide text-[var(--oppa-green)]">{referenceNumber}</p>
-            <button type="button" onClick={onCopy} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-sm font-semibold text-[var(--oppa-green)]" aria-label="Copy reference number"><Copy size={15} /> Copy</button>
+            <button type="button" onClick={onCopy} className="franchise-copy-button inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] px-3 text-sm font-semibold" aria-label="Copy reference number"><Copy size={15} /> Copy</button>
           </div>
           {copyMessage && <p className="mt-2 text-xs text-[var(--oppa-text-muted)]" role="status">{copyMessage}</p>}
         </div>
       ) : (
-        <p role="status" className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">Your application was received. The reference number was not included in the response; please check your email for updates and avoid submitting again.</p>
+        <p role="status" className="franchise-warning mt-6 rounded-xl p-4 text-sm">Your application was received. The reference number was not included in the response; please check your email for updates and avoid submitting again.</p>
       )}
       <section className="mt-8">
         <h2 className="mb-4 font-serif text-xl font-semibold">What happens next</h2>
@@ -1026,11 +1296,12 @@ const SuccessScreen: React.FC<{
       </section>
       <p className="mt-6 text-center text-sm text-[var(--oppa-text-muted)]">A confirmation and future updates will be sent to <span className="font-semibold text-[var(--oppa-text)]">{email}</span>.</p>
       <div className="mt-6 flex flex-wrap justify-center gap-3">
-        <Link to="/franchise/track-application" state={{ referenceNumber, email }} className="franchise-success-track inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Track my application <ArrowRight size={16} /></Link>
+        <Link to="/franchise/track-application" state={{ referenceNumber, email }} className="franchise-success-track inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-semibold">Track my application <ArrowRight size={16} /></Link>
         <Link to="/franchise-opportunities" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--oppa-border)] px-5 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Back to opportunities</Link>
       </div>
     </section>
   </main>
-);
+  );
+};
 
 export default FranchiseApplicationPage;
