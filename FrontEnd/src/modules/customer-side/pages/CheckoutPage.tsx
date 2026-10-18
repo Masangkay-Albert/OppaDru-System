@@ -44,6 +44,7 @@ const CheckoutPage: React.FC = () => {
   const [branchError, setBranchError] = useState('');
   const selectedBranchName = branchResolution?.branch.name || 'Select a delivery address';
   const orderRequestRef = useRef<Promise<void> | null>(null);
+  const selectedAddressCoordinatesRef = useRef<Coordinates | null>(null);
 
   useEffect(() => {
     if (!activeDiscount.type) {
@@ -73,6 +74,14 @@ const CheckoutPage: React.FC = () => {
       return;
     }
 
+    // Saved/pinned addresses already have authoritative coordinates. Do not
+    // replace them with a broad text geocode such as "Laguna".
+    if (selectedAddressCoordinatesRef.current) {
+      setDeliveryCoordinates(selectedAddressCoordinatesRef.current);
+      selectedAddressCoordinatesRef.current = null;
+      return;
+    }
+
     const timer = window.setTimeout(async () => {
       const coords = await geocodeAddress(cleanAddress(address.street));
       setDeliveryCoordinates(coords);
@@ -89,6 +98,8 @@ const CheckoutPage: React.FC = () => {
     }
     let active = true;
     const controller = new AbortController();
+    setBranchResolution(null);
+    setBranchError('');
     const timer = window.setTimeout(() => {
       resolveBranch({
         coordinates: deliveryCoordinates,
@@ -360,7 +371,10 @@ const CheckoutPage: React.FC = () => {
             <CheckoutForm
               address={address}
               updateAddress={updateAddress}
-              onAddressCoordinatesChange={setDeliveryCoordinates}
+              onAddressCoordinatesChange={(coordinates) => {
+                selectedAddressCoordinatesRef.current = coordinates;
+                setDeliveryCoordinates(coordinates);
+              }}
               tempPerson={tempPerson}
               updatePerson={updatePerson}
               deliveryType={deliveryType}
