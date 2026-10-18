@@ -66,7 +66,13 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   } = useAddressManagement({
     userId: user?.id,
     onAddressSelect: (street, details, coordinates) => {
-      onAddressCoordinatesChange?.(coordinates ? { lat: coordinates.lat, lng: coordinates.lng } : null);
+      const hasValidCoordinates = Boolean(
+        coordinates
+        && Number.isFinite(coordinates.lat)
+        && Number.isFinite(coordinates.lng)
+        && !(coordinates.lat === 0 && coordinates.lng === 0)
+      );
+      onAddressCoordinatesChange?.(hasValidCoordinates ? { lat: coordinates!.lat, lng: coordinates!.lng } : null);
       if (street) {
         updateAddress('street', street);
       }

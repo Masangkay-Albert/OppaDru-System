@@ -24,6 +24,7 @@ export interface Order {
   coords?: { lat: number; lng: number };
   deliveryAddressCoords?: { lat: number; lng: number };
   branchId?: string | null;
+  branch?: { id?: string; name?: string; latitude?: number; longitude?: number; address?: string } | null;
   branchName?: string;
   branchCoords?: { lat: number; lng: number };
   branchAddress?: string;
@@ -157,9 +158,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           deliveryAddress: apiOrder.delivery_address,
           deliveryAddressCoords: apiOrder.delivery_coordinates || undefined,
           branchId: apiOrder.branch_id || apiOrder.franchise_id || null,
-          branchName: apiOrder.franchise?.name,
-          branchCoords: apiOrder.franchise?.latitude && apiOrder.franchise?.longitude ? { lat: Number(apiOrder.franchise.latitude), lng: Number(apiOrder.franchise.longitude) } : undefined,
-          branchAddress: apiOrder.franchise?.address,
+          branchName: (apiOrder.branch || apiOrder.franchise)?.name,
+          branchCoords: (apiOrder.branch || apiOrder.franchise)?.latitude && (apiOrder.branch || apiOrder.franchise)?.longitude ? { lat: Number((apiOrder.branch || apiOrder.franchise).latitude), lng: Number((apiOrder.branch || apiOrder.franchise).longitude) } : undefined,
+          branchAddress: (apiOrder.branch || apiOrder.franchise)?.address,
           coords: apiOrder.delivery_coordinates || undefined,
           eta: 35,
           deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
@@ -377,9 +378,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         coords: deliveryAddressCoords,
         deliveryAddressCoords,
         branchId: apiOrder.branch_id || apiOrder.franchise_id || null,
-        branchName: apiOrder.franchise?.name,
-        branchCoords: apiOrder.franchise?.latitude && apiOrder.franchise?.longitude ? { lat: Number(apiOrder.franchise.latitude), lng: Number(apiOrder.franchise.longitude) } : undefined,
-        branchAddress: apiOrder.franchise?.address,
+        branchName: (apiOrder.branch || apiOrder.franchise)?.name,
+        branchCoords: (apiOrder.branch || apiOrder.franchise)?.latitude && (apiOrder.branch || apiOrder.franchise)?.longitude ? { lat: Number((apiOrder.branch || apiOrder.franchise).latitude), lng: Number((apiOrder.branch || apiOrder.franchise).longitude) } : undefined,
+        branchAddress: (apiOrder.branch || apiOrder.franchise)?.address,
         eta: 35,
         deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || deliveryType,
         deliveryFee: derivedDeliveryFee,

@@ -15,8 +15,8 @@ export interface SavedAddress {
   id: string;
   name: string;
   address: string;
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   isDefault: boolean;
   label?: string;
   details?: AddressDetails;
@@ -28,6 +28,12 @@ interface UseAddressManagementProps {
 }
 
 const STORAGE_KEY = 'oppa_dru_addresses';
+
+const getCoordinates = (address: SavedAddress): { lat: number; lng: number } | undefined => {
+  if (!Number.isFinite(address.lat) || !Number.isFinite(address.lng)) return undefined;
+  if (address.lat === 0 && address.lng === 0) return undefined;
+  return { lat: Number(address.lat), lng: Number(address.lng) };
+};
 
 export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressManagementProps = {}) => {
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
@@ -49,13 +55,13 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
             setSelectedAddressId(defaultAddr.id);
             setSelectedAddressDetails(defaultAddr.details || {});
             if (onAddressSelect) {
-              onAddressSelect(defaultAddr.address, defaultAddr.details, defaultAddr);
+              onAddressSelect(defaultAddr.address, defaultAddr.details, getCoordinates(defaultAddr));
             }
           } else {
             setSelectedAddressId(parsed[0].id);
             setSelectedAddressDetails(parsed[0].details || {});
             if (onAddressSelect) {
-              onAddressSelect(parsed[0].address, parsed[0].details, parsed[0]);
+              onAddressSelect(parsed[0].address, parsed[0].details, getCoordinates(parsed[0]));
             }
           }
         }
@@ -94,6 +100,9 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
         addr.id === editingAddress.id ? { ...addr, ...newAddress } : addr
       );
       setSavedAddresses(updatedAddresses);
+      setSelectedAddressId(newAddress.id);
+      setSelectedAddressDetails(newAddress.details || {});
+      onAddressSelect?.(newAddress.address, newAddress.details, getCoordinates(newAddress));
       setEditingAddress(null);
     } else {
       updatedAddresses = [...savedAddresses, newAddress];
@@ -101,7 +110,7 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
       setSelectedAddressId(newAddress.id);
       setSelectedAddressDetails(newAddress.details || {});
       if (onAddressSelect) {
-        onAddressSelect(newAddress.address, newAddress.details, newAddress);
+        onAddressSelect(newAddress.address, newAddress.details, getCoordinates(newAddress));
       }
     }
     
@@ -121,7 +130,7 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
         setSelectedAddressId(newSelected.id);
         setSelectedAddressDetails(newSelected.details || {});
         if (onAddressSelect) {
-          onAddressSelect(newSelected.address, newSelected.details, newSelected);
+          onAddressSelect(newSelected.address, newSelected.details, getCoordinates(newSelected));
         }
       } else {
         setSelectedAddressId('');
@@ -141,7 +150,7 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
     if (addr) {
       setSelectedAddressDetails(addr.details || {});
       if (onAddressSelect) {
-        onAddressSelect(addr.address, addr.details, addr);
+        onAddressSelect(addr.address, addr.details, getCoordinates(addr));
       }
     }
   }, [savedAddresses, onAddressSelect]);

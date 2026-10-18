@@ -139,9 +139,9 @@ const OrderTrackingPage: React.FC = () => {
             deliveryAddressCoords: foundOrder.delivery_coordinates || undefined,
             coords: foundOrder.delivery_coordinates || undefined,
             branchId: foundOrder.branch_id || foundOrder.franchise_id || null,
-            branchName: foundOrder.franchise?.name,
-            branchCoords: foundOrder.franchise?.latitude && foundOrder.franchise?.longitude ? { lat: Number(foundOrder.franchise.latitude), lng: Number(foundOrder.franchise.longitude) } : undefined,
-            branchAddress: foundOrder.franchise?.address,
+            branchName: (foundOrder.branch || foundOrder.franchise)?.name,
+            branchCoords: (foundOrder.branch || foundOrder.franchise)?.latitude && (foundOrder.branch || foundOrder.franchise)?.longitude ? { lat: Number((foundOrder.branch || foundOrder.franchise).latitude), lng: Number((foundOrder.branch || foundOrder.franchise).longitude) } : undefined,
+            branchAddress: (foundOrder.branch || foundOrder.franchise)?.address,
             eta: 35,
             deliveryType: (foundOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
             deliveryFee: derivedDeliveryFee,
@@ -313,11 +313,12 @@ const OrderTrackingPage: React.FC = () => {
   const isDelivered = order.status === ORDER_STATUS.DELIVERED || (order.status as string) === 'arrived';
   const statusColor = isDelivered ? (STATUS_COLORS.delivered || 'bg-green-100 text-green-700') : (STATUS_COLORS[order.status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700');
 
-  const branchCoordinates = order.branchCoords || order.deliveryAddressCoords;
+  const branchCoordinates = order.branchCoords;
+  const hasTrackingCoordinates = Boolean(branchCoordinates && order.deliveryAddressCoords);
   const mapCenter = branchCoordinates && order.deliveryAddressCoords ? [
     (branchCoordinates.lat + order.deliveryAddressCoords.lat) / 2,
     (branchCoordinates.lng + order.deliveryAddressCoords.lng) / 2
-  ] : [branchCoordinates?.lat || order.deliveryAddressCoords?.lat || 0, branchCoordinates?.lng || order.deliveryAddressCoords?.lng || 0];
+  ] : [0, 0];
 
   const graceRemaining = getGraceRemainingSeconds(order);
   const isPendingStatus = String(order.status ?? '').trim().toLowerCase() === ORDER_STATUS.PENDING;
@@ -387,6 +388,12 @@ const OrderTrackingPage: React.FC = () => {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden isolate">
               <div className="h-[400px] w-full relative z-0">
+                {!hasTrackingCoordinates && (
+                  <div className="flex h-full items-center justify-center bg-[#f8fbf8] px-6 text-center text-sm text-gray-600">
+                    Store location is not available for this order yet.
+                  </div>
+                )}
+                {hasTrackingCoordinates && (
                 <MapContainer 
                   center={mapCenter as [number, number]}
                   zoom={13} 
@@ -399,8 +406,8 @@ const OrderTrackingPage: React.FC = () => {
                   />
                   
                   <RouteLayer 
-                    start={branchCoordinates || { lat: 0, lng: 0 }} 
-                    end={order.deliveryAddressCoords || branchCoordinates || { lat: 0, lng: 0 }} 
+                    start={branchCoordinates}
+                    end={order.deliveryAddressCoords}
                     progress={simulatedProgress} 
                     onRouteLoaded={handleRouteLoaded} 
                   />
@@ -411,7 +418,7 @@ const OrderTrackingPage: React.FC = () => {
                   />
                   
                   <Marker 
-                    position={[branchCoordinates?.lat || 0, branchCoordinates?.lng || 0]} 
+                    position={[branchCoordinates.lat, branchCoordinates.lng]}
                     icon={storeIcon}
                   >
                     <Popup>
@@ -438,6 +445,7 @@ const OrderTrackingPage: React.FC = () => {
                     </Marker>
                   )}
                 </MapContainer>
+                )}
               </div>
               
               <MapLegend />

@@ -49,6 +49,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   const [selectedAddress, setSelectedAddress] = useState<string>(initialAddress);
   const [selectedName, setSelectedName] = useState<string>('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [hasConfirmedPosition, setHasConfirmedPosition] = useState(hasValidInitialPosition);
 
   useEffect(() => {
     if (initialAddress) {
@@ -59,6 +60,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
 
   const handleMapClick = async (lat: number, lng: number) => {
     setPosition({ lat, lng });
+    setHasConfirmedPosition(true);
     const address = await reverseGeocode(lat, lng);
     if (address) {
       setSelectedAddress(address);
@@ -68,6 +70,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
 
   const handleSearchSelect = (location: LocationResult) => {
     setPosition({ lat: location.lat, lng: location.lng });
+    setHasConfirmedPosition(true);
     setSelectedAddress(location.address);
     setSelectedName(location.name);
     setIsSearchFocused(false);
@@ -77,7 +80,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   };
 
   const handleConfirm = () => {
-    if (selectedAddress) {
+    if (selectedAddress && hasConfirmedPosition) {
       onSelectLocation({
         lat: position.lat,
         lng: position.lng,
@@ -188,7 +191,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!selectedAddress}
+            disabled={!selectedAddress || !hasConfirmedPosition}
             className="flex-1 py-2.5 bg-[#2d6a4f] text-white rounded-xl hover:bg-[#1b4d3e] transition disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
           >
             <FiCheck size={18} />

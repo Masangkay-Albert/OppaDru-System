@@ -38,6 +38,7 @@ export interface Order {
     branch_id?: string | null;
     franchise_id?: string | null;
     branchName?: string | null;
+    branch?: { id?: string; name?: string; latitude?: number; longitude?: number; address?: string } | null;
     franchise?: { id?: string; name?: string; latitude?: number; longitude?: number; address?: string } | null;
     total: number;
     status: string;

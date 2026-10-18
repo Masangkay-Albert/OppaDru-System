@@ -34,6 +34,8 @@ class OrderDataService
         $proofUrl = $this->resolveImageUrl($proofImage, $baseUrl);
         $discountProofImage = $order->discount_proof_image;
 
+        $branch = $order->relationLoaded('branch') ? $order->branch : $order->franchise;
+
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -46,7 +48,10 @@ class OrderDataService
             'user_id' => $order->user_id,
             'branch_id' => $order->branch_id ?: $order->franchise_id,
             'franchise_id' => $order->franchise_id,
-            'franchise' => $order->relationLoaded('franchise') && $order->franchise ? $order->franchise->only(['id', 'name', 'address', 'latitude', 'longitude']) : null,
+            'branch' => $branch ? $branch->only(['id', 'name', 'address', 'latitude', 'longitude']) : null,
+            // Keep the legacy response key for existing clients, but source it
+            // from branch_id so it cannot point at a different origin.
+            'franchise' => $branch ? $branch->only(['id', 'name', 'address', 'latitude', 'longitude']) : null,
             'total' => $order->total,
             'status' => $order->status,
             'channel' => $order->delivery_type === 'onsite' || $order->delivery_calculation_method === 'onsite'

@@ -46,6 +46,21 @@ const CheckoutPage: React.FC = () => {
   const orderRequestRef = useRef<Promise<void> | null>(null);
   const selectedAddressCoordinatesRef = useRef<Coordinates | null>(null);
 
+  const hasValidCoordinates = (coordinates: Coordinates | null): coordinates is Coordinates => (
+    Boolean(coordinates)
+    && Number.isFinite(coordinates.lat)
+    && Number.isFinite(coordinates.lng)
+    && !(coordinates.lat === 0 && coordinates.lng === 0)
+  );
+
+  const isSpecificAddress = (value: string): boolean => {
+    const meaningfulParts = value
+      .split(',')
+      .map((part) => part.trim().toLowerCase())
+      .filter((part) => part && !['philippines', 'calabarzon', 'region iv-a'].includes(part));
+    return meaningfulParts.length >= 2;
+  };
+
   useEffect(() => {
     if (!activeDiscount.type) {
       setDiscountType(null);
@@ -85,16 +100,26 @@ const CheckoutPage: React.FC = () => {
     setBranchError('');
 
     // Saved/pinned addresses already have authoritative coordinates. Do not
-    // replace them with a broad text geocode such as "Laguna".
+    // replace them with a broad province-only text geocode.
     if (selectedAddressCoordinatesRef.current) {
       setDeliveryCoordinates(selectedAddressCoordinatesRef.current);
       selectedAddressCoordinatesRef.current = null;
       return;
     }
 
+    if (!isSpecificAddress(address.street)) {
+      setBranchError('Please pin your exact delivery location. A city or province alone is not enough for branch assignment.');
+      return;
+    }
+
     const timer = window.setTimeout(async () => {
       const coords = await geocodeAddress(cleanAddress(address.street));
-      setDeliveryCoordinates(coords);
+      if (hasValidCoordinates(coords)) {
+        setDeliveryCoordinates(coords);
+      } else {
+        setDeliveryCoordinates(null);
+        setBranchError('We could not locate this address. Please pin your exact delivery location.');
+      }
     }, 500);
 
     return () => window.clearTimeout(timer);
