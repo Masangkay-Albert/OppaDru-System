@@ -22,6 +22,7 @@ class BranchRoutingService
         if (! $coordinates || ! isset($coordinates['lat'], $coordinates['lng'])) {
             throw new \InvalidArgumentException('Please pin your delivery location so we can find the nearest branch.');
         }
+        $this->assertDeliveryCoordinates($coordinates);
 
         $branches = Franchise::with('franchiseAccount')
             ->where('is_active', true)
@@ -34,7 +35,8 @@ class BranchRoutingService
             })
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->get();
+            ->get()
+            ->filter(fn (Franchise $branch) => $this->validBranchCoordinates($branch));
 
         $loads = Order::whereIn('branch_id', $branches->pluck('id'))
             ->whereIn('status', ['pending', 'confirmed', 'preparing', 'prepared', 'ready'])
@@ -62,6 +64,47 @@ class BranchRoutingService
         if (! $selected) throw new \InvalidArgumentException('Sorry, we do not deliver to this address yet.');
 
         return $this->payload($selected['branch'], $selected['distance'], $branches->first()['branch']->id !== $selected['branch']->id ? 'Your nearest branch is temporarily unavailable. We assigned the next available branch.' : null);
+    }
+
+    public function diagnostics(?array $coordinates = null): array
+    {
+        if ($coordinates !== null) {
+            $this->assertDeliveryCoordinates($coordinates);
+        }
+
+        return Franchise::with('franchiseAccount')->get()->map(function (Franchise $branch) use ($coordinates) {
+            $reasons = [];
+            if (! $branch->is_active || $branch->status !== 'active') $reasons[] = 'inactive';
+            if (! $branch->accepts_online_orders) $reasons[] = 'online orders disabled';
+            if (! $branch->delivery_enabled) $reasons[] = 'delivery disabled';
+            if ($branch->franchise_account_id && $branch->franchiseAccount?->status !== 'active') $reasons[] = 'franchise account inactive';
+            if (! $this->validBranchCoordinates($branch)) $reasons[] = 'missing or invalid coordinates';
+            $open = $this->isOpen($branch);
+            if (! $open) $reasons[] = 'currently closed';
+
+            $distance = $coordinates && $this->validBranchCoordinates($branch)
+                ? round($this->distance($branch, $coordinates), 3)
+                : null;
+            if ($distance !== null && $branch->delivery_radius_km !== null && $distance > (float) $branch->delivery_radius_km) {
+                $reasons[] = 'outside delivery radius';
+            }
+
+            return [
+                'id' => $branch->id,
+                'name' => $branch->name,
+                'latitude' => $branch->latitude,
+                'longitude' => $branch->longitude,
+                'is_active' => $branch->is_active,
+                'status' => $branch->status,
+                'accepts_online_orders' => $branch->accepts_online_orders,
+                'delivery_enabled' => $branch->delivery_enabled,
+                'delivery_radius_km' => $branch->delivery_radius_km,
+                'distance_km' => $distance,
+                'open' => $open,
+                'eligible' => $reasons === [],
+                'exclusion_reasons' => $reasons,
+            ];
+        })->values()->all();
     }
 
     public function validateCatalog(string $branchId, array $items): array
@@ -100,6 +143,22 @@ class BranchRoutingService
         $destinationLat = deg2rad((float) $coordinates['lat']);
         $a = sin($latDelta / 2) ** 2 + cos($originLat) * cos($destinationLat) * sin($lngDelta / 2) ** 2;
         return 6371 * 2 * atan2(sqrt($a), sqrt(1 - $a));
+    }
+
+    private function validBranchCoordinates(Franchise $branch): bool
+    {
+        return is_numeric($branch->latitude) && is_numeric($branch->longitude)
+            && (float) $branch->latitude >= 4 && (float) $branch->latitude <= 22
+            && (float) $branch->longitude >= 116 && (float) $branch->longitude <= 127;
+    }
+
+    private function assertDeliveryCoordinates(array $coordinates): void
+    {
+        if (! is_numeric($coordinates['lat'] ?? null) || ! is_numeric($coordinates['lng'] ?? null)
+            || (float) $coordinates['lat'] < 4 || (float) $coordinates['lat'] > 22
+            || (float) $coordinates['lng'] < 116 || (float) $coordinates['lng'] > 127) {
+            throw new \InvalidArgumentException('Please pin a valid delivery location in the Philippines.');
+        }
     }
 
     private function isOpen(Franchise $branch): bool

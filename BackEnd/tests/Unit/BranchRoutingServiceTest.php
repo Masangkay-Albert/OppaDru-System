@@ -63,6 +63,16 @@ class BranchRoutingServiceTest extends TestCase
         $this->assertSame($newBranch->id, $result['branch']->id);
     }
 
+    public function test_delivery_coordinates_outside_the_philippines_are_rejected(): void
+    {
+        $this->branch('Cavite branch', 14.3290, 120.9360);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('valid delivery location in the Philippines');
+
+        app(BranchRoutingService::class)->resolve(['lat' => 40.7128, 'lng' => -74.0060]);
+    }
+
     private function branch(string $name, float $latitude, float $longitude): Franchise
     {
         return Franchise::create([

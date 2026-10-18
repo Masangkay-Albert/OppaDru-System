@@ -205,6 +205,7 @@ Route::middleware('franchise.applicant.access')->group(function () {
 });
 
 Route::middleware(['admin.access'])->prefix('admin')->group(function () {
+    Route::get('/branches/routing-diagnostics', [BranchRoutingController::class, 'diagnostics']);
     Route::get('/announcements', [AnnouncementController::class, 'index']);
     Route::post('/announcements', [AnnouncementController::class, 'store']);
     Route::get('/announcements/{id}', [AnnouncementController::class, 'show']);

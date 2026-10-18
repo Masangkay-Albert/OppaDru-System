@@ -42,6 +42,7 @@ const CheckoutPage: React.FC = () => {
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates | null>(null);
   const [branchResolution, setBranchResolution] = useState<BranchResolution | null>(null);
   const [branchError, setBranchError] = useState('');
+  const [addressSelectionVersion, setAddressSelectionVersion] = useState(0);
   const selectedBranchName = branchResolution?.branch.name || 'Select a delivery address';
   const orderRequestRef = useRef<Promise<void> | null>(null);
   const selectedAddressCoordinatesRef = useRef<Coordinates | null>(null);
@@ -123,18 +124,16 @@ const CheckoutPage: React.FC = () => {
     }, 500);
 
     return () => window.clearTimeout(timer);
-  }, [address.street]);
+  }, [address.street, addressSelectionVersion]);
 
   useEffect(() => {
     if (!deliveryCoordinates || cartItems.length === 0) {
       setBranchResolution(null);
-      setBranchError('');
       return;
     }
     let active = true;
     const controller = new AbortController();
     setBranchResolution(null);
-    setBranchError('');
     const timer = window.setTimeout(() => {
       resolveBranch({
         coordinates: deliveryCoordinates,
@@ -409,6 +408,7 @@ const CheckoutPage: React.FC = () => {
               onAddressCoordinatesChange={(coordinates) => {
                 selectedAddressCoordinatesRef.current = coordinates;
                 setDeliveryCoordinates(coordinates);
+                setAddressSelectionVersion((version) => version + 1);
               }}
               tempPerson={tempPerson}
               updatePerson={updatePerson}

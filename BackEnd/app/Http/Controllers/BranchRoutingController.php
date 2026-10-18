@@ -55,4 +55,18 @@ class BranchRoutingController extends Controller
             return response()->json(['message' => $exception->getMessage()], 422);
         }
     }
+
+    public function diagnostics(Request $request)
+    {
+        $validated = $request->validate([
+            'lat' => 'nullable|numeric|between:4,22',
+            'lng' => 'nullable|numeric|between:116,127',
+        ]);
+
+        $coordinates = isset($validated['lat'], $validated['lng'])
+            ? ['lat' => $validated['lat'], 'lng' => $validated['lng']]
+            : null;
+
+        return response()->json(['data' => $this->routing->diagnostics($coordinates)]);
+    }
 }

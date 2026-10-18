@@ -20,6 +20,7 @@ export interface SavedAddress {
   isDefault: boolean;
   label?: string;
   details?: AddressDetails;
+  needsPin?: boolean;
 }
 
 interface UseAddressManagementProps {
@@ -28,11 +29,23 @@ interface UseAddressManagementProps {
 }
 
 const STORAGE_KEY = 'oppa_dru_addresses';
+const STORAGE_VERSION = 2;
+const PHILIPPINES_BOUNDS = { minLat: 4, maxLat: 22, minLng: 116, maxLng: 127 };
 
 const getCoordinates = (address: SavedAddress): { lat: number; lng: number } | undefined => {
   if (!Number.isFinite(address.lat) || !Number.isFinite(address.lng)) return undefined;
   if (address.lat === 0 && address.lng === 0) return undefined;
+  if (address.lat! < PHILIPPINES_BOUNDS.minLat || address.lat! > PHILIPPINES_BOUNDS.maxLat || address.lng! < PHILIPPINES_BOUNDS.minLng || address.lng! > PHILIPPINES_BOUNDS.maxLng) return undefined;
   return { lat: Number(address.lat), lng: Number(address.lng) };
+};
+
+const normalizeSavedAddress = (address: SavedAddress): SavedAddress => {
+  const coordinates = address.needsPin ? undefined : getCoordinates(address);
+  return {
+    ...address,
+    needsPin: address.needsPin === true || !coordinates,
+    ...(coordinates || { lat: undefined, lng: undefined }),
+  };
 };
 
 export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressManagementProps = {}) => {
@@ -49,8 +62,10 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setSavedAddresses(parsed);
-          const defaultAddr = parsed.find((addr: SavedAddress) => addr.isDefault);
+          const normalized = parsed.map(normalizeSavedAddress);
+          setSavedAddresses(normalized);
+          localStorage.setItem(`${key}_version`, String(STORAGE_VERSION));
+          const defaultAddr = normalized.find((addr: SavedAddress) => addr.isDefault);
           if (defaultAddr) {
             setSelectedAddressId(defaultAddr.id);
             setSelectedAddressDetails(defaultAddr.details || {});
@@ -58,10 +73,10 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
               onAddressSelect(defaultAddr.address, defaultAddr.details, getCoordinates(defaultAddr));
             }
           } else {
-            setSelectedAddressId(parsed[0].id);
-            setSelectedAddressDetails(parsed[0].details || {});
+            setSelectedAddressId(normalized[0].id);
+            setSelectedAddressDetails(normalized[0].details || {});
             if (onAddressSelect) {
-              onAddressSelect(parsed[0].address, parsed[0].details, getCoordinates(parsed[0]));
+              onAddressSelect(normalized[0].address, normalized[0].details, getCoordinates(normalized[0]));
             }
           }
         }
