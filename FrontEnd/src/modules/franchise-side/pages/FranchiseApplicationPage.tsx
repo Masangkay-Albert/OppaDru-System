@@ -299,12 +299,13 @@ const FranchiseApplicationPage: React.FC = () => {
   const stepTwoValid = useMemo(() => (
     provinceCatalog.some((option) => option.name.toLowerCase() === form.location_province.trim().toLowerCase())
     && proposedCityCatalog.some((option) => option.name.toLowerCase() === form.location_city.trim().toLowerCase())
+    && proposedBarangayCatalog.some((option) => option.name.toLowerCase() === form.location_barangay.trim().toLowerCase())
     && !!form.business_experience.trim()
     && !!form.investment_capacity.trim()
     && Number(currencyValue(form.investment_capacity)) >= 0
     && !!form.has_proposed_property
     && !!form.opening_timeline
-  ), [form, provinceCatalog, proposedCityCatalog]);
+  ), [form, provinceCatalog, proposedCityCatalog, proposedBarangayCatalog]);
 
   const syncAddressCodes = (nextProvinceName?: string, nextCityName?: string) => {
     const provinceMatch = provinceCatalog.find((option) => option.name.toLowerCase() === (nextProvinceName ?? form.province).trim().toLowerCase());
@@ -470,7 +471,12 @@ const FranchiseApplicationPage: React.FC = () => {
       } catch {
         if (cancelled || requestId !== proposedBarangayRequestId.current) return;
         setProposedBarangayCatalog([]);
-        setError('Unable to load barangays for the proposed location. You can still continue without selecting a barangay.');
+        setForm((current) => ({
+          ...current,
+          location_barangay: '',
+          location: proposedLocationValue(current.location_area, '', current.location_city, current.location_province),
+        }));
+        setError('Unable to load barangays for the proposed location. Please try selecting the municipality again.');
       } finally {
         if (!cancelled && requestId === proposedBarangayRequestId.current) setProposedBarangayLoading(false);
       }
@@ -481,7 +487,7 @@ const FranchiseApplicationPage: React.FC = () => {
 
   const validateField = (field: FormFieldName, value = form[field]) => {
     let message = '';
-    const required = ['contact_name', 'email', 'phone', 'province', 'city', 'street', 'location_province', 'location_city',
+    const required = ['contact_name', 'email', 'phone', 'province', 'city', 'street', 'location_province', 'location_city', 'location_barangay',
       'business_experience', 'investment_capacity', 'has_proposed_property', 'opening_timeline'].includes(field);
     if (required && !value.trim()) {
       message = 'This field is required.';
@@ -524,7 +530,7 @@ const FranchiseApplicationPage: React.FC = () => {
   const validateStep = () => {
     const requiredFields: FormFieldName[] = step === 0
       ? ['contact_name', 'email', 'phone', 'province', 'city', 'street']
-      : ['location_province', 'location_city', 'business_experience', 'investment_capacity', 'has_proposed_property', 'opening_timeline'];
+      : ['location_province', 'location_city', 'location_barangay', 'business_experience', 'investment_capacity', 'has_proposed_property', 'opening_timeline'];
     let valid = true;
     for (const field of requiredFields) {
       if (!validateField(field)) valid = false;
@@ -896,19 +902,21 @@ const FranchiseApplicationPage: React.FC = () => {
                       onBlur={() => validateField('location_city')} options={proposedCityOptions} placeholder="Select a city or municipality"
                       invalid={!!fieldErrors.location_city} describedBy={fieldDescription('location_city', !!fieldErrors.location_city)} disabled={proposedCityDisabled} />
                   </FormField>
-                  <FormField id="location_barangay" label="Proposed location barangay" helper={
+                  <FormField id="location_barangay" label="Proposed location barangay" required helper={
                     proposedBarangayLoading
                       ? 'Loading barangays…'
                       : proposedCityCode
-                        ? 'Optional — choose a barangay within the selected municipality.'
+                        ? proposedBarangayOptions.length
+                          ? 'Choose a barangay within the selected municipality. This is required for your proposed site.'
+                          : 'No barangays are currently available for this municipality.'
                         : 'Select a municipality first to see its barangays.'
                   } error={fieldErrors.location_barangay}>
-                    <SearchableSelect id="location_barangay" value={form.location_barangay} onChange={(value) => {
+                    <SearchableSelect id="location_barangay" required value={form.location_barangay} onChange={(value) => {
                       updateProposedLocation('location_barangay', value);
                     }}
-                      onBlur={() => validateField('location_barangay')} options={proposedBarangayOptions} placeholder="Select a barangay (optional)"
+                      onBlur={() => validateField('location_barangay')} options={proposedBarangayOptions} placeholder="Select a barangay"
                       invalid={!!fieldErrors.location_barangay} describedBy={fieldDescription('location_barangay', !!fieldErrors.location_barangay)}
-                      disabled={!proposedCityCode || proposedBarangayLoading} />
+                      disabled={!proposedCityCode || proposedBarangayLoading || !proposedBarangayOptions.length} />
                   </FormField>
                   <FormField id="location_area" label="Street, shopping center, or landmark" helper="Optional, but helpful for accurately assessing the proposed site." error={fieldErrors.location_area} className="sm:col-span-2">
                     <input id="location_area" maxLength={500} value={form.location_area}
@@ -1013,7 +1021,7 @@ const FranchiseApplicationPage: React.FC = () => {
                 <ReviewItem label="Proposed business name" value={form.franchise_name} optional />
                 <ReviewItem label="Proposed location province" value={form.location_province} />
                 <ReviewItem label="Proposed city / municipality" value={form.location_city} />
-                <ReviewItem label="Proposed location barangay" value={form.location_barangay} optional />
+                <ReviewItem label="Proposed location barangay" value={form.location_barangay} />
                 <ReviewItem label="Street, shopping center, or landmark" value={form.location_area} optional />
                 <ReviewItem label="Business experience" value={form.business_experience} />
                 <ReviewItem label="Investment capacity" value={formatCurrency(form.investment_capacity)} />
