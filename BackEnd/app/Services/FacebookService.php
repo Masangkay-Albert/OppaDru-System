@@ -145,6 +145,9 @@ class FacebookService
 
             $errorMessage = $response->json('error.message') ?? 'Facebook API rejected post request.';
             Log::error('Facebook publish failed', ['response' => $response->json()]);
+            if (str_contains(strtolower($errorMessage), 'publish_actions')) {
+                $errorMessage .= ' The publish_actions permission is deprecated. Generate a new Page Access Token with pages_manage_posts and pages_read_engagement, without requesting publish_actions.';
+            }
 
             return [
                 'success' => false,

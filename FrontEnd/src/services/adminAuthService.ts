@@ -26,22 +26,6 @@ const STORAGE_KEYS = {
   USERS: 'users', 
 } as const;
 
-const ADMIN_ACCOUNT: AdminUser & { password: string } = {
-  id: 'admin-001',
-  fullName: 'System Administrator',
-  email: 'admin@oppadru.com',
-  password: 'Admin@123',
-  role: 'admin',
-};
-
-export const validateAdminCredentials = (email: string, password: string): AdminUser | null => {
-  if (email.trim().toLowerCase() === ADMIN_ACCOUNT.email && password === ADMIN_ACCOUNT.password) {
-    const { password: _pw, ...safeAdmin } = ADMIN_ACCOUNT;
-    return safeAdmin;
-  }
-  return null;
-};
-
 export const setCurrentAdmin = (admin: AdminUser): void => {
   localStorage.setItem(STORAGE_KEYS.ADMIN_CURRENT, JSON.stringify(admin));
 };
@@ -76,48 +60,7 @@ export const setStoredAdminToken = (token: string): void => {
 };
 
 export const ensureAdminSession = async (): Promise<string | null> => {
-  const existingToken = getStoredAdminToken();
-  if (existingToken) {
-    return existingToken;
-  }
-
-  try {
-    const res = await fetch(`${API_URL}/admin/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: ADMIN_ACCOUNT.email,
-        password: ADMIN_ACCOUNT.password,
-      }),
-    });
-
-    if (!res.ok) {
-      return null;
-    }
-
-    const body = await res.json().catch(() => null);
-    const token = body?.token;
-    if (!token) {
-      return null;
-    }
-
-    const rawAdmin = body.admin;
-    const storedAdmin = getCurrentAdmin();
-    const admin: AdminUser = rawAdmin
-      ? {
-          id: String(rawAdmin.id || 'admin-001'),
-          fullName: rawAdmin.full_name || rawAdmin.fullName || rawAdmin.name || storedAdmin?.fullName || ADMIN_ACCOUNT.fullName,
-          email: rawAdmin.email || storedAdmin?.email || ADMIN_ACCOUNT.email,
-          role: 'admin' as const,
-        }
-      : storedAdmin || ADMIN_ACCOUNT;
-
-    setCurrentAdmin(admin);
-    setStoredAdminToken(token);
-    return token;
-  } catch {
-    return null;
-  }
+  return getStoredAdminToken();
 };
 
 let adminSessionRefresh: Promise<string | null> | null = null;

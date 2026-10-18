@@ -89,4 +89,21 @@ class FacebookServiceTest extends TestCase
         $this->assertFalse($result['success']);
         Http::assertNothingSent();
     }
+
+    public function test_it_explains_that_publish_actions_is_deprecated(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'error' => [
+                    'message' => 'The permission(s) publish_actions are not available. It has been deprecated.',
+                ],
+            ], 400),
+        ]);
+
+        $result = (new FacebookService('page-123', 'page-token'))->publish('Announcement text');
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('Generate a new Page Access Token', $result['message']);
+        $this->assertStringContainsString('without requesting publish_actions', $result['message']);
+    }
 }

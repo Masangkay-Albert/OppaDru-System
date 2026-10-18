@@ -110,6 +110,8 @@ export const apiFranchiseLogin = async (email: string, password: string) => {
 
 export const getAuthenticatedFranchiseUser = async (): Promise<FranchiseUser | null> => {
   const token = getStoredFranchiseToken();
+  if (!token) return null;
+
   const response = await fetch(`${API_URL}/franchise/me`, {
     credentials: 'include',
     headers: {

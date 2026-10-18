@@ -25,8 +25,12 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isLoading, setIsLoading] = useState(true);
 
   const initializeAdmin = useCallback(() => {
-    const current = adminAuthService.getCurrentAdmin();
-    if (current) setAdmin(current);
+    if (adminAuthService.getStoredAdminToken()) {
+      setAdmin(adminAuthService.getCurrentAdmin());
+    } else {
+      adminAuthService.removeCurrentAdmin();
+      setAdmin(null);
+    }
     setIsLoading(false);
   }, []);
 

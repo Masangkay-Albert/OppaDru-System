@@ -70,7 +70,7 @@ FACEBOOK_PAGE_ACCESS_TOKEN=your-page-access-token
 FACEBOOK_API_VERSION=v26.0
 ```
 
-Use a Page Access Token with permission to publish content to that Page. Keep the token private and set it only in the backend environment, never in frontend code or a committed `.env` file. The admin page's Facebook connection status should show the Page name when the configuration is valid. Announcements are saved even when Facebook publishing is not configured; enable Facebook publishing again after setting the variables and redeploying.
+Generate a Page Access Token for the correct Page with `pages_manage_posts` and `pages_read_engagement`. When using Graph API Explorer, do not request `publish_actions` (it is deprecated); use `GET /me/accounts?fields=id,name,access_token` to get the Page's token and confirm its ID. Keep the token private and set it only in the backend environment, never in frontend code or a committed `.env` file. After updating Render variables, redeploy the backend. The admin page's Facebook connection status should show the Page name when the configuration is valid. Announcements are saved even when Facebook publishing is not configured; enable Facebook publishing again after setting the variables and redeploying.
 
 ## Franchise ordering and POS
 
