@@ -20,35 +20,9 @@ return new class extends Migration
                 if (! Schema::hasColumn('franchises', 'is_main')) $table->boolean('is_main')->default(false);
             });
 
-            // These are deployment data values, not application constants. Override them
-            // through environment values when the production coordinates are known.
-            $main = DB::table('franchises')->where('is_main', true)->first();
-            if (! $main) {
-                DB::table('franchises')->insert([
-                    'id' => 'OPPA-FR-MAIN',
-                    'name' => env('MAIN_BRANCH_NAME', 'Oppa Dru Korean Fried Chicken'),
-                    'slug' => 'main-branch',
-                    'address' => env('MAIN_BRANCH_ADDRESS'),
-                    'latitude' => env('MAIN_BRANCH_LATITUDE') ?: DB::table('system_settings')->where('key', 'merchant_latitude')->value('value'),
-                    'longitude' => env('MAIN_BRANCH_LONGITUDE') ?: DB::table('system_settings')->where('key', 'merchant_longitude')->value('value'),
-                    'status' => 'active',
-                    'is_active' => true,
-                    'accepts_online_orders' => true,
-                    'delivery_enabled' => true,
-                    'is_main' => true,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-
-            DB::table('franchises')->where('id', 'OPPA-FR-P4G0PFQ2')->update([
-                'latitude' => env('LAGUNA_BRANCH_LATITUDE', 14.318056),
-                'longitude' => env('LAGUNA_BRANCH_LONGITUDE', 121.101111),
-                'is_active' => true,
-                'accepts_online_orders' => true,
-                'delivery_enabled' => true,
-                'updated_at' => now(),
-            ]);
+            // Branch identity and coordinates belong to the branch record. This
+            // migration only adds the routing columns; administrators populate
+            // branch data through the branch management API.
         }
 
         if (Schema::hasTable('orders')) {

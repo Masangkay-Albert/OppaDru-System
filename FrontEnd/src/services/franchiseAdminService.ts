@@ -9,6 +9,12 @@ export interface FranchiseSummary {
   phone?: string;
   address?: string;
   status?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  is_active?: boolean;
+  accepts_online_orders?: boolean;
+  delivery_enabled?: boolean;
+  delivery_radius_km?: number | null;
   created_at?: string;
   owner_admin_id?: string | number | null;
   metadata?: Record<string, unknown> | null;
@@ -276,14 +282,14 @@ export const approveFranchiseApplication = async (id: string | number) => {
 export const getFranchiseDetail = (id: string | number) =>
   franchiseAdminRequest<FranchiseSummary>(`${API_URL}/admin/franchises/${id}`);
 
-export const createFranchise = (data: Pick<FranchiseSummary, 'name' | 'email' | 'phone' | 'address' | 'status'>) =>
+export const createFranchise = (data: Pick<FranchiseSummary, 'name'> & Partial<Pick<FranchiseSummary, 'email' | 'phone' | 'address' | 'status' | 'latitude' | 'longitude' | 'delivery_radius_km'>>) =>
   franchiseAdminRequest<FranchiseSummary>(`${API_URL}/admin/franchises`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(data),
   });
 
-export const updateFranchise = (id: string | number, data: Partial<Pick<FranchiseSummary, 'name' | 'email' | 'phone' | 'address' | 'status'>>) =>
+export const updateFranchise = (id: string | number, data: Partial<Pick<FranchiseSummary, 'name' | 'email' | 'phone' | 'address' | 'status' | 'latitude' | 'longitude' | 'is_active' | 'accepts_online_orders' | 'delivery_enabled' | 'delivery_radius_km'>>) =>
   franchiseAdminRequest<FranchiseSummary>(`${API_URL}/admin/franchises/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

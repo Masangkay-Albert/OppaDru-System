@@ -73,6 +73,12 @@ const AdminFranchiseDetailPage: React.FC = () => {
         phone: String(form.get('phone') || ''),
         address: String(form.get('address') || ''),
         status: String(form.get('status') || 'active'),
+        latitude: form.get('latitude') ? Number(form.get('latitude')) : null,
+        longitude: form.get('longitude') ? Number(form.get('longitude')) : null,
+        delivery_radius_km: form.get('delivery_radius_km') ? Number(form.get('delivery_radius_km')) : null,
+        is_active: form.get('is_active') === 'on',
+        accepts_online_orders: form.get('accepts_online_orders') === 'on',
+        delivery_enabled: form.get('delivery_enabled') === 'on',
       });
       setBranch(updated);
       setNotice('Branch information saved.');
@@ -198,6 +204,14 @@ const AdminFranchiseDetailPage: React.FC = () => {
               <Field label="Phone" name="phone" defaultValue={branch.phone || ''} />
               <label className="text-sm font-medium text-gray-700">Status<select name="status" defaultValue={branch.status || 'active'} className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 font-normal"><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select></label>
               <label className="text-sm font-medium text-gray-700 sm:col-span-2">Address<textarea name="address" defaultValue={branch.address || ''} rows={3} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
+              <Field label="Latitude" name="latitude" type="number" defaultValue={branch.latitude == null ? '' : String(branch.latitude)} />
+              <Field label="Longitude" name="longitude" type="number" defaultValue={branch.longitude == null ? '' : String(branch.longitude)} />
+              <Field label="Delivery radius (km)" name="delivery_radius_km" type="number" defaultValue={branch.delivery_radius_km == null ? '' : String(branch.delivery_radius_km)} />
+              <div className="flex flex-wrap items-center gap-4 sm:col-span-2">
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="is_active" defaultChecked={branch.is_active !== false} />Active</label>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="accepts_online_orders" defaultChecked={branch.accepts_online_orders !== false} />Accepts online orders</label>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="delivery_enabled" defaultChecked={branch.delivery_enabled !== false} />Delivery enabled</label>
+              </div>
               <div className="sm:col-span-2"><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"><Save size={16} />{saving ? 'Saving…' : 'Save branch info'}</button></div>
             </form>
           </Panel>}

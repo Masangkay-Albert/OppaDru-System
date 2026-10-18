@@ -258,6 +258,12 @@ trait FranchiseAdminActions
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string',
             'status' => 'nullable|string|in:active,inactive,pending',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'is_active' => 'nullable|boolean',
+            'accepts_online_orders' => 'nullable|boolean',
+            'delivery_enabled' => 'nullable|boolean',
+            'delivery_radius_km' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -271,6 +277,12 @@ trait FranchiseAdminActions
             'phone' => $request->phone,
             'address' => $request->address,
             'status' => $request->input('status', 'active'),
+            'latitude' => $request->input('latitude'),
+            'longitude' => $request->input('longitude'),
+            'is_active' => $request->boolean('is_active', true),
+            'accepts_online_orders' => $request->boolean('accepts_online_orders', true),
+            'delivery_enabled' => $request->boolean('delivery_enabled', true),
+            'delivery_radius_km' => $request->input('delivery_radius_km'),
             'owner_admin_id' => null,
         ]);
 
@@ -291,13 +303,27 @@ trait FranchiseAdminActions
             'phone' => 'sometimes|nullable|string|max:50',
             'address' => 'sometimes|nullable|string',
             'status' => 'sometimes|string|in:active,inactive,pending',
+            'latitude' => 'sometimes|nullable|numeric|between:-90,90',
+            'longitude' => 'sometimes|nullable|numeric|between:-180,180',
+            'is_active' => 'sometimes|boolean',
+            'accepts_online_orders' => 'sometimes|boolean',
+            'delivery_enabled' => 'sometimes|boolean',
+            'delivery_radius_km' => 'sometimes|nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $franchise->fill($request->only(['name', 'email', 'phone', 'address', 'status']));
+        $franchise->fill($request->only([
+            'name', 'email', 'phone', 'address', 'status', 'latitude', 'longitude',
+            'delivery_radius_km',
+        ]));
+        foreach (['is_active', 'accepts_online_orders', 'delivery_enabled'] as $flag) {
+            if ($request->has($flag)) {
+                $franchise->{$flag} = $request->boolean($flag);
+            }
+        }
         if ($request->filled('name')) {
             $franchise->slug = Str::slug($request->name);
         }

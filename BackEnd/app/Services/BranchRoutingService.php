@@ -28,6 +28,10 @@ class BranchRoutingService
             ->where('status', 'active')
             ->where('accepts_online_orders', true)
             ->where('delivery_enabled', true)
+            ->where(function ($query) {
+                $query->whereNull('franchise_account_id')
+                    ->orWhereHas('franchiseAccount', fn ($account) => $account->where('status', 'active'));
+            })
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->get();
@@ -49,7 +53,8 @@ class BranchRoutingService
             ->sort(function (array $left, array $right) {
                 if (abs($left['distance'] - $right['distance']) > 0.001) return $left['distance'] <=> $right['distance'];
                 if ($left['open'] !== $right['open']) return $left['open'] ? -1 : 1;
-                return $left['load'] <=> $right['load'];
+                if ($left['load'] !== $right['load']) return $left['load'] <=> $right['load'];
+                return strcmp((string) $left['branch']->id, (string) $right['branch']->id);
             })
             ->values();
 

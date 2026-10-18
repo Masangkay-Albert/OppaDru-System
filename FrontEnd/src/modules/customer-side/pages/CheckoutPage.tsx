@@ -70,9 +70,19 @@ const CheckoutPage: React.FC = () => {
 
   useEffect(() => {
     if (!address.street.trim()) {
+      selectedAddressCoordinatesRef.current = null;
       setDeliveryCoordinates(null);
+      setBranchResolution(null);
+      setBranchError('');
       return;
     }
+
+    // Invalidate the previous address immediately. This prevents a branch,
+    // delivery fee, or ETA for the old address from being shown while the new
+    // address is still being geocoded.
+    setDeliveryCoordinates(null);
+    setBranchResolution(null);
+    setBranchError('');
 
     // Saved/pinned addresses already have authoritative coordinates. Do not
     // replace them with a broad text geocode such as "Laguna".
