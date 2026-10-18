@@ -50,9 +50,16 @@ class BranchRoutingController extends Controller
                 'notice' => $result['notice'],
                 'unavailable_items' => $unavailable,
                 'pricing' => $pricing,
+                ... (config('app.debug') ? ['branch_diagnostics' => $result['branch_diagnostics'] ?? $this->routing->diagnostics($validated['coordinates'] ?? null)] : []),
             ]]);
         } catch (\InvalidArgumentException $exception) {
-            return response()->json(['message' => $exception->getMessage()], 422);
+            $response = ['message' => $exception->getMessage()];
+            if (config('app.debug') && isset($validated['coordinates']['lat'], $validated['coordinates']['lng'])
+                && (float) $validated['coordinates']['lat'] >= 4 && (float) $validated['coordinates']['lat'] <= 22
+                && (float) $validated['coordinates']['lng'] >= 116 && (float) $validated['coordinates']['lng'] <= 127) {
+                $response['branch_diagnostics'] = $this->routing->diagnostics($validated['coordinates'] ?? null);
+            }
+            return response()->json($response, 422);
         }
     }
 

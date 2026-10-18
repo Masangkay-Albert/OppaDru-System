@@ -163,6 +163,9 @@ trait FranchiseApplicationActivationActions
                 'phone' => $application->phone,
                 'address' => $application->location,
                 'status' => 'active',
+                'is_active' => true,
+                'accepts_online_orders' => false,
+                'delivery_enabled' => false,
                 'owner_admin_id' => $admin?->id,
                 'metadata' => [
                     'application_id' => $application->id,

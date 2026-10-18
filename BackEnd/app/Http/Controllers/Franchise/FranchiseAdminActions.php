@@ -258,8 +258,8 @@ trait FranchiseAdminActions
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string',
             'status' => 'nullable|string|in:active,inactive,pending',
-            'latitude' => 'nullable|numeric|between:-90,90',
-            'longitude' => 'nullable|numeric|between:-180,180',
+            'latitude' => 'nullable|numeric|between:4,22',
+            'longitude' => 'nullable|numeric|between:116,127',
             'is_active' => 'nullable|boolean',
             'accepts_online_orders' => 'nullable|boolean',
             'delivery_enabled' => 'nullable|boolean',
@@ -268,6 +268,11 @@ trait FranchiseAdminActions
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        if ($request->boolean('is_active', true) && $request->boolean('delivery_enabled', true)
+            && ! app(\App\Services\BranchRoutingService::class)->validBranchCoordinatePair($request->input('latitude'), $request->input('longitude'))) {
+            return response()->json(['message' => 'Valid Philippine latitude and longitude are required before enabling delivery for an active branch.'], 422);
         }
 
         $franchise = Franchise::create([
@@ -303,8 +308,8 @@ trait FranchiseAdminActions
             'phone' => 'sometimes|nullable|string|max:50',
             'address' => 'sometimes|nullable|string',
             'status' => 'sometimes|string|in:active,inactive,pending',
-            'latitude' => 'sometimes|nullable|numeric|between:-90,90',
-            'longitude' => 'sometimes|nullable|numeric|between:-180,180',
+            'latitude' => 'sometimes|nullable|numeric|between:4,22',
+            'longitude' => 'sometimes|nullable|numeric|between:116,127',
             'is_active' => 'sometimes|boolean',
             'accepts_online_orders' => 'sometimes|boolean',
             'delivery_enabled' => 'sometimes|boolean',
@@ -313,6 +318,14 @@ trait FranchiseAdminActions
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $willBeActive = $request->has('is_active') ? $request->boolean('is_active') : (bool) $franchise->is_active;
+        $willHaveDelivery = $request->has('delivery_enabled') ? $request->boolean('delivery_enabled') : (bool) $franchise->delivery_enabled;
+        $latitude = $request->has('latitude') ? $request->input('latitude') : $franchise->latitude;
+        $longitude = $request->has('longitude') ? $request->input('longitude') : $franchise->longitude;
+        if ($willBeActive && $willHaveDelivery && ! app(\App\Services\BranchRoutingService::class)->validBranchCoordinatePair($latitude, $longitude)) {
+            return response()->json(['message' => 'Valid Philippine latitude and longitude are required before enabling delivery for an active branch.'], 422);
         }
 
         $franchise->fill($request->only([

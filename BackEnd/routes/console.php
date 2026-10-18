@@ -9,6 +9,32 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+Artisan::command('branches:check {lat? : Customer latitude} {lng? : Customer longitude}', function (?string $lat = null, ?string $lng = null) {
+    if (($lat === null) !== ($lng === null)) {
+        $this->error('Provide both latitude and longitude, or neither.');
+        return 2;
+    }
+
+    $coordinates = $lat !== null ? ['lat' => $lat, 'lng' => $lng] : null;
+    if ($coordinates && (! is_numeric($lat) || ! is_numeric($lng) || (float) $lat < 4 || (float) $lat > 22 || (float) $lng < 116 || (float) $lng > 127)) {
+        $this->error('Coordinates must be a valid location within the Philippines.');
+        return 2;
+    }
+
+    $rows = app(\App\Services\BranchRoutingService::class)->diagnostics($coordinates);
+    $this->table(
+        ['ID', 'Branch', 'Latitude', 'Longitude', 'Active', 'Status', 'Online', 'Delivery', 'Radius km', 'Distance km', 'Open', 'Eligible', 'Exclusion reasons'],
+        array_map(fn (array $branch) => [
+            $branch['id'], $branch['name'], $branch['latitude'] ?? 'NULL', $branch['longitude'] ?? 'NULL',
+            $branch['is_active'] ? 'yes' : 'no', $branch['status'], $branch['accepts_online_orders'] ? 'yes' : 'no',
+            $branch['delivery_enabled'] ? 'yes' : 'no', $branch['delivery_radius_km'] ?? 'unlimited',
+            $branch['distance_km'] ?? 'n/a', $branch['open'] ? 'yes' : 'no', $branch['eligible'] ? 'yes' : 'no',
+            implode(', ', $branch['exclusion_reasons']) ?: '—',
+        ], $rows),
+    );
+    return 0;
+})->purpose('List branch routing eligibility and optional distance from a delivery location');
+
 Artisan::command('franchise:backfill-final-approval {--approve : Final-approve eligible applications instead of only migrating the legacy status} {--override-reason= : Audited reason required when approving with incomplete readiness checks}', function () {
     $legacyApplications = \App\Models\FranchiseApplication::query()
         ->where('status', 'conditionally_approved')

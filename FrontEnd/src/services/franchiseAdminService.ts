@@ -215,7 +215,7 @@ export const updateFranchiseAccount = (id: string, data: Partial<Pick<FranchiseA
     body: JSON.stringify(data),
   });
 
-export const createFranchiseLocation = (id: string, data: { name: string; email?: string; phone?: string; address?: string; status?: string }) =>
+export const createFranchiseLocation = (id: string, data: { name: string; email?: string; phone?: string; address?: string; status?: string; latitude?: number | null; longitude?: number | null; is_active?: boolean; accepts_online_orders?: boolean; delivery_enabled?: boolean; delivery_radius_km?: number | null }) =>
   franchiseAdminRequest<NonNullable<FranchiseAccount['locations']>[number]>(`${API_URL}/admin/franchise-accounts/${id}/locations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

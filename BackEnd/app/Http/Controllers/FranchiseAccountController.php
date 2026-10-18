@@ -229,9 +229,20 @@ class FranchiseAccountController extends Controller
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string|max:2000',
             'status' => 'nullable|string|in:active,inactive,pending',
+            'latitude' => 'nullable|numeric|between:4,22',
+            'longitude' => 'nullable|numeric|between:116,127',
+            'is_active' => 'nullable|boolean',
+            'accepts_online_orders' => 'nullable|boolean',
+            'delivery_enabled' => 'nullable|boolean',
+            'delivery_radius_km' => 'nullable|numeric|min:0',
         ]);
         if ($validator->fails()) {
             return response()->json(['message' => 'The location details are invalid.', 'errors' => $validator->errors()], 422);
+        }
+
+        if ($request->boolean('is_active', true) && $request->boolean('delivery_enabled', false)
+            && ! app(\App\Services\BranchRoutingService::class)->validBranchCoordinatePair($request->input('latitude'), $request->input('longitude'))) {
+            return response()->json(['message' => 'Valid Philippine latitude and longitude are required before enabling delivery for an active branch.'], 422);
         }
 
         $name = trim((string) $request->input('name'));
@@ -249,6 +260,12 @@ class FranchiseAccountController extends Controller
             'phone' => $request->input('phone'),
             'address' => $request->input('address'),
             'status' => $request->input('status', 'active'),
+            'is_active' => $request->boolean('is_active', true),
+            'accepts_online_orders' => $request->boolean('accepts_online_orders', false),
+            'delivery_enabled' => $request->boolean('delivery_enabled', false),
+            'latitude' => $request->input('latitude'),
+            'longitude' => $request->input('longitude'),
+            'delivery_radius_km' => $request->input('delivery_radius_km'),
         ]);
 
         return response()->json(['data' => $location], 201);

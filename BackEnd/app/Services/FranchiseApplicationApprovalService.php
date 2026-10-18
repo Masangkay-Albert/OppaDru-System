@@ -93,6 +93,9 @@ class FranchiseApplicationApprovalService
                     'phone' => $application->phone ?: $applicant->phone,
                     'address' => $application->location,
                     'status' => 'active',
+                    'is_active' => true,
+                    'accepts_online_orders' => false,
+                    'delivery_enabled' => false,
                     'owner_admin_id' => $admin?->id,
                     'metadata' => [
                         'application_id' => $application->id,
@@ -103,6 +106,9 @@ class FranchiseApplicationApprovalService
             } else {
                 $franchise->franchise_account_id = $account->id;
                 $franchise->status = 'active';
+                $franchise->is_active = true;
+                $franchise->accepts_online_orders = false;
+                $franchise->delivery_enabled = false;
                 $franchise->save();
             }
 
