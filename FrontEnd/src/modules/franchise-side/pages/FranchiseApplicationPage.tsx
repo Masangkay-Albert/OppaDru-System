@@ -24,6 +24,10 @@ type ApplicationForm = {
   business_experience: string;
   investment_capacity: string;
   location: string;
+  location_province: string;
+  location_city: string;
+  location_barangay: string;
+  location_area: string;
   has_proposed_property: PropertyStatus;
   opening_timeline: string;
   business_information: string;
@@ -38,7 +42,8 @@ type FormFieldName = keyof ApplicationForm;
 
 const initialForm: ApplicationForm = {
   franchise_name: '', contact_name: '', email: '', phone: '', province: '', city: '', street: '',
-  business_experience: '', investment_capacity: '', location: '', has_proposed_property: '',
+  business_experience: '', investment_capacity: '', location: '', location_province: '', location_city: '',
+  location_barangay: '', location_area: '', has_proposed_property: '',
   opening_timeline: '', business_information: '', notes: '',
 };
 
@@ -91,6 +96,8 @@ const fileSize = (size: number) => size < 1024 * 1024
   ? `${(size / 1024).toFixed(0)} KB`
   : `${(size / 1024 / 1024).toFixed(2)} MB`;
 const addressValue = (form: ApplicationForm) => [form.street, form.city, form.province].filter(Boolean).join(', ');
+const proposedLocationValue = (area: string, barangay: string, city: string, province: string) =>
+  [area.trim(), barangay.trim(), city.trim(), province.trim()].filter(Boolean).join(', ');
 
 const readDraft = (): { draft: Draft | null; error: string } => {
   const rawDraft = localStorage.getItem(draftKey);
@@ -100,9 +107,14 @@ const readDraft = (): { draft: Draft | null; error: string } => {
     if (!parsed.form || typeof parsed.form !== 'object') {
       return { draft: null, error: 'We couldn’t read your saved draft. You can start a new application.' };
     }
+    const form = { ...initialForm, ...parsed.form };
+    if (!parsed.form.location_province && !parsed.form.location_area && form.location) {
+      form.location_area = form.location;
+    }
+
     return {
       draft: {
-        form: { ...initialForm, ...parsed.form },
+        form,
         step: typeof parsed.step === 'number' ? Math.max(0, Math.min(2, parsed.step)) : 0,
       },
       error: '',
@@ -154,7 +166,14 @@ const FranchiseApplicationPage: React.FC = () => {
   const [cityCode, setCityCode] = useState('');
   const [provinceLoading, setProvinceLoading] = useState(false);
   const [cityLoading, setCityLoading] = useState(false);
+  const [proposedProvinceCode, setProposedProvinceCode] = useState('');
+  const [proposedCityCatalog, setProposedCityCatalog] = useState<GeographicOption[]>([]);
+  const [proposedCityCode, setProposedCityCode] = useState('');
+  const [proposedCityLoading, setProposedCityLoading] = useState(false);
+  const [proposedBarangayCatalog, setProposedBarangayCatalog] = useState<GeographicOption[]>([]);
+  const [proposedBarangayLoading, setProposedBarangayLoading] = useState(false);
   const cityDisabled = !provinceCode || provinceLoading || cityLoading;
+  const proposedCityDisabled = !proposedProvinceCode || provinceLoading || proposedCityLoading;
   const addressGeoReady = Boolean(provinceCode && cityCode);
   const [minimumInvestment, setMinimumInvestment] = useState<string | null>(null);
   const [minimumInvestmentError, setMinimumInvestmentError] = useState(false);
@@ -167,8 +186,12 @@ const FranchiseApplicationPage: React.FC = () => {
   const [updateApplicantProfile, setUpdateApplicantProfile] = useState(false);
   const profileInitialized = useRef(false);
   const cityRequestId = useRef(0);
+  const proposedCityRequestId = useRef(0);
+  const proposedBarangayRequestId = useRef(0);
   const provinceOptions = useMemo(() => provinceCatalog.map((option) => option.name), [provinceCatalog]);
   const cityOptions = useMemo(() => cityCatalog.map((option) => option.name), [cityCatalog]);
+  const proposedCityOptions = useMemo(() => proposedCityCatalog.map((option) => option.name), [proposedCityCatalog]);
+  const proposedBarangayOptions = useMemo(() => proposedBarangayCatalog.map((option) => option.name), [proposedBarangayCatalog]);
   const hasFormData = Object.values(form).some((value) => value.trim()) || documents.length > 0;
   const cardRef = useRef<HTMLElement>(null);
   const sidebarHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -274,13 +297,14 @@ const FranchiseApplicationPage: React.FC = () => {
   ), [form]);
 
   const stepTwoValid = useMemo(() => (
-    !!form.location.trim()
+    provinceCatalog.some((option) => option.name.toLowerCase() === form.location_province.trim().toLowerCase())
+    && proposedCityCatalog.some((option) => option.name.toLowerCase() === form.location_city.trim().toLowerCase())
     && !!form.business_experience.trim()
     && !!form.investment_capacity.trim()
     && Number(currencyValue(form.investment_capacity)) >= 0
     && !!form.has_proposed_property
     && !!form.opening_timeline
-  ), [form]);
+  ), [form, provinceCatalog, proposedCityCatalog]);
 
   const syncAddressCodes = (nextProvinceName?: string, nextCityName?: string) => {
     const provinceMatch = provinceCatalog.find((option) => option.name.toLowerCase() === (nextProvinceName ?? form.province).trim().toLowerCase());
@@ -293,6 +317,17 @@ const FranchiseApplicationPage: React.FC = () => {
   const updateField = (field: FormFieldName, value: string) => {
     setDraftStatus('saving');
     setForm((current) => ({ ...current, [field]: value }));
+    setError('');
+  };
+
+  const updateProposedLocation = (field: 'location_province' | 'location_city' | 'location_barangay' | 'location_area', value: string) => {
+    setDraftStatus('saving');
+    setForm((current) => {
+      const next = { ...current, [field]: value };
+      next.location = proposedLocationValue(next.location_area, next.location_barangay, next.location_city, next.location_province);
+      return next;
+    });
+    setFieldErrors((current) => ({ ...current, [field]: undefined }));
     setError('');
   };
 
@@ -338,9 +373,115 @@ const FranchiseApplicationPage: React.FC = () => {
     }
   };
 
+  const loadProposedCitiesForProvince = async (nextProvinceCode: string, selectedCity = form.location_city) => {
+    if (!nextProvinceCode) {
+      proposedCityRequestId.current += 1;
+      setProposedCityCatalog([]);
+      setProposedCityLoading(false);
+      setProposedCityCode('');
+      updateProposedLocation('location_city', '');
+      return;
+    }
+
+    const requestId = ++proposedCityRequestId.current;
+    setProposedCityLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/geo/cities?province_code=${encodeURIComponent(nextProvinceCode)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || 'Unable to load municipalities for this province.');
+      const options = parseGeoOptions(result);
+      if (requestId !== proposedCityRequestId.current) return;
+      setProposedCityCatalog(options);
+      const matchingCity = options.find((option) =>
+        option.name.toLowerCase() === selectedCity.trim().toLowerCase(),
+      );
+      setProposedCityCode(matchingCity?.code ?? '');
+      setForm((current) => {
+        const validCity = options.some((option) => option.name.toLowerCase() === current.location_city.trim().toLowerCase());
+        const locationCity = validCity ? current.location_city : '';
+        return {
+          ...current,
+          location_city: locationCity,
+          location_barangay: validCity ? current.location_barangay : '',
+          location: proposedLocationValue(current.location_area, validCity ? current.location_barangay : '', locationCity, current.location_province),
+        };
+      });
+      if (!options.length) setError('No cities or municipalities were returned for the selected proposed location province.');
+    } catch {
+      if (requestId !== proposedCityRequestId.current) return;
+      setProposedCityCatalog([]);
+      setProposedCityCode('');
+      setError('Unable to load municipalities for the proposed location. Please try selecting the province again.');
+    } finally {
+      if (requestId === proposedCityRequestId.current) setProposedCityLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!provinceCatalog.length || proposedProvinceCode || !form.location_province) return;
+    const selectedProvince = provinceCatalog.find((option) =>
+      option.name.toLowerCase() === form.location_province.trim().toLowerCase(),
+    );
+    if (!selectedProvince) return;
+    setProposedProvinceCode(selectedProvince.code);
+    void loadProposedCitiesForProvince(selectedProvince.code, form.location_city);
+  }, [provinceCatalog, proposedProvinceCode, form.location_province]);
+
+  useEffect(() => {
+    if (!proposedCityCode) {
+      proposedBarangayRequestId.current += 1;
+      setProposedBarangayCatalog([]);
+      setProposedBarangayLoading(false);
+      setForm((current) => {
+        if (!current.location_barangay) return current;
+        const next = { ...current, location_barangay: '' };
+        next.location = proposedLocationValue(next.location_area, '', next.location_city, next.location_province);
+        return next;
+      });
+      return;
+    }
+
+    let cancelled = false;
+    const requestId = ++proposedBarangayRequestId.current;
+    const loadBarangays = async () => {
+      setProposedBarangayLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/geo/barangays?city_code=${encodeURIComponent(proposedCityCode)}`, {
+          headers: { Accept: 'application/json' },
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.message || 'Unable to load barangays for this municipality.');
+        const options = parseGeoOptions(result);
+        if (cancelled || requestId !== proposedBarangayRequestId.current) return;
+        setProposedBarangayCatalog(options);
+        setForm((current) => {
+          const validBarangay = options.some((option) =>
+            option.name.toLowerCase() === current.location_barangay.trim().toLowerCase(),
+          );
+          const locationBarangay = validBarangay ? current.location_barangay : '';
+          return {
+            ...current,
+            location_barangay: locationBarangay,
+            location: proposedLocationValue(current.location_area, locationBarangay, current.location_city, current.location_province),
+          };
+        });
+      } catch {
+        if (cancelled || requestId !== proposedBarangayRequestId.current) return;
+        setProposedBarangayCatalog([]);
+        setError('Unable to load barangays for the proposed location. You can still continue without selecting a barangay.');
+      } finally {
+        if (!cancelled && requestId === proposedBarangayRequestId.current) setProposedBarangayLoading(false);
+      }
+    };
+    void loadBarangays();
+    return () => { cancelled = true; };
+  }, [proposedCityCode]);
+
   const validateField = (field: FormFieldName, value = form[field]) => {
     let message = '';
-    const required = ['contact_name', 'email', 'phone', 'province', 'city', 'street', 'location',
+    const required = ['contact_name', 'email', 'phone', 'province', 'city', 'street', 'location_province', 'location_city',
       'business_experience', 'investment_capacity', 'has_proposed_property', 'opening_timeline'].includes(field);
     if (required && !value.trim()) {
       message = 'This field is required.';
@@ -360,6 +501,21 @@ const FranchiseApplicationPage: React.FC = () => {
       if (!cityMatches) {
         message = 'Select a valid city or municipality for the selected province.';
       }
+    } else if (field === 'location_province' && value.trim()) {
+      const matchesProvince = provinceCatalog.some((option) => option.name.toLowerCase() === value.trim().toLowerCase());
+      if (!matchesProvince) {
+        message = 'Select a valid province for the proposed franchise location.';
+      }
+    } else if (field === 'location_city' && value.trim()) {
+      const cityMatches = proposedCityCatalog.some((option) => option.name.toLowerCase() === value.trim().toLowerCase());
+      if (!cityMatches) {
+        message = 'Select a city or municipality within the proposed location province.';
+      }
+    } else if (field === 'location_barangay' && value.trim()) {
+      const barangayMatches = proposedBarangayCatalog.some((option) => option.name.toLowerCase() === value.trim().toLowerCase());
+      if (!barangayMatches) {
+        message = 'Select a barangay within the proposed city or municipality.';
+      }
     }
     setFieldErrors((current) => ({ ...current, [field]: message || undefined }));
     return !message;
@@ -368,7 +524,7 @@ const FranchiseApplicationPage: React.FC = () => {
   const validateStep = () => {
     const requiredFields: FormFieldName[] = step === 0
       ? ['contact_name', 'email', 'phone', 'province', 'city', 'street']
-      : ['location', 'business_experience', 'investment_capacity', 'has_proposed_property', 'opening_timeline'];
+      : ['location_province', 'location_city', 'business_experience', 'investment_capacity', 'has_proposed_property', 'opening_timeline'];
     let valid = true;
     for (const field of requiredFields) {
       if (!validateField(field)) valid = false;
@@ -401,6 +557,11 @@ const FranchiseApplicationPage: React.FC = () => {
     };
     setForm(restoredForm);
     syncAddressCodes(restoredForm.province, restoredForm.city);
+    const proposedProvince = provinceCatalog.find((option) =>
+      option.name.toLowerCase() === restoredForm.location_province.trim().toLowerCase(),
+    );
+    setProposedProvinceCode(proposedProvince?.code ?? '');
+    if (proposedProvince) void loadProposedCitiesForProvince(proposedProvince.code, restoredForm.location_city);
     setStep(savedDraft.step);
     setSavedDraft(null);
     setDraftResolved(true);
@@ -697,10 +858,63 @@ const FranchiseApplicationPage: React.FC = () => {
             <div className="space-y-7">
               <FormSection title="Location">
                 <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
-                  <FormField id="location" label="Proposed franchise location" required helper="A city, district, or specific area is helpful." error={fieldErrors.location} className="sm:col-span-2">
-                    <input id="location" required maxLength={2000} value={form.location} onChange={(event) => updateField('location', event.target.value)}
-                      onBlur={() => validateField('location')} placeholder="City, district, or specific area" className="franchise-control"
-                      aria-invalid={!!fieldErrors.location} aria-describedby={fieldDescription('location', !!fieldErrors.location)} />
+                  <FormField id="location_province" label="Proposed location province" required helper={provinceLoading ? 'Loading provinces…' : 'Choose the province where you plan to open the franchise.'} error={fieldErrors.location_province}>
+                    <SearchableSelect id="location_province" required value={form.location_province} onChange={(value) => {
+                      updateProposedLocation('location_province', value);
+                      updateProposedLocation('location_city', '');
+                      const selectedProvince = provinceCatalog.find((option) =>
+                        option.name.toLowerCase() === value.trim().toLowerCase(),
+                      );
+                      setProposedProvinceCode(selectedProvince?.code ?? '');
+                      setProposedCityCode('');
+                      if (selectedProvince) {
+                        void loadProposedCitiesForProvince(selectedProvince.code, '');
+                      } else {
+                        proposedCityRequestId.current += 1;
+                        setProposedCityCatalog([]);
+                        setProposedCityLoading(false);
+                      }
+                    }}
+                      onBlur={() => validateField('location_province')} options={provinceOptions} placeholder="Select a province"
+                      invalid={!!fieldErrors.location_province} describedBy={fieldDescription('location_province', !!fieldErrors.location_province)} disabled={provinceLoading} />
+                  </FormField>
+                  <FormField id="location_city" label="Proposed city / municipality" required helper={
+                    proposedCityLoading
+                      ? 'Loading municipalities…'
+                      : proposedProvinceCode
+                        ? 'Only cities and municipalities in the selected province are listed.'
+                        : 'Select a province first to see its cities and municipalities.'
+                  } error={fieldErrors.location_city}>
+                    <SearchableSelect id="location_city" required value={form.location_city} onChange={(value) => {
+                      updateProposedLocation('location_city', value);
+                      updateProposedLocation('location_barangay', '');
+                      const selectedCity = proposedCityCatalog.find((option) =>
+                        option.name.toLowerCase() === value.trim().toLowerCase(),
+                      );
+                      setProposedCityCode(selectedCity?.code ?? '');
+                    }}
+                      onBlur={() => validateField('location_city')} options={proposedCityOptions} placeholder="Select a city or municipality"
+                      invalid={!!fieldErrors.location_city} describedBy={fieldDescription('location_city', !!fieldErrors.location_city)} disabled={proposedCityDisabled} />
+                  </FormField>
+                  <FormField id="location_barangay" label="Proposed location barangay" helper={
+                    proposedBarangayLoading
+                      ? 'Loading barangays…'
+                      : proposedCityCode
+                        ? 'Optional — choose a barangay within the selected municipality.'
+                        : 'Select a municipality first to see its barangays.'
+                  } error={fieldErrors.location_barangay}>
+                    <SearchableSelect id="location_barangay" value={form.location_barangay} onChange={(value) => {
+                      updateProposedLocation('location_barangay', value);
+                    }}
+                      onBlur={() => validateField('location_barangay')} options={proposedBarangayOptions} placeholder="Select a barangay (optional)"
+                      invalid={!!fieldErrors.location_barangay} describedBy={fieldDescription('location_barangay', !!fieldErrors.location_barangay)}
+                      disabled={!proposedCityCode || proposedBarangayLoading} />
+                  </FormField>
+                  <FormField id="location_area" label="Street, shopping center, or landmark" helper="Optional, but helpful for accurately assessing the proposed site." error={fieldErrors.location_area} className="sm:col-span-2">
+                    <input id="location_area" maxLength={500} value={form.location_area}
+                      onChange={(event) => updateProposedLocation('location_area', event.target.value)}
+                      placeholder="Street, shopping center, or nearby landmark (optional)" className="franchise-control"
+                      aria-invalid={!!fieldErrors.location_area} aria-describedby={fieldDescription('location_area', !!fieldErrors.location_area)} />
                   </FormField>
                 </div>
               </FormSection>
@@ -797,7 +1011,10 @@ const FranchiseApplicationPage: React.FC = () => {
               </ReviewSection>
               <ReviewSection title="Business plan" onEdit={() => goToStep(1)}>
                 <ReviewItem label="Proposed business name" value={form.franchise_name} optional />
-                <ReviewItem label="Proposed franchise location" value={form.location} />
+                <ReviewItem label="Proposed location province" value={form.location_province} />
+                <ReviewItem label="Proposed city / municipality" value={form.location_city} />
+                <ReviewItem label="Proposed location barangay" value={form.location_barangay} optional />
+                <ReviewItem label="Street, shopping center, or landmark" value={form.location_area} optional />
                 <ReviewItem label="Business experience" value={form.business_experience} />
                 <ReviewItem label="Investment capacity" value={formatCurrency(form.investment_capacity)} />
                 <ReviewItem label="Proposed property" value={propertyLabel(form.has_proposed_property)} />
