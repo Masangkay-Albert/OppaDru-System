@@ -22,6 +22,7 @@ class FranchiseUser extends Authenticatable
         'franchise_id',
         'full_name',
         'email',
+        'role',
         'phone',
         'password',
         'api_token',
@@ -40,6 +41,7 @@ class FranchiseUser extends Authenticatable
         'password' => 'hashed',
         'is_active' => 'boolean',
         'can_process_pos' => 'boolean',
+        'role' => 'string',
         'api_token_expires_at' => 'datetime',
     ];
 

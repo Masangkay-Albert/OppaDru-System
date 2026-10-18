@@ -74,18 +74,16 @@ Route::prefix('franchise')->group(function () {
         Route::get('/inventory', [FranchiseController::class, 'inventorySummary']);
         Route::patch('/inventory/{productId}', [FranchiseController::class, 'updateInventory']);
         Route::get('/fulfillment', [FranchiseController::class, 'fulfillmentSummary']);
-        Route::get('/reports', [FranchiseController::class, 'branchReports']);
-        Route::get('/users', [FranchiseController::class, 'branchUsers']);
-        Route::post('/users', [FranchiseController::class, 'storeBranchUser']);
-        Route::patch('/users/{type}/{id}/status', [FranchiseController::class, 'updateBranchUserStatus']);
-        Route::patch('/users/employee/{id}', [FranchiseController::class, 'updateBranchEmployee']);
-        Route::get('/settings', [FranchiseController::class, 'branchSettings']);
-        Route::put('/settings', [FranchiseController::class, 'updateBranchSettings']);
+        Route::get('/reports', [FranchiseController::class, 'branchReports'])->middleware('franchise.role:owner,manager');
+        Route::get('/users', [FranchiseController::class, 'branchUsers'])->middleware('franchise.role:owner,manager');
+        Route::post('/users', [FranchiseController::class, 'storeBranchUser'])->middleware('franchise.role:owner');
+        Route::patch('/users/{type}/{id}/status', [FranchiseController::class, 'updateBranchUserStatus'])->middleware('franchise.role:owner,manager');
+        Route::patch('/users/employee/{id}', [FranchiseController::class, 'updateBranchEmployee'])->middleware('franchise.role:owner,manager');
+        Route::get('/settings', [FranchiseController::class, 'branchSettings'])->middleware('franchise.role:owner');
+        Route::put('/settings', [FranchiseController::class, 'updateBranchSettings'])->middleware('franchise.role:owner');
         Route::get('/addon-groups', [AddonController::class, 'index']);
         Route::get('/products', [FranchiseController::class, 'products']);
-        Route::post('/products', [ProductController::class, 'franchiseStore']);
-        Route::put('/products/{id}', [ProductController::class, 'franchiseUpdate']);
-        Route::delete('/products/{id}', [ProductController::class, 'franchiseDestroy']);
+        // Franchise users can only read the shared catalog and change branch availability/stock.
         Route::patch('/products/{id}/toggle', [ProductController::class, 'franchiseToggleAvailability']);
         Route::get('/orders', [FranchiseController::class, 'orders']);
         Route::get('/orders/{id}', [FranchiseController::class, 'showOrder']);

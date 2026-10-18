@@ -57,6 +57,7 @@ const FranchiseReportsPage = lazy(() => import("./modules/franchise-side/pages/F
 const FranchiseUsersPage = lazy(() => import("./modules/franchise-side/pages/FranchiseUsersPage"));
 const FranchiseSettingsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseSettingsPage"));
 const FranchiseManagementPage = lazy(() => import("./modules/franchise-side/pages/FranchiseManagementPage"));
+import { AnnouncementsPage, DiscountRequestsPage, FeesPaymentsPage, FranchiseDeliveryPage, MenuAvailabilityPage, SupportResourcesPage } from "./modules/franchise-side/pages/FranchisePortalPages";
 const FranchiseApplicationPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicationPage"));
 const FranchiseOpportunitiesPage = lazy(() => import("./modules/franchise-side/pages/FranchiseOpportunitiesPage"));
 const FranchiseMyApplicationsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseMyApplicationsPage"));
@@ -146,7 +147,8 @@ function App() {
                       {/* ===== FRANCHISE ROUTES ===== */}
                       <Route path="/franchise" element={<ProtectedFranchiseRoute><FranchiseDashboardPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/dashboard" element={<ProtectedFranchiseRoute><FranchiseDashboardPage /></ProtectedFranchiseRoute>} />
-                      <Route path="/franchise/management" element={<ProtectedFranchiseRoute><FranchiseManagementPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/management" element={<Navigate to="/franchise/profile" replace />} />
+                      <Route path="/franchise/profile" element={<ProtectedFranchiseRoute allowedRoles={['owner']}><FranchiseManagementPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/pos" element={<ProtectedFranchiseRoute requirePos><FranchisePOSPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/pos/activity" element={<ProtectedFranchiseRoute><FranchisePosActivityPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/orders" element={<ProtectedFranchiseRoute><FranchiseOrdersPage /></ProtectedFranchiseRoute>} />
@@ -154,6 +156,12 @@ function App() {
                       <Route path="/franchise/reports" element={<ProtectedFranchiseRoute><FranchiseReportsPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/users" element={<ProtectedFranchiseRoute><FranchiseUsersPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/settings" element={<ProtectedFranchiseRoute><FranchiseSettingsPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/menu-availability" element={<ProtectedFranchiseRoute allowedRoles={['owner', 'manager']}><MenuAvailabilityPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/discount-requests" element={<ProtectedFranchiseRoute allowedRoles={['owner', 'manager']}><DiscountRequestsPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/fees-payments" element={<ProtectedFranchiseRoute allowedRoles={['owner']}><FeesPaymentsPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/announcements" element={<ProtectedFranchiseRoute><AnnouncementsPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/support" element={<ProtectedFranchiseRoute><SupportResourcesPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/delivery" element={<ProtectedFranchiseRoute allowedRoles={['owner', 'manager']}><FranchiseDeliveryPage /></ProtectedFranchiseRoute>} />
 
                       {/* ===== DRIVER ROUTES ===== */}
                       <Route path="/delivery/login" element={<DriverLoginPage />} />

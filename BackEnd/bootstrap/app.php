@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified-user' => \App\Http\Middleware\EnsureUserIsVerified::class,
             'franchise.applicant.access' => \App\Http\Middleware\EnsureFranchiseApplicantAccess::class,
             'franchise.access' => \App\Http\Middleware\EnsureFranchiseAccess::class,
+            'franchise.role' => \App\Http\Middleware\EnsureFranchiseRole::class,
             'employee.access' => \App\Http\Middleware\EnsureEmployeeAccess::class,
             'admin.access' => \App\Http\Middleware\EnsureAdminAccess::class,
         ]);

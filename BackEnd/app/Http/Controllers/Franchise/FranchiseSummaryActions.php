@@ -30,10 +30,10 @@ trait FranchiseSummaryActions
             return response()->json(['message' => 'Franchise manager access required.'], 403);
         }
 
-        $user->load(['franchise', 'franchiseAccount.locations']);
-        $locations = $user->franchiseAccount
-            ? $user->franchiseAccount->locations->sortBy('name')->values()
-            : collect([$user->franchise])->filter()->values();
+        // A franchise session is branch-scoped. Do not expose sibling locations
+        // from the shared franchise account to a portal user.
+        $user->load(['franchise', 'franchiseAccount']);
+        $locations = collect([$user->franchise])->filter()->values();
 
         return response()->json([
             'data' => [

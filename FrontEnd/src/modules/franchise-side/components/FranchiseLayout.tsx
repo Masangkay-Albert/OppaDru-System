@@ -1,89 +1,43 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import {
-  BarChart3,
-  Boxes,
-  ClipboardList,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  Settings,
-  ShoppingCart,
-  Store,
-  Users,
-  X,
-} from 'lucide-react';
+import { BarChart3, Bell, Boxes, ChevronsLeft, ChevronsRight, CircleHelp, ClipboardList, FileText, LayoutDashboard, LogOut, Menu, Megaphone, PackageCheck, ReceiptText, Settings, ShoppingCart, Store, Users, WalletCards, X } from 'lucide-react';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 
-const navigation = [
-  { to: '/franchise/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/franchise/management', label: 'My Franchise', icon: Store },
-  { to: '/franchise/pos', label: 'POS', icon: ShoppingCart },
-  { to: '/franchise/pos/activity', label: 'POS Activity', icon: ClipboardList },
-  { to: '/franchise/orders', label: 'Orders', icon: ClipboardList },
-  { to: '/franchise/inventory', label: 'Inventory', icon: Boxes },
-  { to: '/franchise/reports', label: 'Reports', icon: BarChart3 },
-  { to: '/franchise/users', label: 'Branch Users', icon: Users },
-  { to: '/franchise/settings', label: 'Settings', icon: Settings },
+type Role = 'owner' | 'manager' | 'staff' | 'cashier';
+type Item = { to: string; label: string; icon: React.ElementType; roles: Role[]; feature?: 'delivery_enabled' | 'fees_enabled'; badge?: 'announcements' | 'discounts' | 'stock' };
+type Section = { title: string; items: Item[] };
+
+const sections: Section[] = [
+  { title: 'Overview', items: [{ to: '/franchise/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['owner', 'manager', 'staff', 'cashier'] }] },
+  { title: 'Operations', items: [{ to: '/franchise/orders', label: 'Orders', icon: ClipboardList, roles: ['owner', 'manager', 'staff', 'cashier'] }, { to: '/franchise/pos', label: 'Open POS', icon: ShoppingCart, roles: ['owner', 'manager', 'staff', 'cashier'] }, { to: '/franchise/inventory', label: 'Inventory', icon: Boxes, roles: ['owner', 'manager', 'staff', 'cashier'], badge: 'stock' }, { to: '/franchise/menu-availability', label: 'Menu Availability', icon: PackageCheck, roles: ['owner', 'manager'] }, { to: '/franchise/delivery', label: 'Delivery', icon: ReceiptText, roles: ['owner', 'manager'], feature: 'delivery_enabled' }] },
+  { title: 'Business', items: [{ to: '/franchise/reports', label: 'Reports', icon: BarChart3, roles: ['owner', 'manager'] }, { to: '/franchise/discount-requests', label: 'Discount Requests', icon: FileText, roles: ['owner', 'manager'], badge: 'discounts' }, { to: '/franchise/fees-payments', label: 'Fees & Payments', icon: WalletCards, roles: ['owner'], feature: 'fees_enabled' }] },
+  { title: 'My Franchise', items: [{ to: '/franchise/profile', label: 'Franchise Profile', icon: Store, roles: ['owner'] }, { to: '/franchise/users', label: 'Branch Users', icon: Users, roles: ['owner', 'manager'] }, { to: '/franchise/settings', label: 'Settings', icon: Settings, roles: ['owner'] }] },
+  { title: 'Communication', items: [{ to: '/franchise/announcements', label: 'Announcements', icon: Megaphone, roles: ['owner', 'manager', 'staff', 'cashier'], badge: 'announcements' }, { to: '/franchise/support', label: 'Support & Resources', icon: CircleHelp, roles: ['owner', 'manager', 'staff', 'cashier'] }] },
 ];
+
+const roleOf = (value?: string, canPos?: boolean): Role => { const role = (value || (canPos ? 'owner' : 'staff')).toLowerCase(); return role.includes('owner') ? 'owner' : role.includes('manager') ? 'manager' : role.includes('cashier') ? 'cashier' : 'staff'; };
 
 const FranchiseLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const { franchiseUser, logout } = useFranchiseAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const branchName = franchiseUser?.franchise?.name || 'Franchise Branch';
-
-  const sidebar = (
-    <>
-      <div className="flex items-center gap-3 border-b border-white/10 px-4 py-4">
-        <img src={oppaDruLogo} alt="Oppa Dru" className="h-9 w-9 rounded-full border border-white/20 object-cover" />
-        <div className="min-w-0">
-          <p className="truncate font-serif text-base font-bold text-white">Oppa Dru</p>
-          <p className="text-xs text-white/65">Franchise Portal</p>
-        </div>
-        <button onClick={() => setMobileOpen(false)} className="ml-auto rounded-lg p-2 text-white md:hidden" aria-label="Close navigation"><X size={18} /></button>
-      </div>
-      <div className="border-b border-white/10 px-5 py-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/50">Current branch</p>
-        <p className="mt-1 flex items-center gap-2 truncate text-[13px] font-semibold text-white"><Store size={14} />{branchName}</p>
-      </div>
-      <nav aria-label="Franchise portal" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-3">
-        {navigation.filter(({ to }) => to !== '/franchise/pos' || franchiseUser?.can_process_pos).map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/franchise/dashboard'}
-            onClick={() => setMobileOpen(false)}
-            className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition ${isActive ? 'bg-[#cfe5d5] text-[#16442d] shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
-          >
-            <Icon size={17} />{label}
-          </NavLink>
-        ))}
-      </nav>
-      <div className="border-t border-white/10 px-4 py-4">
-        <p className="truncate text-xs font-semibold text-white">{franchiseUser?.full_name || franchiseUser?.email}</p>
-        <p className="mb-3 truncate text-[11px] text-white/60">{franchiseUser?.email}</p>
-        <button onClick={() => { logout(); navigate('/franchise/login'); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-red-500/20 hover:text-white"><LogOut size={16} /> Sign out</button>
-      </div>
-    </>
-  );
-
-  return (
-    <div className="flex min-h-screen bg-[var(--oppa-cream)]">
-      {mobileOpen && <button aria-label="Close navigation overlay" className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setMobileOpen(false)} />}
-      <aside className={`bg-oppa-gradient fixed inset-y-0 left-0 z-50 flex w-48 flex-col shadow-xl transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        {sidebar}
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="sticky top-0 z-30 flex items-center justify-between border-b border-[var(--oppa-border)] bg-white/95 px-4 py-3 backdrop-blur md:hidden">
-          <button onClick={() => setMobileOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm font-medium"><Menu size={17} /> Menu</button>
-          <div className="flex items-center gap-2"><img src={oppaDruLogo} alt="" className="h-7 w-7 rounded-full object-cover" /><span className="max-w-40 truncate text-sm font-semibold">{branchName}</span></div>
-        </div>
-        <div className="min-w-0 flex-1">{children}</div>
-      </div>
-    </div>
-  );
+  const [collapsed, setCollapsed] = useState(false);
+  const role = roleOf(franchiseUser?.role, franchiseUser?.can_process_pos);
+  const branch = franchiseUser?.branch || franchiseUser?.franchise;
+  const branchName = branch?.name || 'Franchise Branch';
+  const visibleSections = useMemo(() => sections.map((section) => ({ ...section, items: section.items.filter((item) => item.roles.includes(role) && (!item.feature || Boolean(branch?.[item.feature]))) })).filter((section) => section.items.length), [role, branch?.delivery_enabled, branch?.fees_enabled]);
+  const count = (badge?: Item['badge']) => badge === 'announcements' ? 3 : null;
+  const signOut = () => { void logout().finally(() => navigate('/franchise/login')); };
+  return <div className="flex min-h-dvh bg-[var(--oppa-cream)]">
+    <button aria-label="Close navigation" tabIndex={mobileOpen ? 0 : -1} className={`fixed inset-0 z-40 bg-black/50 md:hidden ${mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`} onClick={() => setMobileOpen(false)} />
+    <aside className={`bg-oppa-gradient fixed inset-y-0 left-0 z-50 flex w-72 flex-col shadow-xl transition-all md:sticky md:top-0 md:h-dvh md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'md:w-[76px]' : 'md:w-64'}`}>
+      <div className={`flex min-h-[76px] items-center gap-3 border-b border-white/15 px-4 ${collapsed ? 'md:justify-center md:px-2' : ''}`}><img src={oppaDruLogo} alt="Oppa Dru" className="size-10 shrink-0 rounded-full border-2 border-white/30 object-cover" /><div className={`min-w-0 leading-tight ${collapsed ? 'md:hidden' : ''}`}><span className="block font-serif text-base font-bold text-white">Oppa Dru</span><span className="block text-xs text-white/75">Franchise Portal</span></div><button aria-label="Close navigation" onClick={() => setMobileOpen(false)} className="ml-auto rounded-lg p-2 text-white hover:bg-white/10 md:hidden"><X size={18} /></button></div>
+      <div className={`border-b border-white/10 px-4 py-4 ${collapsed ? 'md:hidden' : ''}`}><div className="flex items-start gap-2"><Store size={15} className="mt-1 shrink-0 text-white/70" /><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-white/55">Current branch</p><p className="mt-1 line-clamp-2 text-[13px] font-semibold leading-5 text-white" title={branchName}>{branchName}</p><p className="mt-1 text-[11px] text-white/65"><span className={`mr-1.5 inline-block size-1.5 rounded-full ${branch?.status === 'suspended' ? 'bg-red-300' : 'bg-emerald-300'}`} />{branch?.status === 'suspended' ? 'Suspended' : 'Active'} · {branch?.id || franchiseUser?.branch_id || franchiseUser?.franchise_id || 'Branch ID pending'}</p></div></div></div>
+      <nav aria-label="Franchise portal navigation" className="franchise-scrollbar flex-1 space-y-4 overflow-y-auto px-3 py-4">{visibleSections.map((section) => <section key={section.title}><h2 className={`mb-1 px-3 text-[10px] font-bold uppercase tracking-[.16em] text-white/65 ${collapsed ? 'md:sr-only' : ''}`}>{section.title}</h2><div className="space-y-1">{section.items.map(({ to, label, icon: Icon, badge }) => { const badgeCount = count(badge); return <NavLink key={to} to={to} end={to === '/franchise/dashboard'} title={collapsed ? label : undefined} onClick={() => setMobileOpen(false)} className={({ isActive }) => `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${collapsed ? 'md:justify-center md:px-0' : ''} ${isActive ? 'bg-[#d9ebdd] text-[#16442d] shadow-sm' : 'text-white/85 hover:bg-white/10 hover:text-white'}`}><Icon size={18} aria-hidden="true" /><span className={collapsed ? 'md:sr-only' : ''}>{label}</span>{badgeCount !== null && <span className={`ml-auto rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 ${collapsed ? 'md:absolute md:-right-1 md:-top-1' : ''}`}>{badgeCount}</span>}{collapsed && <span role="tooltip" className="pointer-events-none absolute left-[calc(100%+10px)] z-50 hidden whitespace-nowrap rounded-md bg-gray-950 px-2 py-1 text-xs text-white shadow-lg group-hover:block group-focus-visible:block">{label}</span>}</NavLink>; })}</div></section>)}</nav>
+      <div className="space-y-1 border-t border-white/15 px-3 py-4"><div className={`mb-2 flex items-center gap-2 px-2 ${collapsed ? 'md:justify-center' : ''}`}><span className="flex size-8 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">{(franchiseUser?.full_name || franchiseUser?.email || 'U').charAt(0).toUpperCase()}</span><div className={`min-w-0 ${collapsed ? 'md:hidden' : ''}`}><p className="truncate text-xs font-semibold text-white">{franchiseUser?.full_name || 'Franchise user'}</p><p className="truncate text-[10px] capitalize text-white/60">{role}</p></div></div><button onClick={signOut} title={collapsed ? 'Sign out' : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/85 hover:bg-red-500/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${collapsed ? 'md:justify-center md:px-0' : ''}`}><LogOut size={18} /><span className={collapsed ? 'md:sr-only' : ''}>Sign out</span></button><button aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setCollapsed(!collapsed)} className="hidden w-full items-center justify-center rounded-xl py-2 text-white/70 hover:bg-white/10 md:flex">{collapsed ? <ChevronsRight size={18} /> : <><ChevronsLeft size={18} /><span className="ml-2 text-xs">Collapse</span></>}</button></div>
+    </aside>
+    <main className="flex min-h-dvh min-w-0 flex-1 flex-col"><header className="sticky top-0 z-30 flex min-h-[64px] items-center gap-3 border-b border-[var(--oppa-border)] bg-white/95 px-4 backdrop-blur md:hidden"><button aria-label="Open navigation" onClick={() => setMobileOpen(true)} className="rounded-lg p-2 hover:bg-[var(--oppa-cream)]"><Menu size={20} /></button><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{branchName}</p><p className="text-[11px] capitalize text-[var(--oppa-text-muted)]">{role}</p></div><Bell size={18} className="text-[var(--oppa-text-muted)]" /></header><div className="min-w-0 flex-1">{children}</div></main>
+  </div>;
 };
-
 export default FranchiseLayout;

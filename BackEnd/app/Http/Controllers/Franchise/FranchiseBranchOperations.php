@@ -331,6 +331,9 @@ trait FranchiseBranchOperations
         if (! $request->has('stock_quantity') && ! $request->has('is_available')) {
             return response()->json(['message' => 'Provide branch stock or availability to update.'], 422);
         }
+        if ($request->has('is_available') && ! in_array(strtolower((string) ($user->role ?: 'owner')), ['owner', 'manager'], true)) {
+            return response()->json(['message' => 'Only franchise owners and branch managers can change menu availability.'], 403);
+        }
 
         $inventory = $inventoryService->update(
             (string) $user->franchise_id,

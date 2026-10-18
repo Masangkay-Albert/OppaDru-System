@@ -10,6 +10,16 @@ export interface FranchiseUser {
   franchise_id?: string | number | null;
   is_active?: boolean;
   can_process_pos?: boolean;
+  role?: 'owner' | 'manager' | 'staff' | 'cashier' | string;
+  branch_id?: string | number | null;
+  branch?: {
+    id?: string | number;
+    name?: string;
+    status?: string;
+    delivery_enabled?: boolean;
+    fees_enabled?: boolean;
+    address?: string;
+  };
   franchise?: {
     id?: string | number;
     name?: string;
@@ -17,6 +27,8 @@ export interface FranchiseUser {
     phone?: string;
     address?: string;
     status?: string;
+    delivery_enabled?: boolean;
+    fees_enabled?: boolean;
   };
   token?: string;
 }
@@ -75,6 +87,9 @@ export const getCurrentFranchiseUser = (): FranchiseUser | null => {
       franchise_id: parsed.franchise_id,
       is_active: parsed.is_active,
       can_process_pos: parsed.can_process_pos,
+      role: parsed.role,
+      branch_id: parsed.branch_id,
+      branch: parsed.branch,
       franchise: parsed.franchise,
       token: parsed.token,
     };

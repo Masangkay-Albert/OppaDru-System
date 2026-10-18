@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import FranchiseLayout from './FranchiseLayout';
 
-const ProtectedFranchiseRoute: React.FC<{ children: React.ReactNode; requirePos?: boolean }> = ({ children, requirePos = false }) => {
+const ProtectedFranchiseRoute: React.FC<{ children: React.ReactNode; requirePos?: boolean; allowedRoles?: string[] }> = ({ children, requirePos = false, allowedRoles }) => {
   const { franchiseUser, isLoading } = useFranchiseAuth();
 
   if (isLoading) {
@@ -19,6 +19,10 @@ const ProtectedFranchiseRoute: React.FC<{ children: React.ReactNode; requirePos?
   }
 
   if (requirePos && !franchiseUser.can_process_pos) {
+    return <Navigate to="/franchise/dashboard" replace />;
+  }
+
+  if (allowedRoles?.length && !allowedRoles.some((role) => String(franchiseUser.role || 'owner').toLowerCase().includes(role))) {
     return <Navigate to="/franchise/dashboard" replace />;
   }
 

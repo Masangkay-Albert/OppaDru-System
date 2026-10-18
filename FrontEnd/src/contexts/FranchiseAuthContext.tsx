@@ -63,6 +63,9 @@ export const FranchiseAuthProvider: React.FC<{ children: React.ReactNode }> = ({
         franchise_id: rawUser.franchise_id,
         is_active: rawUser.is_active,
         can_process_pos: Boolean(rawUser.can_process_pos),
+        role: rawUser.role || 'owner',
+        branch_id: rawUser.branch_id ?? rawUser.franchise_id,
+        branch: rawUser.branch,
         franchise: rawUser.franchise,
         token: response.token,
       };
