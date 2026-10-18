@@ -166,6 +166,8 @@ const FranchiseApplicationPage: React.FC = () => {
   const [cityCode, setCityCode] = useState('');
   const [provinceLoading, setProvinceLoading] = useState(false);
   const [cityLoading, setCityLoading] = useState(false);
+  const [addressBarangayCatalog, setAddressBarangayCatalog] = useState<GeographicOption[]>([]);
+  const [addressBarangayLoading, setAddressBarangayLoading] = useState(false);
   const [proposedProvinceCode, setProposedProvinceCode] = useState('');
   const [proposedCityCatalog, setProposedCityCatalog] = useState<GeographicOption[]>([]);
   const [proposedCityCode, setProposedCityCode] = useState('');
@@ -186,10 +188,12 @@ const FranchiseApplicationPage: React.FC = () => {
   const [updateApplicantProfile, setUpdateApplicantProfile] = useState(false);
   const profileInitialized = useRef(false);
   const cityRequestId = useRef(0);
+  const addressBarangayRequestId = useRef(0);
   const proposedCityRequestId = useRef(0);
   const proposedBarangayRequestId = useRef(0);
   const provinceOptions = useMemo(() => provinceCatalog.map((option) => option.name), [provinceCatalog]);
   const cityOptions = useMemo(() => cityCatalog.map((option) => option.name), [cityCatalog]);
+  const addressBarangayOptions = useMemo(() => addressBarangayCatalog.map((option) => option.name), [addressBarangayCatalog]);
   const proposedCityOptions = useMemo(() => proposedCityCatalog.map((option) => option.name), [proposedCityCatalog]);
   const proposedBarangayOptions = useMemo(() => proposedBarangayCatalog.map((option) => option.name), [proposedBarangayCatalog]);
   const hasFormData = Object.values(form).some((value) => value.trim()) || documents.length > 0;
@@ -293,8 +297,8 @@ const FranchiseApplicationPage: React.FC = () => {
     && /^09\d{9}$/.test(form.phone.replace(/\D/g, ''))
     && !!form.province.trim()
     && !!form.city.trim()
-    && !!form.street.trim()
-  ), [form]);
+    && addressBarangayCatalog.some((option) => option.name.toLowerCase() === form.street.trim().toLowerCase())
+  ), [form, addressBarangayCatalog]);
 
   const stepTwoValid = useMemo(() => (
     provinceCatalog.some((option) => option.name.toLowerCase() === form.location_province.trim().toLowerCase())
@@ -332,11 +336,13 @@ const FranchiseApplicationPage: React.FC = () => {
     setError('');
   };
 
-  const loadCitiesForProvince = async (nextProvinceCode: string) => {
+  const loadCitiesForProvince = async (nextProvinceCode: string, selectedCity = form.city) => {
     if (!nextProvinceCode) {
+      cityRequestId.current += 1;
       setCityCatalog([]);
       setCityCode('');
-      setForm((current) => ({ ...current, city: '' }));
+      setCityLoading(false);
+      setForm((current) => ({ ...current, city: '', street: '' }));
       return;
     }
 
@@ -356,23 +362,65 @@ const FranchiseApplicationPage: React.FC = () => {
       if (!options.length) {
         setError('No cities or municipalities were returned for this province.');
       }
-      const selectedCity = form.city.trim();
-      const validCity = selectedCity && options.some((option) => option.name.toLowerCase() === selectedCity.toLowerCase());
+      const savedCity = selectedCity.trim();
+      const validCity = savedCity && options.some((option) => option.name.toLowerCase() === savedCity.toLowerCase());
 
       setForm((current) => ({
         ...current,
-        city: validCity ? current.city : '',
+        city: validCity ? savedCity : '',
+        street: validCity && current.city.toLowerCase() === savedCity.toLowerCase() ? current.street : '',
       }));
-      setCityCode(validCity ? (options.find((option) => option.name.toLowerCase() === selectedCity.toLowerCase())?.code ?? '') : '');
+      setCityCode(validCity ? (options.find((option) => option.name.toLowerCase() === savedCity.toLowerCase())?.code ?? '') : '');
     } catch {
       if (requestId !== cityRequestId.current) return;
       setCityCatalog([]);
       setCityCode('');
-      setForm((current) => ({ ...current, city: '' }));
+      setForm((current) => ({ ...current, city: '', street: '' }));
     } finally {
       if (requestId === cityRequestId.current) setCityLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!cityCode) {
+      addressBarangayRequestId.current += 1;
+      setAddressBarangayCatalog([]);
+      setAddressBarangayLoading(false);
+      setForm((current) => current.street ? { ...current, street: '' } : current);
+      return;
+    }
+
+    let cancelled = false;
+    const requestId = ++addressBarangayRequestId.current;
+    const loadAddressBarangays = async () => {
+      setAddressBarangayLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/geo/barangays?city_code=${encodeURIComponent(cityCode)}`, {
+          headers: { Accept: 'application/json' },
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.message || 'Unable to load barangays for this municipality.');
+        const options = parseGeoOptions(result);
+        if (cancelled || requestId !== addressBarangayRequestId.current) return;
+        setAddressBarangayCatalog(options);
+        setForm((current) => {
+          const validBarangay = options.some((option) =>
+            option.name.toLowerCase() === current.street.trim().toLowerCase(),
+          );
+          return validBarangay || !current.street ? current : { ...current, street: '' };
+        });
+      } catch {
+        if (cancelled || requestId !== addressBarangayRequestId.current) return;
+        setAddressBarangayCatalog([]);
+        setForm((current) => current.street ? { ...current, street: '' } : current);
+        setError('Unable to load barangays for your address. Please try selecting the city or municipality again.');
+      } finally {
+        if (!cancelled && requestId === addressBarangayRequestId.current) setAddressBarangayLoading(false);
+      }
+    };
+    void loadAddressBarangays();
+    return () => { cancelled = true; };
+  }, [cityCode]);
 
   const loadProposedCitiesForProvince = async (nextProvinceCode: string, selectedCity = form.location_city) => {
     if (!nextProvinceCode) {
@@ -507,6 +555,11 @@ const FranchiseApplicationPage: React.FC = () => {
       if (!cityMatches) {
         message = 'Select a valid city or municipality for the selected province.';
       }
+    } else if (field === 'street' && value.trim()) {
+      const barangayMatches = addressBarangayCatalog.some((option) => option.name.toLowerCase() === value.trim().toLowerCase());
+      if (!barangayMatches) {
+        message = 'Select a barangay within the selected city or municipality.';
+      }
     } else if (field === 'location_province' && value.trim()) {
       const matchesProvince = provinceCatalog.some((option) => option.name.toLowerCase() === value.trim().toLowerCase());
       if (!matchesProvince) {
@@ -562,7 +615,11 @@ const FranchiseApplicationPage: React.FC = () => {
       phone: formatPhone(applicant?.phone || savedDraft.form.phone),
     };
     setForm(restoredForm);
-    syncAddressCodes(restoredForm.province, restoredForm.city);
+    const addressProvince = provinceCatalog.find((option) =>
+      option.name.toLowerCase() === restoredForm.province.trim().toLowerCase(),
+    );
+    setProvinceCode(addressProvince?.code ?? '');
+    if (addressProvince) void loadCitiesForProvince(addressProvince.code, restoredForm.city);
     const proposedProvince = provinceCatalog.find((option) =>
       option.name.toLowerCase() === restoredForm.location_province.trim().toLowerCase(),
     );
@@ -822,14 +879,16 @@ const FranchiseApplicationPage: React.FC = () => {
                     <SearchableSelect id="province" required value={form.province} onChange={(value) => {
                       updateField('province', value);
                       setCityCode('');
-                      setForm((current) => ({ ...current, city: '' }));
+                      setForm((current) => ({ ...current, city: '', street: '' }));
                       const selectedProvince = provinceCatalog.find((option) => option.name.toLowerCase() === value.trim().toLowerCase());
                       setProvinceCode(selectedProvince?.code ?? '');
                       setFieldErrors((current) => ({ ...current, province: undefined, city: undefined }));
                       if (selectedProvince?.code) {
-                        void loadCitiesForProvince(selectedProvince.code);
+                        void loadCitiesForProvince(selectedProvince.code, '');
                       } else {
+                        cityRequestId.current += 1;
                         setCityCatalog([]);
+                        setCityLoading(false);
                       }
                     }}
                       onBlur={() => validateField('province')} options={provinceOptions} placeholder="Select or enter a province"
@@ -838,6 +897,7 @@ const FranchiseApplicationPage: React.FC = () => {
                   <FormField id="city" label="City / Municipality" required helper={cityLoading ? 'Loading cities…' : addressGeoReady ? 'Enter the city or municipality where you live.' : 'Select a valid province to unlock the city list.'} error={fieldErrors.city}>
                     <SearchableSelect id="city" required value={form.city} onChange={(value) => {
                       updateField('city', value);
+                      setForm((current) => ({ ...current, street: '' }));
                       const selectedCity = cityCatalog.find((option) => option.name.toLowerCase() === value.trim().toLowerCase());
                       setCityCode(selectedCity?.code ?? '');
                       setFieldErrors((current) => ({ ...current, city: undefined }));
@@ -845,11 +905,21 @@ const FranchiseApplicationPage: React.FC = () => {
                       onBlur={() => validateField('city')} options={cityOptions} placeholder="Select or enter a city"
                       invalid={!!fieldErrors.city} describedBy={fieldDescription('city', !!fieldErrors.city)} disabled={cityDisabled} />
                   </FormField>
-                  <FormField id="street" label="Street / Barangay" required helper="Include your street, building, or barangay." error={fieldErrors.street} className="sm:col-span-2">
-                    <input id="street" required autoComplete="street-address" maxLength={500} value={form.street}
-                      onChange={(event) => updateField('street', event.target.value)} onBlur={() => validateField('street')}
-                      placeholder="Street, building, or barangay" className="franchise-control" aria-invalid={!!fieldErrors.street}
-                      aria-describedby={fieldDescription('street', !!fieldErrors.street)} />
+                  <FormField id="street" label="Barangay" required helper={
+                    addressBarangayLoading
+                      ? 'Loading barangays…'
+                      : cityCode
+                        ? addressBarangayOptions.length
+                          ? 'Choose a barangay within the selected city or municipality.'
+                          : 'No barangays are currently available for this municipality.'
+                        : 'Select a city or municipality first to see its barangays.'
+                  } error={fieldErrors.street} className="sm:col-span-2">
+                    <SearchableSelect id="street" required value={form.street} onChange={(value) => {
+                      updateField('street', value);
+                    }}
+                      onBlur={() => validateField('street')} options={addressBarangayOptions} placeholder="Select a barangay"
+                      invalid={!!fieldErrors.street} describedBy={fieldDescription('street', !!fieldErrors.street)}
+                      disabled={!cityCode || cityLoading || addressBarangayLoading || !addressBarangayOptions.length} />
                   </FormField>
                 </div>
               </FormSection>
@@ -1014,7 +1084,7 @@ const FranchiseApplicationPage: React.FC = () => {
                 <ReviewItem label="Mobile number" value={formatPhone(form.phone)} />
                 <ReviewItem label="Province" value={form.province} />
                 <ReviewItem label="City / Municipality" value={form.city} />
-                <ReviewItem label="Street / Barangay" value={form.street} />
+                <ReviewItem label="Barangay" value={form.street} />
                 <ReviewItem label="Update applicant account" value={updateApplicantProfile ? 'Yes' : 'No'} />
               </ReviewSection>
               <ReviewSection title="Business plan" onEdit={() => goToStep(1)}>
