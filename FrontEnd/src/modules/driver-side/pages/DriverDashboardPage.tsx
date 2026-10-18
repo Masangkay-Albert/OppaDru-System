@@ -10,7 +10,6 @@ import { OrderDateTime, StatusBadge, UserChip } from '../../shared/components/Da
 
 import { sortOrders } from '../../../utils/dashboardOrders';
 import { API_URL } from '../../../services/apiConfig';
-import { OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
 
 
 const chipBase = 'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition whitespace-nowrap motion-reduce:transition-none';
@@ -35,6 +34,8 @@ export interface DriverOrder {
   address?: string;
   phone?: string;
   deliveryCoordinates?: { lat: number; lng: number } | null;
+  branchCoordinates?: { lat: number; lng: number } | null;
+  branchName?: string | null;
   deliveryProofImageUrl?: string | null;
   deliveryProofUploadedAt?: string | null;
 }
@@ -110,7 +111,12 @@ const DriverDashboardPage: React.FC = () => {
       
       const data = await response.json();
       if (requestedTab === activeTab) {
-        setOrders((current) => JSON.stringify(current) === JSON.stringify(data) ? current : data);
+        const normalized = (Array.isArray(data) ? data : []).map((order: any) => ({
+          ...order,
+          branchCoordinates: order.branchCoordinates || order.branch_coordinates || (order.franchise?.latitude != null && order.franchise?.longitude != null ? { lat: Number(order.franchise.latitude), lng: Number(order.franchise.longitude) } : null),
+          branchName: order.branchName || order.branch_name || order.franchise?.name || null,
+        }));
+        setOrders((current) => JSON.stringify(current) === JSON.stringify(normalized) ? current : normalized);
       }
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -515,13 +521,13 @@ const DriverDashboardPage: React.FC = () => {
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
                     <RouteLayer
-                      start={OPPA_DRU_STORE_COORDS}
+                      start={selectedOrder.branchCoordinates || selectedOrder.deliveryCoordinates}
                       end={selectedOrder.deliveryCoordinates}
                       progress={0}
                     />
-                    <Marker position={[OPPA_DRU_STORE_COORDS.lat, OPPA_DRU_STORE_COORDS.lng]} icon={storeIcon}>
-                      <Popup>Oppa Dru store</Popup>
-                    </Marker>
+                    {selectedOrder.branchCoordinates && <Marker position={[selectedOrder.branchCoordinates.lat, selectedOrder.branchCoordinates.lng]} icon={storeIcon}>
+                      <Popup>{selectedOrder.branchName || 'Assigned branch'}</Popup>
+                    </Marker>}
                     <Marker
                       position={[selectedOrder.deliveryCoordinates.lat, selectedOrder.deliveryCoordinates.lng]}
                       icon={destinationIcon}

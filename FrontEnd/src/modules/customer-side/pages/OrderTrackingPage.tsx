@@ -7,7 +7,6 @@ import { useOrder } from '../../../contexts/OrderContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import { ORDER_STATUS, STATUS_COLORS } from '../../../utils/constants';
 import { orderService } from '../../../services/orderService';
-import { OPPA_DRU_STORE_COORDS } from '../../../services/geocodingService';
 import type { Order } from '../../../contexts/OrderContext';
 import { getOrderCreatedAtMs, normalizeOrderStatus } from '../../../utils/orderManagement';
 
@@ -139,6 +138,10 @@ const OrderTrackingPage: React.FC = () => {
             deliveryAddress: foundOrder.delivery_address,
             deliveryAddressCoords: foundOrder.delivery_coordinates || undefined,
             coords: foundOrder.delivery_coordinates || undefined,
+            branchId: foundOrder.branch_id || foundOrder.franchise_id || null,
+            branchName: foundOrder.franchise?.name,
+            branchCoords: foundOrder.franchise?.latitude && foundOrder.franchise?.longitude ? { lat: Number(foundOrder.franchise.latitude), lng: Number(foundOrder.franchise.longitude) } : undefined,
+            branchAddress: foundOrder.franchise?.address,
             eta: 35,
             deliveryType: (foundOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
             deliveryFee: derivedDeliveryFee,
@@ -310,10 +313,11 @@ const OrderTrackingPage: React.FC = () => {
   const isDelivered = order.status === ORDER_STATUS.DELIVERED || (order.status as string) === 'arrived';
   const statusColor = isDelivered ? (STATUS_COLORS.delivered || 'bg-green-100 text-green-700') : (STATUS_COLORS[order.status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700');
 
-  const mapCenter = order.deliveryAddressCoords ? [
-    (OPPA_DRU_STORE_COORDS.lat + order.deliveryAddressCoords.lat) / 2,
-    (OPPA_DRU_STORE_COORDS.lng + order.deliveryAddressCoords.lng) / 2
-  ] : [OPPA_DRU_STORE_COORDS.lat, OPPA_DRU_STORE_COORDS.lng];
+  const branchCoordinates = order.branchCoords || order.deliveryAddressCoords;
+  const mapCenter = branchCoordinates && order.deliveryAddressCoords ? [
+    (branchCoordinates.lat + order.deliveryAddressCoords.lat) / 2,
+    (branchCoordinates.lng + order.deliveryAddressCoords.lng) / 2
+  ] : [branchCoordinates?.lat || order.deliveryAddressCoords?.lat || 0, branchCoordinates?.lng || order.deliveryAddressCoords?.lng || 0];
 
   const graceRemaining = getGraceRemainingSeconds(order);
   const isPendingStatus = String(order.status ?? '').trim().toLowerCase() === ORDER_STATUS.PENDING;
@@ -395,8 +399,8 @@ const OrderTrackingPage: React.FC = () => {
                   />
                   
                   <RouteLayer 
-                    start={OPPA_DRU_STORE_COORDS} 
-                    end={order.deliveryAddressCoords || OPPA_DRU_STORE_COORDS} 
+                    start={branchCoordinates || { lat: 0, lng: 0 }} 
+                    end={order.deliveryAddressCoords || branchCoordinates || { lat: 0, lng: 0 }} 
                     progress={simulatedProgress} 
                     onRouteLoaded={handleRouteLoaded} 
                   />
@@ -407,12 +411,12 @@ const OrderTrackingPage: React.FC = () => {
                   />
                   
                   <Marker 
-                    position={[OPPA_DRU_STORE_COORDS.lat, OPPA_DRU_STORE_COORDS.lng]} 
+                    position={[branchCoordinates?.lat || 0, branchCoordinates?.lng || 0]} 
                     icon={storeIcon}
                   >
                     <Popup>
                       <div className="text-center">
-                        <p className="font-semibold text-[#2d6a4f]">Oppa Dru</p>
+                        <p className="font-semibold text-[#2d6a4f]">{order.branchName || 'Assigned branch'}</p>
                         <p className="text-xs text-gray-500">Store Location</p>
                       </div>
                     </Popup>

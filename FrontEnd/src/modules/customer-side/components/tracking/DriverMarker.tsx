@@ -3,19 +3,16 @@ import React, { useEffect, useState } from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import { getPositionAlongRoute, type Coordinates } from '../../../../services/geocodingService';
 import { driverIcon } from './MapIcons';
-import { OPPA_DRU_STORE_COORDS } from '../../../../services/geocodingService';
 
 interface DriverMarkerProps {
   routePoints: [number, number][];
   progress: number;
   driverPosition?: { lat: number; lng: number };
+  startPosition?: Coordinates;
 }
 
-const DriverMarker: React.FC<DriverMarkerProps> = ({ routePoints, progress, driverPosition }) => {
-  const [driverPos, setDriverPos] = useState<Coordinates>({ 
-    lat: OPPA_DRU_STORE_COORDS.lat, 
-    lng: OPPA_DRU_STORE_COORDS.lng 
-  });
+const DriverMarker: React.FC<DriverMarkerProps> = ({ routePoints, progress, driverPosition, startPosition }) => {
+  const [driverPos, setDriverPos] = useState<Coordinates | null>(startPosition || null);
 
   useEffect(() => {
     const smoothProgress = Math.min(progress, 99);
@@ -33,7 +30,7 @@ const DriverMarker: React.FC<DriverMarkerProps> = ({ routePoints, progress, driv
     }
   }, [routePoints, progress, driverPosition]);
 
-  if (progress >= 100 || routePoints.length === 0) {
+  if (progress >= 100 || routePoints.length === 0 || !driverPos) {
     return null;
   }
 

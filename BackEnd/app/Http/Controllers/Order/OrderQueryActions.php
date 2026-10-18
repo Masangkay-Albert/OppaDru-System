@@ -11,13 +11,13 @@ trait OrderQueryActions
     public function index()
     {
         $orders = Order::select([
-            'id', 'order_number', 'email', 'user_id', 'total', 'status',
+            'id', 'order_number', 'email', 'user_id', 'branch_id', 'franchise_id', 'total', 'status',
             'payment_method', 'payment_status', 'delivery_address', 'delivery_lat', 'delivery_lng', 'delivery_coordinates', 'phone', 'items', 'created_at',
             'delivery_proof_image', 'delivery_proof_uploaded_at', 'delivery_confirmed_at',
             'delivery_proof_image_data', 'discount_proof_image', 'discount_proof_image_data',
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',
             'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
-        ])->with(['user:id,full_name', 'orderItems'])
+        ])->with(['user:id,full_name', 'franchise:id,name,address,latitude,longitude', 'orderItems'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -34,7 +34,7 @@ trait OrderQueryActions
     public function getUserOrders(Request $request)
     {
         $email = $request->user()->email;
-        $orders = Order::with('orderItems')->where('email', $email)->orderBy('created_at', 'desc')->get();
+        $orders = Order::with(['orderItems', 'franchise:id,name,address,latitude,longitude'])->where('email', $email)->orderBy('created_at', 'desc')->get();
 
         return response()->json($this->orderDataService->formatOrders($orders));
     }

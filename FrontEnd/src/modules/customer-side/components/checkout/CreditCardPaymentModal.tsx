@@ -28,7 +28,7 @@ interface CreditCardPaymentModalProps {
   deliveryType: 'standard' | 'priority' | 'scheduled';
   voucherDiscount: number;
   discountRate: number;
-  deliveryCoordinates?: { lat: number; lng: number };
+  deliveryCoordinates?: { lat: number; lng: number } | null;
   franchiseId?: string | null;
   onPaymentComplete: (result: PaymentResult) => void;
 }

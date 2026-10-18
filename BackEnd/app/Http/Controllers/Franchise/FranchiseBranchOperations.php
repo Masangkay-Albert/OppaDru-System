@@ -346,7 +346,7 @@ trait FranchiseBranchOperations
 
     private function fulfillmentMetrics(string $franchiseId): array
     {
-        $orders = fn () => Order::where('franchise_id', $franchiseId);
+        $orders = fn () => Order::where('branch_id', $franchiseId);
 
         return [
             'total_orders' => $orders()->count(),

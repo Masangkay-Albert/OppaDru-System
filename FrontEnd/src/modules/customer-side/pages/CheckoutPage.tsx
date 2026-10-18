@@ -11,14 +11,13 @@ import GCashPaymentModal from '../components/checkout/GCashPaymentModal';
 import CreditCardPaymentModal from '../components/checkout/CreditCardPaymentModal';
 import ScheduleModal from '../components/checkout/ScheduleModal';
 import { useCheckoutForm } from '../../../hooks/useCheckoutForm';
-import { geocodeAddress, OPPA_DRU_STORE_COORDS, type Coordinates } from '../../../services/geocodingService';
+import { geocodeAddress, type Coordinates } from '../../../services/geocodingService';
 import { cleanAddress } from '../../../utils/locationUtils';
 import { useCartCalculations } from '../../../hooks/useCartCalculations';
 import { useSettings } from '../../../contexts/SettingsContext';
 import { getAvailableDates, generateTimeSlots } from '../../../services/checkoutService';
 import type { PaymentResult } from '../components/checkout/paymentTypes';
-import { getSelectedBranchId } from '../../../services/franchiseBranchService';
-import { getActiveBranches } from '../../../services/franchiseBranchService';
+import { resolveBranch, type BranchResolution } from '../../../services/branchRoutingService';
 import '../../../styles/checkout-page.css';
 
 const CheckoutPage: React.FC = () => {
@@ -40,21 +39,11 @@ const CheckoutPage: React.FC = () => {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [discountType, setDiscountType] = useState<'PWD' | 'Senior Citizen' | null>(activeDiscount.type === 'PWD' ? 'PWD' : activeDiscount.type === 'Senior' ? 'Senior Citizen' : null);
   const [discountProof, setDiscountProof] = useState<File | null>(null);
-  const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates>(OPPA_DRU_STORE_COORDS);
-  const selectedBranchId = getSelectedBranchId();
-  const [selectedBranchName, setSelectedBranchName] = useState(
-    selectedBranchId ? 'Loading branch...' : 'Original Oppa Dru (Main Store)',
-  );
+  const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates | null>(null);
+  const [branchResolution, setBranchResolution] = useState<BranchResolution | null>(null);
+  const [branchError, setBranchError] = useState('');
+  const selectedBranchName = branchResolution?.branch.name || 'Select a delivery address';
   const orderRequestRef = useRef<Promise<void> | null>(null);
-
-  useEffect(() => {
-    if (!selectedBranchId) {
-      return;
-    }
-    getActiveBranches()
-      .then((branches) => setSelectedBranchName(branches.find((branch) => branch.id === selectedBranchId)?.name || 'Selected franchise branch'))
-      .catch(() => setSelectedBranchName('Selected franchise branch'));
-  }, [selectedBranchId]);
 
   useEffect(() => {
     if (!activeDiscount.type) {
@@ -80,17 +69,48 @@ const CheckoutPage: React.FC = () => {
 
   useEffect(() => {
     if (!address.street.trim()) {
-      setDeliveryCoordinates(OPPA_DRU_STORE_COORDS);
+      setDeliveryCoordinates(null);
       return;
     }
 
     const timer = window.setTimeout(async () => {
       const coords = await geocodeAddress(cleanAddress(address.street));
-      setDeliveryCoordinates(coords || OPPA_DRU_STORE_COORDS);
+      setDeliveryCoordinates(coords);
     }, 500);
 
     return () => window.clearTimeout(timer);
   }, [address.street]);
+
+  useEffect(() => {
+    if (!deliveryCoordinates || cartItems.length === 0) {
+      setBranchResolution(null);
+      setBranchError('');
+      return;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      resolveBranch({
+        coordinates: deliveryCoordinates,
+        items: cartItems.map((item) => ({
+          product_id: item.id,
+          selected_addons: (item.selectedAddons || []).map((addon) => ({ id: addon.id })),
+        })),
+        delivery_type: deliveryType,
+        voucher_discount: voucherDiscount,
+        discount_rate: activeDiscount.discountRate,
+        fulfillment_type: 'delivery',
+      }).then((result) => {
+        if (!active) return;
+        setBranchResolution(result);
+        setBranchError(result.unavailable_items.length ? `Unavailable at this branch: ${result.unavailable_items.join(', ')}` : '');
+      }).catch((error: unknown) => {
+        if (!active) return;
+        setBranchResolution(null);
+        setBranchError(error instanceof Error ? error.message : 'Sorry, we do not deliver to this address yet.');
+      });
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [deliveryCoordinates, cartItems, deliveryType, voucherDiscount, activeDiscount.discountRate]);
 
   // Delivery fee calculated server-side; frontend shows estimate only
   const { total } = useCartCalculations({
@@ -98,7 +118,8 @@ const CheckoutPage: React.FC = () => {
     deliveryType,
     voucherDiscount,
     discount: activeDiscount.discountRate,
-    deliveryCoordinates,
+    deliveryCoordinates: deliveryCoordinates ?? undefined,
+    originCoordinates: branchResolution ? { lat: branchResolution.branch.latitude, lng: branchResolution.branch.longitude } : undefined,
   });
   const buildFullDeliveryAddress = () => {
     const parts: string[] = [];
@@ -148,7 +169,11 @@ const CheckoutPage: React.FC = () => {
     setIsPlacingOrder(true);
 
     try {
-      const coords = deliveryCoordinates || { ...OPPA_DRU_STORE_COORDS };
+      if (!branchResolution || branchError || !deliveryCoordinates) {
+        showToast(branchError || 'Please select a delivery address we can serve.', 'error');
+        return;
+      }
+      const coords = deliveryCoordinates;
 
       const fullDeliveryAddress = buildFullDeliveryAddress();
 
@@ -188,7 +213,7 @@ const CheckoutPage: React.FC = () => {
         scheduleWindowValue,
         discountType,
         discountProof,
-        getSelectedBranchId()
+        branchResolution.branch.id
       );
 
       if (success) {
@@ -244,6 +269,11 @@ const CheckoutPage: React.FC = () => {
 
     if (!address.street) {
       showToast('Please select a delivery address', 'error');
+      return;
+    }
+
+    if (!branchResolution || branchError) {
+      showToast(branchError || 'Please select a delivery address we can serve.', 'error');
       return;
     }
 
@@ -327,6 +357,7 @@ const CheckoutPage: React.FC = () => {
             <CheckoutForm
               address={address}
               updateAddress={updateAddress}
+              onAddressCoordinatesChange={setDeliveryCoordinates}
               tempPerson={tempPerson}
               updatePerson={updatePerson}
               deliveryType={deliveryType}
@@ -348,8 +379,12 @@ const CheckoutPage: React.FC = () => {
               onPlaceOrder={handlePlaceOrder}
               onVoucherApply={() => {}}
               voucherDiscount={voucherDiscount}
-              deliveryCoordinates={deliveryCoordinates}
-              isPlacingOrder={isPlacingOrder}
+            deliveryCoordinates={deliveryCoordinates || undefined}
+            branchCoordinates={branchResolution ? { lat: branchResolution.branch.latitude, lng: branchResolution.branch.longitude } : undefined}
+            branchName={selectedBranchName}
+            branchNotice={branchResolution?.notice || branchError}
+            isPlacingOrder={isPlacingOrder}
+            canPlaceOrder={Boolean(branchResolution && !branchError)}
             />
           </div>
         </div>
@@ -382,8 +417,8 @@ const CheckoutPage: React.FC = () => {
         deliveryType={deliveryType}
         voucherDiscount={voucherDiscount}
         discountRate={activeDiscount.discountRate}
-        deliveryCoordinates={deliveryCoordinates}
-        franchiseId={selectedBranchId}
+        deliveryCoordinates={deliveryCoordinates || undefined}
+        franchiseId={branchResolution?.branch.id || null}
         onPaymentComplete={handlePaymentComplete}
         onPaymentCreated={setGCashReference}
       />
@@ -396,8 +431,8 @@ const CheckoutPage: React.FC = () => {
         deliveryType={deliveryType}
         voucherDiscount={voucherDiscount}
         discountRate={activeDiscount.discountRate}
-        deliveryCoordinates={deliveryCoordinates}
-        franchiseId={selectedBranchId}
+        deliveryCoordinates={deliveryCoordinates || undefined}
+        franchiseId={branchResolution?.branch.id || null}
         onPaymentComplete={handlePaymentComplete}
       />
     </div>

@@ -10,6 +10,7 @@ interface UseCartCalculationsProps {
   voucherDiscount: number;
   discount?: number;
   deliveryCoordinates?: { lat: number; lng: number };
+  originCoordinates?: { lat: number; lng: number };
 }
 
 export const useCartCalculations = ({ 
@@ -18,15 +19,18 @@ export const useCartCalculations = ({
   voucherDiscount, 
   discount = 0,
   deliveryCoordinates,
+  originCoordinates,
 }: UseCartCalculationsProps) => {
   const { pricing } = useSettings();
   return useMemo(() => {
     const subtotal = calculateSubtotal(cartItems);
-    const latitude = deliveryCoordinates?.lat ?? pricing.merchant_latitude;
-    const longitude = deliveryCoordinates?.lng ?? pricing.merchant_longitude;
-    const latitudeDelta = (latitude - pricing.merchant_latitude) * Math.PI / 180;
-    const longitudeDelta = (longitude - pricing.merchant_longitude) * Math.PI / 180;
-    const merchantLatitude = pricing.merchant_latitude * Math.PI / 180;
+    const latitude = deliveryCoordinates?.lat ?? originCoordinates?.lat ?? 0;
+    const longitude = deliveryCoordinates?.lng ?? originCoordinates?.lng ?? 0;
+    const originLatitude = originCoordinates?.lat ?? latitude;
+    const originLongitude = originCoordinates?.lng ?? longitude;
+    const latitudeDelta = (latitude - originLatitude) * Math.PI / 180;
+    const longitudeDelta = (longitude - originLongitude) * Math.PI / 180;
+    const merchantLatitude = originLatitude * Math.PI / 180;
     const customerLatitude = latitude * Math.PI / 180;
     const haversine = Math.sin(latitudeDelta / 2) ** 2
       + Math.cos(merchantLatitude) * Math.cos(customerLatitude) * Math.sin(longitudeDelta / 2) ** 2;
@@ -56,5 +60,5 @@ export const useCartCalculations = ({
       total,
       hasItems: cartItems.length > 0
     };
-  }, [cartItems, deliveryType, voucherDiscount, discount, pricing, deliveryCoordinates]);
+  }, [cartItems, deliveryType, voucherDiscount, discount, pricing, deliveryCoordinates, originCoordinates]);
 };

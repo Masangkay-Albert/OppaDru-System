@@ -25,42 +25,29 @@ trait PaymentCheckoutActions
             'items.*.selected_addons.*.id' => 'required|integer|exists:addons,id',
             'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
-            'delivery_coordinates' => 'nullable|array',
-            'delivery_coordinates.lat' => 'required_with:delivery_coordinates|numeric|between:-90,90',
-            'delivery_coordinates.lng' => 'required_with:delivery_coordinates|numeric|between:-180,180',
+            'fulfillment_type' => 'nullable|string|in:pickup,delivery',
+            'delivery_coordinates' => 'nullable|array|required_unless:fulfillment_type,pickup',
+            'delivery_coordinates.lat' => 'required_unless:fulfillment_type,pickup|numeric|between:-90,90',
+            'delivery_coordinates.lng' => 'required_unless:fulfillment_type,pickup|numeric|between:-180,180',
         ]);
 
         if ($validator->fails()) {
             return ['success' => false, 'message' => $validator->errors()->first(), 'status' => 422];
         }
 
-        $franchiseId = $request->input('franchise_id');
-        if ($franchiseId) {
-            $franchise = Franchise::with('franchiseAccount')->find($franchiseId);
-            if (! $franchise || ! $franchise->isOperationallyActive()) {
-                return ['success' => false, 'message' => 'The selected branch is not currently accepting orders.', 'status' => 422];
-            }
-
-            $catalogIds = app(FranchiseInventoryService::class)
-                ->catalog((string) $franchiseId, true)
-                ->pluck('id')
-                ->all();
-            $productIds = collect($request->input('items'))->pluck('product_id')->unique();
-            if ($productIds->diff($catalogIds)->isNotEmpty()) {
-                return ['success' => false, 'message' => 'One or more items are not available from the selected branch.', 'status' => 422];
-            }
-
-            $addonIds = collect($request->input('items'))
-                ->flatMap(fn (array $item) => collect($item['selected_addons'] ?? [])->pluck('id'))
-                ->unique();
-            $addons = Addon::with('group')->whereIn('id', $addonIds)->get();
-            if ($addons->count() !== $addonIds->count()
-                || $addons->contains(fn (Addon $addon) => ! $addon->is_active || ! $addon->group || ! $addon->group->is_active
-                    || ($addon->franchise_id !== null && (string) $addon->franchise_id !== (string) $franchiseId)
-                    || ($addon->group->franchise_id !== null && (string) $addon->group->franchise_id !== (string) $franchiseId))) {
-                return ['success' => false, 'message' => 'One or more add-ons are unavailable from the selected branch.', 'status' => 422];
-            }
+        try {
+            $isPickup = $request->input('fulfillment_type') === 'pickup';
+            $branchResolution = $this->branchRoutingService->resolve(
+                $request->input('delivery_coordinates'),
+                $isPickup ? $request->input('franchise_id') : null,
+                $isPickup,
+            );
+        } catch (\InvalidArgumentException $exception) {
+            return ['success' => false, 'message' => $exception->getMessage(), 'status' => 422];
         }
+        $franchiseId = (string) $branchResolution['branch']->id;
+        $unavailable = $this->branchRoutingService->validateCatalog($franchiseId, $request->input('items', []));
+        if ($unavailable !== []) return ['success' => false, 'message' => 'One or more items are unavailable at the assigned branch.', 'status' => 422];
 
         try {
             $pricing = $this->pricingService->calculate(
@@ -68,13 +55,14 @@ trait PaymentCheckoutActions
                 $request->input('delivery_type', 'standard'),
                 (float) $request->input('voucher_discount', 0),
                 (float) $request->input('discount_rate', 0),
-                $request->input('delivery_coordinates')
+                $request->input('delivery_coordinates'),
+                ['lat' => (float) $branchResolution['branch']->latitude, 'lng' => (float) $branchResolution['branch']->longitude],
             );
             if (round((float) $request->amount) !== $pricing['total']) {
                 return ['success' => false, 'message' => 'The checkout total has changed. Please review your order.', 'status' => 422];
             }
 
-            return ['success' => true, 'amount' => $pricing['total'], 'franchise_id' => $franchiseId];
+            return ['success' => true, 'amount' => $pricing['total'], 'franchise_id' => $franchiseId, 'branch' => $branchResolution['branch'], 'distance_km' => $branchResolution['distance_km']];
         } catch (\InvalidArgumentException $exception) {
             return ['success' => false, 'message' => $exception->getMessage(), 'status' => 422];
         }

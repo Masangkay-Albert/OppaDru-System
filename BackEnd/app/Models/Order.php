@@ -17,6 +17,7 @@ class Order extends Model
     protected $fillable = [
         'id',
         'franchise_id',
+        'branch_id',
         'created_at',
         'updated_at',
         'email',
@@ -74,6 +75,7 @@ class Order extends Model
         'total' => 'decimal:2',
         'delivery_fee' => 'decimal:2',
         'delivery_distance_km' => 'decimal:3',
+        'distance_km' => 'decimal:3',
         'delivery_lat' => 'decimal:7',
         'delivery_lng' => 'decimal:7',
         'delivery_type' => 'string',

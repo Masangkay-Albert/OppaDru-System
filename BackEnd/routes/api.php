@@ -27,6 +27,7 @@ use App\Http\Controllers\FranchiseApplicantAuthController;
 use App\Http\Controllers\FranchiseController;
 use App\Http\Controllers\FranchiseAccountController;
 use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\BranchRoutingController;
 use Illuminate\Http\Request;
 
 
@@ -61,6 +62,7 @@ Route::post('/franchise-applicants/register', [FranchiseApplicantAuthController:
 Route::post('/franchise-applicants/login', [FranchiseApplicantAuthController::class, 'login'])->middleware('throttle:10,1');
 Route::post('/franchise-applicants/verification/resend', [FranchiseApplicantAuthController::class, 'resendVerification'])->middleware('throttle:6,1');
 Route::get('/franchises/active', [FranchiseController::class, 'activeBranches']);
+Route::post('/branches/resolve', [BranchRoutingController::class, 'resolve']);
 
 Route::prefix('franchise')->group(function () {
     Route::post('/login', [FranchiseAuthController::class, 'login'])->middleware('throttle:5,1,franchise-login');

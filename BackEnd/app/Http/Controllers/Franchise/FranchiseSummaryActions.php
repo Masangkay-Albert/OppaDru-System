@@ -123,7 +123,7 @@ trait FranchiseSummaryActions
 
     private function franchiseSummaryData(Franchise $franchise): array
     {
-        $orders = fn () => Order::where('franchise_id', $franchise->id);
+        $orders = fn () => Order::where('branch_id', $franchise->id);
 
         return [
             'franchise_id' => $franchise->id,

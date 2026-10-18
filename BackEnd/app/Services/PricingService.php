@@ -41,13 +41,11 @@ class PricingService
             'service_fee_rate' => $this->setting('service_fee_rate', 0.03, 4),
             'service_fee_min' => $this->setting('service_fee_min', 15),
             'service_fee_max' => $this->setting('service_fee_max', 80),
-            'merchant_latitude' => $this->setting('merchant_latitude', 14.329, 6),
-            'merchant_longitude' => $this->setting('merchant_longitude', 120.936, 6),
             'vat_rate' => 0.12,
         ];
     }
 
-    public function calculate(array $items, string $deliveryType = 'standard', float $voucherDiscount = 0, float $discountRate = 0, ?array $deliveryCoordinates = null): array
+    public function calculate(array $items, string $deliveryType = 'standard', float $voucherDiscount = 0, float $discountRate = 0, ?array $deliveryCoordinates = null, ?array $originCoordinates = null): array
     {
         $productIds = collect($items)->pluck('product_id')->filter()->unique();
         $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
@@ -88,7 +86,7 @@ class PricingService
         $subtotal = round($subtotal);
 
         $settings = $this->settings();
-        $deliveryDistanceKm = $this->distanceInKilometers($deliveryCoordinates, $settings);
+        $deliveryDistanceKm = $this->distanceInKilometers($deliveryCoordinates, $originCoordinates);
 
         $deliveryFee = round(min(
             $settings['delivery_max_fee'],
@@ -108,16 +106,16 @@ class PricingService
         ];
     }
 
-    private function distanceInKilometers(?array $coordinates, array $settings): float
+    private function distanceInKilometers(?array $coordinates, ?array $originCoordinates): float
     {
-        if (!$coordinates || !isset($coordinates['lat'], $coordinates['lng'])) {
+        if (!$coordinates || !$originCoordinates || !isset($coordinates['lat'], $coordinates['lng'], $originCoordinates['lat'], $originCoordinates['lng'])) {
             return 0.0;
         }
 
         $earthRadiusKm = 6371;
-        $latitudeDelta = deg2rad((float) $coordinates['lat'] - $settings['merchant_latitude']);
-        $longitudeDelta = deg2rad((float) $coordinates['lng'] - $settings['merchant_longitude']);
-        $latitude = deg2rad($settings['merchant_latitude']);
+        $latitudeDelta = deg2rad((float) $coordinates['lat'] - (float) $originCoordinates['lat']);
+        $longitudeDelta = deg2rad((float) $coordinates['lng'] - (float) $originCoordinates['lng']);
+        $latitude = deg2rad((float) $originCoordinates['lat']);
         $destinationLatitude = deg2rad((float) $coordinates['lat']);
         $a = sin($latitudeDelta / 2) ** 2 + cos($latitude) * cos($destinationLatitude) * sin($longitudeDelta / 2) ** 2;
 

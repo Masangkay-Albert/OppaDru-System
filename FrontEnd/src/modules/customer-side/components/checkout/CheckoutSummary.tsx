@@ -14,6 +14,10 @@ interface CheckoutSummaryProps {
   onVoucherApply: (discount: number) => void;
   voucherDiscount: number;
   deliveryCoordinates?: { lat: number; lng: number };
+  branchCoordinates?: { lat: number; lng: number };
+  branchName?: string;
+  branchNotice?: string;
+  canPlaceOrder?: boolean;
   isPlacingOrder?: boolean;
 }
 
@@ -24,6 +28,10 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   onVoucherApply,
   voucherDiscount,
   deliveryCoordinates,
+  branchCoordinates,
+  branchName = 'Select a delivery address',
+  branchNotice,
+  canPlaceOrder = false,
   isPlacingOrder = false
 }) => {
   const navigate = useNavigate();
@@ -36,6 +44,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
     voucherDiscount,
     discount: activeDiscount.discountRate,
     deliveryCoordinates,
+    originCoordinates: branchCoordinates,
   });
 
   if (!hasItems) {
@@ -60,7 +69,8 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         <h2 className="text-lg font-semibold text-gray-800">Your order from</h2>
       </div>
 
-      <p className="text-gray-800 font-medium mb-4">Oppa Dru Korean Fried Chicken</p>
+      <p className="text-gray-800 font-medium mb-4">{branchName}</p>
+      {branchNotice && <p role="alert" className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{branchNotice}</p>}
 
       <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
         {cartItems.map((item) => {
@@ -145,10 +155,11 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
 
       <button
         onClick={onPlaceOrder}
-        disabled={isPlacingOrder}
+        disabled={isPlacingOrder || !canPlaceOrder}
         className={`checkout-place-order w-full mt-6 py-3 rounded-xl font-semibold transition ${
           isPlacingOrder
             ? 'bg-gray-400 cursor-not-allowed'
+            : !canPlaceOrder ? 'bg-gray-300 cursor-not-allowed text-gray-600'
             : 'bg-[#2d6a4f] text-white hover:bg-[#1b4d3e]'
         }`}
       >

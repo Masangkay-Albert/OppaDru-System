@@ -1,5 +1,3 @@
-import { OPPA_DRU_STORE } from '../utils/constants';
-
 export interface ResolvedAddress {
   name: string;
   address: string;
@@ -9,11 +7,6 @@ export interface Coordinates {
   lat: number;
   lng: number;
 }
-
-export const OPPA_DRU_STORE_COORDS = {
-  lat: OPPA_DRU_STORE.lat,
-  lng: OPPA_DRU_STORE.lng
-};
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 

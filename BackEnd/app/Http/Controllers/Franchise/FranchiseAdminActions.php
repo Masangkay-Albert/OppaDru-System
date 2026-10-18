@@ -28,7 +28,7 @@ trait FranchiseAdminActions
             return response()->json(['message' => 'The report date range is invalid.', 'errors' => $validator->errors()], 422);
         }
 
-        $query = Order::where('franchise_id', $user->franchise_id);
+        $query = Order::where('branch_id', $user->franchise_id);
         if ($request->filled('from')) {
             $query->whereDate('created_at', '>=', $request->query('from'));
         }

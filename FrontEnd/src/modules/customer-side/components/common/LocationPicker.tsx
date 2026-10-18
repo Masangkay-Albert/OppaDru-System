@@ -33,8 +33,8 @@ L.Icon.Default.mergeOptions({
 const LocationPicker: React.FC<LocationPickerProps> = ({
   onSelectLocation,
   onClose,
-  initialLat = 14.329,
-  initialLng = 120.936,
+  initialLat = 0,
+  initialLng = 0,
   initialAddress = ''
 }) => {
   const mapRef = useRef<any>(null);

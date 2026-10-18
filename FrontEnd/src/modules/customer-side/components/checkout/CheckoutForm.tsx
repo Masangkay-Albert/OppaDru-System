@@ -29,6 +29,7 @@ interface CheckoutFormProps {
   discountType?: 'PWD' | 'Senior Citizen' | null;
   discountProof?: File | null;
   onDiscountProofChange?: (file: File | null) => void;
+  onAddressCoordinatesChange?: (coordinates: { lat: number; lng: number } | null) => void;
 }
 
 const CheckoutForm: React.FC<CheckoutFormProps> = ({
@@ -44,6 +45,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   discountType,
   discountProof,
   onDiscountProofChange,
+  onAddressCoordinatesChange,
 }) => {
   const { user } = useAuth();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
@@ -61,7 +63,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
     updateDetails,
   } = useAddressManagement({
     userId: user?.id,
-    onAddressSelect: (street, details) => {
+    onAddressSelect: (street, details, coordinates) => {
+      onAddressCoordinatesChange?.(coordinates ? { lat: coordinates.lat, lng: coordinates.lng } : null);
       if (street) {
         updateAddress('street', street);
       }
@@ -164,8 +167,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
             setShowLocationPicker(false);
             setEditingAddress(null);
           }}
-          initialLat={editingAddress?.lat || 14.329}
-          initialLng={editingAddress?.lng || 120.936}
+          initialLat={editingAddress?.lat || 0}
+          initialLng={editingAddress?.lng || 0}
           initialAddress={editingAddress?.address || ''}
         />
       )}

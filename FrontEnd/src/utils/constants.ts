@@ -1,12 +1,5 @@
-
-
-
-
 export const FEES = {
-  DELIVERY: {
-    STANDARD: 49,
-    PRIORITY: 99
-  },
+  DELIVERY: { STANDARD: 49, PRIORITY: 99 },
   SERVICE: 29,
   VAT_RATE: 0.12
 } as const;
@@ -16,33 +9,14 @@ export const VOUCHERS = {
   OPPA20: { code: 'OPPA20', discount: 20, minOrder: 1000 }
 } as const;
 
-export const TIME_SLOTS = {
-  START_HOUR: 12,
-  END_HOUR: 22,
-  INTERVAL_MINUTES: 30
-} as const;
-
-export const OPPA_DRU_STORE = {
-  id: 'main',
-  name: 'Oppa Dru Korean Fried Chicken',
-  address: 'Dasmariñas City Hall, Lieutenant Cantimbuhan Street, Zone 4, Poblacion, Dasmariñas, Cavite, Philippines, 4114',
-  lat: 14.329,
-  lng: 120.936
-} as const;
-
+export const TIME_SLOTS = { START_HOUR: 12, END_HOUR: 22, INTERVAL_MINUTES: 30 } as const;
 export const DELIVERY_SPEED_KM_PER_HOUR = 30;
 export const TRACKING_UPDATE_INTERVAL_MS = 2000;
 
 export const ORDER_STATUS = {
-  PENDING: 'pending',
-  PREPARING: 'preparing',
-  PREPARED: 'prepared',
-  READY: 'ready',
-  SCHEDULED: 'scheduled',
-  ON_THE_WAY: 'on_the_way',
-  ON_WAY: 'on_the_way',
-  DELIVERED: 'delivered',
-  CANCELLED: 'cancelled'
+  PENDING: 'pending', PREPARING: 'preparing', PREPARED: 'prepared', READY: 'ready',
+  SCHEDULED: 'scheduled', ON_THE_WAY: 'on_the_way', ON_WAY: 'on_the_way',
+  DELIVERED: 'delivered', CANCELLED: 'cancelled'
 } as const;
 
 export type OrderStatus = typeof ORDER_STATUS[keyof typeof ORDER_STATUS];
@@ -58,16 +32,11 @@ export const STATUS_MESSAGES: Record<OrderStatus, { message: string; icon: strin
   cancelled: { message: 'Order cancelled.', icon: '' }
 };
 
-
 export const STATUS_COLORS: Record<OrderStatus, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  preparing: 'bg-blue-100 text-blue-700',
-  prepared: 'bg-purple-100 text-purple-700',
-  ready: 'bg-orange-100 text-orange-700',
-  scheduled: 'bg-orange-100 text-orange-700',
-  on_the_way: 'bg-purple-100 text-purple-700',
-  delivered: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700'
+  pending: 'bg-yellow-100 text-yellow-700', preparing: 'bg-blue-100 text-blue-700',
+  prepared: 'bg-purple-100 text-purple-700', ready: 'bg-orange-100 text-orange-700',
+  scheduled: 'bg-orange-100 text-orange-700', on_the_way: 'bg-purple-100 text-purple-700',
+  delivered: 'bg-green-100 text-green-700', cancelled: 'bg-red-100 text-red-700'
 };
 
 export const STATUS_ORDER: OrderStatus[] = ['pending', 'preparing', 'scheduled', 'on_the_way', 'delivered', 'cancelled'];

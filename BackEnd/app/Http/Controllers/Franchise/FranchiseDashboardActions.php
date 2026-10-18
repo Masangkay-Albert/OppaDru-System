@@ -25,8 +25,8 @@ trait FranchiseDashboardActions
             $query->where('franchise_id', $branchId)
                 ->orWhereNull('franchise_id');
         });
-        $branchOrders = fn () => Order::where('franchise_id', $branchId);
-        $salesOrders = fn () => Order::where('franchise_id', $branchId)->countedAsRevenue();
+        $branchOrders = fn () => Order::where('branch_id', $branchId);
+        $salesOrders = fn () => Order::where('branch_id', $branchId)->countedAsRevenue();
         $inventory = app(FranchiseInventoryService::class)->catalog($branchId);
         $franchise = Franchise::findOrFail($branchId);
         $posOrders = fn () => $branchOrders()->where('delivery_type', 'onsite');
@@ -111,7 +111,7 @@ trait FranchiseDashboardActions
             return response()->json(['message' => 'The order filters are invalid.', 'errors' => $validator->errors()], 422);
         }
 
-        $query = Order::where('franchise_id', $user->franchise_id)->with('user:id,full_name,email');
+        $query = Order::where('branch_id', $user->franchise_id)->with('user:id,full_name,email');
 
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
@@ -151,7 +151,7 @@ trait FranchiseDashboardActions
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
-        $order = Order::where('franchise_id', $user->franchise_id)->find($id);
+        $order = Order::where('branch_id', $user->franchise_id)->find($id);
 
         if (! $order) {
             return response()->json(['message' => 'Order not found for this franchise'], 404);
@@ -175,7 +175,7 @@ trait FranchiseDashboardActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $order = Order::where('franchise_id', $user->franchise_id)->find($id);
+        $order = Order::where('branch_id', $user->franchise_id)->find($id);
 
         if (! $order) {
             return response()->json(['message' => 'Order not found for this franchise'], 404);

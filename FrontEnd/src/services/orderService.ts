@@ -35,6 +35,10 @@ export interface Order {
     id: string;
     email: string;
     order_number: string;
+    branch_id?: string | null;
+    franchise_id?: string | null;
+    branchName?: string | null;
+    franchise?: { id?: string; name?: string; latitude?: number; longitude?: number; address?: string } | null;
     total: number;
     status: string;
     payment_method: string;

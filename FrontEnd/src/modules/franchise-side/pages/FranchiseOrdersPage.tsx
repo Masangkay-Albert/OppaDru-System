@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ClipboardList, Eye, RefreshCw, Search, X } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
@@ -44,6 +44,8 @@ const FranchiseOrdersPage: React.FC = () => {
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<BranchOrder | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [newOrdersNotice, setNewOrdersNotice] = useState('');
+  const knownOrderIds = useRef<Set<string> | null>(null);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -59,7 +61,13 @@ const FranchiseOrdersPage: React.FC = () => {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Could not load branch orders.');
       setError('');
-      setOrders(Array.isArray(payload.data) ? payload.data : []);
+      const nextOrders = Array.isArray(payload.data) ? payload.data as BranchOrder[] : [];
+      if (knownOrderIds.current) {
+        const newCount = nextOrders.filter((order) => !knownOrderIds.current?.has(order.id)).length;
+        if (newCount > 0) setNewOrdersNotice(`${newCount} new branch order${newCount === 1 ? '' : 's'} received.`);
+      }
+      knownOrderIds.current = new Set(nextOrders.map((order) => order.id));
+      setOrders(nextOrders);
     } catch (loadError) {
       setError(loadError instanceof Error && loadError.name === 'TimeoutError'
         ? 'Loading orders took too long. Please retry.'
@@ -70,6 +78,10 @@ const FranchiseOrdersPage: React.FC = () => {
   }, [search, status, type, from, to]);
 
   useEffect(() => { void Promise.resolve().then(loadOrders); }, [loadOrders, reload]);
+  useEffect(() => {
+    const interval = window.setInterval(() => { void loadOrders(); }, 15000);
+    return () => window.clearInterval(interval);
+  }, [loadOrders]);
 
   const updateStatus = async (order: BranchOrder, nextStatus: string) => {
     setUpdatingOrderId(order.id);
@@ -132,6 +144,7 @@ const FranchiseOrdersPage: React.FC = () => {
         </header>
 
         {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="font-semibold underline">Retry</button></div>}
+        {newOrdersNotice && <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><span>{newOrdersNotice}</span><button onClick={() => setNewOrdersNotice('')} className="font-semibold underline">Dismiss</button></div>}
         <div className="mb-4 flex w-fit gap-1 rounded-xl border border-[var(--oppa-border)] bg-white p-1 shadow-sm" role="tablist" aria-label="Order source"><button type="button" role="tab" aria-selected={type === 'onsite'} onClick={() => setType('onsite')} className={`rounded-lg px-4 py-2 text-sm font-medium ${type === 'onsite' ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]'}`}>POS Orders</button><button type="button" role="tab" aria-selected={type === 'online'} onClick={() => setType('online')} className={`rounded-lg px-4 py-2 text-sm font-medium ${type === 'online' ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]'}`}>Online Orders</button><button type="button" role="tab" aria-selected={type === 'all'} onClick={() => setType('all')} className={`rounded-lg px-4 py-2 text-sm font-medium ${type === 'all' ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]'}`}>All</button></div>
         <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <OrderMetric icon={ClipboardList} label="Orders in view" value={orders.length} />

@@ -23,6 +23,7 @@ const AdminOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [channelFilter, setChannelFilter] = useState<'all' | 'online' | 'onsite'>('all');
+  const [branchFilter, setBranchFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState<string>('');
@@ -123,6 +124,7 @@ const AdminOrdersPage: React.FC = () => {
       if (channelFilter !== 'all' && order.channel !== channelFilter) {
         return false;
       }
+      if (branchFilter !== 'all' && (order.branchId || '') !== branchFilter) return false;
 
       if (statusFilter !== 'all') {
         if (statusFilter === 'scheduled') {
@@ -149,7 +151,9 @@ const AdminOrdersPage: React.FC = () => {
       const timeB = getOrderTimestamp(b);
       return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
     });
-  }, [orders, channelFilter, statusFilter, dateFilter, sortOrder, searchTerm]);
+  }, [orders, channelFilter, branchFilter, statusFilter, dateFilter, sortOrder, searchTerm]);
+
+  const branches = useMemo(() => Array.from(new Map(orders.map((order) => [order.branchId || 'unassigned', { id: order.branchId || 'unassigned', name: order.branchName || 'Unassigned branch' }])).values()), [orders]);
 
   const statusTabs = [
     { label: 'All', value: 'all' },
@@ -162,6 +166,7 @@ const AdminOrdersPage: React.FC = () => {
 
   const handleClearFilters = () => {
     setChannelFilter('all');
+    setBranchFilter('all');
     setStatusFilter('all');
     setDateFilter('');
     setSortOrder('desc');
@@ -169,7 +174,7 @@ const AdminOrdersPage: React.FC = () => {
     setCurrentPage(1);
   };
 
-  const hasActiveFilters = channelFilter !== 'all' || dateFilter !== '' || searchTerm !== '';
+  const hasActiveFilters = channelFilter !== 'all' || branchFilter !== 'all' || dateFilter !== '' || searchTerm !== '';
   const paginatedOrders = filteredOrders.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
   const pageCount = Math.max(1, Math.ceil(filteredOrders.length / rowsPerPage));
 
@@ -272,10 +277,11 @@ const AdminOrdersPage: React.FC = () => {
         <div className="flex flex-col gap-2 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 shadow-sm sm:flex-row">
           <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={16} /><input aria-label="Search orders by ID, customer, or email" value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setCurrentPage(1); }} placeholder="Search order ID, customer, email…" className="admin-embedded-input min-w-0 w-full text-sm text-[var(--oppa-text)]" /></label>
           <select aria-label="Filter by channel" value={channelFilter} onChange={(event) => { setChannelFilter(event.target.value as 'all' | 'online' | 'onsite'); setCurrentPage(1); }} className="h-11 min-w-36 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]"><option value="all">All channels</option><option value="online">Online</option><option value="onsite">Onsite</option></select>
+          <select aria-label="Filter by branch" value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setCurrentPage(1); }} className="h-11 min-w-44 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]"><option value="all">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
           <input aria-label="Filter by exact date" type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setCurrentPage(1); }} className="h-11 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" />
           {hasActiveFilters && <button type="button" onClick={handleClearFilters} className="h-11 rounded-xl px-3 text-sm font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">Clear filters</button>}
         </div>
-        {(searchTerm || channelFilter !== 'all' || dateFilter) && <div className="flex flex-wrap gap-2 text-xs">{searchTerm && <span className="rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 text-[var(--oppa-green-dark)]">Search: {searchTerm}</span>}{channelFilter !== 'all' && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-900">Channel: {channelFilter}</span>}{dateFilter && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-800">Date: {dateFilter}</span>}</div>}
+        {(searchTerm || channelFilter !== 'all' || branchFilter !== 'all' || dateFilter) && <div className="flex flex-wrap gap-2 text-xs">{searchTerm && <span className="rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 text-[var(--oppa-green-dark)]">Search: {searchTerm}</span>}{channelFilter !== 'all' && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-900">Channel: {channelFilter}</span>}{branchFilter !== 'all' && <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-900">Branch: {branches.find((branch) => branch.id === branchFilter)?.name || branchFilter}</span>}{dateFilter && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-800">Date: {dateFilter}</span>}</div>}
       </div>
 
       {loading ? (
@@ -294,6 +300,7 @@ const AdminOrdersPage: React.FC = () => {
                 <th className="w-[14%] min-w-52 px-3 py-3 font-semibold">Order ID</th>
                 <th className="w-[16%] px-3 py-3 font-semibold">Customer</th>
                 <th className="w-[9%] px-3 py-3 font-semibold">Channel</th>
+                <th className="w-[14%] px-3 py-3 font-semibold">Branch</th>
                 <th className="w-[16%] px-3 py-3 font-semibold">Items</th>
                 <th className="w-[13%] px-7 py-3 text-right font-semibold"><span className="mr-5 inline-block">Total</span></th>
                 <th className="w-[14%] px-7 py-3 font-semibold"><span className="ml-5 inline-block">Status</span></th>
@@ -342,6 +349,9 @@ const AdminOrdersPage: React.FC = () => {
                       }`}>
                         {order.channel === 'onsite' ? <Store size={12} /> : <Globe2 size={12} />}{order.channel === 'onsite' ? 'Onsite' : 'Online'}
                       </span>
+                    </td>
+                    <td data-label="Branch" className="px-3 py-2.5">
+                      <span className="block truncate text-xs font-medium text-[var(--oppa-text)]" title={order.branchName || 'Unassigned branch'}>{order.branchName || 'Unassigned branch'}</span>
                     </td>
                     <td data-label="Items" className="px-3 py-2.5 min-w-0">
                       <p className="truncate text-xs text-[var(--oppa-text-muted)]" title={fullItemsSummary}>

@@ -39,7 +39,7 @@ trait FranchisePosReadActions
         }
 
         return response()->json([
-            'data' => Order::where('franchise_id', $user->franchise_id)
+            'data' => Order::where('branch_id', $user->franchise_id)
                 ->where('cashier_employee_id', $user->id)
                 ->where('delivery_type', 'onsite')
                 ->orderByDesc('created_at')
@@ -79,7 +79,7 @@ trait FranchisePosReadActions
             ], 422);
         }
 
-        $query = Order::where('franchise_id', $user->franchise_id)
+        $query = Order::where('branch_id', $user->franchise_id)
             ->where('delivery_type', 'onsite')
             ->with([
                 'franchise.franchiseAccount:id,name',

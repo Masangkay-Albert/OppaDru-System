@@ -199,6 +199,8 @@ export const getAllOrders = async (forceRefresh = false): Promise<AdminOrder[]> 
         served: order.status === 'delivered',
         customer_name: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
         customerName: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
+        branchId: order.branch_id || order.branchId || order.franchise_id || null,
+        branchName: order.franchise?.name || order.branch_name || null,
         payment_method: paymentMethodValue,
         paymentMethod: paymentMethodValue,
         total: Number.isFinite(Number(order.total)) ? Number(order.total) : 0,

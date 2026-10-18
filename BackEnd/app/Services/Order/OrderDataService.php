@@ -44,6 +44,9 @@ class OrderDataService
                     ? trim($matches[1])
                     : (!empty($order->email) && !str_starts_with($order->email, 'onsite') ? $order->email : 'Guest Customer')),
             'user_id' => $order->user_id,
+            'branch_id' => $order->branch_id ?: $order->franchise_id,
+            'franchise_id' => $order->franchise_id,
+            'franchise' => $order->relationLoaded('franchise') && $order->franchise ? $order->franchise->only(['id', 'name', 'address', 'latitude', 'longitude']) : null,
             'total' => $order->total,
             'status' => $order->status,
             'channel' => $order->delivery_type === 'onsite' || $order->delivery_calculation_method === 'onsite'

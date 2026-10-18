@@ -141,43 +141,6 @@ trait OrderPlacementActions
         ]);
 
         $validator->after(function ($validator) use ($request) {
-            $franchiseId = $request->input('franchise_id');
-            if ($franchiseId) {
-                $activeBranch = Franchise::with('franchiseAccount')->find($franchiseId);
-                if (! $activeBranch || ! $activeBranch->isOperationallyActive()) {
-                    $validator->errors()->add('franchise_id', 'The selected branch is not currently accepting orders.');
-                }
-
-                $availableProductIds = $this->franchiseInventoryService
-                    ->catalog((string) $franchiseId, true)
-                    ->pluck('id')
-                    ->all();
-                foreach ((array) $request->input('items', []) as $index => $item) {
-                    $productId = $item['product_id'] ?? null;
-                    $isInBranchCatalog = $productId && in_array($productId, $availableProductIds, true);
-                    if (! $isInBranchCatalog) {
-                        $validator->errors()->add(
-                            "items.{$index}.product_id",
-                            'This item is not available from the selected branch.'
-                        );
-                    }
-                }
-
-                $addonIds = collect((array) $request->input('items', []))
-                    ->flatMap(fn (array $item) => collect($item['selected_addons'] ?? [])->pluck('id'))
-                    ->filter()
-                    ->unique();
-                $addons = Addon::with('group')->whereIn('id', $addonIds)->get();
-                if ($addons->count() !== $addonIds->count()
-                    || $addons->contains(fn (Addon $addon) => ! $addon->is_active
-                        || ! $addon->group || ! $addon->group->is_active
-                        || ($addon->franchise_id !== null && (string) $addon->franchise_id !== (string) $franchiseId)
-                        || ($addon->group->franchise_id !== null
-                            && (string) $addon->group->franchise_id !== (string) $franchiseId))) {
-                    $validator->errors()->add('items', 'One or more add-ons are unavailable from the selected branch.');
-                }
-            }
-
             if (
                 $request->filled('discount_type')
                 && ! $request->hasFile('proof_image')
@@ -221,6 +184,22 @@ trait OrderPlacementActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $isPickup = $request->input('fulfillment_type') === 'pickup';
+        try {
+            $branchResolution = $this->branchRoutingService->resolve(
+                $request->input('delivery_coordinates'),
+                $isPickup ? $request->input('franchise_id') : null,
+                $isPickup,
+            );
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+        $unavailableItems = $this->branchRoutingService->validateCatalog((string) $branchResolution['branch']->id, $request->input('items', []));
+        if ($unavailableItems !== []) {
+            return response()->json(['message' => 'One or more items are unavailable at the assigned branch.', 'unavailable_items' => $unavailableItems], 422);
+        }
+        $request->merge(['franchise_id' => $branchResolution['branch']->id]);
+
         try {
             $scheduledData = $this->resolveScheduledDelivery($request);
         } catch (\InvalidArgumentException $exception) {
@@ -248,7 +227,8 @@ trait OrderPlacementActions
                 $request->input('delivery_type', 'standard'),
                 (float) $request->input('voucher_discount', 0),
                 $discountRate,
-                $request->input('delivery_coordinates')
+                $request->input('delivery_coordinates'),
+                ['lat' => (float) $branchResolution['branch']->latitude, 'lng' => (float) $branchResolution['branch']->longitude],
             );
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
@@ -309,6 +289,7 @@ trait OrderPlacementActions
                 $discountRate,
                 $discountAmount,
                 $discountProofData,
+                $branchResolution,
             ) {
                 $franchiseId = $request->input('franchise_id');
                 if ($franchiseId) {
@@ -329,7 +310,8 @@ trait OrderPlacementActions
                 }
 
                 $order = Order::create([
-                    'franchise_id' => $request->input('franchise_id'),
+                    'franchise_id' => $branchResolution['branch']->id,
+                    'branch_id' => $branchResolution['branch']->id,
                     'email' => $request->email,
                     'user_id' => $userId,
                     'total' => $total,
@@ -340,6 +322,7 @@ trait OrderPlacementActions
                     'delivery_coordinates' => $request->input('delivery_coordinates'),
                     'delivery_fee' => $pricing['deliveryFee'],
                     'delivery_distance_km' => $pricing['deliveryDistanceKm'],
+                    'distance_km' => $branchResolution['distance_km'],
                     'delivery_calculation_method' => $pricing['deliveryCalculationMethod'],
                     'service_fee' => $pricing['serviceFee'],
                     'priority_fee' => $pricing['priorityFee'],

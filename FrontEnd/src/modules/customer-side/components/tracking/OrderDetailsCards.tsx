@@ -111,6 +111,11 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
       </div>
 
       <div className="bg-white rounded-2xl shadow-lg p-5">
+        <h3 className="font-semibold text-gray-800 mb-2">Preparing at</h3>
+        <p className="text-sm text-gray-700">{currentOrder.branchName || 'Assigned branch'}</p>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-lg p-5">
         <h3 className="font-semibold text-gray-800 mb-3">Delivery Address</h3>
         <div className="flex gap-3">
           <div className="w-8 h-8 bg-[#d8f3dc] rounded-full flex items-center justify-center flex-shrink-0">

@@ -24,10 +24,24 @@ class Franchise extends Model
         'status',
         'owner_admin_id',
         'metadata',
+        'latitude',
+        'longitude',
+        'is_active',
+        'accepts_online_orders',
+        'delivery_enabled',
+        'delivery_radius_km',
+        'is_main',
     ];
 
     protected $casts = [
         'metadata' => 'array',
+        'latitude' => 'decimal:7',
+        'longitude' => 'decimal:7',
+        'is_active' => 'boolean',
+        'accepts_online_orders' => 'boolean',
+        'delivery_enabled' => 'boolean',
+        'delivery_radius_km' => 'decimal:2',
+        'is_main' => 'boolean',
     ];
 
     protected static function boot()
@@ -58,6 +72,12 @@ class Franchise extends Model
     public function isOperationallyActive(): bool
     {
         return $this->status === 'active'
+            && $this->is_active !== false
             && (!$this->franchise_account_id || $this->franchiseAccount?->status === 'active');
+    }
+
+    public function acceptsOnlineDelivery(): bool
+    {
+        return $this->isOperationallyActive() && $this->accepts_online_orders && $this->delivery_enabled;
     }
 }
