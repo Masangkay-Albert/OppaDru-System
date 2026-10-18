@@ -50,6 +50,9 @@ Route::get('/storage/{path}', function (string $path) {
 Route::get('/settings/pricing', [SettingController::class, 'index']);
 Route::get('/announcements', [AnnouncementController::class, 'publicList']);
 Route::get('/franchise-opportunities', [FranchiseApplicationController::class, 'opportunities']);
+Route::get('/geo/provinces', [FranchiseApplicationController::class, 'provinces']);
+Route::get('/geo/cities', [FranchiseApplicationController::class, 'cities']);
+Route::get('/geo/barangays', [FranchiseApplicationController::class, 'barangays']);
 Route::post('/franchise-applications/track', [FranchiseApplicationController::class, 'trackByReference'])->middleware('throttle:30,1,franchise-track-lookup');
 Route::post('/franchise-applications/track/documents', [FranchiseApplicationController::class, 'respond'])->middleware('throttle:5,1,franchise-track-documents');
 Route::post('/franchise-applications/track/document-template', [FranchiseApplicationController::class, 'downloadTrackedRequiredDocumentTemplate'])->middleware('throttle:10,1,franchise-track-template');

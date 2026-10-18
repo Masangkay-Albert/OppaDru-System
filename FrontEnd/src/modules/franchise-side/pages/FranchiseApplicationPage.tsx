@@ -29,6 +29,10 @@ type ApplicationForm = {
   business_information: string;
   notes: string;
 };
+type GeographicOption = {
+  code: string;
+  name: string;
+};
 type Draft = { form: ApplicationForm; step: number };
 type FormFieldName = keyof ApplicationForm;
 
@@ -42,7 +46,7 @@ const draftKey = 'franchise-application-draft';
 const stepLabels = ['Your details', 'Business plan', 'Review'];
 const stepDescriptions = ['Contact and address details', 'Location, experience, and capacity', 'Check details and submit'];
 const stepHeadings = ['Tell us about yourself', 'Tell us about your plans', 'Review your application'];
-const provinceOptions = [
+const defaultProvinceOptions = [
   'Metro Manila', 'Abra', 'Agusan del Norte', 'Agusan del Sur', 'Aklan', 'Albay', 'Antique', 'Apayao', 'Aurora',
   'Basilan', 'Bataan', 'Batanes', 'Batangas', 'Benguet', 'Biliran', 'Bohol', 'Bukidnon', 'Bulacan', 'Cagayan',
   'Camarines Norte', 'Camarines Sur', 'Camiguin', 'Capiz', 'Catanduanes', 'Cavite', 'Cebu', 'Davao de Oro',
@@ -56,7 +60,7 @@ const provinceOptions = [
   'Sulu', 'Surigao del Norte', 'Surigao del Sur', 'Tarlac', 'Tawi-Tawi', 'Zambales', 'Zamboanga del Norte',
   'Zamboanga del Sur', 'Zamboanga Sibugay',
 ];
-const cityOptions = [
+const defaultCityOptions = [
   'Makati', 'Manila', 'Quezon City', 'Pasig', 'Taguig', 'Pasay', 'Mandaluyong', 'Marikina', 'Parañaque',
   'Las Piñas', 'Muntinlupa', 'Caloocan', 'Valenzuela', 'Malabon', 'Navotas', 'San Juan', 'Pateros',
   'Bacoor', 'Cavite City', 'Dasmariñas', 'Imus', 'General Trias', 'Tagaytay', 'Santa Rosa', 'Biñan',
@@ -131,6 +135,23 @@ const readDraft = (): { draft: Draft | null; error: string } => {
   }
 };
 
+const normalizeGeoOption = (item: Record<string, unknown>): GeographicOption => ({
+  code: String(item.code ?? item.province_code ?? item.city_code ?? item.id ?? '').trim(),
+  name: String(item.name ?? item.province_name ?? item.city_name ?? item.municipality_name ?? item.province ?? item.municipality ?? '').trim(),
+});
+
+const parseGeoOptions = (payload: unknown): GeographicOption[] => {
+  const data = Array.isArray(payload) ? payload : Array.isArray((payload as Record<string, unknown> | undefined)?.data)
+    ? (payload as Record<string, unknown>).data as unknown[]
+    : [];
+
+  return data
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item) => normalizeGeoOption(item))
+    .filter((item) => item.code && item.name)
+    .sort((left, right) => left.name.localeCompare(right.name, 'en', { sensitivity: 'base' }));
+};
+
 const FranchiseApplicationPage: React.FC = () => {
   const navigate = useNavigate();
   const { applicant } = useFranchiseApplicantAuth();
@@ -150,6 +171,14 @@ const FranchiseApplicationPage: React.FC = () => {
   const [savedDraft, setSavedDraft] = useState<Draft | null>(draftBootstrap.draft);
   const [draftResolved, setDraftResolved] = useState(!draftBootstrap.draft);
   const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>(draftBootstrap.draft ? 'saved' : 'idle');
+  const [provinceCatalog, setProvinceCatalog] = useState<GeographicOption[]>([]);
+  const [cityCatalog, setCityCatalog] = useState<GeographicOption[]>([]);
+  const [provinceCode, setProvinceCode] = useState('');
+  const [cityCode, setCityCode] = useState('');
+  const [provinceLoading, setProvinceLoading] = useState(false);
+  const [cityLoading, setCityLoading] = useState(false);
+  const cityDisabled = !provinceCode || provinceLoading || cityLoading;
+  const addressGeoReady = Boolean(provinceCode && cityCode);
   const [minimumInvestment, setMinimumInvestment] = useState<string | null>(null);
   const [minimumInvestmentError, setMinimumInvestmentError] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
@@ -160,6 +189,9 @@ const FranchiseApplicationPage: React.FC = () => {
   const [showReviewNotes, setShowReviewNotes] = useState(false);
   const [updateApplicantProfile, setUpdateApplicantProfile] = useState(false);
   const profileInitialized = useRef(false);
+  const cityRequestId = useRef(0);
+  const provinceOptions = useMemo(() => (provinceCatalog.length ? provinceCatalog.map((option) => option.name) : defaultProvinceOptions), [provinceCatalog]);
+  const cityOptions = useMemo(() => (cityCatalog.length ? cityCatalog.map((option) => option.name) : defaultCityOptions), [cityCatalog]);
   const hasFormData = Object.values(form).some((value) => value.trim()) || documents.length > 0;
   const cardRef = useRef<HTMLElement>(null);
   const sidebarHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -180,6 +212,27 @@ const FranchiseApplicationPage: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
+    const loadProvinceOptions = async () => {
+      setProvinceLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/geo/provinces`, { headers: { Accept: 'application/json' } });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.message || 'Unable to load provinces.');
+        const options = parseGeoOptions(result);
+        if (!cancelled) setProvinceCatalog(options);
+      } catch {
+        if (!cancelled) setProvinceCatalog([]);
+      } finally {
+        if (!cancelled) setProvinceLoading(false);
+      }
+    };
+
+    void loadProvinceOptions();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     fetch(`${API_URL}/franchise-opportunities`, { headers: { Accept: 'application/json' } })
       .then(async (response) => {
         const result = await response.json();
@@ -194,6 +247,12 @@ const FranchiseApplicationPage: React.FC = () => {
       });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (provinceCatalog.length) {
+      syncAddressCodes();
+    }
+  }, [provinceCatalog, cityCatalog]);
 
   useEffect(() => {
     if (!draftResolved) return;
@@ -243,10 +302,57 @@ const FranchiseApplicationPage: React.FC = () => {
     && !!form.opening_timeline
   ), [form]);
 
+  const syncAddressCodes = (nextProvinceName?: string, nextCityName?: string) => {
+    const provinceMatch = provinceCatalog.find((option) => option.name.toLowerCase() === (nextProvinceName ?? form.province).trim().toLowerCase());
+    const cityMatch = cityCatalog.find((option) => option.name.toLowerCase() === (nextCityName ?? form.city).trim().toLowerCase());
+    setProvinceCode(provinceMatch?.code ?? '');
+    setCityCode(cityMatch?.code ?? '');
+    return [provinceMatch?.code ?? '', cityMatch?.code ?? ''] as const;
+  };
+
   const updateField = (field: FormFieldName, value: string) => {
     setDraftStatus('saving');
     setForm((current) => ({ ...current, [field]: value }));
     setError('');
+  };
+
+  const loadCitiesForProvince = async (nextProvinceCode: string) => {
+    if (!nextProvinceCode) {
+      setCityCatalog([]);
+      setCityCode('');
+      setForm((current) => ({ ...current, city: '' }));
+      return;
+    }
+
+    const requestId = ++cityRequestId.current;
+    setCityLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/geo/cities?province_code=${encodeURIComponent(nextProvinceCode)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || 'Unable to load cities for this province.');
+
+      const options = parseGeoOptions(result);
+      if (requestId !== cityRequestId.current) return;
+
+      setCityCatalog(options);
+      const selectedCity = form.city.trim();
+      const validCity = selectedCity && options.some((option) => option.name.toLowerCase() === selectedCity.toLowerCase());
+
+      setForm((current) => ({
+        ...current,
+        city: validCity ? current.city : '',
+      }));
+      setCityCode(validCity ? (options.find((option) => option.name.toLowerCase() === selectedCity.toLowerCase())?.code ?? '') : '');
+    } catch {
+      if (requestId !== cityRequestId.current) return;
+      setCityCatalog([]);
+      setCityCode('');
+      setForm((current) => ({ ...current, city: '' }));
+    } finally {
+      if (requestId === cityRequestId.current) setCityLoading(false);
+    }
   };
 
   const validateField = (field: FormFieldName, value = form[field]) => {
@@ -261,6 +367,20 @@ const FranchiseApplicationPage: React.FC = () => {
       message = 'Enter an 11-digit Philippine mobile number, such as 0917 123 4567.';
     } else if (field === 'investment_capacity' && value && (!Number.isFinite(Number(currencyValue(value))) || Number(currencyValue(value)) < 0)) {
       message = 'Enter a valid investment amount.';
+    } else if (field === 'province' && value.trim()) {
+      const matchesProvince = provinceCatalog.length
+        ? provinceCatalog.some((option) => option.name.toLowerCase() === value.trim().toLowerCase())
+        : defaultProvinceOptions.some((option) => option.toLowerCase() === value.trim().toLowerCase());
+      if (!matchesProvince) {
+        message = 'Select a valid Philippine province from the list.';
+      }
+    } else if (field === 'city' && value.trim()) {
+      const cityMatches = cityCatalog.length
+        ? cityCatalog.some((option) => option.name.toLowerCase() === value.trim().toLowerCase())
+        : defaultCityOptions.some((option) => option.toLowerCase() === value.trim().toLowerCase());
+      if (!cityMatches) {
+        message = 'Select a valid city or municipality for the selected province.';
+      }
     }
     setFieldErrors((current) => ({ ...current, [field]: message || undefined }));
     return !message;
@@ -294,12 +414,14 @@ const FranchiseApplicationPage: React.FC = () => {
 
   const restoreDraft = () => {
     if (!savedDraft) return;
-    setForm({
+    const restoredForm = {
       ...savedDraft.form,
       contact_name: applicant?.full_name || savedDraft.form.contact_name,
       email: applicant?.email || savedDraft.form.email,
       phone: formatPhone(applicant?.phone || savedDraft.form.phone),
-    });
+    };
+    setForm(restoredForm);
+    syncAddressCodes(restoredForm.province, restoredForm.city);
     setStep(savedDraft.step);
     setSavedDraft(null);
     setDraftResolved(true);
@@ -550,21 +672,32 @@ const FranchiseApplicationPage: React.FC = () => {
               </FormSection>
               <FormSection title="Address" className="franchise-form-subsection">
                 <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
-                  <FormField id="province" label="Province" required helper="Start typing to see common options." error={fieldErrors.province}>
+                  <FormField id="province" label="Province" required helper={provinceLoading ? 'Loading provinces…' : 'Start typing to see matching provinces.'} error={fieldErrors.province}>
                     <SearchableSelect id="province" required value={form.province} onChange={(value) => {
                       updateField('province', value);
-                      setFieldErrors((current) => ({ ...current, province: undefined }));
+                      setCityCode('');
+                      setForm((current) => ({ ...current, city: '' }));
+                      const selectedProvince = provinceCatalog.find((option) => option.name.toLowerCase() === value.trim().toLowerCase());
+                      setProvinceCode(selectedProvince?.code ?? '');
+                      setFieldErrors((current) => ({ ...current, province: undefined, city: undefined }));
+                      if (selectedProvince?.code) {
+                        void loadCitiesForProvince(selectedProvince.code);
+                      } else {
+                        setCityCatalog([]);
+                      }
                     }}
                       onBlur={() => validateField('province')} options={provinceOptions} placeholder="Select or enter a province"
-                      invalid={!!fieldErrors.province} describedBy={fieldDescription('province', !!fieldErrors.province)} />
+                      invalid={!!fieldErrors.province} describedBy={fieldDescription('province', !!fieldErrors.province)} disabled={provinceLoading} />
                   </FormField>
-                  <FormField id="city" label="City / Municipality" required helper="Enter the city or municipality where you live." error={fieldErrors.city}>
+                  <FormField id="city" label="City / Municipality" required helper={cityLoading ? 'Loading cities…' : addressGeoReady ? 'Enter the city or municipality where you live.' : 'Select a valid province to unlock the city list.'} error={fieldErrors.city}>
                     <SearchableSelect id="city" required value={form.city} onChange={(value) => {
                       updateField('city', value);
+                      const selectedCity = cityCatalog.find((option) => option.name.toLowerCase() === value.trim().toLowerCase());
+                      setCityCode(selectedCity?.code ?? '');
                       setFieldErrors((current) => ({ ...current, city: undefined }));
                     }}
                       onBlur={() => validateField('city')} options={cityOptions} placeholder="Select or enter a city"
-                      invalid={!!fieldErrors.city} describedBy={fieldDescription('city', !!fieldErrors.city)} />
+                      invalid={!!fieldErrors.city} describedBy={fieldDescription('city', !!fieldErrors.city)} disabled={cityDisabled} />
                   </FormField>
                   <FormField id="street" label="Street / Barangay" required helper="Include your street, building, or barangay." error={fieldErrors.street} className="sm:col-span-2">
                     <input id="street" required autoComplete="street-address" maxLength={500} value={form.street}
@@ -960,7 +1093,8 @@ const SearchableSelect: React.FC<{
   required?: boolean;
   invalid?: boolean;
   describedBy?: string;
-}> = ({ id, value, onChange, onBlur, options, placeholder, required, invalid, describedBy }) => {
+  disabled?: boolean;
+}> = ({ id, value, onChange, onBlur, options, placeholder, required, invalid, describedBy, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const filteredOptions = options.filter((option) => option.toLowerCase().includes(value.trim().toLowerCase())).slice(0, 8);
@@ -992,14 +1126,14 @@ const SearchableSelect: React.FC<{
     <div className="franchise-searchable-select">
       <input id={id} required={required} role="combobox" aria-autocomplete="list" aria-expanded={isOpen}
         aria-controls={listId} aria-activedescendant={isOpen && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
-        autoComplete="off" maxLength={150} value={value}
-        onChange={(event) => { onChange(event.target.value); setIsOpen(true); setActiveIndex(-1); }}
-        onFocus={() => setIsOpen(true)} onBlur={() => { window.setTimeout(() => setIsOpen(false), 100); onBlur(); }}
+        autoComplete="off" maxLength={150} value={value} disabled={disabled}
+        onChange={(event) => { if (disabled) return; onChange(event.target.value); setIsOpen(true); setActiveIndex(-1); }}
+        onFocus={() => { if (!disabled) setIsOpen(true); }} onBlur={() => { window.setTimeout(() => setIsOpen(false), 100); onBlur(); }}
         onKeyDown={handleKeyDown} placeholder={placeholder}
         className={`franchise-control franchise-search-input ${options.some((option) => option.toLowerCase() === value.toLowerCase()) ? 'is-selected' : ''}`}
         aria-invalid={invalid} aria-describedby={describedBy} />
       <ChevronDown className="franchise-search-chevron" size={16} aria-hidden="true" />
-      {isOpen && filteredOptions.length > 0 && (
+      {isOpen && !disabled && filteredOptions.length > 0 && (
         <ul id={listId} className="franchise-search-options" role="listbox">
           {filteredOptions.map((option, index) => (
             <li key={option} id={`${listId}-${index}`} role="option" aria-selected={option.toLowerCase() === value.toLowerCase()}>
@@ -1190,10 +1324,11 @@ const ImportantNotes = () => (
 );
 
 const propertyLabel = (value: PropertyStatus) => ({
+  '': '',
   yes: 'Yes — I have a site in mind',
   no: 'No — I do not have a site yet',
   looking: 'Still looking',
-}[value] || '');
+}[value] ?? '');
 
 const ConfirmationDialog: React.FC<{
   title: string;
