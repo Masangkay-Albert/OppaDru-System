@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BriefcaseBusiness, Eye, EyeOff, Lock, LogIn, Mail } from 'lucide-react';
+import { ArrowLeft, BriefcaseBusiness, Eye, EyeOff, Lock, LogIn, Mail } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import LoginBrandPanel from '../../../components/LoginBrandPanel';
 import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
@@ -61,10 +61,17 @@ const FranchiseApplicantLoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)] lg:grid lg:grid-cols-2">
-      <LoginBrandPanel title="Franchise Applicant Portal" description="Track your application status, next steps, and interview updates." />
+      <LoginBrandPanel title="Franchise Applicant Portal" description="View your applications, next steps, and interview updates." />
 
       <main className="relative flex min-h-screen items-center justify-center px-5 py-8 sm:px-10 lg:px-12">
         <div className="w-full max-w-[430px] rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:p-7">
+          <Link
+            to="/franchise-opportunities"
+            className="mb-5 inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[var(--oppa-green)] transition-colors hover:bg-[var(--oppa-green-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            Back to Franchise Opportunities
+          </Link>
           <header className="mb-6 text-center sm:mb-7">
             <div className="mb-4 flex items-center justify-center gap-2.5 text-[var(--oppa-green)]">
               <span className="flex size-10 items-center justify-center rounded-xl bg-[var(--oppa-green-soft)]">

@@ -1682,7 +1682,7 @@ const SuccessScreen: React.FC<{
       <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] franchise-success-check"><CheckCircle2 size={36} aria-hidden="true" /></div>
       <p className="mt-5 text-center text-xs font-bold uppercase tracking-[.16em] text-[var(--oppa-green)]">Application submitted</p>
       <h1 ref={headingRef} tabIndex={-1} className="mt-2 text-center font-serif text-3xl font-bold text-[var(--oppa-text)] focus:outline-none">Thank you, {name}</h1>
-      <p className="mx-auto mt-3 max-w-lg text-center text-sm leading-6 text-[var(--oppa-text-muted)]">Your application has been received. Keep your reference number to track its progress.</p>
+      <p className="mx-auto mt-3 max-w-lg text-center text-sm leading-6 text-[var(--oppa-text-muted)]">Your application has been received. Keep your reference number for future correspondence.</p>
       {referenceNumber ? (
         <div className="mt-6 rounded-2xl bg-[var(--oppa-cream)] p-5 text-center">
           <p className="text-xs font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Application reference</p>
@@ -1705,7 +1705,6 @@ const SuccessScreen: React.FC<{
       </section>
       <p className="mt-6 text-center text-sm text-[var(--oppa-text-muted)]">A confirmation and future updates will be sent to <span className="font-semibold text-[var(--oppa-text)]">{email}</span>.</p>
       <div className="mt-6 flex flex-wrap justify-center gap-3">
-        <Link to="/franchise/track-application" state={{ referenceNumber, email }} className="franchise-success-track inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-semibold">Track my application <ArrowRight size={16} /></Link>
         <Link to="/franchise-opportunities" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--oppa-border)] px-5 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Back to opportunities</Link>
       </div>
     </section>

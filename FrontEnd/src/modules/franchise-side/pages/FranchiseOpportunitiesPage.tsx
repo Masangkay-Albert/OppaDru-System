@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ArrowDown, ArrowLeft, ArrowRight, BadgeCheck, Banknote, BarChart3, Building2,
-  Check, ChefHat, ChevronDown, CircleHelp, ClipboardCheck, Clock3, CookingPot,
+  ArrowDown, ArrowRight, BadgeCheck, BarChart3, Building2,
+  Check, ChefHat, ChevronDown, CircleHelp, ClipboardCheck, Clock3,
   FileCheck2, Handshake, Headset, MapPin, Megaphone, PackageCheck, Phone,
-  ShieldCheck, ShoppingBag, Store, Utensils, Wallet,
+  ShieldCheck, ShoppingBag, Store, Utensils,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
 import { API_URL } from '../../../services/apiConfig';
 import chickenPhoto from '../../../assets/ChickenMeal/original-chicken.jpg';
-import './FranchiseOpportunitiesPage.css';
+import oppaLogo from '../../../assets/oppadrulogo.jpg';
+import { BrandFooter, BrandNavbar } from '../../shared/components/BrandChrome';
+import '../../../styles/FranchiseOpportunitiesPage.css';
 
 interface FranchiseOpportunityInfo {
-  investment: { minimum: string | null; maximum: string | null } | null;
-  franchise_fee?: string | null;
   requirements: string[];
   available_locations?: string[];
 }
@@ -83,26 +83,16 @@ const supportItems = [
   'Coordination on training and pre-opening requirements.',
 ];
 
-const testimonialPlaceholders = ['Partner story 01', 'Partner story 02', 'Partner story 03'];
-
-const investmentItems = [
-  { icon: FileCheck2, label: 'Franchise fee', amount: 'Confirm with franchise team' },
-  { icon: Store, label: 'Equipment and fit-out', amount: 'Site-specific estimate' },
-  { icon: CookingPot, label: 'Build-out and utilities', amount: 'Site-specific estimate' },
-  { icon: PackageCheck, label: 'Initial inventory', amount: 'Confirm before opening' },
-  { icon: Wallet, label: 'Working capital', amount: 'Plan with your advisor' },
-];
-
 const franchiseModels = [
-  { icon: Store, name: 'Kiosk', area: '[Set area range]', range: '[Set investment range]', bestFor: 'Compact sites and high-footfall locations' },
-  { icon: ShoppingBag, name: 'Food Stall', area: '[Set area range]', range: '[Set investment range]', bestFor: 'Food courts, markets, and shared dining spaces' },
-  { icon: Utensils, name: 'Full Restaurant', area: '[Set area range]', range: '[Set investment range]', bestFor: 'Dedicated dining and takeaway locations' },
+  { icon: Store, name: 'Kiosk', bestFor: 'Compact sites and high-footfall locations' },
+  { icon: ShoppingBag, name: 'Food Stall', bestFor: 'Food courts, markets, and shared dining spaces' },
+  { icon: Utensils, name: 'Full Restaurant', bestFor: 'Dedicated dining and takeaway locations' },
 ];
 
 const faqs = [
   {
     question: 'How long does the review take?',
-    answer: 'Review time depends on the completeness of your application and any required interviews or location assessment. You can track updates using your reference number and contact email.',
+    answer: 'Review time depends on the completeness of your application and any required interviews or location assessment. The franchise team will share updates using the contact details in your application.',
   },
   {
     question: 'Do I need a property before applying?',
@@ -122,19 +112,12 @@ const faqs = [
   },
 ];
 
-const formatPeso = (value: string | null | undefined) => {
-  if (!value) return '';
-  const amount = Number(value);
-  return Number.isFinite(amount) ? `₱${amount.toLocaleString('en-PH')}` : value;
-};
-
 const FranchiseOpportunitiesPage: React.FC = () => {
   const navigate = useNavigate();
   const { applicant, isLoading: isAuthLoading, logout } = useFranchiseApplicantAuth();
   const [info, setInfo] = useState<FranchiseOpportunityInfo | null>(null);
   const [error, setError] = useState('');
   const [isStartingApplication, setIsStartingApplication] = useState(false);
-  const [showScrolledApply, setShowScrolledApply] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,16 +128,9 @@ const FranchiseOpportunitiesPage: React.FC = () => {
         if (!cancelled) setInfo(result.data);
       })
       .catch(() => {
-        if (!cancelled) setError('Unable to load published investment details. Please try again later or contact the franchise team.');
+        if (!cancelled) setError('Unable to load franchise information. Please try again later or contact the franchise team.');
       });
     return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    const onScroll = () => setShowScrolledApply(window.scrollY > 420);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   useEffect(() => {
@@ -189,27 +165,10 @@ const FranchiseOpportunitiesPage: React.FC = () => {
   };
 
   const applyLabel = isStartingApplication ? 'Please wait…' : 'Apply for Franchise';
-  const investmentRange = info?.investment?.minimum || info?.investment?.maximum
-    ? [formatPeso(info.investment?.minimum), formatPeso(info.investment?.maximum)].filter(Boolean).join(' – ')
-    : 'Not published';
 
   return (
     <main className="franchise-opportunities-page min-h-screen">
-      <header className="franchise-opportunities-nav">
-        <div className="franchise-opportunities-nav-inner">
-          <Link to="/" className="franchise-back-home"><ArrowLeft size={16} aria-hidden="true" /> Back to home</Link>
-          <Link to="/franchise-opportunities" className="franchise-wordmark" aria-label="Oppa Dru Franchise home">
-            <Building2 size={19} aria-hidden="true" /> <span>Oppa Dru Franchise</span>
-          </Link>
-          <nav className="franchise-nav-actions" aria-label="Franchise navigation">
-            {applicant && <Link to="/franchise/my-applications" className="franchise-nav-applications">My Applications</Link>}
-            <button type="button" onClick={handleApply} disabled={isAuthLoading || isStartingApplication}
-              className={`franchise-nav-apply ${showScrolledApply ? 'is-visible' : ''}`}>
-              Apply Now <ArrowRight size={15} aria-hidden="true" />
-            </button>
-          </nav>
-        </div>
-      </header>
+      <BrandNavbar variant="franchise" onApply={handleApply} applyDisabled={isAuthLoading || isStartingApplication} />
 
       <section className="franchise-hero">
         <div className="franchise-hero-pattern" aria-hidden="true" />
@@ -224,40 +183,17 @@ const FranchiseOpportunitiesPage: React.FC = () => {
               <button type="button" onClick={handleApply} disabled={isAuthLoading || isStartingApplication} className="franchise-button franchise-button-light">
                 {applyLabel} <ArrowRight size={17} aria-hidden="true" />
               </button>
-              <Link to="/franchise/track-application" className="franchise-button franchise-button-outline">
-                Track an Application
-              </Link>
             </div>
             <p className="franchise-disclaimer">An application is not an offer, approval, or authorization to operate.</p>
           </div>
           <div className="franchise-hero-visual">
             <div className="franchise-photo-frame">
               <img src={chickenPhoto} alt="Crispy Korean fried chicken from Oppa Dru" />
-              <span className="franchise-photo-caption"><span /> Made for a bold first bite</span>
             </div>
-            <div className="franchise-float-card">
-              <span className="franchise-icon-badge"><Handshake size={19} aria-hidden="true" /></span>
-              <div><strong>Growing brand</strong><span>Explore a partnership</span></div>
-            </div>
-            <span className="franchise-hero-stamp" aria-hidden="true">OPPA<br />DRU</span>
+            <span className="franchise-hero-stamp"><img src={oppaLogo} alt="Oppa Dru mascot logo" /></span>
           </div>
         </div>
         <a href="#franchise-overview" className="franchise-scroll-cue"><ArrowDown size={15} /> Explore the opportunity</a>
-      </section>
-
-      <section className="franchise-stats" aria-label="Franchise highlights">
-        <div className="franchise-stats-inner">
-          {[
-            ['[XX+]', 'Branches', 'Placeholder — replace with verified count'],
-            ['[20XX]', 'Years in operation', 'Placeholder — replace with verified year'],
-            ['[Confirm]', 'Training included', 'Placeholder — confirm package details'],
-            ['[Confirm]', 'Support team', 'Placeholder — confirm available support'],
-          ].map(([value, label, note]) => (
-            <div className="franchise-stat" key={label}>
-              <strong>{value}</strong><span>{label}</span><small>{note}</small>
-            </div>
-          ))}
-        </div>
       </section>
 
       <div className="franchise-main-wrap" id="franchise-overview">
@@ -278,33 +214,12 @@ const FranchiseOpportunitiesPage: React.FC = () => {
             </section>
 
             <section className="franchise-section" data-reveal>
-              <SectionHeading eyebrow="Plan your investment" title="Investment breakdown" description="Use these categories to prepare questions and build a site-specific budget." />
-              <div className="franchise-investment-card">
-                <div className="franchise-investment-total">
-                  <span>Published estimated investment range</span>
-                  <strong>{info ? investmentRange : 'Loading…'}</strong>
-                  <small>{info?.investment?.minimum || info?.investment?.maximum ? 'Confirm current figures and inclusions with the franchise team.' : 'No investment range has been published. Ask the franchise team for current figures.'}</small>
-                </div>
-                <div className="franchise-investment-list">
-                  {investmentItems.map(({ icon: Icon, label, amount }) => (
-                    <div className="franchise-investment-row" key={label}>
-                      <span className="franchise-icon-badge"><Icon size={18} aria-hidden="true" /></span>
-                      <span>{label}</span><strong>{label === 'Franchise fee' && info?.franchise_fee ? formatPeso(info.franchise_fee) : amount}</strong>
-                    </div>
-                  ))}
-                </div>
-                <p className="franchise-note"><ShieldCheck size={16} aria-hidden="true" /> Estimates are informational and may vary by site, format, and current terms. Confirm all fees directly with the franchise team.</p>
-              </div>
-            </section>
-
-            <section className="franchise-section" data-reveal>
-              <SectionHeading eyebrow="Find the right fit" title="Franchise models" description="Model details below are planning placeholders. Confirm area requirements and investment ranges before making a decision." />
+              <SectionHeading eyebrow="Find the right fit" title="Franchise models" description="Explore the formats available for different types of locations." />
               <div className="franchise-model-grid">
-                {franchiseModels.map(({ icon: Icon, name, area, range, bestFor }) => (
+                {franchiseModels.map(({ icon: Icon, name, bestFor }) => (
                   <article className="franchise-model-card" key={name}>
                     <span className="franchise-icon-badge"><Icon size={21} aria-hidden="true" /></span>
                     <h3>{name}</h3>
-                    <dl><div><dt>Suggested area</dt><dd>{area}</dd></div><div><dt>Investment range</dt><dd>{range}</dd></div></dl>
                     <p><strong>Best for</strong>{bestFor}</p>
                   </article>
                 ))}
@@ -334,21 +249,8 @@ const FranchiseOpportunitiesPage: React.FC = () => {
             <section className="franchise-section" data-reveal>
               <SectionHeading eyebrow="Shared expectations" title="A strong partnership works both ways" description="A clear view of applicant readiness and the support discussed through the process." />
               <div className="franchise-two-card-grid">
-                <InfoListCard icon={BadgeCheck} title="Applicant qualifications" items={qualifications} />
+                <InfoListCard icon={BadgeCheck} title="Applicant qualifications" items={[...qualifications, ...(info?.requirements || [])]} />
                 <InfoListCard icon={Headset} title="Franchisor support" items={supportItems} />
-              </div>
-            </section>
-
-            <section className="franchise-section" data-reveal>
-              <SectionHeading eyebrow="Partner stories" title="Built one branch at a time" description="Add approved franchise partner stories here. These are placeholders, not customer testimonials." />
-              <div className="franchise-testimonial-grid">
-                {testimonialPlaceholders.map((partner, index) => (
-                  <figure className="franchise-quote-card" key={partner}>
-                    <div className="franchise-avatar" aria-hidden="true">{String.fromCharCode(65 + index)}</div>
-                    <blockquote>[Add an approved franchise partner quote here.]</blockquote>
-                    <figcaption><strong>[Add approved partner name]</strong><span>{partner} — placeholder, replace before publishing</span></figcaption>
-                  </figure>
-                ))}
               </div>
             </section>
 
@@ -378,7 +280,6 @@ const FranchiseOpportunitiesPage: React.FC = () => {
               <div><p className="franchise-eyebrow franchise-eyebrow-light">Your next chapter starts here</p><h2>Ready to grow with Oppa Dru?</h2><p>Tell us about your experience, plans, and proposed location.</p></div>
               <div className="franchise-final-actions">
                 <button type="button" onClick={handleApply} disabled={isAuthLoading || isStartingApplication} className="franchise-button franchise-button-light">{isStartingApplication ? 'Please wait…' : 'Start Your Application'} <ArrowRight size={17} /></button>
-                <Link to="/franchise/track-application" className="franchise-button franchise-button-outline">Track Your Application</Link>
               </div>
             </section>
           </div>
@@ -386,27 +287,20 @@ const FranchiseOpportunitiesPage: React.FC = () => {
           <aside className="franchise-sidebar">
             <div className="franchise-quick-card">
               <p className="franchise-eyebrow">At a glance</p><h2>Quick Facts</h2>
-              <div className="franchise-quick-row"><span><Banknote size={17} /> Investment range</span><strong>{info ? investmentRange : 'Loading…'}</strong></div>
-              <div className="franchise-quick-row"><span><Wallet size={17} /> Franchise fee</span><strong>{info?.franchise_fee ? formatPeso(info.franchise_fee) : 'Not published'}</strong></div>
               <div className="franchise-quick-row"><span><Clock3 size={17} /> Review time</span><strong>Varies by application</strong></div>
-              {error && <p className="franchise-sidebar-error" role="status">Live fee information is temporarily unavailable.</p>}
+              {error && <p className="franchise-sidebar-error" role="status">Live franchise information is temporarily unavailable.</p>}
               <button type="button" onClick={handleApply} disabled={isAuthLoading || isStartingApplication} className="franchise-button franchise-button-primary">
                 {applyLabel} <ArrowRight size={16} />
               </button>
-              <Link to="/franchise/track-application" className="franchise-sidebar-track">Track an Application <ArrowRight size={15} /></Link>
-              {applicant && <Link to="/franchise/my-applications" className="franchise-sidebar-track">My Applications <ArrowRight size={15} /></Link>}
-              <p className="franchise-sidebar-caption">Published figures are informational. Confirm current terms with the franchise team.</p>
+              {applicant && <Link to="/franchise/my-applications" className="franchise-sidebar-account-link">My Applications <ArrowRight size={15} /></Link>}
+              <p className="franchise-sidebar-caption">Contact the franchise team for current program details.</p>
             </div>
 
             <section className="franchise-locations-card">
               <span className="franchise-icon-badge"><MapPin size={19} /></span><h2>Available locations</h2>
-              <p>Specific locations have not been published here. You may still submit a proposed location for review.</p>
-            </section>
-
-            <section className="franchise-track-card">
-              <Clock3 size={19} aria-hidden="true" /><h2>Already applied?</h2>
-              <p>Use your reference number and contact email to check your status and next steps.</p>
-              <Link to="/franchise/track-application">Track your application <ArrowRight size={15} /></Link>
+              {info?.available_locations?.length
+                ? <ul>{info.available_locations.map((location) => <li key={location}>{location}</li>)}</ul>
+                : <p>Specific locations have not been published here. You may still submit a proposed location for review.</p>}
             </section>
 
             <section className="franchise-contact-card">
@@ -418,19 +312,10 @@ const FranchiseOpportunitiesPage: React.FC = () => {
         </div>
       </div>
 
-      <footer className="franchise-footer">
-        <div className="franchise-footer-main">
-          <div><Link to="/" className="franchise-footer-brand"><Building2 size={20} /> Oppa Dru Franchise</Link><p>Korean fried chicken. A new opportunity to explore.</p></div>
-          <div><h2>Get in touch</h2><a href="mailto:oppadrukfc@gmail.com">oppadrukfc@gmail.com</a><a href="tel:09473065526">0947 306 5526</a></div>
-          <div><h2>Follow Oppa Dru</h2><a href="https://www.facebook.com/oppadruKFC" target="_blank" rel="noreferrer">Facebook <ArrowRight size={14} /></a><a href="https://www.instagram.com/oppadrukfc/" target="_blank" rel="noreferrer">Instagram <ArrowRight size={14} /></a></div>
-          <div><h2>Applicant links</h2><Link to="/franchise/track-application">Track an Application</Link><Link to="/franchise/my-applications">My Applications</Link><Link to="/franchise/applicant-login">Applicant sign in</Link></div>
-        </div>
-        <div className="franchise-footer-bottom"><span>© {new Date().getFullYear()} Oppa Dru. All rights reserved.</span><div><a href="mailto:oppadrukfc@gmail.com?subject=Privacy%20Policy%20Request">Privacy Policy</a><a href="#program-terms">Program Terms</a></div><span>An application is not an offer, approval, or authorization to operate.</span></div>
-      </footer>
+      <BrandFooter variant="franchise" />
 
       <div className="franchise-mobile-cta" role="region" aria-label="Franchise application actions">
         <button type="button" onClick={handleApply} disabled={isAuthLoading || isStartingApplication} className="franchise-button franchise-button-primary">{applyLabel} <ArrowRight size={16} /></button>
-        <Link to="/franchise/track-application">Track</Link>
       </div>
     </main>
   );

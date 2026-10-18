@@ -60,7 +60,6 @@ const FranchiseManagementPage = lazy(() => import("./modules/franchise-side/page
 const FranchiseApplicationPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicationPage"));
 const FranchiseOpportunitiesPage = lazy(() => import("./modules/franchise-side/pages/FranchiseOpportunitiesPage"));
 const FranchiseMyApplicationsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseMyApplicationsPage"));
-const FranchiseTrackApplicationPage = lazy(() => import("./modules/franchise-side/pages/FranchiseTrackApplicationPage"));
 const FranchiseApplicantLoginPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicantLoginPage"));
 const FranchiseApplicantRegisterPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicantRegisterPage"));
 import ProtectedFranchiseApplicantRoute from "./modules/franchise-side/components/ProtectedFranchiseApplicantRoute";
@@ -109,7 +108,7 @@ function App() {
                       <Route path="/franchise/applicant-register" element={<FranchiseApplicantRegisterPage />} />
                       <Route path="/franchise/apply" element={<ProtectedFranchiseApplicantRoute><FranchiseApplicationPage /></ProtectedFranchiseApplicantRoute>} />
                       <Route path="/franchise/my-applications" element={<ProtectedFranchiseApplicantRoute><FranchiseMyApplicationsPage /></ProtectedFranchiseApplicantRoute>} />
-                      <Route path="/franchise/track-application" element={<FranchiseTrackApplicationPage />} />
+                      <Route path="/franchise/track-application" element={<Navigate to="/franchise-opportunities" replace />} />
                       <Route path="/franchise/login" element={<FranchiseLoginPage />} />
 
                       {/* ===== CUSTOMER ROUTES ===== */}
