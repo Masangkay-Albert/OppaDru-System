@@ -69,7 +69,7 @@ class FranchiseApplicationController extends Controller
     public function provinces(): \Illuminate\Http\JsonResponse
     {
         $data = Cache::remember('psgc_provinces', now()->addDay(), function () {
-            return $this->fetchPsgcGeo('https://psgc.cloud/api/provinces');
+            return $this->fetchPsgcGeo('https://psgc.cloud/api/provinces', ['per_page' => 1000]);
         });
 
         return response()->json(['data' => $data]);
@@ -83,12 +83,12 @@ class FranchiseApplicationController extends Controller
         }
 
         $data = Cache::remember('psgc_cities_'.$provinceCode, now()->addDay(), function () use ($provinceCode) {
-            $primary = $this->fetchPsgcGeo('https://psgc.cloud/api/cities', ['province_code' => $provinceCode]);
+            $primary = $this->fetchPsgcGeo("https://psgc.cloud/api/provinces/{$provinceCode}/cities-municipalities", ['per_page' => 1000]);
             if ($primary !== []) {
                 return $primary;
             }
 
-            return $this->fetchPsgcGeo('https://psgc.cloud/api/cities', ['province' => $provinceCode]);
+            return $this->fetchPsgcGeo("https://psgc.cloud/api/provinces/{$provinceCode}/cities", ['per_page' => 1000]);
         });
 
         return response()->json(['data' => $data]);
@@ -102,12 +102,12 @@ class FranchiseApplicationController extends Controller
         }
 
         $data = Cache::remember('psgc_barangays_'.$cityCode, now()->addDay(), function () use ($cityCode) {
-            $primary = $this->fetchPsgcGeo('https://psgc.cloud/api/barangays', ['city_code' => $cityCode]);
+            $primary = $this->fetchPsgcGeo("https://psgc.cloud/api/cities-municipalities/{$cityCode}/barangays", ['per_page' => 1000]);
             if ($primary !== []) {
                 return $primary;
             }
 
-            return $this->fetchPsgcGeo('https://psgc.cloud/api/barangays', ['city' => $cityCode]);
+            return $this->fetchPsgcGeo("https://psgc.cloud/api/cities/{$cityCode}/barangays", ['per_page' => 1000]);
         });
 
         return response()->json(['data' => $data]);

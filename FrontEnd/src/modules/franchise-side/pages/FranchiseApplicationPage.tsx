@@ -46,29 +46,6 @@ const draftKey = 'franchise-application-draft';
 const stepLabels = ['Your details', 'Business plan', 'Review'];
 const stepDescriptions = ['Contact and address details', 'Location, experience, and capacity', 'Check details and submit'];
 const stepHeadings = ['Tell us about yourself', 'Tell us about your plans', 'Review your application'];
-const defaultProvinceOptions = [
-  'Metro Manila', 'Abra', 'Agusan del Norte', 'Agusan del Sur', 'Aklan', 'Albay', 'Antique', 'Apayao', 'Aurora',
-  'Basilan', 'Bataan', 'Batanes', 'Batangas', 'Benguet', 'Biliran', 'Bohol', 'Bukidnon', 'Bulacan', 'Cagayan',
-  'Camarines Norte', 'Camarines Sur', 'Camiguin', 'Capiz', 'Catanduanes', 'Cavite', 'Cebu', 'Davao de Oro',
-  'Davao del Norte', 'Davao del Sur', 'Davao Occidental', 'Davao Oriental', 'Dinagat Islands', 'Eastern Samar',
-  'Guimaras', 'Ifugao', 'Ilocos Norte', 'Ilocos Sur', 'Iloilo', 'Isabela', 'Kalinga', 'La Union', 'Laguna',
-  'Lanao del Norte', 'Lanao del Sur', 'Leyte', 'Maguindanao del Norte', 'Maguindanao del Sur', 'Marinduque',
-  'Masbate', 'Misamis Occidental', 'Misamis Oriental', 'Mountain Province', 'Negros Occidental',
-  'Negros Oriental', 'Northern Samar', 'Nueva Ecija', 'Nueva Vizcaya', 'Occidental Mindoro',
-  'Oriental Mindoro', 'Palawan', 'Pampanga', 'Pangasinan', 'Quezon', 'Quirino', 'Rizal', 'Romblon',
-  'Samar', 'Sarangani', 'Siquijor', 'Sorsogon', 'South Cotabato', 'Southern Leyte', 'Sultan Kudarat',
-  'Sulu', 'Surigao del Norte', 'Surigao del Sur', 'Tarlac', 'Tawi-Tawi', 'Zambales', 'Zamboanga del Norte',
-  'Zamboanga del Sur', 'Zamboanga Sibugay',
-];
-const defaultCityOptions = [
-  'Makati', 'Manila', 'Quezon City', 'Pasig', 'Taguig', 'Pasay', 'Mandaluyong', 'Marikina', 'Parañaque',
-  'Las Piñas', 'Muntinlupa', 'Caloocan', 'Valenzuela', 'Malabon', 'Navotas', 'San Juan', 'Pateros',
-  'Bacoor', 'Cavite City', 'Dasmariñas', 'Imus', 'General Trias', 'Tagaytay', 'Santa Rosa', 'Biñan',
-  'Calamba', 'San Pablo', 'Antipolo', 'Cainta', 'Taytay', 'Angeles', 'San Fernando', 'Olongapo',
-  'Baguio', 'Dagupan', 'Laoag', 'Vigan', 'Tuguegarao', 'Iloilo City', 'Bacolod', 'Cebu City',
-  'Lapu-Lapu', 'Mandaue', 'Dumaguete', 'Tacloban', 'Ormoc', 'Cagayan de Oro', 'Iligan', 'Davao City',
-  'General Santos', 'Zamboanga City', 'Butuan', 'Puerto Princesa', 'Legazpi', 'Naga', 'Sorsogon City',
-];
 const maxSupportingDocuments = 8;
 const maxSupportingDocumentSize = 10 * 1024 * 1024;
 const acceptedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
@@ -190,8 +167,8 @@ const FranchiseApplicationPage: React.FC = () => {
   const [updateApplicantProfile, setUpdateApplicantProfile] = useState(false);
   const profileInitialized = useRef(false);
   const cityRequestId = useRef(0);
-  const provinceOptions = useMemo(() => (provinceCatalog.length ? provinceCatalog.map((option) => option.name) : defaultProvinceOptions), [provinceCatalog]);
-  const cityOptions = useMemo(() => (cityCatalog.length ? cityCatalog.map((option) => option.name) : defaultCityOptions), [cityCatalog]);
+  const provinceOptions = useMemo(() => provinceCatalog.map((option) => option.name), [provinceCatalog]);
+  const cityOptions = useMemo(() => cityCatalog.map((option) => option.name), [cityCatalog]);
   const hasFormData = Object.values(form).some((value) => value.trim()) || documents.length > 0;
   const cardRef = useRef<HTMLElement>(null);
   const sidebarHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -220,6 +197,9 @@ const FranchiseApplicationPage: React.FC = () => {
         if (!response.ok) throw new Error(result.message || 'Unable to load provinces.');
         const options = parseGeoOptions(result);
         if (!cancelled) setProvinceCatalog(options);
+        if (!options.length && !cancelled) {
+          setError('Unable to load the province list right now. Please try again.');
+        }
       } catch {
         if (!cancelled) setProvinceCatalog([]);
       } finally {
@@ -337,6 +317,9 @@ const FranchiseApplicationPage: React.FC = () => {
       if (requestId !== cityRequestId.current) return;
 
       setCityCatalog(options);
+      if (!options.length) {
+        setError('No cities or municipalities were returned for this province.');
+      }
       const selectedCity = form.city.trim();
       const validCity = selectedCity && options.some((option) => option.name.toLowerCase() === selectedCity.toLowerCase());
 
@@ -368,16 +351,12 @@ const FranchiseApplicationPage: React.FC = () => {
     } else if (field === 'investment_capacity' && value && (!Number.isFinite(Number(currencyValue(value))) || Number(currencyValue(value)) < 0)) {
       message = 'Enter a valid investment amount.';
     } else if (field === 'province' && value.trim()) {
-      const matchesProvince = provinceCatalog.length
-        ? provinceCatalog.some((option) => option.name.toLowerCase() === value.trim().toLowerCase())
-        : defaultProvinceOptions.some((option) => option.toLowerCase() === value.trim().toLowerCase());
+      const matchesProvince = provinceCatalog.some((option) => option.name.toLowerCase() === value.trim().toLowerCase());
       if (!matchesProvince) {
         message = 'Select a valid Philippine province from the list.';
       }
     } else if (field === 'city' && value.trim()) {
-      const cityMatches = cityCatalog.length
-        ? cityCatalog.some((option) => option.name.toLowerCase() === value.trim().toLowerCase())
-        : defaultCityOptions.some((option) => option.toLowerCase() === value.trim().toLowerCase());
+      const cityMatches = cityCatalog.some((option) => option.name.toLowerCase() === value.trim().toLowerCase());
       if (!cityMatches) {
         message = 'Select a valid city or municipality for the selected province.';
       }
@@ -1097,7 +1076,7 @@ const SearchableSelect: React.FC<{
 }> = ({ id, value, onChange, onBlur, options, placeholder, required, invalid, describedBy, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const filteredOptions = options.filter((option) => option.toLowerCase().includes(value.trim().toLowerCase())).slice(0, 8);
+  const filteredOptions = options.filter((option) => option.toLowerCase().includes(value.trim().toLowerCase()));
   const listId = `${id}-options`;
   const selectOption = (option: string) => {
     onChange(option);
