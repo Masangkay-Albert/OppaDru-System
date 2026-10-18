@@ -17,6 +17,9 @@ trait FranchiseSummaryActions
                 // The main store is selected by the empty option in the customer menu.
                 // Only franchise locations belong in this list.
                 ->whereNotNull('franchise_account_id')
+                ->where(function ($query) {
+                    $query->whereNull('is_main')->orWhere('is_main', false);
+                })
                 ->whereHas('franchiseAccount', fn ($accountQuery) => $accountQuery->where('status', 'active'))
                 ->orderBy('name')
                 ->get(['id', 'name', 'address']),

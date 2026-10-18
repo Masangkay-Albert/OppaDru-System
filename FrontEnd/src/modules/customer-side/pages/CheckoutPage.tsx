@@ -88,6 +88,7 @@ const CheckoutPage: React.FC = () => {
       return;
     }
     let active = true;
+    const controller = new AbortController();
     const timer = window.setTimeout(() => {
       resolveBranch({
         coordinates: deliveryCoordinates,
@@ -100,17 +101,18 @@ const CheckoutPage: React.FC = () => {
         voucher_discount: voucherDiscount,
         discount_rate: activeDiscount.discountRate,
         fulfillment_type: 'delivery',
-      }).then((result) => {
+      }, controller.signal).then((result) => {
         if (!active) return;
         setBranchResolution(result);
         setBranchError(result.unavailable_items.length ? `Unavailable at this branch: ${result.unavailable_items.join(', ')}` : '');
       }).catch((error: unknown) => {
         if (!active) return;
         setBranchResolution(null);
+        if (error instanceof DOMException && error.name === 'AbortError') return;
         setBranchError(error instanceof Error ? error.message : 'Sorry, we do not deliver to this address yet.');
       });
     }, 250);
-    return () => { active = false; window.clearTimeout(timer); };
+    return () => { active = false; controller.abort(); window.clearTimeout(timer); };
   }, [deliveryCoordinates, cartItems, deliveryType, voucherDiscount, activeDiscount.discountRate]);
 
   // Delivery fee calculated server-side; frontend shows estimate only

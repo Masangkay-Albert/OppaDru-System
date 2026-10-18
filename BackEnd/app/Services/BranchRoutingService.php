@@ -30,12 +30,20 @@ class BranchRoutingService
             ->where('delivery_enabled', true)
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->get()
+            ->get();
+
+        $loads = Order::whereIn('branch_id', $branches->pluck('id'))
+            ->whereIn('status', ['pending', 'confirmed', 'preparing', 'prepared', 'ready'])
+            ->selectRaw('branch_id, COUNT(*) as total')
+            ->groupBy('branch_id')
+            ->pluck('total', 'branch_id');
+
+        $branches = $branches
             ->map(fn (Franchise $branch) => [
                 'branch' => $branch,
                 'distance' => $this->distance($branch, $coordinates),
                 'open' => $this->isOpen($branch),
-                'load' => Order::where('branch_id', $branch->id)->whereIn('status', ['pending', 'confirmed', 'preparing', 'prepared', 'ready'])->count(),
+                'load' => (int) ($loads[$branch->id] ?? 0),
             ])
             ->filter(fn (array $candidate) => $candidate['branch']->delivery_radius_km === null || $candidate['distance'] <= (float) $candidate['branch']->delivery_radius_km)
             ->sort(function (array $left, array $right) {

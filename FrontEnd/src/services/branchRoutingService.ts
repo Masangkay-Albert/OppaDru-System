@@ -25,11 +25,12 @@ export const resolveBranch = async (data: {
   discount_rate?: number;
   fulfillment_type?: 'delivery' | 'pickup';
   franchise_id?: string | null;
-}): Promise<BranchResolution> => {
+}, signal?: AbortSignal): Promise<BranchResolution> => {
   const response = await fetch(`${API_URL}/branches/resolve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(data),
+    signal,
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
