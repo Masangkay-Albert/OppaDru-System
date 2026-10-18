@@ -141,7 +141,7 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
     if (addr) {
       setSelectedAddressDetails(addr.details || {});
       if (onAddressSelect) {
-        onAddressSelect(addr.address, addr.details);
+        onAddressSelect(addr.address, addr.details, addr);
       }
     }
   }, [savedAddresses, onAddressSelect]);

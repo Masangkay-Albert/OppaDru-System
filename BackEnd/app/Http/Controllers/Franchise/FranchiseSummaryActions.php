@@ -14,10 +14,10 @@ trait FranchiseSummaryActions
     {
         return response()->json([
             'data' => Franchise::where('status', 'active')
-                ->where(function ($query) {
-                    $query->whereNull('franchise_account_id')
-                        ->orWhereHas('franchiseAccount', fn ($accountQuery) => $accountQuery->where('status', 'active'));
-                })
+                // The main store is selected by the empty option in the customer menu.
+                // Only franchise locations belong in this list.
+                ->whereNotNull('franchise_account_id')
+                ->whereHas('franchiseAccount', fn ($accountQuery) => $accountQuery->where('status', 'active'))
                 ->orderBy('name')
                 ->get(['id', 'name', 'address']),
         ]);

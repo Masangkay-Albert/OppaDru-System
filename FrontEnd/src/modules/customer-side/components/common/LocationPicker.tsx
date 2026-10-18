@@ -9,6 +9,9 @@ import AddressSearchDropdown from './AddressSearchDropdown';
 import type { LocationResult } from '../../../../hooks/useLocationSearch';
 import '../../../../styles/animations.css';
 
+const PHILIPPINES_CENTER = { lat: 12.8797, lng: 121.774 };
+const PHILIPPINES_BOUNDS: [[number, number], [number, number]] = [[4.2, 116.5], [21.5, 127.5]];
+
 interface LocationPickerProps {
   onSelectLocation: (location: {
     lat: number;
@@ -33,12 +36,16 @@ L.Icon.Default.mergeOptions({
 const LocationPicker: React.FC<LocationPickerProps> = ({
   onSelectLocation,
   onClose,
-  initialLat = 0,
-  initialLng = 0,
+  initialLat = PHILIPPINES_CENTER.lat,
+  initialLng = PHILIPPINES_CENTER.lng,
   initialAddress = ''
 }) => {
   const mapRef = useRef<any>(null);
-  const [position, setPosition] = useState({ lat: initialLat, lng: initialLng });
+  const hasValidInitialPosition = Number.isFinite(initialLat) && Number.isFinite(initialLng)
+    && !(initialLat === 0 && initialLng === 0);
+  const [position, setPosition] = useState(hasValidInitialPosition
+    ? { lat: initialLat, lng: initialLng }
+    : PHILIPPINES_CENTER);
   const [selectedAddress, setSelectedAddress] = useState<string>(initialAddress);
   const [selectedName, setSelectedName] = useState<string>('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -131,7 +138,10 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
           <div className={`absolute inset-0 ${isSearchFocused ? 'pointer-events-none' : 'pointer-events-auto'}`}>
             <MapContainer 
               center={position} 
-              zoom={15} 
+              zoom={hasValidInitialPosition ? 15 : 6}
+              minZoom={5}
+              maxBounds={PHILIPPINES_BOUNDS}
+              maxBoundsViscosity={0.85}
               style={{ height: '100%', width: '100%' }} 
               ref={mapRef}
               className="z-0"

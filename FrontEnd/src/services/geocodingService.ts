@@ -66,7 +66,7 @@ export const geocodeAddress = async (address: string): Promise<Coordinates | nul
 
     if (!data?.length) {
       const fallbackResponse = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=ph&bounded=1&viewbox=116.5,21.5,127.5,4.2`,
         {
           headers: {
             'User-Agent': 'OppaDruFoodDelivery/1.0'

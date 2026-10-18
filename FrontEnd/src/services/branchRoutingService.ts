@@ -19,7 +19,7 @@ export interface BranchResolution {
 
 export const resolveBranch = async (data: {
   coordinates: { lat: number; lng: number };
-  items: Array<{ product_id: string; selected_addons?: Array<{ id: string }> }>;
+  items: Array<{ product_id: string; quantity: number; selected_addons?: Array<{ id: string }> }>;
   delivery_type: string;
   voucher_discount?: number;
   discount_rate?: number;
@@ -32,6 +32,11 @@ export const resolveBranch = async (data: {
     body: JSON.stringify(data),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.message || 'Sorry, we do not deliver to this address yet.');
+  if (!response.ok) {
+    const validationMessage = payload.errors
+      ? Object.values(payload.errors as Record<string, string[]>).flat().join(' ')
+      : '';
+    throw new Error(validationMessage || payload.message || 'Sorry, we do not deliver to this address yet.');
+  }
   return payload.data as BranchResolution;
 };

@@ -93,6 +93,7 @@ const CheckoutPage: React.FC = () => {
         coordinates: deliveryCoordinates,
         items: cartItems.map((item) => ({
           product_id: item.id,
+          quantity: item.quantity,
           selected_addons: (item.selectedAddons || []).map((addon) => ({ id: addon.id })),
         })),
         delivery_type: deliveryType,

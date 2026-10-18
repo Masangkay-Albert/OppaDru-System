@@ -7,6 +7,8 @@ import PersonalDetailsForm from './PersonalDetailsForm';
 import DeliveryOptions from './DeliveryOptions';
 import PaymentMethods from './PaymentMethods';
 
+const PHILIPPINES_CENTER = { lat: 12.8797, lng: 121.774 };
+
 interface AddressFormState {
   street: string;
   floor: string;
@@ -167,8 +169,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
             setShowLocationPicker(false);
             setEditingAddress(null);
           }}
-          initialLat={editingAddress?.lat || 0}
-          initialLng={editingAddress?.lng || 0}
+          initialLat={editingAddress?.lat || PHILIPPINES_CENTER.lat}
+          initialLng={editingAddress?.lng || PHILIPPINES_CENTER.lng}
           initialAddress={editingAddress?.address || ''}
         />
       )}
