@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\BranchRoutingService;
 use App\Services\PricingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class BranchRoutingController extends Controller
 {
@@ -31,7 +32,7 @@ class BranchRoutingController extends Controller
         try {
             $result = $this->routing->resolve(
                 $validated['coordinates'] ?? null,
-                $validated['fulfillment_type'] === 'pickup' ? ($validated['franchise_id'] ?? null) : null,
+                ($validated['fulfillment_type'] ?? 'delivery') === 'pickup' ? ($validated['franchise_id'] ?? null) : null,
                 ($validated['fulfillment_type'] ?? 'delivery') === 'pickup',
             );
             $unavailable = $this->routing->validateCatalog((string) $result['branch']->id, $validated['items']);
@@ -60,6 +61,15 @@ class BranchRoutingController extends Controller
                 $response['branch_diagnostics'] = $this->routing->diagnostics($validated['coordinates'] ?? null);
             }
             return response()->json($response, 422);
+        } catch (\Throwable $exception) {
+            Log::error('Branch resolution failed unexpectedly.', [
+                'coordinates' => $validated['coordinates'] ?? null,
+                'exception' => $exception,
+            ]);
+
+            return response()->json([
+                'message' => 'We could not resolve a delivery branch right now. Please try again shortly.',
+            ], 500);
         }
     }
 

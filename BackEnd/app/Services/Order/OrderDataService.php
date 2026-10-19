@@ -34,7 +34,9 @@ class OrderDataService
         $proofUrl = $this->resolveImageUrl($proofImage, $baseUrl);
         $discountProofImage = $order->discount_proof_image;
 
-        $branch = $order->relationLoaded('branch') ? $order->branch : $order->franchise;
+        $branch = $order->branch_id
+            ? ($order->relationLoaded('branch') ? $order->branch : $order->branch()->first())
+            : $order->franchise;
 
         return [
             'id' => $order->id,

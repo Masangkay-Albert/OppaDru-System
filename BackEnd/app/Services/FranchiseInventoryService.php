@@ -18,17 +18,18 @@ class FranchiseInventoryService
             ->whereIn('product_id', $products->pluck('id'))
             ->get()
             ->keyBy('product_id');
+        $hasBranchInventory = $inventory->isNotEmpty();
 
-        $catalog = $products->map(function (Product $product) use ($inventory) {
+        $catalog = $products->map(function (Product $product) use ($inventory, $hasBranchInventory) {
             $stock = $inventory->get($product->id);
             $stockQuantity = $stock?->stock_quantity;
-            $branchAvailable = (bool) ($stock?->is_available ?? $product->is_available)
+            $branchAvailable = (bool) ($stock?->is_available ?? ($hasBranchInventory && $product->is_available))
                 && ($stockQuantity === null || $stockQuantity > 0);
 
             return array_merge($product->toArray(), [
                 'branch_stock' => $stockQuantity,
                 'branch_stock_tracked' => $stock !== null && $stockQuantity !== null,
-                'branch_enabled' => (bool) ($stock?->is_available ?? $product->is_available),
+                'branch_enabled' => (bool) ($stock?->is_available ?? ($hasBranchInventory && $product->is_available)),
                 'branch_available' => $branchAvailable,
                 'low_stock' => $stockQuantity !== null && $stockQuantity > 0 && $stockQuantity <= 5,
             ]);

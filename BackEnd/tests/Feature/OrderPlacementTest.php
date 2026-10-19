@@ -415,6 +415,76 @@ class OrderPlacementTest extends TestCase
         ])->assertUnprocessable();
     }
 
+    public function test_delivery_orders_are_re_resolved_and_tracking_uses_the_saved_nearest_branch(): void
+    {
+        $user = User::create([
+            'full_name' => 'Routing Customer',
+            'email' => 'routing-customer@example.com',
+            'phone' => '09171234568',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $cavite = Franchise::create([
+            'name' => 'Cavite branch', 'address' => 'Langkaan II, Dasmariñas', 'status' => 'active',
+            'latitude' => '14.3167000', 'longitude' => '120.9333000', 'is_active' => true,
+            'accepts_online_orders' => true, 'delivery_enabled' => true, 'delivery_radius_km' => null,
+        ]);
+        $laguna = Franchise::create([
+            'name' => 'Laguna branch', 'address' => 'Santa Rosa, Laguna', 'status' => 'active',
+            'latitude' => '14.2729670', 'longitude' => '121.0931420', 'is_active' => true,
+            'accepts_online_orders' => true, 'delivery_enabled' => true, 'delivery_radius_km' => null,
+        ]);
+        $product = Product::create([
+            'name' => 'Routing order chicken', 'description' => 'Branch routing order test',
+            'price' => 199, 'category' => 'chicken', 'image' => '', 'is_available' => true,
+        ]);
+        foreach ([$cavite, $laguna] as $branch) {
+            FranchiseInventory::create([
+                'franchise_id' => $branch->id,
+                'product_id' => $product->id,
+                'stock_quantity' => null,
+                'is_available' => true,
+            ]);
+        }
+        $login = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ])->assertOk();
+
+        $this->withHeader('Authorization', 'Bearer '.$login->json('token'));
+        foreach ([
+            [['lat' => 14.3194939, 'lng' => 120.9943268], $cavite],
+            [['lat' => 14.2105, 'lng' => 121.1601], $laguna],
+        ] as [$coordinates, $expectedBranch]) {
+            $response = $this->postJson('/api/orders', [
+                'email' => $user->email,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'delivery_address' => 'Pinned delivery address',
+                'delivery_coordinates' => $coordinates,
+                'fulfillment_type' => 'delivery',
+                'payment_method' => 'cash_on_delivery',
+                'phone' => $user->phone,
+            ])->assertCreated()
+                ->assertJsonPath('order.branch_id', $expectedBranch->id)
+                ->assertJsonPath('order.branch.id', $expectedBranch->id)
+                ->assertJsonPath('order.branch.name', $expectedBranch->name);
+
+            $orderId = $response->json('order.id');
+            $this->assertDatabaseHas('orders', ['id' => $orderId, 'branch_id' => $expectedBranch->id]);
+            $this->getJson('/api/orders/'.$orderId)
+                ->assertOk()
+                ->assertJsonPath('branch.id', $expectedBranch->id)
+                ->assertJsonPath('branch.latitude', $expectedBranch->latitude)
+                ->assertJsonPath('branch.longitude', $expectedBranch->longitude);
+        }
+    }
+
     public function test_franchise_customer_order_links_branch_payment_to_exact_order(): void
     {
         $branch = Franchise::create([

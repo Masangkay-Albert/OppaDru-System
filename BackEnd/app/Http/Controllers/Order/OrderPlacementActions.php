@@ -386,6 +386,7 @@ trait OrderPlacementActions
         }
 
         $order->refresh();
+        $order->load('branch:id,name,address,latitude,longitude');
 
         return response()->json([
             'order' => $order,

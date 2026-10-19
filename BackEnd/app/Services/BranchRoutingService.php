@@ -37,7 +37,8 @@ class BranchRoutingService
             }
         });
 
-        $branches = $allBranches
+        $branches = Franchise::query()
+            ->with('franchiseAccount')
             ->where('is_active', true)
             ->where('status', 'active')
             ->where('accepts_online_orders', true)
@@ -66,17 +67,22 @@ class BranchRoutingService
             ])
             ->filter(fn (array $candidate) => $candidate['branch']->delivery_radius_km === null || $candidate['distance'] <= (float) $candidate['branch']->delivery_radius_km)
             ->sort(function (array $left, array $right) {
-                if (abs($left['distance'] - $right['distance']) > 0.001) return $left['distance'] <=> $right['distance'];
+                if ($left['distance'] !== $right['distance']) return $left['distance'] <=> $right['distance'];
                 if ($left['open'] !== $right['open']) return $left['open'] ? -1 : 1;
                 if ($left['load'] !== $right['load']) return $left['load'] <=> $right['load'];
                 return strcmp((string) $left['branch']->id, (string) $right['branch']->id);
             })
             ->values();
 
-        $selected = $branches->first(fn (array $candidate) => $candidate['open']);
-        if (! $selected) throw new \InvalidArgumentException('Sorry, we do not deliver to this address yet.');
+        $selected = $branches->first();
+        if (! $selected) {
+            throw new \InvalidArgumentException('Sorry, no active branch can deliver to this address.');
+        }
+        if (! $selected['open']) {
+            throw new \InvalidArgumentException('The nearest branch is currently closed. Please try again during branch hours.');
+        }
 
-        $result = $this->payload($selected['branch'], $selected['distance'], $branches->first()['branch']->id !== $selected['branch']->id ? 'Your nearest branch is temporarily unavailable. We assigned the next available branch.' : null);
+        $result = $this->payload($selected['branch'], $selected['distance']);
         if (config('app.debug')) {
             $result['branch_diagnostics'] = $this->diagnostics($coordinates);
         }
@@ -120,16 +126,20 @@ class BranchRoutingService
                 'open' => $open,
                 'eligible' => ! array_intersect($reasons, ['inactive', 'online orders disabled', 'delivery disabled', 'franchise account inactive', 'missing or invalid coordinates', 'outside delivery radius']),
                 'exclusion_reasons' => $reasons,
+                'exclusion_reason' => $reasons ? implode(', ', $reasons) : null,
             ];
         })->values()->all();
     }
 
     public function validateCatalog(string $branchId, array $items): array
     {
-        $catalog = app(FranchiseInventoryService::class)->catalog($branchId, true)->keyBy('id');
+        $catalog = app(FranchiseInventoryService::class)->catalog($branchId)->keyBy('id');
         $unavailable = collect($items)
-            ->filter(fn (array $item) => ! $catalog->has($item['product_id'] ?? null))
-            ->map(fn (array $item) => $item['product_name'] ?? $item['product_id'] ?? 'Item')
+            ->filter(function (array $item) use ($catalog): bool {
+                $product = $catalog->get($item['product_id'] ?? null);
+                return ! $product || ! ($product['branch_available'] ?? false);
+            })
+            ->map(fn (array $item) => $item['product_name'] ?? data_get($catalog->get($item['product_id'] ?? null), 'name') ?? $item['product_id'] ?? 'Item')
             ->values()
             ->all();
 
