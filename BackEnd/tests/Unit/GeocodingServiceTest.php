@@ -12,7 +12,7 @@ class GeocodingServiceTest extends TestCase
     public function test_it_retries_simplified_and_ascii_addresses_and_caches_a_success(): void
     {
         $address = 'Viva Homes, Salawag, Dasmariñas, Cavite';
-        $cacheKey = 'geocode:'.md5(mb_strtolower($address));
+        $cacheKey = 'geocode:v2:'.md5(mb_strtolower($address));
         Cache::store('file')->forget($cacheKey);
 
         $nominatim = $this->mock(NominatimGeocodingService::class);
@@ -36,9 +36,36 @@ class GeocodingServiceTest extends TestCase
             'lat' => 14.3194,
             'lng' => 120.9943,
             'matchedQuery' => 'Salawag, Dasmariñas, Cavite',
+            'isBroad' => false,
         ], $result);
         $this->assertSame($result, $geocoding->geocodeAddress($address));
 
+        Cache::store('file')->forget($cacheKey);
+    }
+
+    public function test_it_marks_a_province_only_match_as_broad(): void
+    {
+        $address = 'Laguna, Calabarzon, Philippines';
+        $cacheKey = 'geocode:v2:'.md5(mb_strtolower($address));
+        Cache::store('file')->forget($cacheKey);
+
+        $this->mock(NominatimGeocodingService::class)
+            ->shouldReceive('search')
+            ->once()
+            ->with($address, 1)
+            ->andReturn([[
+                'lat' => '14.1667',
+                'lon' => '121.3333',
+                'address' => [
+                    'county' => 'Laguna',
+                    'state' => 'Calabarzon',
+                    'country' => 'Philippines',
+                ],
+            ]]);
+
+        $result = app(GeocodingService::class)->geocodeAddress($address);
+
+        $this->assertTrue($result['isBroad']);
         Cache::store('file')->forget($cacheKey);
     }
 }

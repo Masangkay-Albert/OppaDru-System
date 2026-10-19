@@ -69,17 +69,20 @@ class BranchRoutingService
             ->groupBy('branch_id')
             ->pluck('total', 'branch_id');
 
-        $branches = $branches
+        $evaluatedBranches = $branches
             ->map(fn (Franchise $branch) => [
                 'branch' => $branch,
                 'distance' => $this->distance($branch, $coordinates),
+                'radius' => min(
+                    (float) ($branch->delivery_radius_km ?? $this->maxDeliveryKm()),
+                    $this->maxDeliveryKm(),
+                ),
                 'open' => $this->isOpen($branch),
                 'load' => (int) ($loads[$branch->id] ?? 0),
-            ])
-            ->filter(fn (array $candidate) => $candidate['distance'] <= min(
-                (float) ($candidate['branch']->delivery_radius_km ?? $this->maxDeliveryKm()),
-                $this->maxDeliveryKm(),
-            ))
+            ]);
+
+        $branches = $evaluatedBranches
+            ->filter(fn (array $candidate) => $candidate['distance'] <= $candidate['radius'])
             ->sort(function (array $left, array $right) {
                 if ($left['distance'] !== $right['distance']) return $left['distance'] <=> $right['distance'];
                 if ($left['open'] !== $right['open']) return $left['open'] ? -1 : 1;
@@ -90,6 +93,15 @@ class BranchRoutingService
 
         $selected = $branches->first();
         if (! $selected) {
+            Log::warning('No eligible delivery branch is within range of the selected address.', [
+                'branches' => $evaluatedBranches->map(fn (array $candidate) => [
+                    'franchise_account_id' => $candidate['branch']->franchise_account_id,
+                    'branch_id' => $candidate['branch']->id,
+                    'name' => $candidate['branch']->name,
+                    'distance_km' => round($candidate['distance'], 3),
+                    'delivery_radius_km' => $candidate['radius'],
+                ])->all(),
+            ]);
             throw new \InvalidArgumentException('No branch delivers to this address.');
         }
         if (! $selected['open']) {

@@ -265,7 +265,7 @@ trait FranchiseAdminActions
             'is_active' => 'nullable|boolean',
             'accepts_online_orders' => 'nullable|boolean',
             'delivery_enabled' => 'nullable|boolean',
-            'delivery_radius_km' => 'nullable|numeric|min:0',
+            'delivery_radius_km' => 'nullable|numeric|gt:0|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -311,7 +311,9 @@ trait FranchiseAdminActions
             'is_active' => $request->boolean('is_active', true),
             'accepts_online_orders' => $request->boolean('accepts_online_orders', true),
             'delivery_enabled' => $request->boolean('delivery_enabled', true),
-            'delivery_radius_km' => $request->input('delivery_radius_km'),
+            'delivery_radius_km' => $request->input('delivery_radius_km', config('delivery.default_radius_km', 15)),
+            'location_status' => $hasLatitude ? 'manual' : 'geocoded',
+            'location_error' => null,
             'owner_admin_id' => null,
         ]);
 
@@ -337,7 +339,8 @@ trait FranchiseAdminActions
             'is_active' => 'sometimes|boolean',
             'accepts_online_orders' => 'sometimes|boolean',
             'delivery_enabled' => 'sometimes|boolean',
-            'delivery_radius_km' => 'sometimes|nullable|numeric|min:0',
+            'delivery_radius_km' => 'sometimes|nullable|numeric|gt:0|max:100',
+            'location_status' => 'sometimes|in:geocoded,manual,needs_location',
         ]);
 
         if ($validator->fails()) {
@@ -353,12 +356,12 @@ trait FranchiseAdminActions
             ], 422);
         }
 
-        $willBeActive = $request->has('is_active') ? $request->boolean('is_active') : (bool) $franchise->is_active;
         $willHaveDelivery = $request->has('delivery_enabled') ? $request->boolean('delivery_enabled') : (bool) $franchise->delivery_enabled;
         $latitude = $hasLatitude ? $request->input('latitude') : $franchise->latitude;
         $longitude = $hasLongitude ? $request->input('longitude') : $franchise->longitude;
         $address = $request->input('address', $franchise->address);
         $addressChanged = $request->has('address') && trim((string) $address) !== trim((string) $franchise->address);
+        $geocodedNewCoordinates = false;
         $hasExistingCoordinates = app(BranchRoutingService::class)->validBranchCoordinatePair($franchise->latitude, $franchise->longitude);
         if (! $hasLatitude && ($addressChanged || ! $hasExistingCoordinates)) {
             $geocoded = $geocoding->geocodeAddress((string) $address);
@@ -370,17 +373,28 @@ trait FranchiseAdminActions
             }
             $latitude = $geocoded['lat'];
             $longitude = $geocoded['lng'];
+            $geocodedNewCoordinates = true;
         }
-        if ($willBeActive && $willHaveDelivery && ! app(BranchRoutingService::class)->validBranchCoordinatePair($latitude, $longitude)) {
-            return response()->json(['message' => 'Valid Philippine latitude and longitude are required before enabling delivery for an active branch.'], 422);
+        if ($willHaveDelivery && ! app(BranchRoutingService::class)->validBranchCoordinatePair($latitude, $longitude)) {
+            return response()->json(['message' => 'Valid Philippine latitude and longitude are required before enabling delivery for this branch.'], 422);
         }
 
         $franchise->fill($request->only([
             'name', 'email', 'phone', 'address', 'status',
-            'delivery_radius_km',
+            'delivery_radius_km', 'location_status',
         ]));
         $franchise->latitude = $latitude;
         $franchise->longitude = $longitude;
+        if ($request->has('location_status')) {
+            $franchise->location_status = $request->input('location_status');
+        } elseif ($geocodedNewCoordinates) {
+            $franchise->location_status = 'geocoded';
+        } elseif ($hasLatitude) {
+            $franchise->location_status = 'manual';
+        }
+        if ($latitude !== null && $longitude !== null) {
+            $franchise->location_error = null;
+        }
         foreach (['is_active', 'accepts_online_orders', 'delivery_enabled'] as $flag) {
             if ($request->has($flag)) {
                 $franchise->{$flag} = $request->boolean($flag);

@@ -107,6 +107,29 @@ class BranchRoutingTest extends TestCase
             ->assertJsonPath('message', "We couldn't locate this address. Please edit it or pick a pin on the map.");
     }
 
+    public function test_province_only_geocoding_returns_address_too_broad_and_prompts_for_exact_location(): void
+    {
+        $product = $this->product();
+        $this->mock(GeocodingService::class)
+            ->shouldReceive('geocodeAddress')
+            ->once()
+            ->with('Laguna, Calabarzon, Philippines')
+            ->andReturn([
+                'lat' => 14.1667,
+                'lng' => 121.3333,
+                'matchedQuery' => 'Laguna, Calabarzon, Philippines',
+                'isBroad' => true,
+            ]);
+
+        $this->postJson('/api/branches/resolve', [
+            'address' => 'Laguna, Calabarzon, Philippines',
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertUnprocessable()
+            ->assertJsonPath('code', 'ADDRESS_TOO_BROAD')
+            ->assertJsonPath('message', 'This address only identifies a province or region. Add a city or barangay, or pin your exact location on the map.');
+    }
+
     public function test_null_branch_coordinates_are_reported_in_debug_diagnostics(): void
     {
         config(['app.debug' => true]);
@@ -143,15 +166,15 @@ class BranchRoutingTest extends TestCase
             ->assertJsonPath('code', 'BRANCHES_NOT_CONFIGURED');
     }
 
-    public function test_delivery_is_enabled_automatically_for_active_branches_with_coordinates(): void
+    public function test_admin_can_disable_orders_and_delivery_for_a_located_active_branch(): void
     {
         $branch = $this->branch('Cavite branch', 14.3500, 120.9500);
         $branch->accepts_online_orders = false;
         $branch->delivery_enabled = false;
         $branch->save();
 
-        $this->assertTrue($branch->fresh()->accepts_online_orders);
-        $this->assertTrue($branch->fresh()->delivery_enabled);
+        $this->assertFalse($branch->fresh()->accepts_online_orders);
+        $this->assertFalse($branch->fresh()->delivery_enabled);
     }
 
     public function test_inactive_branch_is_not_automatically_enabled_for_delivery(): void
@@ -178,7 +201,7 @@ class BranchRoutingTest extends TestCase
             'fulfillment_type' => 'delivery',
         ])->assertNotFound()
             ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
-            ->assertJsonPath('message', 'No branch delivers to this address.');
+            ->assertJsonPath('message', 'No active branch is within its delivery radius of this location. Confirm the pin, or ask the administrator to check the branch location and delivery coverage.');
     }
 
     public function test_null_branch_radius_uses_the_fifteen_kilometer_default(): void
@@ -193,7 +216,7 @@ class BranchRoutingTest extends TestCase
             'fulfillment_type' => 'delivery',
         ])->assertNotFound()
             ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
-            ->assertJsonPath('message', 'No branch delivers to this address.');
+            ->assertJsonPath('message', 'No active branch is within its delivery radius of this location. Confirm the pin, or ask the administrator to check the branch location and delivery coverage.');
     }
 
     public function test_branch_without_inventory_rows_returns_items_as_unavailable_without_throwing(): void

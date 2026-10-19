@@ -6,6 +6,7 @@ use App\Models\Admin;
 use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
+use App\Services\GeocodingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -146,6 +147,10 @@ class FranchiseeLoginTest extends TestCase
     public function test_final_approval_atomically_activates_franchise_and_login_uses_applicant_credentials(): void
     {
         Mail::fake();
+        $this->mock(GeocodingService::class, fn ($mock) => $mock
+            ->shouldReceive('geocodeAddress')
+            ->once()
+            ->andReturn(['lat' => 14.3294, 'lng' => 120.9367, 'matchedQuery' => 'Dasmarinas, Cavite']));
         [$applicant, $application] = $this->createApplicantApplication();
         $application->forceFill([
             'status' => 'location_assessment',
@@ -195,6 +200,10 @@ class FranchiseeLoginTest extends TestCase
 
     public function test_final_approval_activates_after_required_documents_are_verified(): void
     {
+        $this->mock(GeocodingService::class, fn ($mock) => $mock
+            ->shouldReceive('geocodeAddress')
+            ->once()
+            ->andReturn(['lat' => 14.3294, 'lng' => 120.9367, 'matchedQuery' => 'Dasmarinas, Cavite']));
         [$applicant, $application] = $this->createApplicantApplication();
         $application->forceFill([
             'status' => 'location_assessment',
@@ -227,6 +236,106 @@ class FranchiseeLoginTest extends TestCase
             'title' => 'Opening readiness follow-up',
             'is_internal' => true,
         ]);
+    }
+
+    public function test_approval_is_preserved_when_location_cannot_be_geocoded_and_retry_provisions_once_found(): void
+    {
+        Mail::fake();
+        $geocoder = $this->mock(GeocodingService::class);
+        $geocoder->shouldReceive('geocodeAddress')
+            ->twice()
+            ->andReturn(
+                null,
+                ['lat' => 14.3294, 'lng' => 120.9367, 'matchedQuery' => 'Dasmarinas, Cavite'],
+            );
+        [$applicant, $application] = $this->createApplicantApplication();
+        $application->forceFill([
+            'status' => 'location_assessment',
+            'agreement_status' => 'signed',
+            'agreement_signed_at' => now(),
+            'franchise_fee_payment_status' => 'not_applicable',
+            'required_documents' => [],
+            'requirements_reviewed_at' => now(),
+        ])->save();
+        $adminToken = 'franchise-final-approval-location-retry-token';
+        Admin::create([
+            'full_name' => 'Franchise Admin',
+            'email' => 'franchise-final-approval-location-retry@example.test',
+            'password' => Hash::make('AdminPassword123!'),
+            'api_token' => hash('sha256', $adminToken),
+        ]);
+        $headers = ['Authorization' => 'Bearer '.$adminToken];
+
+        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.status', 'approved')
+            ->assertJsonPath('data.franchise_id', null)
+            ->assertJsonPath('provisioning_pending', true);
+
+        $this->assertDatabaseCount('franchises', 0);
+        $this->assertDatabaseMissing('franchise_users', ['email' => $applicant->email]);
+        $this->assertDatabaseHas('franchise_applications', [
+            'id' => $application->id,
+            'status' => 'approved',
+            'franchise_id' => null,
+        ]);
+
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            'status' => 'approved',
+            'location' => 'Dasmarinas, Cavite',
+        ], $headers)->assertOk();
+
+        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.status', 'approved')
+            ->assertJsonPath('provisioning_pending', false);
+
+        $application->refresh();
+        $franchise = $application->franchise;
+        $this->assertNotNull($franchise);
+        $this->assertNotNull($franchise->latitude);
+        $this->assertNotNull($franchise->longitude);
+        $this->assertTrue($franchise->accepts_online_orders);
+        $this->assertTrue($franchise->delivery_enabled);
+        $this->assertSame(15.0, (float) $franchise->delivery_radius_km);
+        $this->assertDatabaseCount('franchises', 1);
+        $this->assertDatabaseHas('franchise_users', [
+            'email' => $applicant->email,
+            'franchise_id' => $franchise->id,
+        ]);
+    }
+
+    public function test_reapproving_a_provisioned_application_does_not_create_another_branch(): void
+    {
+        $geocoder = $this->mock(GeocodingService::class);
+        $geocoder->shouldReceive('geocodeAddress')
+            ->once()
+            ->andReturn(['lat' => 14.3294, 'lng' => 120.9367, 'matchedQuery' => 'Dasmarinas, Cavite']);
+        [, $application] = $this->createApplicantApplication();
+        $application->forceFill([
+            'status' => 'location_assessment',
+            'agreement_status' => 'signed',
+            'agreement_signed_at' => now(),
+            'franchise_fee_payment_status' => 'not_applicable',
+            'required_documents' => [],
+            'requirements_reviewed_at' => now(),
+        ])->save();
+        $adminToken = 'franchise-final-approval-idempotent-token';
+        Admin::create([
+            'full_name' => 'Franchise Admin',
+            'email' => 'franchise-final-approval-idempotent@example.test',
+            'password' => Hash::make('AdminPassword123!'),
+            'api_token' => hash('sha256', $adminToken),
+        ]);
+        $headers = ['Authorization' => 'Bearer '.$adminToken];
+
+        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)->assertOk();
+        $franchiseId = $application->fresh()->franchise_id;
+        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)->assertOk();
+
+        $this->assertSame($franchiseId, $application->fresh()->franchise_id);
+        $this->assertDatabaseCount('franchises', 1);
+        $this->assertDatabaseCount('franchise_users', 1);
     }
 
     public function test_final_approval_still_requires_requested_documents_to_be_verified(): void

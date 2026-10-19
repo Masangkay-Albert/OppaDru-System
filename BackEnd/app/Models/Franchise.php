@@ -31,6 +31,8 @@ class Franchise extends Model
         'delivery_enabled',
         'delivery_radius_km',
         'is_main',
+        'location_status',
+        'location_error',
     ];
 
     protected $casts = [
@@ -40,13 +42,46 @@ class Franchise extends Model
         'is_active' => 'boolean',
         'accepts_online_orders' => 'boolean',
         'delivery_enabled' => 'boolean',
-        'delivery_radius_km' => 'decimal:2',
+        'delivery_radius_km' => 'float',
         'is_main' => 'boolean',
+        'location_status' => 'string',
     ];
 
     protected static function boot()
     {
         parent::boot();
+
+        static::creating(function ($model) {
+            $hasValidCoordinates = is_numeric($model->latitude)
+                && is_numeric($model->longitude)
+                && (float) $model->latitude >= 4
+                && (float) $model->latitude <= 22
+                && (float) $model->longitude >= 116
+                && (float) $model->longitude <= 127;
+            $canReceiveOnlineDeliveries = ($model->status ?? 'active') === 'active'
+                && $model->is_active !== false
+                && $hasValidCoordinates;
+
+            if (! $canReceiveOnlineDeliveries) {
+                $model->accepts_online_orders = false;
+                $model->delivery_enabled = false;
+            } else {
+                if (! array_key_exists('accepts_online_orders', $model->getAttributes())) {
+                    $model->accepts_online_orders = true;
+                }
+                if (! array_key_exists('delivery_enabled', $model->getAttributes())) {
+                    $model->delivery_enabled = true;
+                }
+            }
+
+            if (empty($model->id)) {
+                $model->id = 'OPPA-FR-' . strtoupper(Str::random(8));
+            }
+
+            if (empty($model->slug)) {
+                $model->slug = Str::slug($model->name ?: 'franchise');
+            }
+        });
 
         static::saving(function (self $franchise): void {
             $hasValidCoordinates = is_numeric($franchise->latitude)
@@ -55,21 +90,12 @@ class Franchise extends Model
                 && (float) $franchise->latitude <= 22
                 && (float) $franchise->longitude >= 116
                 && (float) $franchise->longitude <= 127;
-            $canReceiveOnlineDeliveries = ($franchise->status ?? 'active') === 'active'
-                && $franchise->is_active !== false
-                && $hasValidCoordinates;
 
-            $franchise->accepts_online_orders = $canReceiveOnlineDeliveries;
-            $franchise->delivery_enabled = $canReceiveOnlineDeliveries;
-        });
-
-        static::creating(function ($model) {
-            if (empty($model->id)) {
-                $model->id = 'OPPA-FR-' . strtoupper(Str::random(8));
-            }
-
-            if (empty($model->slug)) {
-                $model->slug = Str::slug($model->name ?: 'franchise');
+            if (($franchise->status ?? 'active') !== 'active'
+                || $franchise->is_active === false
+                || ! $hasValidCoordinates) {
+                $franchise->accepts_online_orders = false;
+                $franchise->delivery_enabled = false;
             }
         });
     }

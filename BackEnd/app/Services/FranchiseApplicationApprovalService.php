@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Exceptions\FranchiseApprovalReadinessException;
 use App\Exceptions\FranchiseApprovalException;
 use App\Models\Admin;
-use App\Models\Franchise;
 use App\Models\FranchiseAccount;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseApplicationEvent;
@@ -21,13 +20,13 @@ class FranchiseApplicationApprovalService
     {
         return DB::transaction(function () use ($applicationId, $admin) {
             $application = FranchiseApplication::whereKey($applicationId)->lockForUpdate()->firstOrFail();
-            if ($application->status === 'approved' && $application->franchise_id) {
-                return $application->fresh(['franchise', 'franchiseAccount', 'franchiseApplicant', 'events']);
-            }
+            $previousStatus = $application->status;
+            $wasAlreadyApproved = $previousStatus === 'approved';
+            $alreadyHadFranchise = (bool) $application->franchise_id;
             if (in_array($application->status, ['rejected', 'withdrawn'], true)) {
                 throw new FranchiseApprovalException('Rejected or withdrawn applications cannot be approved.');
             }
-            if (! in_array($application->status, ['location_assessment', 'for_final_evaluation', 'approved_for_opening'], true)) {
+            if (! $wasAlreadyApproved && ! in_array($application->status, ['location_assessment', 'for_final_evaluation', 'approved_for_opening'], true)) {
                 throw new FranchiseApprovalException('Move the application to location assessment or final evaluation before final approval.');
             }
 
@@ -40,11 +39,11 @@ class FranchiseApplicationApprovalService
                 throw new FranchiseApprovalException('Verify the applicant email before final approval.');
             }
 
-            $documentIssues = $application->finalApprovalDocumentIssues();
+            $documentIssues = $wasAlreadyApproved ? [] : $application->finalApprovalDocumentIssues();
             if ($documentIssues !== []) {
                 throw new FranchiseApprovalReadinessException($documentIssues);
             }
-            $openingReadinessIssues = $application->activationReadinessIssues();
+            $openingReadinessIssues = $wasAlreadyApproved ? [] : $application->activationReadinessIssues();
 
             $email = strtolower(trim($applicant->email));
             $applicantPasswordHash = DB::table('franchise_applicants')
@@ -54,9 +53,6 @@ class FranchiseApplicationApprovalService
                 throw new FranchiseApprovalException('The applicant password credential could not be linked to the franchise account.');
             }
             $existingUser = FranchiseUser::whereRaw('LOWER(email) = ?', [$email])->first();
-            if ($existingUser && (string) $existingUser->franchise_id !== (string) $application->franchise_id) {
-                throw new FranchiseApprovalException('A franchise account already uses this applicant email. Resolve that account before approval.');
-            }
 
             $name = trim($application->franchise_name) ?: 'Oppa Dru Franchise';
             $account = $application->franchise_account_id
@@ -81,35 +77,48 @@ class FranchiseApplicationApprovalService
                 $account->save();
             }
 
-            $franchise = $application->franchise_id
-                ? Franchise::whereKey($application->franchise_id)->lockForUpdate()->first()
-                : null;
+            if ($existingUser && $existingUser->franchise_account_id
+                && (string) $existingUser->franchise_account_id !== (string) $account->id) {
+                throw new FranchiseApprovalException('A franchise account already uses this applicant email. Resolve that account before approval.');
+            }
+
+            $application->forceFill([
+                'franchise_applicant_id' => $applicant->id,
+                'email' => $email,
+                'status' => 'approved',
+                'franchise_account_id' => $account->id,
+                'approved_at' => $application->approved_at ?? now(),
+                'approved_by_admin_id' => $application->approved_by_admin_id ?? $admin?->id,
+                'reviewed_by_admin_id' => $admin?->id ?? $application->reviewed_by_admin_id,
+                'reviewed_at' => $application->reviewed_at ?? now(),
+                'next_step_instructions' => FranchiseApplication::defaultInstructionsFor('approved'),
+                'approval_override_reason' => null,
+            ])->save();
+
+            $franchise = app(FranchiseProvisioningService::class)->provisionOnApproval($application);
             if (! $franchise) {
-                $franchise = Franchise::create([
-                    'franchise_account_id' => $account->id,
-                    'name' => $name,
-                    'slug' => $this->uniqueSlug($name.' '.$application->location, Franchise::class),
-                    'email' => $email,
-                    'phone' => $application->phone ?: $applicant->phone,
-                    'address' => $application->location,
-                    'status' => 'active',
-                    'is_active' => true,
-                    'accepts_online_orders' => false,
-                    'delivery_enabled' => false,
-                    'owner_admin_id' => $admin?->id,
-                    'metadata' => [
+                $application->next_step_instructions = 'Your application is approved, but branch location setup is pending. The dashboard will become available after an administrator confirms the branch address and completes provisioning.';
+                $application->save();
+
+                if (! $wasAlreadyApproved) {
+                    FranchiseApplicationEvent::create([
                         'application_id' => $application->id,
-                        'application_reference' => $application->reference_number,
-                        'proposed_location' => $application->location,
-                    ],
-                ]);
-            } else {
-                $franchise->franchise_account_id = $account->id;
-                $franchise->status = 'active';
-                $franchise->is_active = true;
-                $franchise->accepts_online_orders = false;
-                $franchise->delivery_enabled = false;
-                $franchise->save();
+                        'actor_type' => 'admin',
+                        'actor_id' => $admin?->id === null ? null : (string) $admin->id,
+                        'status' => 'approved',
+                        'title' => 'Application approved; location setup pending',
+                        'message' => 'The application is approved, but the branch location could not be resolved. The dashboard remains inactive until an administrator fixes the location and retries provisioning.',
+                        'is_internal' => false,
+                        'created_at' => now(),
+                    ]);
+                }
+
+                return $application->fresh(['franchise', 'franchiseAccount', 'franchiseApplicant', 'events']);
+            }
+
+            if ($existingUser && $existingUser->franchise_id
+                && (string) $existingUser->franchise_id !== (string) $franchise->id) {
+                throw new FranchiseApprovalException('A franchise account already uses this applicant email. Resolve that account before approval.');
             }
 
             if ($existingUser) {
@@ -140,33 +149,36 @@ class FranchiseApplicationApprovalService
                 ->update(['password' => $applicantPasswordHash]);
             $franchiseUser->refresh();
 
-            $previousStatus = $application->status;
             $application->forceFill([
-                'franchise_applicant_id' => $applicant->id,
-                'email' => $email,
-                'status' => 'approved',
                 'franchise_account_id' => $account->id,
                 'franchise_id' => $franchise->id,
-                'approved_at' => now(),
-                'approved_by_admin_id' => $admin?->id,
-                'activated_at' => now(),
-                'activated_by_admin_id' => $admin?->id,
-                'reviewed_by_admin_id' => $admin?->id,
-                'reviewed_at' => now(),
-                'next_step_instructions' => FranchiseApplication::defaultInstructionsFor('approved'),
-                'approval_override_reason' => null,
+                'activated_at' => $application->activated_at ?? now(),
+                'activated_by_admin_id' => $application->activated_by_admin_id ?? $admin?->id,
             ])->save();
 
-            FranchiseApplicationEvent::create([
-                'application_id' => $application->id,
-                'actor_type' => 'admin',
-                'actor_id' => $admin?->id === null ? null : (string) $admin->id,
-                'status' => 'approved',
-                'title' => 'Application approved',
-                'message' => 'Application approved after required documents were reviewed. Franchise dashboard access activated.',
-                'is_internal' => false,
-                'created_at' => now(),
-            ]);
+            if (! $wasAlreadyApproved) {
+                FranchiseApplicationEvent::create([
+                    'application_id' => $application->id,
+                    'actor_type' => 'admin',
+                    'actor_id' => $admin?->id === null ? null : (string) $admin->id,
+                    'status' => 'approved',
+                    'title' => 'Application approved',
+                    'message' => 'Application approved after required documents were reviewed. Franchise location and dashboard access activated.',
+                    'is_internal' => false,
+                    'created_at' => now(),
+                ]);
+            } elseif (! $alreadyHadFranchise) {
+                FranchiseApplicationEvent::create([
+                    'application_id' => $application->id,
+                    'actor_type' => 'admin',
+                    'actor_id' => $admin?->id === null ? null : (string) $admin->id,
+                    'status' => 'approved',
+                    'title' => 'Branch location provisioned',
+                    'message' => 'The branch location was resolved and franchise dashboard access is now active.',
+                    'is_internal' => false,
+                    'created_at' => now(),
+                ]);
+            }
 
             if ($openingReadinessIssues !== []) {
                 FranchiseApplicationEvent::create([

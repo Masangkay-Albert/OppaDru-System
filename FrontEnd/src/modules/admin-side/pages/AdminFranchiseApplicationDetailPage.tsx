@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, Download, Eye, FileText, Loader2, MoreHorizontal, Plus, Save, Upload, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Download, Eye, FileText, Loader2, MapPin, MoreHorizontal, Plus, Save, Upload, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { ConfirmDialog } from '../components/AdminUI';
@@ -487,6 +487,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [application, setApplication] = useState<FranchiseApplication | null>(null);
   const [status, setStatus] = useState('');
+  const [proposedLocation, setProposedLocation] = useState('');
   const [instructions, setInstructions] = useState('');
   const [interviewAt, setInterviewAt] = useState('');
   const [minimumInterviewAt, setMinimumInterviewAt] = useState(minimumManilaDateTime);
@@ -530,6 +531,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             : 'under_review'
           : storedStatus;
         setStatus(legacyReviewStatus);
+        setProposedLocation(data.location || '');
         setInstructions(data.next_step_instructions || '');
         setInterviewAt(data.interview_at ? toManilaDateTimeInput(data.interview_at) : '');
         setInterviewType(data.interview_type || 'online');
@@ -677,9 +679,35 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       setApprovalDialogOpen(false);
       formDirty.current = false;
       await load();
-      setApprovalNotice(result.notification_warning || '');
+      setApprovalNotice(result.provisioning_pending
+        ? result.message
+        : result.notification_warning || '');
     } catch (approvalError) {
       setError(approvalError instanceof Error ? approvalError.message : 'Unable to approve this application.');
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const saveLocationAndRetryProvisioning = async () => {
+    if (!application || !id || approving) return;
+    if (!proposedLocation.trim()) {
+      setError('Enter the proposed branch address before retrying location setup.');
+      return;
+    }
+    setApproving(true);
+    setError('');
+    try {
+      await reviewFranchiseApplication(id, {
+        status: 'approved',
+        location: proposedLocation.trim(),
+      });
+      const result = await approveFranchiseApplication(id);
+      formDirty.current = false;
+      await load();
+      setApprovalNotice(result.provisioning_pending ? result.message : result.notification_warning || '');
+    } catch (retryError) {
+      setError(retryError instanceof Error ? retryError.message : 'Unable to save the address and retry branch setup.');
     } finally {
       setApproving(false);
     }
@@ -746,8 +774,17 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
               <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
               {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview is completed, select Location Assessment. This begins the combined final stage (site inspection, financial evaluation, and agreement). Add the required-document checklist in the panel below. A blank form is optional; saving the requirements automatically opens the applicant's upload area.</p>}
               {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Request and review any needed documents in the panel below. Once the requested documents are verified, approve the application to activate dashboard access.</p>}
-              {application.status === 'approved' && <InlineMessage variant="success" message="Final approval is complete and the franchise dashboard account is active." />}
+              {application.status === 'approved' && (application.franchise_id
+                ? <InlineMessage variant="success" message="Final approval is complete and the franchise dashboard account is active." />
+                : <InlineMessage variant="warning" message="Needs location: approval is complete, but the branch and dashboard are not provisioned until its address can be located." />)}
               {approvalNotice && <InlineMessage variant="warning" message={approvalNotice} />}
+              {application.status === 'approved' && !application.franchise_id && <>
+                <label className="block text-sm font-medium">Proposed branch address<input value={proposedLocation} onChange={(event) => setProposedLocation(event.target.value)} maxLength={2000} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
+                <button type="button" onClick={() => void saveLocationAndRetryProvisioning()} disabled={approving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500 px-4 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-60">
+                  {approving ? <Loader2 size={16} className="animate-spin" /> : <MapPin size={16} />}
+                  {approving ? 'Saving and retrying…' : 'Save address and retry setup'}
+                </button>
+              </>}
               <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or list the requested documents." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
               <div className="rounded-xl border border-[var(--oppa-border)] p-3">
                 <h3 className="mb-3 text-sm font-semibold">Interview record (Philippine time)</h3>

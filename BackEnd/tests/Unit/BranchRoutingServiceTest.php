@@ -61,7 +61,10 @@ class BranchRoutingServiceTest extends TestCase
         $this->assertSame($cavite->id, $result['branch']->id);
         $this->assertGreaterThan(0, $result['distance_km']);
         $diagnostics = collect(app(BranchRoutingService::class)->diagnostics(['lat' => 14.3194939, 'lng' => 120.9943268]));
-        $this->assertSame('missing or invalid coordinates', $diagnostics->firstWhere('name', 'main-branch')['exclusion_reason']);
+        $this->assertSame(
+            'online orders disabled, delivery disabled, missing or invalid coordinates',
+            $diagnostics->firstWhere('name', 'main-branch')['exclusion_reason'],
+        );
     }
 
     public function test_santa_rosa_and_calamba_coordinates_select_laguna_branch(): void
@@ -80,6 +83,7 @@ class BranchRoutingServiceTest extends TestCase
 
     public function test_imus_and_bacoor_coordinates_select_cavite_branch(): void
     {
+        config(['services.delivery.max_km' => 20]);
         $cavite = $this->branch('Cavite branch', 14.3167, 120.9333);
         $this->branch('Laguna branch', 14.272967, 121.093142);
         $routing = app(BranchRoutingService::class);

@@ -8,6 +8,7 @@ export interface LocationResult {
   lat: number;
   lng: number;
   type?: string;
+  isBroad?: boolean;
   displayName?: string;
   importance?: number;
 }

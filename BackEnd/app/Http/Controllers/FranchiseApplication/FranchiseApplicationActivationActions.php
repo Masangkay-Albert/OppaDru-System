@@ -5,7 +5,6 @@ namespace App\Http\Controllers\FranchiseApplication;
 use App\Exceptions\FranchiseApprovalReadinessException;
 use App\Exceptions\FranchiseApprovalException;
 use App\Models\Admin;
-use App\Models\Franchise;
 use App\Models\FranchiseAccount;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
@@ -26,6 +25,9 @@ trait FranchiseApplicationActivationActions
         }
 
         $admin = Admin::where('api_token', hash('sha256', $request->bearerToken() ?? ''))->first();
+        $applicationBefore = FranchiseApplication::findOrFail($id);
+        $wasPendingProvisioning = $applicationBefore->status === 'approved' && ! $applicationBefore->franchise_id;
+        $wasAlreadyApproved = $applicationBefore->status === 'approved';
         $notificationWarning = null;
         try {
             $approved = app(\App\Services\FranchiseApplicationApprovalService::class)->approve(
@@ -41,30 +43,45 @@ trait FranchiseApplicationActivationActions
             return response()->json(['message' => $exception->getMessage()], 409);
         }
 
-        try {
-            $loginUrl = rtrim((string) config('app.frontend_url', config('app.url')), '/').'/franchise/login?email='.rawurlencode($approved->email);
-            Mail::raw(
-                "Congratulations, {$approved->contact_name}! Your Oppa Dru franchise application has been approved.\n\n"
-                ."Franchise ID: {$approved->franchise_id}\n"
-                ."Application reference: {$approved->reference_number}\n\n"
-                ."Your franchise dashboard is active. Sign in using the email and password from your applicant account:\n{$loginUrl}\n\n"
-                ."You can now set up your menu, staff, inventory, and orders.",
-                fn ($message) => $message->to($approved->email)
-                    ->subject('Your Oppa Dru franchise application is approved'),
-            );
-        } catch (\Throwable $exception) {
-            $notificationWarning = 'Approval succeeded, but the notification email could not be delivered. Contact the applicant directly and check the mail delivery logs.';
-            Log::error('Franchise approval email could not be sent.', [
-                'application_id' => $approved->id,
-                'franchise_id' => $approved->franchise_id,
-                'exception_class' => get_class($exception),
-                'exception_message' => $exception->getMessage(),
-            ]);
+        $shouldNotify = ! $wasAlreadyApproved || ($wasPendingProvisioning && $approved->franchise_id);
+        if ($shouldNotify) {
+            try {
+                if ($approved->franchise_id) {
+                    $loginUrl = rtrim((string) config('app.frontend_url', config('app.url')), '/').'/franchise/login?email='.rawurlencode($approved->email);
+                    $emailBody = "Congratulations, {$approved->contact_name}! Your Oppa Dru franchise application has been approved.\n\n"
+                        ."Franchise ID: {$approved->franchise_id}\n"
+                        ."Application reference: {$approved->reference_number}\n\n"
+                        ."Your franchise dashboard is active. Sign in using the email and password from your applicant account:\n{$loginUrl}\n\n"
+                        ."You can now set up your menu, staff, inventory, and orders.";
+                } else {
+                    $emailBody = "Congratulations, {$approved->contact_name}! Your Oppa Dru franchise application has been approved.\n\n"
+                        ."Application reference: {$approved->reference_number}\n\n"
+                        ."We could not automatically locate the proposed branch address, so branch and dashboard setup is still pending. An administrator will correct or retry the location setup before account access is activated.";
+                }
+
+                Mail::raw(
+                    $emailBody,
+                    fn ($message) => $message->to($approved->email)
+                        ->subject('Your Oppa Dru franchise application is approved'),
+                );
+            } catch (\Throwable $exception) {
+                $notificationWarning = 'Approval succeeded, but the notification email could not be delivered. Contact the applicant directly and check the mail delivery logs.';
+                Log::error('Franchise approval email could not be sent.', [
+                    'application_id' => $approved->id,
+                    'franchise_id' => $approved->franchise_id,
+                    'exception_class' => get_class($exception),
+                    'exception_message' => $exception->getMessage(),
+                ]);
+            }
         }
 
+        $provisioningPending = ! $approved->franchise_id;
         return response()->json([
-            'message' => 'Application approved and franchise dashboard access activated.',
+            'message' => $provisioningPending
+                ? 'Application approved. Branch setup is pending because its address could not be located. Correct the address and retry provisioning.'
+                : 'Application approved and franchise dashboard access activated.',
             'notification_warning' => $notificationWarning,
+            'provisioning_pending' => $provisioningPending,
             'data' => $approved,
         ]);
     }
@@ -141,7 +158,6 @@ trait FranchiseApplicationActivationActions
 
             $name = trim($application->franchise_name) ?: 'Oppa Dru Franchise';
             $accountSlug = $this->uniqueSlug($name, FranchiseAccount::class);
-            $locationSlug = $this->uniqueSlug($name.' '.$application->location, Franchise::class);
             $account = FranchiseAccount::create([
                 'name' => $name,
                 'slug' => $accountSlug,
@@ -155,24 +171,14 @@ trait FranchiseApplicationActivationActions
                     'application_reference' => $application->reference_number,
                 ],
             ]);
-            $location = Franchise::create([
-                'franchise_account_id' => $account->id,
-                'name' => $name,
-                'slug' => $locationSlug,
-                'email' => $application->email,
-                'phone' => $application->phone,
-                'address' => $application->location,
-                'status' => 'active',
-                'is_active' => true,
-                'accepts_online_orders' => false,
-                'delivery_enabled' => false,
-                'owner_admin_id' => $admin?->id,
-                'metadata' => [
-                    'application_id' => $application->id,
-                    'application_reference' => $application->reference_number,
-                    'proposed_location' => $application->location,
-                ],
-            ]);
+            $application->franchise_account_id = $account->id;
+            $location = app(\App\Services\FranchiseProvisioningService::class)->provisionOnApproval($application);
+            if (! $location) {
+                abort(response()->json([
+                    'message' => 'The franchise account was not activated because the proposed branch address could not be located. Correct the address and retry.',
+                    'code' => 'BRANCH_LOCATION_REQUIRED',
+                ], 422));
+            }
             $applicant = $application->franchiseApplicant;
             $franchiseUserPayload = [
                 'franchise_account_id' => $account->id,

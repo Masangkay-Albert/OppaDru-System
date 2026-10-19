@@ -5,10 +5,10 @@ namespace Tests\Feature;
 use App\Models\Admin;
 use App\Models\Franchise;
 use App\Models\FranchiseAccount;
+use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
 use App\Models\Order;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -179,7 +179,7 @@ class FranchiseManagementModuleTest extends TestCase
     {
         $adminToken = $this->createAdminToken();
         $applicantToken = 'franchise-management-applicant-token';
-        User::create([
+        FranchiseApplicant::create([
             'full_name' => 'Maple Manager',
             'email' => 'maple.manager@test',
             'phone' => '09170000033',

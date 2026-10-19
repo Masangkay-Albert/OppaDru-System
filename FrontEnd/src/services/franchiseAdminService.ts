@@ -15,6 +15,8 @@ export interface FranchiseSummary {
   accepts_online_orders?: boolean;
   delivery_enabled?: boolean;
   delivery_radius_km?: number | null;
+  location_status?: 'geocoded' | 'manual' | 'needs_location' | null;
+  location_error?: string | null;
   created_at?: string;
   owner_admin_id?: string | number | null;
   metadata?: Record<string, unknown> | null;
@@ -53,6 +55,8 @@ export interface FranchiseApplication {
   documents?: Array<{ name: string; size: number; mime_type: string; uploaded_at?: string; required_document_label?: string; document_type?: string }>;
   notes?: string;
   status?: string;
+  franchise_id?: string | null;
+  franchise_account_id?: string | null;
   allowed_transitions?: string[];
   admin_notes?: string;
   next_step_instructions?: string;
@@ -89,8 +93,6 @@ export interface FranchiseApplication {
   operational_preparation_status?: string;
   reviewed_at?: string;
   created_at?: string;
-  franchise_account_id?: string | null;
-  franchise_id?: string | null;
   activated_at?: string | null;
   events?: Array<{
     id: number;
@@ -265,7 +267,11 @@ const franchiseAdminRequest = async <T,>(url: string, init?: RequestInit): Promi
   const response = await fetchWithAdminAuth(url, init);
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(body?.message || 'Unable to complete the franchise request');
+    const validationMessages = body?.errors && typeof body.errors === 'object'
+      ? Object.values(body.errors).flatMap((messages) => Array.isArray(messages) ? messages : [])
+        .filter((message): message is string => typeof message === 'string')
+      : [];
+    throw new Error(body?.message || validationMessages[0] || 'Unable to complete the franchise request');
   }
   return body?.data as T;
 };
@@ -294,7 +300,7 @@ export const createFranchise = (data: Pick<FranchiseSummary, 'name'> & Partial<P
     body: JSON.stringify(data),
   });
 
-export const updateFranchise = (id: string | number, data: Partial<Pick<FranchiseSummary, 'name' | 'email' | 'phone' | 'address' | 'status' | 'latitude' | 'longitude' | 'is_active' | 'accepts_online_orders' | 'delivery_enabled' | 'delivery_radius_km'>>) =>
+export const updateFranchise = (id: string | number, data: Partial<Pick<FranchiseSummary, 'name' | 'email' | 'phone' | 'address' | 'status' | 'latitude' | 'longitude' | 'is_active' | 'accepts_online_orders' | 'delivery_enabled' | 'delivery_radius_km' | 'location_status'>>) =>
   franchiseAdminRequest<FranchiseSummary>(`${API_URL}/admin/franchises/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -391,6 +397,7 @@ export const getFranchiseApplication = async (id: string | number): Promise<Fran
 
 export const reviewFranchiseApplication = async (id: string | number, data: {
   status: string;
+  location?: string;
   request_document_packet?: boolean;
   admin_notes?: string;
   next_step_instructions?: string;

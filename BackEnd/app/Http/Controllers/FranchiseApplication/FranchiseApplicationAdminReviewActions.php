@@ -71,6 +71,7 @@ trait FranchiseApplicationAdminReviewActions
 
         $validator = Validator::make($request->all(), [
             'status' => 'required|string|in:'.implode(',', array_diff(FranchiseApplication::STATUSES, ['active', 'withdrawn'])),
+            'location' => 'sometimes|required|string|max:2000',
             'request_document_packet' => 'sometimes|boolean',
             'admin_notes' => 'nullable|string|max:5000',
             'next_step_instructions' => 'nullable|string|max:2000',
@@ -91,8 +92,13 @@ trait FranchiseApplicationAdminReviewActions
         $application = DB::transaction(function () use ($id, $request, $targetStatus, $admin) {
             $application = FranchiseApplication::whereKey($id)->lockForUpdate()->firstOrFail();
             $currentStatus = $application->status === 'pending' ? 'submitted' : $application->status;
+            $locationRetryEdit = $currentStatus === 'approved'
+                && ! $application->franchise_id
+                && $targetStatus === 'approved'
+                && $request->has('location');
             $requestDocumentPacket = $request->boolean('request_document_packet');
             if (! $application->canTransitionTo($targetStatus)
+                && ! $locationRetryEdit
                 && ! ($requestDocumentPacket
                     && $currentStatus === 'location_assessment'
                     && $targetStatus === 'location_assessment')) {
@@ -172,6 +178,7 @@ trait FranchiseApplicationAdminReviewActions
             }
 
             $previousStatus = $currentStatus;
+            $previousLocation = $application->location;
             $previousInstructions = $application->next_step_instructions;
             $previousInterviewNotes = $application->interview_notes;
             $previousInterviewMeetingUrl = $application->interview_meeting_url;
@@ -225,6 +232,9 @@ trait FranchiseApplicationAdminReviewActions
             if ($request->has('location_assessment')) {
                 $application->location_assessment = $request->input('location_assessment');
             }
+            if ($request->has('location')) {
+                $application->location = trim((string) $request->input('location'));
+            }
             if ($request->filled('admin_notes')) {
                 $application->admin_notes = trim(implode("\n\n", array_filter([
                     $application->admin_notes,
@@ -242,6 +252,16 @@ trait FranchiseApplicationAdminReviewActions
                     $targetStatus,
                     $previousStatus !== $targetStatus ? 'Status updated' : 'Instructions updated',
                     $application->next_step_instructions ?: 'Your application status was updated.',
+                );
+            }
+            if ($previousLocation !== $application->location) {
+                $this->recordEvent(
+                    $application,
+                    'admin',
+                    $admin?->id,
+                    $targetStatus,
+                    'Proposed branch location updated',
+                    'The proposed branch address was updated by an administrator.',
                 );
             }
 

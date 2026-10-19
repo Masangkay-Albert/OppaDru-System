@@ -59,6 +59,12 @@ class BranchRoutingController extends Controller
                     'message' => "We couldn't locate this address. Please edit it or pick a pin on the map.",
                 ], 422);
             }
+            if ($geocoded['isBroad'] ?? false) {
+                return response()->json([
+                    'code' => 'ADDRESS_TOO_BROAD',
+                    'message' => 'This address only identifies a province or region. Add a city or barangay, or pin your exact location on the map.',
+                ], 422);
+            }
             $coordinates = ['lat' => $geocoded['lat'], 'lng' => $geocoded['lng']];
         }
 
@@ -109,7 +115,9 @@ class BranchRoutingController extends Controller
             ], true) ? 404 : 422;
             $response = [
                 'code' => $code,
-                'message' => $code === 'NO_BRANCH_IN_RANGE' ? 'No branch delivers to this address.' : $message,
+                'message' => $code === 'NO_BRANCH_IN_RANGE'
+                    ? 'No active branch is within its delivery radius of this location. Confirm the pin, or ask the administrator to check the branch location and delivery coverage.'
+                    : $message,
             ];
             if (config('app.debug') && isset($coordinates['lat'], $coordinates['lng'])) {
                 $response['branch_diagnostics'] = $this->routing->diagnostics($coordinates);

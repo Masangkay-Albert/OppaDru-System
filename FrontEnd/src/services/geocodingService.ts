@@ -12,6 +12,7 @@ export interface Coordinates {
 
 export interface GeocodedCoordinates extends Coordinates {
   matchedQuery: string;
+  isBroad: boolean;
 }
 
 interface NominatimSearchResult {
@@ -19,6 +20,8 @@ interface NominatimSearchResult {
   lat: string;
   lon: string;
   class?: string;
+  type?: string;
+  address?: Record<string, string>;
 }
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -54,6 +57,7 @@ export const searchAddresses = async (query: string): Promise<Array<{
   lat: number;
   lng: number;
   type?: string;
+  isBroad: boolean;
 }>> => {
   if (!query.trim()) return [];
 
@@ -76,12 +80,35 @@ export const searchAddresses = async (query: string): Promise<Array<{
       address: item.display_name,
       lat: parseFloat(item.lat),
       lng: parseFloat(item.lon),
-      type: item.class || 'location'
+      type: item.type || item.class || 'location',
+      isBroad: isBroadNominatimResult(item),
     }));
   } catch (error) {
     console.error('Search addresses error:', error);
     return [];
   }
+};
+
+const isBroadNominatimResult = (result: NominatimSearchResult): boolean => {
+  const address = result.address || {};
+  const localDetails = [
+    'house_number',
+    'road',
+    'neighbourhood',
+    'suburb',
+    'quarter',
+    'city_district',
+    'city',
+    'town',
+    'village',
+    'municipality',
+    'hamlet',
+    'borough',
+  ];
+
+  if (localDetails.some((detail) => address[detail]?.trim())) return false;
+  return ['administrative', 'county', 'state', 'province', 'region'].includes(result.type || '')
+    || ['county', 'state', 'state_district', 'region'].some((detail) => address[detail]?.trim());
 };
 
 export const geocodeAddress = async (address: string): Promise<GeocodedCoordinates | null> => {
@@ -115,11 +142,16 @@ export const geocodeAddress = async (address: string): Promise<GeocodedCoordinat
           return null;
         }
 
-        const data: Array<{ lat?: string; lon?: string }> = await response.json();
+        const data: NominatimSearchResult[] = await response.json();
         const latitude = Number(data[0]?.lat);
         const longitude = Number(data[0]?.lon);
         if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-          return { lat: latitude, lng: longitude, matchedQuery: searchQuery };
+          return {
+            lat: latitude,
+            lng: longitude,
+            matchedQuery: searchQuery,
+            isBroad: isBroadNominatimResult(data[0]),
+          };
         }
       }
       return null;

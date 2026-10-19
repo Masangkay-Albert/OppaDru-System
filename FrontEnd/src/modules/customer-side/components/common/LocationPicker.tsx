@@ -70,12 +70,12 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
 
   const handleSearchSelect = (location: LocationResult) => {
     setPosition({ lat: location.lat, lng: location.lng });
-    setHasConfirmedPosition(true);
+    setHasConfirmedPosition(!location.isBroad);
     setSelectedAddress(location.address);
     setSelectedName(location.name);
     setIsSearchFocused(false);
     if (mapRef.current) {
-      mapRef.current.flyTo([location.lat, location.lng], 16);
+      mapRef.current.flyTo([location.lat, location.lng], location.isBroad ? 8 : 16);
     }
   };
 
@@ -133,6 +133,11 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             <p className="text-sm text-gray-500">Selected location:</p>
             <p className="font-medium text-gray-800">{selectedName}</p>
             <p className="text-xs text-gray-500 truncate">{selectedAddress}</p>
+            {!hasConfirmedPosition && (
+              <p className="mt-2 text-xs font-medium text-amber-700">
+                This result is only a province or region. Click the map or move the pin to set your exact delivery location.
+              </p>
+            )}
           </div>
         )}
 
@@ -161,6 +166,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
                     const marker = e.target;
                     const pos = marker.getLatLng();
                     setPosition({ lat: pos.lat, lng: pos.lng });
+                    setHasConfirmedPosition(true);
                     reverseGeocode(pos.lat, pos.lng).then((addr) => {
                       if (addr) {
                         setSelectedAddress(addr);

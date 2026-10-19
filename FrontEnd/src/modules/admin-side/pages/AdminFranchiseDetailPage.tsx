@@ -83,14 +83,18 @@ const AdminFranchiseDetailPage: React.FC = () => {
     try {
       let latitude = branchCoordinates.latitude ? Number(branchCoordinates.latitude) : null;
       let longitude = branchCoordinates.longitude ? Number(branchCoordinates.longitude) : null;
+      let locationStatus = branch.location_status;
       const addressChanged = branchAddress.trim() !== (branch.address || '').trim();
       if (!branchCoordinatesEdited && (addressChanged || latitude === null || longitude === null) && branchAddress.trim()) {
         const result = await geocodeAddress(branchAddress.trim());
-        if (!result) {
-          throw new Error('We could not locate this branch address. Pin the exact location or enter latitude and longitude manually before saving.');
+        if (!result || result.isBroad) {
+          throw new Error('This address only identifies a broad area. Pin the exact branch location or enter its coordinates manually before saving.');
         }
         latitude = result.lat;
         longitude = result.lng;
+        locationStatus = 'geocoded';
+      } else if (branchCoordinatesEdited) {
+        locationStatus = 'manual';
       }
       if ((latitude === null || longitude === null)
         && form.get('is_active') === 'on'
@@ -107,6 +111,9 @@ const AdminFranchiseDetailPage: React.FC = () => {
         longitude,
         delivery_radius_km: form.get('delivery_radius_km') ? Number(form.get('delivery_radius_km')) : null,
         is_active: form.get('is_active') === 'on',
+        accepts_online_orders: form.get('accepts_online_orders') === 'on',
+        delivery_enabled: form.get('delivery_enabled') === 'on',
+        location_status: locationStatus,
       });
       setBranch(updated);
       setBranchCoordinates({
@@ -134,10 +141,14 @@ const AdminFranchiseDetailPage: React.FC = () => {
     setNotice('');
     try {
       const coordinates = await geocodeAddress(branchAddress.trim());
-      if (!coordinates) {
-        throw new Error('We could not locate this branch address. Pin the exact location or enter coordinates manually.');
+      if (!coordinates || coordinates.isBroad) {
+        throw new Error('This address only identifies a broad area. Pin the exact branch location or enter coordinates manually.');
       }
-      const updated = await updateFranchise(id, { latitude: coordinates.lat, longitude: coordinates.lng });
+      const updated = await updateFranchise(id, {
+        latitude: coordinates.lat,
+        longitude: coordinates.lng,
+        location_status: 'geocoded',
+      });
       setBranch(updated);
       setBranchCoordinates({ latitude: String(coordinates.lat), longitude: String(coordinates.lng) });
       setBranchCoordinatesEdited(false);
@@ -267,16 +278,17 @@ const AdminFranchiseDetailPage: React.FC = () => {
               <label className="text-sm font-medium text-gray-700">Status<select name="status" defaultValue={branch.status || 'active'} className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 font-normal"><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select></label>
               <label className="text-sm font-medium text-gray-700 sm:col-span-2">Address<textarea name="address" value={branchAddress} onChange={(event) => setBranchAddress(event.target.value)} rows={3} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
               <div className="sm:col-span-2 rounded-xl border border-[var(--oppa-border)] p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Branch delivery location</h3><p className="text-xs text-gray-500">Online delivery turns on automatically when this branch is active and has valid coordinates.</p></div><div className="flex flex-wrap gap-2">{(!branch.latitude || !branch.longitude) && <button type="button" onClick={() => void geocodeAndSaveBranchCoordinates()} disabled={saving} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-50">Find and save coordinates</button>}<button type="button" onClick={() => setShowBranchLocationPicker(true)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)]"><MapPin size={15} />Pin on map</button></div></div>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Branch delivery location</h3><p className="text-xs text-gray-500">Location status: {branch.location_status === 'needs_location' ? 'Needs location' : branch.location_status === 'manual' ? 'Manually set' : branch.location_status === 'geocoded' ? 'Geocoded estimate' : 'Not recorded'}</p>{branch.location_status === 'geocoded' && <p className="text-xs text-gray-500">Location is estimated from the address. Adjust the pin if needed.</p>}</div><div className="flex flex-wrap gap-2">{(!branch.latitude || !branch.longitude) && <button type="button" onClick={() => void geocodeAndSaveBranchCoordinates()} disabled={saving} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-50">Re-detect from address</button>}<button type="button" onClick={() => setShowBranchLocationPicker(true)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)]"><MapPin size={15} />Pin on map</button></div></div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="text-sm font-medium text-gray-700">Latitude<input name="latitude" type="number" min="4" max="22" step="any" required={branch.is_active !== false && branch.status === 'active'} value={branchCoordinates.latitude} onChange={(event) => { setBranchCoordinatesEdited(true); setBranchCoordinates((current) => ({ ...current, latitude: event.target.value })); }} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
                   <label className="text-sm font-medium text-gray-700">Longitude<input name="longitude" type="number" min="116" max="127" step="any" required={branch.is_active !== false && branch.status === 'active'} value={branchCoordinates.longitude} onChange={(event) => { setBranchCoordinatesEdited(true); setBranchCoordinates((current) => ({ ...current, longitude: event.target.value })); }} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
                 </div>
               </div>
-              <Field label="Delivery radius (km)" name="delivery_radius_km" type="number" defaultValue={branch.delivery_radius_km == null ? '' : String(branch.delivery_radius_km)} />
+              <Field label="Delivery radius (km)" name="delivery_radius_km" type="number" defaultValue={branch.delivery_radius_km == null ? '15' : String(branch.delivery_radius_km)} />
               <div className="flex flex-wrap items-center gap-4 sm:col-span-2">
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="is_active" defaultChecked={branch.is_active !== false} />Active</label>
-                <p className="text-sm text-gray-600">Online orders and delivery are enabled automatically when the branch is active and its map coordinates are valid.</p>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="accepts_online_orders" defaultChecked={branch.accepts_online_orders !== false} />Accept online orders</label>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="delivery_enabled" defaultChecked={branch.delivery_enabled !== false} />Enable delivery</label>
               </div>
               <div className="sm:col-span-2"><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"><Save size={16} />{saving ? 'Saving…' : 'Save branch info'}</button></div>
             </form>

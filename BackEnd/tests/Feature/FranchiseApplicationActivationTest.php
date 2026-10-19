@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Models\Admin;
 use App\Models\Franchise;
 use App\Models\FranchiseAccount;
+use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
-use App\Models\User;
+use App\Services\FranchiseProvisioningService;
+use App\Services\GeocodingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -16,6 +18,95 @@ use Tests\TestCase;
 class FranchiseApplicationActivationTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_activation_geocodes_the_branch_and_enables_delivery(): void
+    {
+        $this->mock(GeocodingService::class, fn ($mock) => $mock
+            ->shouldReceive('geocodeAddress')
+            ->once()
+            ->andReturn(['lat' => 10.3157, 'lng' => 123.8854, 'matchedQuery' => 'Cebu City']));
+        $applicant = FranchiseApplicant::create([
+            'full_name' => 'Verified Franchise Applicant',
+            'email' => 'verified-applicant@example.test',
+            'phone' => '09170000000',
+            'password' => 'ApplicantPass123!',
+            'email_verified_at' => now(),
+        ]);
+        $application = FranchiseApplication::create([
+            'franchise_applicant_id' => $applicant->id,
+            'franchise_name' => 'Cebu Kitchen',
+            'contact_name' => $applicant->full_name,
+            'email' => $applicant->email,
+            'location' => 'Cebu City',
+            'status' => 'approved_for_opening',
+            'agreement_status' => 'signed',
+            'agreement_signed_at' => now(),
+            'franchise_fee_payment_status' => 'not_applicable',
+            'required_documents' => [],
+            'requirements_reviewed_at' => now(),
+            'location_readiness' => 'ready',
+            'permit_compliance_status' => 'verified',
+            'training_status' => 'complete',
+            'operational_preparation_status' => 'complete',
+        ]);
+        $adminToken = $this->createAdminToken();
+
+        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/activate', [
+            'can_process_pos' => true,
+        ], ['Authorization' => 'Bearer '.$adminToken])
+            ->assertCreated()
+            ->assertJsonPath('data.franchise.latitude', 10.3157)
+            ->assertJsonPath('data.franchise.longitude', 123.8854);
+
+        $this->assertDatabaseHas('franchises', [
+            'id' => $application->fresh()->franchise_id,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 15,
+        ]);
+    }
+
+    public function test_provisioning_does_not_save_a_province_centroid_as_branch_coordinates(): void
+    {
+        $this->mock(GeocodingService::class, fn ($mock) => $mock
+            ->shouldReceive('geocodeAddress')
+            ->once()
+            ->andReturn([
+                'lat' => 14.1667,
+                'lng' => 121.3333,
+                'matchedQuery' => 'Laguna, Philippines',
+                'isBroad' => true,
+            ]));
+        $applicant = FranchiseApplicant::create([
+            'full_name' => 'Laguna Applicant',
+            'email' => 'laguna-applicant@example.test',
+            'phone' => '09170000001',
+            'password' => 'ApplicantPass123!',
+            'email_verified_at' => now(),
+        ]);
+        $application = FranchiseApplication::create([
+            'franchise_applicant_id' => $applicant->id,
+            'franchise_name' => 'Laguna Kitchen',
+            'contact_name' => $applicant->full_name,
+            'email' => $applicant->email,
+            'location' => 'Laguna',
+            'status' => 'approved_for_opening',
+            'agreement_status' => 'signed',
+            'agreement_signed_at' => now(),
+            'franchise_fee_payment_status' => 'not_applicable',
+            'required_documents' => [],
+            'requirements_reviewed_at' => now(),
+            'location_readiness' => 'ready',
+            'permit_compliance_status' => 'verified',
+            'training_status' => 'complete',
+            'operational_preparation_status' => 'complete',
+        ]);
+
+        $provisioned = app(FranchiseProvisioningService::class)->provisionOnApproval($application);
+
+        $this->assertNull($provisioned);
+        $this->assertSame(0, Franchise::count());
+    }
 
     public function test_activation_requires_approval_agreement_payment_and_all_applicable_requirements(): void
     {
@@ -56,8 +147,14 @@ class FranchiseApplicationActivationTest extends TestCase
 
     public function test_authorized_activation_creates_one_active_location_and_manager_only_after_all_gates_pass(): void
     {
+        $this->mock(GeocodingService::class, fn ($mock) => $mock
+            ->shouldReceive('geocodeAddress')
+            ->once()
+            ->andReturn(['lat' => 10.3157, 'lng' => 123.8854, 'matchedQuery' => 'Cebu City']));
         $adminToken = $this->createAdminToken();
         $application = $this->createFranchiseApplication();
+        $application->franchise_applicant_id = null;
+        $application->save();
         $headers = ['Authorization' => 'Bearer '.$adminToken];
         $this->advanceToConditionalApproval($application, $headers);
 
@@ -89,6 +186,8 @@ class FranchiseApplicationActivationTest extends TestCase
             'franchise_account_id' => $activated->json('data.franchise_account_id'),
             'address' => 'Cebu City',
             'status' => 'active',
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
         ]);
         $this->assertDatabaseHas('franchise_users', [
             'email' => 'branch.manager@example.test',
@@ -179,7 +278,7 @@ class FranchiseApplicationActivationTest extends TestCase
     private function createFranchiseApplication(): FranchiseApplication
     {
         $token = Str::random(40);
-        $user = User::create([
+        FranchiseApplicant::create([
             'full_name' => 'Franchise Applicant',
             'email' => 'applicant@example.test',
             'phone' => '09170000000',
