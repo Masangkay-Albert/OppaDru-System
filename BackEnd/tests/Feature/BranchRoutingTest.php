@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Franchise;
 use App\Models\FranchiseInventory;
 use App\Models\Product;
+use App\Services\GeocodingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -14,7 +15,7 @@ class BranchRoutingTest extends TestCase
 
     public function test_delivery_resolver_chooses_the_nearest_cavite_or_laguna_branch(): void
     {
-        $cavite = $this->branch('Cavite branch', 14.3167, 120.9333);
+        $cavite = $this->branch('Cavite branch', 14.3500, 120.9500);
         $laguna = $this->branch('Laguna branch', 14.272967, 121.093142);
         $product = $this->product();
         $this->addInventory($cavite, $product);
@@ -32,6 +33,7 @@ class BranchRoutingTest extends TestCase
 
         foreach ($addresses as [$coordinates, $expectedBranch]) {
             $this->postJson('/api/branches/resolve', [
+                'address' => 'Test address, Cavite',
                 'coordinates' => $coordinates,
                 'items' => [['product_id' => $product->id, 'quantity' => 1]],
                 'fulfillment_type' => 'delivery',
@@ -39,22 +41,45 @@ class BranchRoutingTest extends TestCase
             ])
                 ->assertOk()
                 ->assertJsonPath('data.branch.id', $expectedBranch->id)
+                ->assertJsonPath('data.franchise_account_id', $expectedBranch->franchise_account_id)
+                ->assertJsonPath('data.name', $expectedBranch->name)
                 ->assertJsonPath('data.unavailable_items', []);
         }
     }
 
-    public function test_missing_and_invalid_delivery_coordinates_return_422(): void
+    public function test_address_is_geocoded_when_checkout_does_not_send_a_pin(): void
     {
-        $this->branch('Cavite branch', 14.3167, 120.9333);
+        $branch = $this->branch('Cavite branch', 14.3500, 120.9500);
+        $product = $this->product();
+        $this->mock(GeocodingService::class)
+            ->shouldReceive('geocodeAddress')
+            ->once()
+            ->with('Dasmarinas, Cavite')
+            ->andReturn(['lat' => 14.3194939, 'lng' => 120.9943268, 'matchedQuery' => 'Dasmarinas, Cavite']);
+
+        $this->postJson('/api/branches/resolve', [
+            'address' => 'Dasmarinas, Cavite',
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertOk()
+            ->assertJsonPath('data.branch.id', $branch->id)
+            ->assertJsonPath('data.customer_coordinates.lat', 14.3194939);
+    }
+
+    public function test_missing_address_and_invalid_delivery_coordinates_return_422(): void
+    {
+        $this->branch('Cavite branch', 14.3500, 120.9500);
         $product = $this->product();
         $payload = [
+            'address' => 'Dasmarinas, Cavite',
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
         ];
 
-        $this->postJson('/api/branches/resolve', $payload)
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['coordinates.lat', 'coordinates.lng']);
+        $this->postJson('/api/branches/resolve', [
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['address']);
 
         $this->postJson('/api/branches/resolve', $payload + [
             'coordinates' => ['lat' => 91, 'lng' => 120.9],
@@ -65,21 +90,42 @@ class BranchRoutingTest extends TestCase
         ])->assertUnprocessable()->assertJsonPath('message', 'Please pin a valid delivery location in the Philippines.');
     }
 
+    public function test_geocoding_failure_returns_address_not_found_without_a_server_error(): void
+    {
+        $product = $this->product();
+        $this->mock(GeocodingService::class)
+            ->shouldReceive('geocodeAddress')
+            ->once()
+            ->andReturn(null);
+
+        $this->postJson('/api/branches/resolve', [
+            'address' => 'Unknown place, Cavite',
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertStatus(422)
+            ->assertJsonPath('code', 'ADDRESS_NOT_FOUND')
+            ->assertJsonPath('message', "We couldn't locate this address. Please edit it or pick a pin on the map.");
+    }
+
     public function test_null_branch_coordinates_are_reported_in_debug_diagnostics(): void
     {
         config(['app.debug' => true]);
-        $cavite = $this->branch('Cavite branch', 14.3167, 120.9333);
+        $cavite = $this->branch('Cavite branch', 14.3500, 120.9500);
         $this->strayUnlocatedBranch('main-branch');
         $product = $this->product();
 
         $response = $this->postJson('/api/branches/resolve', [
+            'address' => 'Dasmarinas, Cavite',
             'coordinates' => ['lat' => 14.3194939, 'lng' => 120.9943268],
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
         ])->assertOk()->assertJsonPath('data.branch.id', $cavite->id);
 
         $diagnostics = collect($response->json('data.branch_diagnostics'));
-        $this->assertSame('missing or invalid coordinates', $diagnostics->firstWhere('name', 'main-branch')['exclusion_reason']);
+        $this->assertSame(
+            'online orders disabled, delivery disabled, missing or invalid coordinates',
+            $diagnostics->firstWhere('name', 'main-branch')['exclusion_reason'],
+        );
         $this->assertNotNull($diagnostics->firstWhere('name', 'Cavite branch')['distance_km']);
     }
 
@@ -89,62 +135,74 @@ class BranchRoutingTest extends TestCase
         $product = $this->product();
 
         $this->postJson('/api/branches/resolve', [
+            'address' => 'Dasmarinas, Cavite',
             'coordinates' => ['lat' => 14.3194939, 'lng' => 120.9943268],
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
-        ])->assertStatus(503)
-            ->assertJsonPath('message', 'Delivery availability is being configured. Please try again shortly.');
+        ])->assertNotFound()
+            ->assertJsonPath('code', 'BRANCHES_NOT_CONFIGURED');
     }
 
-    public function test_branch_with_online_orders_disabled_is_not_selected(): void
+    public function test_delivery_is_enabled_automatically_for_active_branches_with_coordinates(): void
     {
-        $branch = $this->branch('Cavite branch', 14.3167, 120.9333);
+        $branch = $this->branch('Cavite branch', 14.3500, 120.9500);
         $branch->accepts_online_orders = false;
+        $branch->delivery_enabled = false;
         $branch->save();
-        $product = $this->product();
 
-        $this->postJson('/api/branches/resolve', [
-            'coordinates' => ['lat' => 14.3194939, 'lng' => 120.9943268],
-            'items' => [['product_id' => $product->id, 'quantity' => 1]],
-            'fulfillment_type' => 'delivery',
-        ])->assertStatus(503)
-            ->assertJsonPath('message', 'No branch is currently accepting online deliveries.');
+        $this->assertTrue($branch->fresh()->accepts_online_orders);
+        $this->assertTrue($branch->fresh()->delivery_enabled);
+    }
+
+    public function test_inactive_branch_is_not_automatically_enabled_for_delivery(): void
+    {
+        $branch = $this->branch('Inactive Cavite branch', 14.3500, 120.9500);
+        $branch->is_active = false;
+        $branch->save();
+
+        $this->assertFalse($branch->fresh()->accepts_online_orders);
+        $this->assertFalse($branch->fresh()->delivery_enabled);
     }
 
     public function test_customer_outside_delivery_radius_gets_specific_message(): void
     {
-        $branch = $this->branch('Cavite branch', 14.3167, 120.9333);
+        $branch = $this->branch('Cavite branch', 14.3500, 120.9500);
         $branch->delivery_radius_km = 1;
         $branch->save();
         $product = $this->product();
 
         $this->postJson('/api/branches/resolve', [
+            'address' => 'Dasmarinas, Cavite',
             'coordinates' => ['lat' => 14.3194939, 'lng' => 120.9943268],
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
-        ])->assertUnprocessable()
+        ])->assertNotFound()
+            ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
             ->assertJsonPath('message', 'No branch delivers to this address.');
     }
 
     public function test_null_branch_radius_uses_the_fifteen_kilometer_default(): void
     {
-        $this->branch('Cavite branch', 14.3167, 120.9333);
+        $this->branch('Cavite branch', 14.3500, 120.9500);
         $product = $this->product();
 
         $this->postJson('/api/branches/resolve', [
+            'address' => 'Dasmarinas, Cavite',
             'coordinates' => ['lat' => 14.5, 'lng' => 120.9333],
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
-        ])->assertUnprocessable()
+        ])->assertNotFound()
+            ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
             ->assertJsonPath('message', 'No branch delivers to this address.');
     }
 
     public function test_branch_without_inventory_rows_returns_items_as_unavailable_without_throwing(): void
     {
-        $branch = $this->branch('Cavite branch', 14.3167, 120.9333);
+        $branch = $this->branch('Cavite branch', 14.3500, 120.9500);
         $product = $this->product();
 
         $this->postJson('/api/branches/resolve', [
+            'address' => 'Dasmarinas, Cavite',
             'coordinates' => ['lat' => 14.3194939, 'lng' => 120.9943268],
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',

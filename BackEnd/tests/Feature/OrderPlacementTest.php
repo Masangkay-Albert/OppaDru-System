@@ -7,6 +7,7 @@ use App\Models\DiscountVerificationRequest;
 use App\Models\Addon;
 use App\Models\AddonGroup;
 use App\Models\Franchise;
+use App\Models\FranchiseAccount;
 use App\Models\FranchiseInventory;
 use App\Models\Order;
 use App\Models\Payment;
@@ -425,9 +426,14 @@ class OrderPlacementTest extends TestCase
             'role' => 'customer',
             'email_verified_at' => now(),
         ]);
+        $caviteAccount = FranchiseAccount::create([
+            'name' => 'Cavite Franchise Account',
+            'status' => 'active',
+        ]);
         $cavite = Franchise::create([
             'name' => 'Cavite branch', 'address' => 'Langkaan II, Dasmariñas', 'status' => 'active',
             'latitude' => '14.3167000', 'longitude' => '120.9333000', 'is_active' => true,
+            'franchise_account_id' => $caviteAccount->id,
             'accepts_online_orders' => true, 'delivery_enabled' => true, 'delivery_radius_km' => null,
         ]);
         $laguna = Franchise::create([
@@ -472,13 +478,25 @@ class OrderPlacementTest extends TestCase
                 'phone' => $user->phone,
             ])->assertCreated()
                 ->assertJsonPath('order.branch_id', $expectedBranch->id)
+                ->assertJsonPath('order.franchise_account_id', $expectedBranch->franchise_account_id)
+                ->assertJsonPath('order.delivery_lat', null)
+                ->assertJsonPath('order.delivery_lng', null)
+                ->assertJsonPath('order.delivery_coordinates', null)
                 ->assertJsonPath('order.branch.id', $expectedBranch->id)
                 ->assertJsonPath('order.branch.name', $expectedBranch->name);
 
             $orderId = $response->json('order.id');
-            $this->assertDatabaseHas('orders', ['id' => $orderId, 'branch_id' => $expectedBranch->id]);
+            $this->assertDatabaseHas('orders', [
+                'id' => $orderId,
+                'branch_id' => $expectedBranch->id,
+                'franchise_account_id' => $expectedBranch->franchise_account_id,
+                'delivery_lat' => null,
+                'delivery_lng' => null,
+                'delivery_coordinates' => null,
+            ]);
             $this->getJson('/api/orders/'.$orderId)
                 ->assertOk()
+                ->assertJsonPath('franchise_account_id', $expectedBranch->franchise_account_id)
                 ->assertJsonPath('branch.id', $expectedBranch->id)
                 ->assertJsonPath('branch.latitude', $expectedBranch->latitude)
                 ->assertJsonPath('branch.longitude', $expectedBranch->longitude);

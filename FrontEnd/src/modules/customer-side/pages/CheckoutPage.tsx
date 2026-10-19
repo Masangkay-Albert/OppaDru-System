@@ -12,13 +12,12 @@ import GCashPaymentModal from '../components/checkout/GCashPaymentModal';
 import CreditCardPaymentModal from '../components/checkout/CreditCardPaymentModal';
 import ScheduleModal from '../components/checkout/ScheduleModal';
 import { useCheckoutForm } from '../../../hooks/useCheckoutForm';
-import { geocodeAddress, type Coordinates } from '../../../services/geocodingService';
-import { cleanAddress } from '../../../utils/locationUtils';
+import type { Coordinates } from '../../../services/geocodingService';
 import { useCartCalculations } from '../../../hooks/useCartCalculations';
 import { useSettings } from '../../../contexts/SettingsContext';
 import { getAvailableDates, generateTimeSlots } from '../../../services/checkoutService';
 import type { PaymentResult } from '../components/checkout/paymentTypes';
-import { resolveBranch, type BranchResolution } from '../../../services/branchRoutingService';
+import { BranchResolutionError, resolveBranch, type BranchResolution } from '../../../services/branchRoutingService';
 import '../../../styles/checkout-page.css';
 
 const CheckoutPage: React.FC = () => {
@@ -49,21 +48,6 @@ const CheckoutPage: React.FC = () => {
   const orderRequestRef = useRef<Promise<void> | null>(null);
   const selectedAddressCoordinatesRef = useRef<Coordinates | null>(null);
 
-  const hasValidCoordinates = (coordinates: Coordinates | null): coordinates is Coordinates => (
-    Boolean(coordinates)
-    && Number.isFinite(coordinates.lat)
-    && Number.isFinite(coordinates.lng)
-    && !(coordinates.lat === 0 && coordinates.lng === 0)
-  );
-
-  const isSpecificAddress = (value: string): boolean => {
-    const meaningfulParts = value
-      .split(',')
-      .map((part) => part.trim().toLowerCase())
-      .filter((part) => part && !['philippines', 'calabarzon', 'region iv-a'].includes(part));
-    return meaningfulParts.length >= 2;
-  };
-
   useEffect(() => {
     if (!activeDiscount.type) {
       setDiscountType(null);
@@ -86,8 +70,17 @@ const CheckoutPage: React.FC = () => {
     voucherDiscount,
   } = useCheckoutForm();
 
+  const buildFullDeliveryAddress = () => {
+    const parts: string[] = [];
+    if (address.block.trim()) parts.push(`Block ${address.block.trim()}`);
+    if (address.lot.trim()) parts.push(`Lot ${address.lot.trim()}`);
+    if (address.street.trim()) parts.push(address.street.trim());
+    return parts.join(', ');
+  };
+  const fullDeliveryAddress = buildFullDeliveryAddress();
+
   useEffect(() => {
-    if (!address.street.trim()) {
+    if (!fullDeliveryAddress.trim() || cartItems.length === 0) {
       selectedAddressCoordinatesRef.current = null;
       setDeliveryCoordinates(null);
       setBranchResolution(null);
@@ -95,77 +88,70 @@ const CheckoutPage: React.FC = () => {
       return;
     }
 
-    // Invalidate the previous address immediately. This prevents a branch,
-    // delivery fee, or ETA for the old address from being shown while the new
-    // address is still being geocoded.
+    let active = true;
+    const controller = new AbortController();
+    const pinnedCoordinates = selectedAddressCoordinatesRef.current;
+    selectedAddressCoordinatesRef.current = null;
     setDeliveryCoordinates(null);
     setBranchResolution(null);
     setBranchError('');
 
-    // Saved/pinned addresses already have authoritative coordinates. Do not
-    // replace them with a broad province-only text geocode.
-    if (selectedAddressCoordinatesRef.current) {
-      setDeliveryCoordinates(selectedAddressCoordinatesRef.current);
-      selectedAddressCoordinatesRef.current = null;
-      return;
-    }
-
-    if (!isSpecificAddress(address.street)) {
-      setBranchError("We couldn't locate this address. Please edit it or pick a pin on the map.");
-      return;
-    }
-
-    let active = true;
-    const timer = window.setTimeout(async () => {
-      const coords = await geocodeAddress(cleanAddress(address.street));
-      if (!active) return;
-      if (hasValidCoordinates(coords)) {
-        setDeliveryCoordinates(coords);
-      } else {
-        setDeliveryCoordinates(null);
-        setBranchError("We couldn't locate this address. Please edit it or pick a pin on the map.");
-      }
-    }, 500);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [address.street, addressSelectionVersion]);
-
-  useEffect(() => {
-    if (!deliveryCoordinates || cartItems.length === 0) {
-      setBranchResolution(null);
-      return;
-    }
-    let active = true;
-    const controller = new AbortController();
-    setBranchResolution(null);
     const timer = window.setTimeout(() => {
-      resolveBranch({
-        coordinates: deliveryCoordinates,
-        items: cartItems.map((item) => ({
-          product_id: item.id,
-          quantity: item.quantity,
-          selected_addons: (item.selectedAddons || []).map((addon) => ({ id: addon.id })),
-        })),
-        delivery_type: deliveryType,
-        voucher_discount: voucherDiscount,
-        discount_rate: activeDiscount.discountRate,
-        fulfillment_type: 'delivery',
-      }, controller.signal).then((result) => {
-        if (!active) return;
-        setBranchResolution(result);
-        setBranchError(result.unavailable_items.length ? `Unavailable at this branch: ${result.unavailable_items.join(', ')}` : '');
-      }).catch((error: unknown) => {
-        if (!active) return;
-        setBranchResolution(null);
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        setBranchError(error instanceof Error ? error.message : 'Sorry, we do not deliver to this address yet.');
-      });
-    }, 250);
+      void (async () => {
+        const request = {
+          address: fullDeliveryAddress,
+          ...(pinnedCoordinates ? { coordinates: pinnedCoordinates } : {}),
+          items: cartItems.map((item) => ({
+            product_id: item.id,
+            quantity: item.quantity,
+            selected_addons: (item.selectedAddons || []).map((addon) => ({ id: addon.id })),
+          })),
+          delivery_type: deliveryType,
+          voucher_discount: voucherDiscount,
+          discount_rate: activeDiscount.discountRate,
+          fulfillment_type: 'delivery' as const,
+        };
+
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const result = await resolveBranch(request, controller.signal);
+            if (!active) return;
+            setBranchResolution(result);
+            setDeliveryCoordinates(result.customer_coordinates);
+            setBranchError(result.unavailable_items.length
+              ? `Unavailable at this branch: ${result.unavailable_items.join(', ')}`
+              : '');
+            return;
+          } catch (error: unknown) {
+            if (!active || (error instanceof DOMException && error.name === 'AbortError')) return;
+            const retryable = !(error instanceof BranchResolutionError)
+              || (error.status !== undefined && error.status >= 500);
+            if (retryable && attempt < 2) {
+              setBranchError('Server is waking up, retrying...');
+              await new Promise<void>((resolve) => window.setTimeout(resolve, 600 * (attempt + 1)));
+              if (!active) return;
+              continue;
+            }
+            setBranchResolution(null);
+            setDeliveryCoordinates(null);
+            setBranchError(error instanceof Error
+              ? error.message
+              : 'Sorry, we do not deliver to this address yet.');
+            return;
+          }
+        }
+      })();
+    }, 350);
+
     return () => { active = false; controller.abort(); window.clearTimeout(timer); };
-  }, [deliveryCoordinates, cartItems, deliveryType, voucherDiscount, activeDiscount.discountRate]);
+  }, [
+    fullDeliveryAddress,
+    addressSelectionVersion,
+    cartItems,
+    deliveryType,
+    voucherDiscount,
+    activeDiscount.discountRate,
+  ]);
 
   // Delivery fee calculated server-side; frontend shows estimate only
   const { total } = useCartCalculations({
@@ -176,21 +162,6 @@ const CheckoutPage: React.FC = () => {
     deliveryCoordinates: deliveryCoordinates ?? undefined,
     originCoordinates: branchResolution ? { lat: branchResolution.branch.latitude, lng: branchResolution.branch.longitude } : undefined,
   });
-  const buildFullDeliveryAddress = () => {
-    const parts: string[] = [];
-
-    if (address.block.trim()) {
-      parts.push(`Block ${address.block.trim()}`);
-    }
-    if (address.lot.trim()) {
-      parts.push(`Lot ${address.lot.trim()}`);
-    }
-    if (address.street.trim()) {
-      parts.push(address.street.trim());
-    }
-    return parts.join(', ');
-  };
-
   const buildScheduledAt = (date: Date | null, time: string | null): string | null => {
     if (!date || !time) return null;
 

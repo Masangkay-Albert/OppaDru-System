@@ -11,14 +11,30 @@ export interface RoutedBranch {
 
 export interface BranchResolution {
   branch: RoutedBranch;
+  franchise_account_id?: string | null;
+  name?: string;
+  customer_coordinates: { lat: number; lng: number };
   distance_km: number;
   notice?: string | null;
   unavailable_items: string[];
   pricing: { deliveryFee: number; deliveryDistanceKm: number; total: number };
 }
 
+export class BranchResolutionError extends Error {
+  readonly code?: string;
+  readonly status?: number;
+
+  constructor(message: string, code?: string, status?: number) {
+    super(message);
+    this.name = 'BranchResolutionError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
 export const resolveBranch = async (data: {
-  coordinates: { lat: number; lng: number };
+  address: string;
+  coordinates?: { lat: number; lng: number };
   items: Array<{ product_id: string; quantity: number; selected_addons?: Array<{ id: string }> }>;
   delivery_type: string;
   voucher_discount?: number;
@@ -37,7 +53,11 @@ export const resolveBranch = async (data: {
     const validationMessage = payload.errors
       ? Object.values(payload.errors as Record<string, string[]>).flat().join(' ')
       : '';
-    throw new Error(validationMessage || payload.message || 'Sorry, we do not deliver to this address yet.');
+    throw new BranchResolutionError(
+      validationMessage || payload.message || 'Sorry, we do not deliver to this address yet.',
+      typeof payload.code === 'string' ? payload.code : undefined,
+      response.status,
+    );
   }
   return payload.data as BranchResolution;
 };

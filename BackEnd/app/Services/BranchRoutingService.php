@@ -9,9 +9,9 @@ use Illuminate\Support\Facades\Log;
 
 class BranchRoutingService
 {
-    public const NO_BRANCH_COORDINATES_MESSAGE = 'Delivery availability is being configured. Please try again shortly.';
+    public const NO_BRANCH_COORDINATES_MESSAGE = 'No delivery branches have location coordinates configured yet.';
     public const NO_ELIGIBLE_DELIVERY_BRANCH_MESSAGE = 'No branch is currently accepting online deliveries.';
-    private const MAX_DELIVERY_KM = 15.0;
+    private const DEFAULT_MAX_DELIVERY_KM = 15.0;
 
     public function resolve(?array $coordinates, ?string $requestedBranchId = null, bool $pickup = false): array
     {
@@ -77,8 +77,8 @@ class BranchRoutingService
                 'load' => (int) ($loads[$branch->id] ?? 0),
             ])
             ->filter(fn (array $candidate) => $candidate['distance'] <= min(
-                (float) ($candidate['branch']->delivery_radius_km ?? self::MAX_DELIVERY_KM),
-                self::MAX_DELIVERY_KM,
+                (float) ($candidate['branch']->delivery_radius_km ?? $this->maxDeliveryKm()),
+                $this->maxDeliveryKm(),
             ))
             ->sort(function (array $left, array $right) {
                 if ($left['distance'] !== $right['distance']) return $left['distance'] <=> $right['distance'];
@@ -123,8 +123,8 @@ class BranchRoutingService
                 ? round($this->distance($branch, $coordinates), 3)
                 : null;
             $deliveryRadius = min(
-                (float) ($branch->delivery_radius_km ?? self::MAX_DELIVERY_KM),
-                self::MAX_DELIVERY_KM,
+                (float) ($branch->delivery_radius_km ?? $this->maxDeliveryKm()),
+                $this->maxDeliveryKm(),
             );
             if ($distance !== null && $distance > $deliveryRadius) {
                 $reasons[] = 'outside delivery radius';
@@ -147,6 +147,11 @@ class BranchRoutingService
                 'exclusion_reason' => $reasons ? implode(', ', $reasons) : null,
             ];
         })->values()->all();
+    }
+
+    private function maxDeliveryKm(): float
+    {
+        return max(0.0, (float) config('services.delivery.max_km', self::DEFAULT_MAX_DELIVERY_KM));
     }
 
     public function validateCatalog(string $branchId, array $items): array

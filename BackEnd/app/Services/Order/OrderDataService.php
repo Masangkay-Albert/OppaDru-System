@@ -50,6 +50,7 @@ class OrderDataService
             'user_id' => $order->user_id,
             'branch_id' => $order->branch_id ?: $order->franchise_id,
             'franchise_id' => $order->franchise_id,
+            'franchise_account_id' => $order->franchise_account_id,
             'branch' => $branch ? $branch->only(['id', 'name', 'address', 'latitude', 'longitude']) : null,
             // Keep the legacy response key for existing clients, but source it
             // from branch_id so it cannot point at a different origin.

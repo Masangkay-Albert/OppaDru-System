@@ -64,9 +64,10 @@ class NominatimGeocodingService
                 ->withHeaders([
                     'User-Agent' => config('services.nominatim.user_agent', config('app.name').'/1.0'),
                     'Referer' => config('services.nominatim.referer', config('app.url')),
+                    'Accept-Language' => 'en',
                 ])
                 ->connectTimeout(5)
-                ->timeout(10)
+                ->timeout(8)
                 ->get(self::BASE_URL.'/'.$endpoint, $parameters);
 
             if (! $response->successful()) {
@@ -84,7 +85,9 @@ class NominatimGeocodingService
                 throw new RuntimeException('The address lookup service returned an invalid response.');
             }
 
-            $cache->put($cacheKey, $data, now()->addDay());
+            if ($data !== []) {
+                $cache->put($cacheKey, $data, now()->addDay());
+            }
             return $data;
         });
     }

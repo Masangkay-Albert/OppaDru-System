@@ -81,7 +81,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         : branchName}</p>
       {branchNotice && <div role="alert" className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
         <p>{branchNotice}</p>
-        {canPickLocation && onPickLocation && <button type="button" onClick={onPickLocation} className="mt-2 inline-flex min-h-9 items-center gap-1.5 font-semibold text-[var(--oppa-green)] underline underline-offset-2"><FiMapPin aria-hidden="true" />Pick delivery location on map</button>}
+        {canPickLocation && onPickLocation && <button type="button" onClick={onPickLocation} className="mt-2 inline-flex min-h-9 items-center gap-1.5 font-semibold text-[var(--oppa-green)] underline underline-offset-2"><FiMapPin aria-hidden="true" />Pin your location on the map</button>}
       </div>}
 
       <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">

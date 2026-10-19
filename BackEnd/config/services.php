@@ -57,5 +57,8 @@ return [
         'user_agent' => env('NOMINATIM_USER_AGENT', 'OppaDruFoodDelivery/1.0'),
         'referer' => env('NOMINATIM_REFERER', env('APP_URL', 'http://localhost')),
     ],
+    'delivery' => [
+        'max_km' => env('MAX_DELIVERY_KM', 15),
+    ],
 
 ];

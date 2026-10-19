@@ -35,8 +35,8 @@ class Franchise extends Model
 
     protected $casts = [
         'metadata' => 'array',
-        'latitude' => 'decimal:7',
-        'longitude' => 'decimal:7',
+        'latitude' => 'float',
+        'longitude' => 'float',
         'is_active' => 'boolean',
         'accepts_online_orders' => 'boolean',
         'delivery_enabled' => 'boolean',
@@ -47,6 +47,21 @@ class Franchise extends Model
     protected static function boot()
     {
         parent::boot();
+
+        static::saving(function (self $franchise): void {
+            $hasValidCoordinates = is_numeric($franchise->latitude)
+                && is_numeric($franchise->longitude)
+                && (float) $franchise->latitude >= 4
+                && (float) $franchise->latitude <= 22
+                && (float) $franchise->longitude >= 116
+                && (float) $franchise->longitude <= 127;
+            $canReceiveOnlineDeliveries = ($franchise->status ?? 'active') === 'active'
+                && $franchise->is_active !== false
+                && $hasValidCoordinates;
+
+            $franchise->accepts_online_orders = $canReceiveOnlineDeliveries;
+            $franchise->delivery_enabled = $canReceiveOnlineDeliveries;
+        });
 
         static::creating(function ($model) {
             if (empty($model->id)) {

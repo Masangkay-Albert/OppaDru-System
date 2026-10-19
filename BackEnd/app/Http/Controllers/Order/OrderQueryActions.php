@@ -11,7 +11,7 @@ trait OrderQueryActions
     public function index()
     {
         $orders = Order::select([
-            'id', 'order_number', 'email', 'user_id', 'branch_id', 'franchise_id', 'total', 'status',
+            'id', 'order_number', 'email', 'user_id', 'branch_id', 'franchise_id', 'franchise_account_id', 'total', 'status',
             'payment_method', 'payment_status', 'delivery_address', 'delivery_lat', 'delivery_lng', 'delivery_coordinates', 'phone', 'items', 'created_at',
             'delivery_proof_image', 'delivery_proof_uploaded_at', 'delivery_confirmed_at',
             'delivery_proof_image_data', 'discount_proof_image', 'discount_proof_image_data',

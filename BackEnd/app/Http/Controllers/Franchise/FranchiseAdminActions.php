@@ -6,6 +6,8 @@ use App\Models\Franchise;
 use App\Models\FranchiseUser;
 use App\Models\Order;
 use App\Models\Product;
+use App\Services\BranchRoutingService;
+use App\Services\GeocodingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -246,7 +248,7 @@ trait FranchiseAdminActions
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, GeocodingService $geocoding)
     {
         if (! $this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
@@ -270,8 +272,30 @@ trait FranchiseAdminActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $hasLatitude = $request->filled('latitude');
+        $hasLongitude = $request->filled('longitude');
+        if ($hasLatitude !== $hasLongitude) {
+            return response()->json([
+                'message' => 'Latitude and longitude must be provided together.',
+                'errors' => ['latitude' => ['Enter both coordinates or leave both blank to geocode the address.']],
+            ], 422);
+        }
+        $latitude = $request->input('latitude');
+        $longitude = $request->input('longitude');
+        if (! $hasLatitude) {
+            $geocoded = $geocoding->geocodeAddress((string) $request->input('address', ''));
+            if (! $geocoded) {
+                return response()->json([
+                    'message' => 'We could not locate this branch address. Enter valid latitude and longitude or update the address.',
+                    'errors' => ['address' => ['Address could not be geocoded; provide manual coordinates to save this branch.']],
+                ], 422);
+            }
+            $latitude = $geocoded['lat'];
+            $longitude = $geocoded['lng'];
+        }
+
         if ($request->boolean('is_active', true) && $request->boolean('delivery_enabled', true)
-            && ! app(\App\Services\BranchRoutingService::class)->validBranchCoordinatePair($request->input('latitude'), $request->input('longitude'))) {
+            && ! app(BranchRoutingService::class)->validBranchCoordinatePair($latitude, $longitude)) {
             return response()->json(['message' => 'Valid Philippine latitude and longitude are required before enabling delivery for an active branch.'], 422);
         }
 
@@ -282,8 +306,8 @@ trait FranchiseAdminActions
             'phone' => $request->phone,
             'address' => $request->address,
             'status' => $request->input('status', 'active'),
-            'latitude' => $request->input('latitude'),
-            'longitude' => $request->input('longitude'),
+            'latitude' => $latitude,
+            'longitude' => $longitude,
             'is_active' => $request->boolean('is_active', true),
             'accepts_online_orders' => $request->boolean('accepts_online_orders', true),
             'delivery_enabled' => $request->boolean('delivery_enabled', true),
@@ -294,7 +318,7 @@ trait FranchiseAdminActions
         return response()->json(['data' => $franchise], 201);
     }
 
-    public function update(Request $request, string $id)
+    public function update(Request $request, string $id, GeocodingService $geocoding)
     {
         if (! $this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
@@ -320,18 +344,43 @@ trait FranchiseAdminActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $hasLatitude = $request->filled('latitude');
+        $hasLongitude = $request->filled('longitude');
+        if ($hasLatitude !== $hasLongitude) {
+            return response()->json([
+                'message' => 'Latitude and longitude must be provided together.',
+                'errors' => ['latitude' => ['Enter both coordinates or leave both blank to geocode the address.']],
+            ], 422);
+        }
+
         $willBeActive = $request->has('is_active') ? $request->boolean('is_active') : (bool) $franchise->is_active;
         $willHaveDelivery = $request->has('delivery_enabled') ? $request->boolean('delivery_enabled') : (bool) $franchise->delivery_enabled;
-        $latitude = $request->has('latitude') ? $request->input('latitude') : $franchise->latitude;
-        $longitude = $request->has('longitude') ? $request->input('longitude') : $franchise->longitude;
-        if ($willBeActive && $willHaveDelivery && ! app(\App\Services\BranchRoutingService::class)->validBranchCoordinatePair($latitude, $longitude)) {
+        $latitude = $hasLatitude ? $request->input('latitude') : $franchise->latitude;
+        $longitude = $hasLongitude ? $request->input('longitude') : $franchise->longitude;
+        $address = $request->input('address', $franchise->address);
+        $addressChanged = $request->has('address') && trim((string) $address) !== trim((string) $franchise->address);
+        $hasExistingCoordinates = app(BranchRoutingService::class)->validBranchCoordinatePair($franchise->latitude, $franchise->longitude);
+        if (! $hasLatitude && ($addressChanged || ! $hasExistingCoordinates)) {
+            $geocoded = $geocoding->geocodeAddress((string) $address);
+            if (! $geocoded) {
+                return response()->json([
+                    'message' => 'We could not locate this branch address. Enter valid latitude and longitude or update the address.',
+                    'errors' => ['address' => ['Address could not be geocoded; provide manual coordinates to save this branch.']],
+                ], 422);
+            }
+            $latitude = $geocoded['lat'];
+            $longitude = $geocoded['lng'];
+        }
+        if ($willBeActive && $willHaveDelivery && ! app(BranchRoutingService::class)->validBranchCoordinatePair($latitude, $longitude)) {
             return response()->json(['message' => 'Valid Philippine latitude and longitude are required before enabling delivery for an active branch.'], 422);
         }
 
         $franchise->fill($request->only([
-            'name', 'email', 'phone', 'address', 'status', 'latitude', 'longitude',
+            'name', 'email', 'phone', 'address', 'status',
             'delivery_radius_km',
         ]));
+        $franchise->latitude = $latitude;
+        $franchise->longitude = $longitude;
         foreach (['is_active', 'accepts_online_orders', 'delivery_enabled'] as $flag) {
             if ($request->has($flag)) {
                 $franchise->{$flag} = $request->boolean($flag);
@@ -341,6 +390,12 @@ trait FranchiseAdminActions
             $franchise->slug = Str::slug($request->name);
         }
         $franchise->save();
+        $franchise->refresh();
+        if ($franchise->latitude === null || $franchise->longitude === null) {
+            return response()->json([
+                'message' => 'The branch was not saved with coordinates. Please verify the database location columns.',
+            ], 500);
+        }
 
         return response()->json(['data' => $franchise]);
     }

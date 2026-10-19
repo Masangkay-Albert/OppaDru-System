@@ -311,15 +311,13 @@ trait OrderPlacementActions
 
                 $order = Order::create([
                     'franchise_id' => $branchResolution['branch']->id,
+                    'franchise_account_id' => $branchResolution['branch']->franchise_account_id,
                     'branch_id' => $branchResolution['branch']->id,
                     'email' => $request->email,
                     'user_id' => $userId,
                     'total' => $total,
                     'delivery_type' => $request->input('delivery_type', 'standard'),
                     'delivery_address' => $request->delivery_address,
-                    'delivery_lat' => $request->input('delivery_coordinates.lat'),
-                    'delivery_lng' => $request->input('delivery_coordinates.lng'),
-                    'delivery_coordinates' => $request->input('delivery_coordinates'),
                     'delivery_fee' => $pricing['deliveryFee'],
                     'delivery_distance_km' => $pricing['deliveryDistanceKm'],
                     'distance_km' => $branchResolution['distance_km'],
