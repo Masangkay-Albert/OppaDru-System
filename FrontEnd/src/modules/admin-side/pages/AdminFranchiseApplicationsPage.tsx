@@ -5,6 +5,7 @@ import AdminLayout from '../components/AdminLayout';
 import { getFranchiseApplications, type FranchiseApplication } from '../../../services/franchiseAdminService';
 import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 import { FranchiseSkeleton, FranchiseStatusPill } from '../../franchise-side/components/FranchisePortalUI';
+import InlineMessage from '../../shared/components/InlineMessage';
 import '../../franchise-side/pages/FranchisePortalDesign.css';
 
 const AdminFranchiseApplicationsPage: React.FC = () => {
@@ -66,7 +67,6 @@ const AdminFranchiseApplicationsPage: React.FC = () => {
         <h1 className="font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">Franchise Applications</h1>
         <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Evaluate each applicant and proposed site through the full review process. Final approval activates the registered applicant’s dashboard after readiness checks pass or a documented override is approved. New applications appear automatically while this page is open.</p>
       </div>
-      {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">
         <label className="relative flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
@@ -77,6 +77,7 @@ const AdminFranchiseApplicationsPage: React.FC = () => {
           {statuses.map((status) => <option key={status} value={status}>{franchiseStatusLabel(status)}</option>)}
         </select>
       </div>
+      {error && <InlineMessage variant="error" message={error} className="mb-4" />}
 
       {loading ? (
         <FranchiseSkeleton rows={3} />

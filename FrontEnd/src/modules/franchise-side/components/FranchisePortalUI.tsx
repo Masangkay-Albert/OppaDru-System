@@ -20,14 +20,15 @@ export const FranchiseStatusPill: React.FC<{ status: string; label?: string; com
 export const FranchiseStepper: React.FC<{ status: string; hidden?: boolean }> = ({ status, hidden }) => {
   if (hidden) return null;
   const activeIndex = franchiseStageIndex({ status });
+  const approved = status === 'approved';
   return <section aria-label="Application progress" className="mb-5 rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
     <h2 className="mb-3 font-serif text-lg font-semibold">Franchise process</h2>
     <ol className="franchise-application-stepper">{FRANCHISE_APPLICATION_STAGES.map((stage, index) => {
-      const complete = index < activeIndex;
+      const complete = index < activeIndex || (approved && index === activeIndex);
       const current = index === activeIndex;
-      return <li key={stage.status} aria-current={current ? 'step' : undefined} className={`franchise-step ${current ? 'is-current' : complete ? 'is-complete' : ''}`}>
-        <span className="franchise-step-marker">{complete ? <Check size={15} aria-label="Completed" /> : index + 1}</span>
-        <span className="franchise-step-copy"><strong>{stage.label}</strong><small>{current ? `Current: ${franchiseStatusLabel(status)}` : complete ? 'Completed' : 'Next stage'}</small></span>
+      return <li key={stage.status} aria-current={current ? 'step' : undefined} className={`franchise-step ${approved && current ? 'is-approved' : current ? 'is-current' : complete ? 'is-complete' : ''}`}>
+        <span className="franchise-step-marker">{complete ? <Check size={15} aria-label={approved && current ? 'Approved' : 'Completed'} /> : index + 1}</span>
+        <span className="franchise-step-copy"><strong>{stage.label}</strong><small>{approved && current ? 'Approved' : current ? `Current: ${franchiseStatusLabel(status)}` : complete ? 'Completed' : 'Next stage'}</small></span>
       </li>;
     })}</ol>
   </section>;

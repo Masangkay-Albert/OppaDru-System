@@ -16,6 +16,10 @@
 .franchise-portal :is(button, a, input, select, textarea):focus-visible, .franchise-admin :is(button, a, input, select, textarea):focus-visible { outline: 3px solid #73a98a; outline-offset: 2px; }
 .franchise-portal-header h1 { letter-spacing: -.025em; }
 .franchise-application-header { background: linear-gradient(120deg, #fff 0%, #fff 70%, #f7fbf7 100%); }
+.franchise-feedback-anchor { scroll-margin-top: 1.5rem; }
+.franchise-feedback-slot { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 180ms ease, opacity 180ms ease; }
+.franchise-feedback-slot.is-visible { grid-template-rows: 1fr; opacity: 1; }
+.franchise-feedback-slot-content { min-height: 0; overflow: hidden; }
 .franchise-application-header .franchise-status-pill { border: 1px solid currentColor; border-color: color-mix(in srgb, currentColor 18%, transparent); }
 .franchise-portal article { border-radius: var(--franchise-radius-card); box-shadow: var(--franchise-shadow-card); }
 .franchise-next-step { border: 1px solid #e7dfcc; background: linear-gradient(135deg, #fcfaf4, #f7f3e9); }
@@ -27,11 +31,13 @@
 .franchise-step.is-complete:not(:last-child)::after { background: #8bb69a; }
 .franchise-step-marker { z-index: 1; display: grid; width: 2.25rem; height: 2.25rem; flex: 0 0 auto; place-items: center; border: 1px solid #ddd9cd; border-radius: 999px; background: #fff; color: #66736a; font-size: .8rem; font-weight: 700; }
 .franchise-step.is-current .franchise-step-marker { border-color: var(--oppa-green); background: var(--oppa-green); color: #fff; box-shadow: 0 0 0 5px rgb(33 119 71 / 13%); }
+.franchise-step.is-approved .franchise-step-marker { border-color: #26794b; background: #26794b; color: #fff; box-shadow: 0 0 0 5px rgb(33 119 71 / 10%); }
 .franchise-step.is-complete .franchise-step-marker { border-color: #26794b; background: #26794b; color: #fff; }
 .franchise-step-copy { max-width: 12rem; }
 .franchise-step-copy strong { display: block; font-size: .75rem; line-height: 1.35; }
 .franchise-step-copy small { display: block; margin-top: .25rem; color: var(--oppa-text-muted); font-size: .68rem; line-height: 1.35; }
 .franchise-step.is-current .franchise-step-copy strong, .franchise-step.is-current .franchise-step-copy small { color: var(--oppa-green); }
+.franchise-step.is-approved .franchise-step-copy strong, .franchise-step.is-approved .franchise-step-copy small { color: var(--franchise-success-text); }
 .franchise-timeline { position: relative; }
 .franchise-timeline li::before { position: absolute; top: 1rem; bottom: -1.3rem; left: .42rem; width: 1px; content: ''; background: #d7e3d9; }
 .franchise-timeline li:last-child::before { display: none; }

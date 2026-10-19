@@ -15,6 +15,7 @@ import {
 } from '../../../services/franchiseAdminService';
 import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 import { FranchiseSkeleton, FranchiseStatusPill } from '../../franchise-side/components/FranchisePortalUI';
+import InlineMessage from '../../shared/components/InlineMessage';
 import '../../franchise-side/pages/FranchisePortalDesign.css';
 
 const statusTitle = franchiseStatusLabel;
@@ -305,8 +306,8 @@ const FranchiseRequirementsForm: React.FC<{
   return (
     <section className="mt-6 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:p-6">
       <div className="mb-4"><h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Documents and final review</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Add each document the franchisee must complete. Attach a blank form or instructions if available; a template is optional, and the franchisee can still upload the requested document directly.</p></div>
-      {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      {savedMessage && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{savedMessage}</p>}
+      {error && <InlineMessage variant="error" message={error} className="mb-4" />}
+      {savedMessage && <InlineMessage variant="success" message={savedMessage} className="mb-4" />}
       <p className="sr-only" aria-live="polite">{nameAnnouncement}</p>
       {missingTemplateWarning.length > 0 && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => {
         if (event.target === event.currentTarget && !saving) setMissingTemplateWarning([]);
@@ -708,7 +709,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     <AdminLayout>
       <div className="franchise-admin rounded-2xl bg-[var(--oppa-surface)] p-3 sm:p-5">
       <Link to="/admin/franchise-applications" className="mb-5 inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)]"><ArrowLeft size={16} /> All applications</Link>
-      {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && !application && <InlineMessage variant="error" message={error} className="mb-4" />}
       {loading ? <FranchiseSkeleton rows={1} label="Loading application" /> : !application ? null : (
         <>
           <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -741,11 +742,12 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
             <div className="space-y-5"><form noValidate onChange={() => { formDirty.current = true; }} onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
               <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Review and verify the requested documents, then approve to activate dashboard access. Agreement, fee, and opening setup can be completed separately.</p></div>
+              {error && application && <InlineMessage variant="error" message={error} />}
               <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
               {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview is completed, select Location Assessment. This begins the combined final stage (site inspection, financial evaluation, and agreement). Add the required-document checklist in the panel below. A blank form is optional; saving the requirements automatically opens the applicant's upload area.</p>}
               {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Request and review any needed documents in the panel below. Once the requested documents are verified, approve the application to activate dashboard access.</p>}
-              {application.status === 'approved' && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Final approval is complete and the franchise dashboard account is active.</p>}
-              {approvalNotice && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{approvalNotice}</p>}
+              {application.status === 'approved' && <InlineMessage variant="success" message="Final approval is complete and the franchise dashboard account is active." />}
+              {approvalNotice && <InlineMessage variant="warning" message={approvalNotice} />}
               <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or list the requested documents." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
               <div className="rounded-xl border border-[var(--oppa-border)] p-3">
                 <h3 className="mb-3 text-sm font-semibold">Interview record (Philippine time)</h3>
@@ -881,7 +883,7 @@ const FranchiseActivationPanel: React.FC<{ application: FranchiseApplication; on
   return (
     <section className="mt-6 rounded-2xl border border-amber-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="mb-4"><p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Final authorization</p><h2 className="mt-1 font-serif text-xl font-bold text-[var(--oppa-text)]">Activate franchise operations</h2><p className="mt-1 text-sm leading-6 text-[var(--oppa-text-muted)]">This creates one active franchise account/location and dashboard access. The server rechecks approval, signed agreement, payment disposition, and every opening requirement before activation.</p></div>
-      {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <InlineMessage variant="error" message={error} className="mb-4" />}
       <form onSubmit={handleActivate} className="grid gap-4 md:grid-cols-2">
         {registeredApplicant ? <>
           <label className="block text-sm font-medium">Franchisee login name<input readOnly value={registeredApplicant.full_name} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-3 py-2.5 text-sm" /></label>

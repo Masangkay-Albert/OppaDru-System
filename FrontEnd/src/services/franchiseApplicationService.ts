@@ -10,6 +10,8 @@ export interface ApplicantFranchiseApplication {
   phone: string;
   location: string;
   status: string;
+  franchise_account_id?: string | null;
+  franchise_id?: string | null;
   next_step_instructions?: string | null;
   interview_at?: string | null;
   interview_type?: 'online' | 'onsite' | null;
