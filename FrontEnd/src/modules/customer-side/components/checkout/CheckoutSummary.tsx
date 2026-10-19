@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FiMapPin } from 'react-icons/fi';
 import type { CartItem } from '../../../../types/product.types';
 import VoucherSection from './VoucherSection';
 import { useCartCalculations } from '../../../../hooks/useCartCalculations';
@@ -16,7 +17,10 @@ interface CheckoutSummaryProps {
   deliveryCoordinates?: { lat: number; lng: number };
   branchCoordinates?: { lat: number; lng: number };
   branchName?: string;
+  branchDistanceKm?: number;
   branchNotice?: string;
+  onPickLocation?: () => void;
+  canPickLocation?: boolean;
   canPlaceOrder?: boolean;
   isPlacingOrder?: boolean;
 }
@@ -30,7 +34,10 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   deliveryCoordinates,
   branchCoordinates,
   branchName = 'Select a delivery address',
+  branchDistanceKm,
   branchNotice,
+  onPickLocation,
+  canPickLocation = false,
   canPlaceOrder = false,
   isPlacingOrder = false
 }) => {
@@ -69,8 +76,13 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         <h2 className="text-lg font-semibold text-gray-800">Your order from</h2>
       </div>
 
-      <p className="text-gray-800 font-medium mb-4">{branchName}</p>
-      {branchNotice && <p role="alert" className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{branchNotice}</p>}
+      <p className="mb-4 text-gray-800 font-medium">{branchDistanceKm != null
+        ? <>Fulfilled by: {branchName}, {branchDistanceKm.toFixed(1)} km</>
+        : branchName}</p>
+      {branchNotice && <div role="alert" className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <p>{branchNotice}</p>
+        {canPickLocation && onPickLocation && <button type="button" onClick={onPickLocation} className="mt-2 inline-flex min-h-9 items-center gap-1.5 font-semibold text-[var(--oppa-green)] underline underline-offset-2"><FiMapPin aria-hidden="true" />Pick delivery location on map</button>}
+      </div>}
 
       <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
         {cartItems.map((item) => {

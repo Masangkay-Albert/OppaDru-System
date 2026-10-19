@@ -1,3 +1,5 @@
+import { API_URL } from './apiConfig';
+
 export interface ResolvedAddress {
   name: string;
   address: string;
@@ -8,7 +10,43 @@ export interface Coordinates {
   lng: number;
 }
 
+export interface GeocodedCoordinates extends Coordinates {
+  matchedQuery: string;
+}
+
+interface NominatimSearchResult {
+  display_name: string;
+  lat: string;
+  lon: string;
+  class?: string;
+}
+
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+const NOMINATIM_MIN_INTERVAL_MS = 1100;
+const GEOCODE_CACHE_LIMIT = 200;
+let lastNominatimRequestAt = 0;
+let nominatimQueue: Promise<void> = Promise.resolve();
+const geocodeCache = new Map<string, Promise<GeocodedCoordinates | null>>();
+
+const requestNominatim = (endpoint: 'search' | 'reverse', parameters: URLSearchParams): Promise<Response> => {
+  const request = nominatimQueue.then(async () => {
+    const waitMs = Math.max(0, NOMINATIM_MIN_INTERVAL_MS - (Date.now() - lastNominatimRequestAt));
+    if (waitMs) await new Promise((resolve) => window.setTimeout(resolve, waitMs));
+    const response = await fetch(`${API_URL}/geo/nominatim/${endpoint}?${parameters.toString()}`, {
+      headers: { Accept: 'application/json' },
+      referrer: `${window.location.origin}/`,
+      referrerPolicy: 'strict-origin-when-cross-origin',
+    });
+    lastNominatimRequestAt = Date.now();
+    return response;
+  });
+  nominatimQueue = request.then(() => undefined, () => undefined);
+  return request;
+};
+
+const reportNominatimFailure = (operation: string, response: Response): void => {
+  console.error(`${operation} failed with Nominatim status ${response.status} ${response.statusText}.`);
+};
 
 export const searchAddresses = async (query: string): Promise<Array<{
   name: string;
@@ -20,20 +58,20 @@ export const searchAddresses = async (query: string): Promise<Array<{
   if (!query.trim()) return [];
 
   try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=15&addressdetails=1&countrycodes=PH&dedupe=1&polygon=0&accept-language=en`,
-      {
-        headers: {
-          'User-Agent': 'OppaDruFoodDelivery/1.0'
-        }
-      }
-    );
+    const response = await requestNominatim('search', new URLSearchParams({
+      q: query,
+      limit: '15',
+    }));
+    if (!response.ok) {
+      reportNominatimFailure('Search addresses', response);
+      return [];
+    }
 
-    const data = await response.json();
+    const data: NominatimSearchResult[] = await response.json();
 
     if (!Array.isArray(data)) return [];
 
-    return data.map((item: any) => ({
+    return data.map((item) => ({
       name: item.display_name.split(',')[0]?.trim() || item.display_name,
       address: item.display_name,
       lat: parseFloat(item.lat),
@@ -46,62 +84,69 @@ export const searchAddresses = async (query: string): Promise<Array<{
   }
 };
 
-export const geocodeAddress = async (address: string): Promise<Coordinates | null> => {
-  if (!address.trim()) return null;
+export const geocodeAddress = async (address: string): Promise<GeocodedCoordinates | null> => {
+  const normalizedAddress = address.trim().replace(/\s+/g, ' ');
+  if (!normalizedAddress) return null;
 
-  try {
-    const searchQuery = address.includes('Philippines') || address.includes('PH')
-      ? address
-      : `${address}, Philippines`;
+  const cacheKey = normalizedAddress.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const cached = geocodeCache.get(cacheKey);
+  if (cached) return cached;
 
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=ph`,
-      {
-        headers: {
-          'User-Agent': 'OppaDruFoodDelivery/1.0'
+  const lookup = (async (): Promise<GeocodedCoordinates | null> => {
+    try {
+      const parts = normalizedAddress.split(',').map((part) => part.trim()).filter(Boolean);
+      const queries = new Set<string>();
+      for (let firstPart = 0; firstPart < parts.length; firstPart += 1) {
+        const query = parts.slice(firstPart).join(', ');
+        queries.add(query);
+        queries.add(query.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+      }
+
+      for (const query of queries) {
+        const searchQuery = /,\s*philippines$/i.test(query) || /^philippines$/i.test(query)
+          ? query
+          : `${query}, Philippines`;
+        const response = await requestNominatim('search', new URLSearchParams({
+          q: searchQuery,
+          limit: '1',
+        }));
+        if (!response.ok) {
+          reportNominatimFailure('Geocode address', response);
+          return null;
+        }
+
+        const data: Array<{ lat?: string; lon?: string }> = await response.json();
+        const latitude = Number(data[0]?.lat);
+        const longitude = Number(data[0]?.lon);
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+          return { lat: latitude, lng: longitude, matchedQuery: searchQuery };
         }
       }
-    );
-    const data = await response.json();
-
-    if (!data?.length) {
-      const fallbackResponse = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=ph&bounded=1&viewbox=116.5,21.5,127.5,4.2`,
-        {
-          headers: {
-            'User-Agent': 'OppaDruFoodDelivery/1.0'
-          }
-        }
-      );
-      const fallbackData = await fallbackResponse.json();
-      if (!fallbackData?.length) return null;
-
-      return {
-        lat: parseFloat(fallbackData[0].lat),
-        lng: parseFloat(fallbackData[0].lon)
-      };
+      return null;
+    } catch (error) {
+      console.error('Geocode address error:', error);
+      return null;
     }
+  })();
 
-    return {
-      lat: parseFloat(data[0].lat),
-      lng: parseFloat(data[0].lon)
-    };
-  } catch (error) {
-    console.error('Geocode address error:', error);
-    return null;
+  geocodeCache.set(cacheKey, lookup);
+  if (geocodeCache.size > GEOCODE_CACHE_LIMIT) {
+    const oldestKey = geocodeCache.keys().next().value;
+    if (oldestKey) geocodeCache.delete(oldestKey);
   }
+  return lookup;
 };
 
 export const reverseGeocode = async (lat: number, lng: number): Promise<string | null> => {
   try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      {
-        headers: {
-          'User-Agent': 'OppaDruFoodDelivery/1.0'
-        }
-      }
-    );
+    const response = await requestNominatim('reverse', new URLSearchParams({
+      lat: String(lat),
+      lon: String(lng),
+    }));
+    if (!response.ok) {
+      reportNominatimFailure('Reverse geocode', response);
+      return null;
+    }
     const data = await response.json();
 
     if (data?.display_name) {

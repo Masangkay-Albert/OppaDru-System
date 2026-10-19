@@ -13,6 +13,8 @@ import {
 } from '../../../services/franchiseAdminService';
 import type { FranchiseAdminUser, FranchiseSummary } from '../../../services/franchiseAdminService';
 import { formatCurrency } from '../../../utils/formatters';
+import { geocodeAddress } from '../../../services/geocodingService';
+import { useToast } from '../../customer-side/components/ToastProvider';
 import LocationPicker from '../../customer-side/components/common/LocationPicker';
 
 type Tab = 'overview' | 'orders' | 'inventory' | 'users' | 'reports' | 'settings';
@@ -30,6 +32,7 @@ const money = { format: formatCurrency };
 
 const AdminFranchiseDetailPage: React.FC = () => {
   const { id = '' } = useParams();
+  const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [branch, setBranch] = useState<FranchiseSummary | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -46,6 +49,7 @@ const AdminFranchiseDetailPage: React.FC = () => {
   const [branchCoordinates, setBranchCoordinates] = useState({ latitude: '', longitude: '' });
   const [branchAddress, setBranchAddress] = useState('');
   const [showBranchLocationPicker, setShowBranchLocationPicker] = useState(false);
+  const [branchCoordinatesEdited, setBranchCoordinatesEdited] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,6 +61,7 @@ const AdminFranchiseDetailPage: React.FC = () => {
         latitude: branchData.latitude == null ? '' : String(branchData.latitude),
         longitude: branchData.longitude == null ? '' : String(branchData.longitude),
       });
+      setBranchCoordinatesEdited(false);
       setBranchAddress(branchData.address || '');
       setOverview(overviewData);
     } catch (loadError) {
@@ -76,23 +81,73 @@ const AdminFranchiseDetailPage: React.FC = () => {
     setError('');
     setNotice('');
     try {
+      let latitude = branchCoordinates.latitude ? Number(branchCoordinates.latitude) : null;
+      let longitude = branchCoordinates.longitude ? Number(branchCoordinates.longitude) : null;
+      const addressChanged = branchAddress.trim() !== (branch.address || '').trim();
+      if (!branchCoordinatesEdited && (addressChanged || latitude === null || longitude === null) && branchAddress.trim()) {
+        const result = await geocodeAddress(branchAddress.trim());
+        if (!result) {
+          throw new Error('We could not locate this branch address. Pin the exact location or enter latitude and longitude manually before saving.');
+        }
+        latitude = result.lat;
+        longitude = result.lng;
+      }
+      if ((latitude === null || longitude === null)
+        && form.get('is_active') === 'on'
+        && form.get('delivery_enabled') === 'on') {
+        throw new Error('Enter valid branch coordinates or pin the branch location before enabling delivery.');
+      }
       const updated = await updateFranchise(id, {
         name: String(form.get('name') || ''),
         email: String(form.get('email') || ''),
         phone: String(form.get('phone') || ''),
         address: branchAddress,
         status: String(form.get('status') || 'active'),
-        latitude: branchCoordinates.latitude ? Number(branchCoordinates.latitude) : null,
-        longitude: branchCoordinates.longitude ? Number(branchCoordinates.longitude) : null,
+        latitude,
+        longitude,
         delivery_radius_km: form.get('delivery_radius_km') ? Number(form.get('delivery_radius_km')) : null,
         is_active: form.get('is_active') === 'on',
         accepts_online_orders: form.get('accepts_online_orders') === 'on',
         delivery_enabled: form.get('delivery_enabled') === 'on',
       });
       setBranch(updated);
+      setBranchCoordinates({
+        latitude: updated.latitude == null ? '' : String(updated.latitude),
+        longitude: updated.longitude == null ? '' : String(updated.longitude),
+      });
+      setBranchCoordinatesEdited(false);
       setNotice('Branch information saved.');
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Could not save branch information.');
+      const message = saveError instanceof Error ? saveError.message : 'Could not save branch information.';
+      setError(message);
+      showToast(message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const geocodeAndSaveBranchCoordinates = async () => {
+    if (!branch || !branchAddress.trim()) {
+      setError('Enter the branch address before finding its coordinates.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      const coordinates = await geocodeAddress(branchAddress.trim());
+      if (!coordinates) {
+        throw new Error('We could not locate this branch address. Pin the exact location or enter coordinates manually.');
+      }
+      const updated = await updateFranchise(id, { latitude: coordinates.lat, longitude: coordinates.lng });
+      setBranch(updated);
+      setBranchCoordinates({ latitude: String(coordinates.lat), longitude: String(coordinates.lng) });
+      setBranchCoordinatesEdited(false);
+      setNotice(`Coordinates saved from matched address: ${coordinates.matchedQuery}`);
+    } catch (geocodeError) {
+      const message = geocodeError instanceof Error ? geocodeError.message : 'Could not geocode and save this branch location.';
+      setError(message);
+      showToast(message, 'error');
     } finally {
       setSaving(false);
     }
@@ -214,10 +269,10 @@ const AdminFranchiseDetailPage: React.FC = () => {
               <label className="text-sm font-medium text-gray-700">Status<select name="status" defaultValue={branch.status || 'active'} className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 font-normal"><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select></label>
               <label className="text-sm font-medium text-gray-700 sm:col-span-2">Address<textarea name="address" value={branchAddress} onChange={(event) => setBranchAddress(event.target.value)} rows={3} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
               <div className="sm:col-span-2 rounded-xl border border-[var(--oppa-border)] p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Branch delivery location</h3><p className="text-xs text-gray-500">A verified map pin in the Philippines is required to enable delivery.</p></div><button type="button" onClick={() => setShowBranchLocationPicker(true)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)]"><MapPin size={15} />Pin on map</button></div>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Branch delivery location</h3><p className="text-xs text-gray-500">A verified map pin in the Philippines is required to enable delivery.</p></div><div className="flex flex-wrap gap-2">{(!branch.latitude || !branch.longitude) && <button type="button" onClick={() => void geocodeAndSaveBranchCoordinates()} disabled={saving} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-50">Find and save coordinates</button>}<button type="button" onClick={() => setShowBranchLocationPicker(true)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)]"><MapPin size={15} />Pin on map</button></div></div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="text-sm font-medium text-gray-700">Latitude<input name="latitude" type="number" min="4" max="22" step="any" required={branch.is_active !== false && branch.delivery_enabled !== false} value={branchCoordinates.latitude} onChange={(event) => setBranchCoordinates((current) => ({ ...current, latitude: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
-                  <label className="text-sm font-medium text-gray-700">Longitude<input name="longitude" type="number" min="116" max="127" step="any" required={branch.is_active !== false && branch.delivery_enabled !== false} value={branchCoordinates.longitude} onChange={(event) => setBranchCoordinates((current) => ({ ...current, longitude: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
+                  <label className="text-sm font-medium text-gray-700">Latitude<input name="latitude" type="number" min="4" max="22" step="any" required={branch.is_active !== false && branch.delivery_enabled !== false} value={branchCoordinates.latitude} onChange={(event) => { setBranchCoordinatesEdited(true); setBranchCoordinates((current) => ({ ...current, latitude: event.target.value })); }} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
+                  <label className="text-sm font-medium text-gray-700">Longitude<input name="longitude" type="number" min="116" max="127" step="any" required={branch.is_active !== false && branch.delivery_enabled !== false} value={branchCoordinates.longitude} onChange={(event) => { setBranchCoordinatesEdited(true); setBranchCoordinates((current) => ({ ...current, longitude: event.target.value })); }} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
                 </div>
               </div>
               <Field label="Delivery radius (km)" name="delivery_radius_km" type="number" defaultValue={branch.delivery_radius_km == null ? '' : String(branch.delivery_radius_km)} />
@@ -244,6 +299,7 @@ const AdminFranchiseDetailPage: React.FC = () => {
         initialAddress={branch.address || ''}
         onClose={() => setShowBranchLocationPicker(false)}
         onSelectLocation={(location) => {
+          setBranchCoordinatesEdited(true);
           setBranchCoordinates({ latitude: String(location.lat), longitude: String(location.lng) });
           setBranchAddress(location.address);
           setShowBranchLocationPicker(false);

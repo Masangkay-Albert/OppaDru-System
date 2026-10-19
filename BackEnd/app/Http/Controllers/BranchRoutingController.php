@@ -60,7 +60,11 @@ class BranchRoutingController extends Controller
                 && (float) $validated['coordinates']['lng'] >= 116 && (float) $validated['coordinates']['lng'] <= 127) {
                 $response['branch_diagnostics'] = $this->routing->diagnostics($validated['coordinates'] ?? null);
             }
-            return response()->json($response, 422);
+            $status = in_array($exception->getMessage(), [
+                BranchRoutingService::NO_BRANCH_COORDINATES_MESSAGE,
+                BranchRoutingService::NO_ELIGIBLE_DELIVERY_BRANCH_MESSAGE,
+            ], true) ? 503 : 422;
+            return response()->json($response, $status);
         } catch (\Throwable $exception) {
             Log::error('Branch resolution failed unexpectedly.', [
                 'coordinates' => $validated['coordinates'] ?? null,

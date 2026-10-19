@@ -1,5 +1,6 @@
 // src/hooks/useLocationSearch.ts
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { searchAddresses } from '../services/geocodingService';
 
 export interface LocationResult {
   name: string;
@@ -11,59 +12,12 @@ export interface LocationResult {
   importance?: number;
 }
 
-interface OSMResponse {
-  display_name: string;
-  lat: string;
-  lon: string;
-  class: string;
-  type: string;
-  importance: number;
-  address: {
-    [key: string]: string;
-  };
-}
-
 export const searchLocationAPI = async (query: string): Promise<LocationResult[]> => {
-  const cleanQuery = query.trim();
-  if (!cleanQuery) return [];
-
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-      cleanQuery
-    )}&limit=15&addressdetails=1&accept-language=en&countrycodes=ph&dedupe=1&polygon=0`;
-
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'OppaDruFoodDelivery/1.0'
-      }
-    });
-
-    const data: OSMResponse[] = await response.json();
-    if (!Array.isArray(data)) return [];
-
-    const prioritized = data
-      .filter((item) => item?.display_name && item?.lat && item?.lon)
-      .sort((a, b) => {
-        const aHasPH = a.display_name?.toLowerCase().includes('philippines');
-        const bHasPH = b.display_name?.toLowerCase().includes('philippines');
-        if (aHasPH && !bHasPH) return -1;
-        if (!aHasPH && bHasPH) return 1;
-        return (b.importance || 0) - (a.importance || 0);
-      });
-
-    return prioritized.map((item) => ({
-      name: item.display_name.split(',')[0]?.trim() || item.display_name,
-      address: item.display_name,
-      lat: parseFloat(item.lat),
-      lng: parseFloat(item.lon),
-      type: item.class || 'location',
-      displayName: item.display_name,
-      importance: item.importance
-    }));
-  } catch (error) {
-    console.error('Search error:', error);
-    return [];
-  }
+  const results = await searchAddresses(query);
+  return results.map((item) => ({
+    ...item,
+    displayName: item.address,
+  }));
 };
 
 export const useLocationSearch = (debounceDelay: number = 300) => {

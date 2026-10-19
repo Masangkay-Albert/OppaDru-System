@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiShoppingCart } from 'react-icons/fi';
+import LocationPicker from '../components/common/LocationPicker';
 import { useCart } from '../../../contexts/CartContext';
 import { useOrder } from '../../../contexts/OrderContext';
 import { useToast } from '../components/ToastProvider';
@@ -33,6 +34,7 @@ const CheckoutPage: React.FC = () => {
   const [showGCashModal, setShowGCashModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showDeliveryLocationPicker, setShowDeliveryLocationPicker] = useState(false);
   const [gcashReference, setGCashReference] = useState<string | undefined>();
   const [scheduleDisplay, setScheduleDisplay] = useState('Select date & time');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -109,21 +111,26 @@ const CheckoutPage: React.FC = () => {
     }
 
     if (!isSpecificAddress(address.street)) {
-      setBranchError('Please pin your exact delivery location. A city or province alone is not enough for branch assignment.');
+      setBranchError("We couldn't locate this address. Please edit it or pick a pin on the map.");
       return;
     }
 
+    let active = true;
     const timer = window.setTimeout(async () => {
       const coords = await geocodeAddress(cleanAddress(address.street));
+      if (!active) return;
       if (hasValidCoordinates(coords)) {
         setDeliveryCoordinates(coords);
       } else {
         setDeliveryCoordinates(null);
-        setBranchError('We could not locate this address. Please pin your exact delivery location.');
+        setBranchError("We couldn't locate this address. Please edit it or pick a pin on the map.");
       }
     }, 500);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [address.street, addressSelectionVersion]);
 
   useEffect(() => {
@@ -434,7 +441,10 @@ const CheckoutPage: React.FC = () => {
             deliveryCoordinates={deliveryCoordinates || undefined}
             branchCoordinates={branchResolution ? { lat: branchResolution.branch.latitude, lng: branchResolution.branch.longitude } : undefined}
             branchName={selectedBranchName}
+            branchDistanceKm={branchResolution?.distance_km}
             branchNotice={branchResolution?.notice || branchError}
+            onPickLocation={() => setShowDeliveryLocationPicker(true)}
+            canPickLocation={Boolean(address.street.trim()) && (!deliveryCoordinates || branchError.includes("couldn't locate"))}
             isPlacingOrder={isPlacingOrder}
             canPlaceOrder={Boolean(branchResolution && !branchError)}
             />
@@ -460,6 +470,20 @@ const CheckoutPage: React.FC = () => {
           setShowScheduleModal(false);
         }}
       />
+
+      {showDeliveryLocationPicker && <LocationPicker
+        initialAddress={address.street}
+        onClose={() => setShowDeliveryLocationPicker(false)}
+        onSelectLocation={(location) => {
+          const coordinates = { lat: location.lat, lng: location.lng };
+          selectedAddressCoordinatesRef.current = coordinates;
+          updateAddress('street', location.address);
+          setDeliveryCoordinates(coordinates);
+          setBranchError('');
+          setAddressSelectionVersion((version) => version + 1);
+          setShowDeliveryLocationPicker(false);
+        }}
+      />}
 
       <GCashPaymentModal
         isOpen={showGCashModal}

@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\Log;
 
 class BranchRoutingService
 {
+    public const NO_BRANCH_COORDINATES_MESSAGE = 'Delivery availability is being configured. Please try again shortly.';
+    public const NO_ELIGIBLE_DELIVERY_BRANCH_MESSAGE = 'No branch is currently accepting online deliveries.';
+    private const MAX_DELIVERY_KM = 15.0;
+
     public function resolve(?array $coordinates, ?string $requestedBranchId = null, bool $pickup = false): array
     {
         if ($pickup) {
@@ -36,6 +40,10 @@ class BranchRoutingService
                 ]);
             }
         });
+        if (! $allBranches->contains(fn (Franchise $branch) => $this->validBranchCoordinates($branch))) {
+            Log::warning('Delivery branch resolution has no franchise rows with valid coordinates.');
+            throw new \InvalidArgumentException(self::NO_BRANCH_COORDINATES_MESSAGE);
+        }
 
         $branches = Franchise::query()
             ->with('franchiseAccount')
@@ -51,6 +59,9 @@ class BranchRoutingService
             ->whereNotNull('longitude')
             ->get()
             ->filter(fn (Franchise $branch) => $this->validBranchCoordinates($branch));
+        if ($branches->isEmpty()) {
+            throw new \InvalidArgumentException(self::NO_ELIGIBLE_DELIVERY_BRANCH_MESSAGE);
+        }
 
         $loads = Order::whereIn('branch_id', $branches->pluck('id'))
             ->whereIn('status', ['pending', 'confirmed', 'preparing', 'prepared', 'ready'])
@@ -65,7 +76,10 @@ class BranchRoutingService
                 'open' => $this->isOpen($branch),
                 'load' => (int) ($loads[$branch->id] ?? 0),
             ])
-            ->filter(fn (array $candidate) => $candidate['branch']->delivery_radius_km === null || $candidate['distance'] <= (float) $candidate['branch']->delivery_radius_km)
+            ->filter(fn (array $candidate) => $candidate['distance'] <= min(
+                (float) ($candidate['branch']->delivery_radius_km ?? self::MAX_DELIVERY_KM),
+                self::MAX_DELIVERY_KM,
+            ))
             ->sort(function (array $left, array $right) {
                 if ($left['distance'] !== $right['distance']) return $left['distance'] <=> $right['distance'];
                 if ($left['open'] !== $right['open']) return $left['open'] ? -1 : 1;
@@ -76,7 +90,7 @@ class BranchRoutingService
 
         $selected = $branches->first();
         if (! $selected) {
-            throw new \InvalidArgumentException('Sorry, no active branch can deliver to this address.');
+            throw new \InvalidArgumentException('No branch delivers to this address.');
         }
         if (! $selected['open']) {
             throw new \InvalidArgumentException('The nearest branch is currently closed. Please try again during branch hours.');
@@ -108,7 +122,11 @@ class BranchRoutingService
             $distance = $coordinates && $this->validBranchCoordinates($branch)
                 ? round($this->distance($branch, $coordinates), 3)
                 : null;
-            if ($distance !== null && $branch->delivery_radius_km !== null && $distance > (float) $branch->delivery_radius_km) {
+            $deliveryRadius = min(
+                (float) ($branch->delivery_radius_km ?? self::MAX_DELIVERY_KM),
+                self::MAX_DELIVERY_KM,
+            );
+            if ($distance !== null && $distance > $deliveryRadius) {
                 $reasons[] = 'outside delivery radius';
             }
 
@@ -121,7 +139,7 @@ class BranchRoutingService
                 'status' => $branch->status,
                 'accepts_online_orders' => $branch->accepts_online_orders,
                 'delivery_enabled' => $branch->delivery_enabled,
-                'delivery_radius_km' => $branch->delivery_radius_km,
+                'delivery_radius_km' => $deliveryRadius,
                 'distance_km' => $distance,
                 'open' => $open,
                 'eligible' => ! array_intersect($reasons, ['inactive', 'online orders disabled', 'delivery disabled', 'franchise account inactive', 'missing or invalid coordinates', 'outside delivery radius']),

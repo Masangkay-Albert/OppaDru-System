@@ -83,6 +83,62 @@ class BranchRoutingTest extends TestCase
         $this->assertNotNull($diagnostics->firstWhere('name', 'Cavite branch')['distance_km']);
     }
 
+    public function test_missing_coordinates_return_a_delivery_setup_message(): void
+    {
+        $this->strayUnlocatedBranch('Laguna branch');
+        $product = $this->product();
+
+        $this->postJson('/api/branches/resolve', [
+            'coordinates' => ['lat' => 14.3194939, 'lng' => 120.9943268],
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertStatus(503)
+            ->assertJsonPath('message', 'Delivery availability is being configured. Please try again shortly.');
+    }
+
+    public function test_branch_with_online_orders_disabled_is_not_selected(): void
+    {
+        $branch = $this->branch('Cavite branch', 14.3167, 120.9333);
+        $branch->accepts_online_orders = false;
+        $branch->save();
+        $product = $this->product();
+
+        $this->postJson('/api/branches/resolve', [
+            'coordinates' => ['lat' => 14.3194939, 'lng' => 120.9943268],
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertStatus(503)
+            ->assertJsonPath('message', 'No branch is currently accepting online deliveries.');
+    }
+
+    public function test_customer_outside_delivery_radius_gets_specific_message(): void
+    {
+        $branch = $this->branch('Cavite branch', 14.3167, 120.9333);
+        $branch->delivery_radius_km = 1;
+        $branch->save();
+        $product = $this->product();
+
+        $this->postJson('/api/branches/resolve', [
+            'coordinates' => ['lat' => 14.3194939, 'lng' => 120.9943268],
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'No branch delivers to this address.');
+    }
+
+    public function test_null_branch_radius_uses_the_fifteen_kilometer_default(): void
+    {
+        $this->branch('Cavite branch', 14.3167, 120.9333);
+        $product = $this->product();
+
+        $this->postJson('/api/branches/resolve', [
+            'coordinates' => ['lat' => 14.5, 'lng' => 120.9333],
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'No branch delivers to this address.');
+    }
+
     public function test_branch_without_inventory_rows_returns_items_as_unavailable_without_throwing(): void
     {
         $branch = $this->branch('Cavite branch', 14.3167, 120.9333);
