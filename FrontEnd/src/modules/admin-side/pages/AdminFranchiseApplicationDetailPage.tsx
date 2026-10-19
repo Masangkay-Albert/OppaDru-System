@@ -14,7 +14,7 @@ import {
   type FranchiseApplication,
 } from '../../../services/franchiseAdminService';
 import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
-import { FranchiseSkeleton, FranchiseStepper, FranchiseStatusPill, FranchiseTimeline } from '../../franchise-side/components/FranchisePortalUI';
+import { FranchiseSkeleton, FranchiseStatusPill } from '../../franchise-side/components/FranchisePortalUI';
 import '../../franchise-side/pages/FranchisePortalDesign.css';
 
 const statusTitle = franchiseStatusLabel;
@@ -716,8 +716,6 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             <FranchiseStatusPill status={currentStatus} label={statusTitle(currentStatus)} />
           </header>
 
-          <FranchiseStepper status={currentStatus} hidden={['rejected', 'withdrawn'].includes(currentStatus)} />
-
           <div className="grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
             <div className="space-y-5">
               <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
@@ -767,7 +765,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                 </button>
               )}
             </form>
-            {application.events?.length ? <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm"><FranchiseTimeline events={application.events} /></section> : null}</div>
+            </div>
           </div>
 
           {['location_assessment', 'for_final_evaluation', 'conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening'].includes(currentStatus) && (

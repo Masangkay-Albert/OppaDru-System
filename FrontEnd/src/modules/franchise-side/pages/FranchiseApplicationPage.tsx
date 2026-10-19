@@ -124,9 +124,26 @@ const readDraft = (): { draft: Draft | null; error: string } => {
   }
 };
 
+const normalizeGeoName = (value: unknown): string => {
+  const name = String(value ?? '').trim();
+  // The PSGC feed can contain UTF-8 text that was decoded as Windows-1252
+  // (for example, "DasmariÃ±as"). Repair that display string once while
+  // leaving correctly encoded names untouched.
+  if (!/(?:Ã.|Â.|â€)/u.test(name) || [...name].some((character) => character.charCodeAt(0) > 0xff)) {
+    return name;
+  }
+
+  try {
+    const bytes = Uint8Array.from([...name], (character) => character.charCodeAt(0));
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return name;
+  }
+};
+
 const normalizeGeoOption = (item: Record<string, unknown>): GeographicOption => ({
   code: String(item.code ?? item.province_code ?? item.city_code ?? item.id ?? '').trim(),
-  name: String(item.name ?? item.province_name ?? item.city_name ?? item.municipality_name ?? item.province ?? item.municipality ?? '').trim(),
+  name: normalizeGeoName(item.name ?? item.province_name ?? item.city_name ?? item.municipality_name ?? item.province ?? item.municipality),
 });
 
 const parseGeoOptions = (payload: unknown): GeographicOption[] => {

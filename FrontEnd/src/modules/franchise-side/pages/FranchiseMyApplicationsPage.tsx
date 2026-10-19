@@ -291,7 +291,6 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                           <div><h3 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">Upload requested documents</h3><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Every requested item stays here so you can follow its review status.</p></div>
                           <span className="w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-950">{completedPacketDocuments} of {allRequiredDocuments.length} completed</span>
                         </div>
-                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-amber-100" role="progressbar" aria-label="Required document progress" aria-valuemin={0} aria-valuemax={allRequiredDocuments.length} aria-valuenow={completedPacketDocuments}><span className="block h-full rounded-full bg-[var(--oppa-green)] transition-[width] duration-300" style={{ width: `${allRequiredDocuments.length ? completedPacketDocuments / allRequiredDocuments.length * 100 : 0}%` }} /></div>
                         {!allRequiredDocuments.length ? <p className="mt-3 rounded-xl bg-white p-3 text-sm text-[var(--oppa-text-muted)]">There are no required documents for this application.</p> : <div className="mt-3 space-y-3">
                           {[...pendingPacketDocuments, ...underReviewDocuments, ...verifiedDocuments].map(({ document, index }, rowIndex) => {
                             const selectedFile = requiredResponseFiles[application.id]?.[index];
