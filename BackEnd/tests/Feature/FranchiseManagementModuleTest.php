@@ -20,6 +20,10 @@ class FranchiseManagementModuleTest extends TestCase
     public function test_admin_can_manage_franchise_account_locations_and_assigned_managers(): void
     {
         $adminToken = $this->createAdminToken();
+        $coordinates = [
+            'latitude' => fake()->randomFloat(7, 4, 22),
+            'longitude' => fake()->randomFloat(7, 116, 127),
+        ];
 
         $accountResponse = $this->postJson('/api/admin/franchise-accounts', [
             'name' => 'Northstar Foods',
@@ -32,8 +36,16 @@ class FranchiseManagementModuleTest extends TestCase
             'name' => 'Northstar Downtown',
             'address' => '1 Main Street',
             'status' => 'active',
+            ...$coordinates,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
         ], ['Authorization' => 'Bearer '.$adminToken])->assertCreated();
         $locationId = $locationResponse->json('data.id');
+        $savedLocation = Franchise::findOrFail($locationId);
+        $this->assertEqualsWithDelta($coordinates['latitude'], (float) $savedLocation->latitude, 0.0000001);
+        $this->assertEqualsWithDelta($coordinates['longitude'], (float) $savedLocation->longitude, 0.0000001);
+        $this->assertTrue($savedLocation->delivery_enabled);
 
         $this->assertDatabaseHas('franchises', [
             'id' => $locationId,

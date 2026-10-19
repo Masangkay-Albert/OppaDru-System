@@ -12,6 +12,7 @@ import {
 import type { FranchiseAccountOverview } from '../../../services/franchiseAdminService';
 import { updateFranchise } from '../../../services/franchiseAdminService';
 import { formatCurrency } from '../../../utils/formatters';
+import { geocodeAddress } from '../../../services/geocodingService';
 import LocationPicker from '../../customer-side/components/common/LocationPicker';
 
 const AdminFranchiseAccountDetailPage: React.FC = () => {
@@ -25,7 +26,7 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
   const [showLocationPinPicker, setShowLocationPinPicker] = useState(false);
   const [newLocationAddress, setNewLocationAddress] = useState('');
   const [newLocationCoordinates, setNewLocationCoordinates] = useState({ latitude: '', longitude: '' });
-  const [newLocationDeliveryEnabled, setNewLocationDeliveryEnabled] = useState(false);
+  const [newLocationDeliveryEnabled, setNewLocationDeliveryEnabled] = useState(true);
   const [showManager, setShowManager] = useState(false);
 
   const load = useCallback(async () => {
@@ -68,20 +69,39 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
   const addLocation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const deliveryEnabled = newLocationDeliveryEnabled;
+    let latitude = newLocationCoordinates.latitude ? Number(newLocationCoordinates.latitude) : null;
+    let longitude = newLocationCoordinates.longitude ? Number(newLocationCoordinates.longitude) : null;
     setSaving(true);
     setError('');
     try {
+      if (deliveryEnabled && (latitude === null || longitude === null)) {
+        const address = newLocationAddress.trim();
+        if (!address) {
+          throw new Error('Enter the branch address so we can find its location.');
+        }
+
+        const coordinates = await geocodeAddress(address);
+        if (!coordinates || !Number.isFinite(coordinates.lat) || !Number.isFinite(coordinates.lng)
+          || coordinates.lat < 4 || coordinates.lat > 22 || coordinates.lng < 116 || coordinates.lng > 127) {
+          throw new Error('We could not find this branch address in the Philippines. Update the address or pin the exact location on the map.');
+        }
+
+        latitude = coordinates.lat;
+        longitude = coordinates.lng;
+      }
+
       await createFranchiseLocation(id, {
         name: String(form.get('name') || ''),
         email: String(form.get('email') || ''),
         phone: String(form.get('phone') || ''),
         address: newLocationAddress,
         status: String(form.get('status') || 'active'),
-        latitude: newLocationCoordinates.latitude ? Number(newLocationCoordinates.latitude) : null,
-        longitude: newLocationCoordinates.longitude ? Number(newLocationCoordinates.longitude) : null,
+        latitude,
+        longitude,
         is_active: form.get('is_active') === 'on',
-        accepts_online_orders: newLocationDeliveryEnabled,
-        delivery_enabled: newLocationDeliveryEnabled,
+        accepts_online_orders: deliveryEnabled,
+        delivery_enabled: deliveryEnabled,
         delivery_radius_km: form.get('delivery_radius_km') ? Number(form.get('delivery_radius_km')) : null,
       });
       setShowLocation(false);
@@ -173,8 +193,23 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
             </section>
 
             <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center justify-between"><div><h2 className="font-semibold">Locations / stores</h2><p className="text-xs text-gray-500">Existing branch records remain the location records.</p></div><button onClick={() => { setNewLocationAddress(''); setNewLocationCoordinates({ latitude: '', longitude: '' }); setNewLocationDeliveryEnabled(false); setShowLocation(true); }} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-white"><Plus size={14} /> Add location</button></div>
-              {data.locations.length ? <div className="space-y-2">{data.locations.map((location) => <article key={location.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--oppa-cream)] p-3"><div className="min-w-0"><p className="font-medium">{location.name}</p><p className="truncate text-xs text-gray-500">{location.address || location.id} · {location.id}</p></div><div className="flex items-center gap-2"><span className="rounded-full bg-white px-2.5 py-1 text-xs capitalize">{location.status}</span><Link to={`/admin/franchises/${location.id}?tab=settings`} className="rounded-lg border bg-white px-3 py-1.5 text-xs font-medium">Edit</Link><button disabled={saving} onClick={() => void toggleLocation(location.id, location.status)} className="rounded-lg border bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-50">{location.status === 'active' ? 'Deactivate' : 'Activate'}</button></div></article>)}</div> : <p className="rounded-xl bg-[var(--oppa-cream)] p-5 text-center text-sm text-gray-500">No locations have been added yet.</p>}
+              <div className="mb-4 flex items-center justify-between"><div><h2 className="font-semibold">Locations / stores</h2><p className="text-xs text-gray-500">Existing branch records remain the location records.</p></div><button onClick={() => { setNewLocationAddress(''); setNewLocationCoordinates({ latitude: '', longitude: '' }); setNewLocationDeliveryEnabled(true); setShowLocation(true); }} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-white"><Plus size={14} /> Add location</button></div>
+              {data.locations.length ? <div className="space-y-2">{data.locations.map((location) => {
+                const hasValidCoordinates = Number(location.latitude) >= 4 && Number(location.latitude) <= 22
+                  && Number(location.longitude) >= 116 && Number(location.longitude) <= 127;
+                const deliveryReady = location.status === 'active'
+                  && location.is_active !== false
+                  && location.accepts_online_orders
+                  && location.delivery_enabled
+                  && hasValidCoordinates;
+                const deliveryIssue = !hasValidCoordinates
+                  ? 'Delivery unavailable: add a valid map pin.'
+                  : location.is_active === false
+                    ? 'Location is inactive.'
+                    : 'Online delivery is disabled for this location.';
+
+                return <article key={location.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--oppa-cream)] p-3"><div className="min-w-0"><p className="font-medium">{location.name}</p><p className="truncate text-xs text-gray-500">{location.address || location.id} · {location.id}</p><p className={`mt-1 text-xs ${deliveryReady ? 'text-green-700' : 'text-amber-700'}`}>{deliveryReady ? 'Online delivery ready' : location.status === 'active' ? deliveryIssue : 'Location is inactive.'}</p></div><div className="flex items-center gap-2"><span className="rounded-full bg-white px-2.5 py-1 text-xs capitalize">{location.status}</span><Link to={`/admin/franchises/${location.id}?tab=settings`} className="rounded-lg border bg-white px-3 py-1.5 text-xs font-medium">Edit</Link><button disabled={saving} onClick={() => void toggleLocation(location.id, location.status)} className="rounded-lg border bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-50">{location.status === 'active' ? 'Deactivate' : 'Activate'}</button></div></article>;
+              })}</div> : <p className="rounded-xl bg-[var(--oppa-cream)] p-5 text-center text-sm text-gray-500">No locations have been added yet.</p>}
             </section>
 
             <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
@@ -196,7 +231,7 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
         </>
       )}
 
-      {showLocation && <Modal title="Add franchise location" onClose={() => setShowLocation(false)}><form onSubmit={addLocation} className="space-y-3"><label className="block text-sm font-medium">Location name<input required name="name" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium">Email<input name="email" type="email" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><label className="text-sm font-medium">Phone<input name="phone" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label></div><label className="block text-sm font-medium">Address<textarea name="address" value={newLocationAddress} onChange={(event) => setNewLocationAddress(event.target.value)} rows={2} className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><div className="rounded-xl border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-semibold">Map pin</p><p className="text-xs text-gray-500">{newLocationCoordinates.latitude && newLocationCoordinates.longitude ? `${newLocationCoordinates.latitude}, ${newLocationCoordinates.longitude}` : 'Choose the exact branch location to enable delivery.'}</p></div><button type="button" onClick={() => setShowLocationPinPicker(true)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold text-[var(--oppa-green)]"><MapPin size={14} />Pin location</button></div></div><label className="flex items-center gap-2 text-sm"><input name="is_active" type="checkbox" defaultChecked />Active</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newLocationDeliveryEnabled} onChange={(event) => setNewLocationDeliveryEnabled(event.target.checked)} />Enable online delivery</label>{newLocationDeliveryEnabled && (!newLocationCoordinates.latitude || !newLocationCoordinates.longitude) && <p role="alert" className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Pin the branch before enabling delivery.</p>}<label className="block text-sm font-medium">Delivery radius (km, optional)<input name="delivery_radius_km" type="number" min="0" step="any" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><label className="block text-sm font-medium">Status<select name="status" defaultValue="active" className="mt-1 w-full rounded-xl border bg-white px-3 py-2.5 font-normal"><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select></label><div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowLocation(false)} className="rounded-xl border px-4 py-2 text-sm">Cancel</button><button disabled={saving || (newLocationDeliveryEnabled && (!newLocationCoordinates.latitude || !newLocationCoordinates.longitude))} className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button></div></form>{showLocationPinPicker && <LocationPicker initialAddress={newLocationAddress} onClose={() => setShowLocationPinPicker(false)} onSelectLocation={(location) => { setNewLocationAddress(location.address); setNewLocationCoordinates({ latitude: String(location.lat), longitude: String(location.lng) }); setShowLocationPinPicker(false); }} />}</Modal>}
+      {showLocation && <Modal title="Add franchise location" onClose={() => setShowLocation(false)}><form onSubmit={addLocation} className="space-y-3"><label className="block text-sm font-medium">Location name<input required name="name" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium">Email<input name="email" type="email" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><label className="text-sm font-medium">Phone<input name="phone" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label></div><label className="block text-sm font-medium">Address<textarea name="address" value={newLocationAddress} onChange={(event) => setNewLocationAddress(event.target.value)} rows={2} className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label>{error && <p role="alert" className="rounded-lg bg-red-50 p-2 text-xs text-red-700">{error}</p>}<div className="rounded-xl border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-semibold">Map pin</p><p className="text-xs text-gray-500">{newLocationCoordinates.latitude && newLocationCoordinates.longitude ? `${newLocationCoordinates.latitude}, ${newLocationCoordinates.longitude}` : newLocationDeliveryEnabled ? 'We will find coordinates from the address when you save. Pin the map for a more exact location.' : 'Optional for locations without online delivery.'}</p></div><button type="button" onClick={() => setShowLocationPinPicker(true)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold text-[var(--oppa-green)]"><MapPin size={14} />Pin location</button></div></div><label className="flex items-center gap-2 text-sm"><input name="is_active" type="checkbox" defaultChecked />Active</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={newLocationDeliveryEnabled} onChange={(event) => setNewLocationDeliveryEnabled(event.target.checked)} />Enable online delivery</label><label className="block text-sm font-medium">Delivery radius (km, optional)<input name="delivery_radius_km" type="number" min="0" step="any" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><label className="block text-sm font-medium">Status<select name="status" defaultValue="active" className="mt-1 w-full rounded-xl border bg-white px-3 py-2.5 font-normal"><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select></label><div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowLocation(false)} className="rounded-xl border px-4 py-2 text-sm">Cancel</button><button disabled={saving} className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Finding location…' : 'Save'}</button></div></form>{showLocationPinPicker && <LocationPicker initialAddress={newLocationAddress} onClose={() => setShowLocationPinPicker(false)} onSelectLocation={(location) => { setNewLocationAddress(location.address); setNewLocationCoordinates({ latitude: String(location.lat), longitude: String(location.lng) }); setShowLocationPinPicker(false); }} />}</Modal>}
       {showManager && <Modal title="Add franchise manager" onClose={() => setShowManager(false)}><form onSubmit={addManager} className="space-y-3"><label className="block text-sm font-medium">Assigned location<select required name="franchise_id" className="mt-1 w-full rounded-xl border bg-white px-3 py-2.5 font-normal">{data?.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label><label className="block text-sm font-medium">Full name<input required name="full_name" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium">Email<input required name="email" type="email" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><label className="text-sm font-medium">Phone<input name="phone" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label></div><label className="block text-sm font-medium">Initial password<input required name="password" type="password" minLength={8} className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><label className="flex items-center gap-2 text-sm"><input name="can_process_pos" type="checkbox" /> Allow this manager to use POS</label><ModalActions saving={saving} onCancel={() => setShowManager(false)} /></form></Modal>}
     </AdminLayout>
   );

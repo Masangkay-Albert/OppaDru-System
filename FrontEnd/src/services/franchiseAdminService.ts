@@ -130,6 +130,11 @@ export interface FranchiseAccount {
     name: string;
     address?: string | null;
     status: string;
+    latitude?: number | string | null;
+    longitude?: number | string | null;
+    is_active?: boolean;
+    accepts_online_orders?: boolean;
+    delivery_enabled?: boolean;
   }>;
 }
 
