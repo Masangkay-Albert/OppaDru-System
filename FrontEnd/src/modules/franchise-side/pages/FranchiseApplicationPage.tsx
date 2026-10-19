@@ -1705,6 +1705,7 @@ const SuccessScreen: React.FC<{
       </section>
       <p className="mt-6 text-center text-sm text-[var(--oppa-text-muted)]">A confirmation and future updates will be sent to <span className="font-semibold text-[var(--oppa-text)]">{email}</span>.</p>
       <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <Link to="/franchise/my-applications" className="inline-flex min-h-11 items-center rounded-xl bg-[var(--oppa-green)] px-5 text-sm font-semibold text-white hover:opacity-90">Track application</Link>
         <Link to="/franchise-opportunities" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--oppa-border)] px-5 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Back to opportunities</Link>
       </div>
     </section>

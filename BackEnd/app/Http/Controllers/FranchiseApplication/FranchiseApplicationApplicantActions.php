@@ -624,7 +624,7 @@ trait FranchiseApplicationApplicantActions
             ->map(fn (array $document) => collect($document)->only(['name', 'mime_type', 'size', 'uploaded_at', 'required_document_label', 'document_type'])->all())
             ->all();
         $application->required_documents = collect($application->required_documents ?? [])
-            ->map(fn (array $document) => collect($document)->except(['template_path', 'submitted_document_index'])->all())
+            ->map(fn (array $document) => collect($document)->except(['template_path'])->all())
             ->all();
 
         return $application->toArray();

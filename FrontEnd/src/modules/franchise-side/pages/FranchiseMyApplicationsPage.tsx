@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Clock3, Download, FileText, Loader2, LogOut, RotateCcw, Upload } from 'lucide-react';
+import { AlertCircle, Check, Clock3, Download, FileText, LogOut, MapPin, RotateCcw, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
 import {
@@ -10,7 +10,9 @@ import {
   withdrawFranchiseApplication,
   type ApplicantFranchiseApplication,
 } from '../../../services/franchiseApplicationService';
-import { FRANCHISE_APPLICATION_STAGES, franchiseStageIndex, franchiseStatusLabel } from '../../../services/franchiseWorkflow';
+import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
+import { FranchiseEmptyState, FranchiseSkeleton, FranchiseStepper, FranchiseStatusPill, FranchiseTimeline } from '../components/FranchisePortalUI';
+import './FranchisePortalDesign.css';
 
 const title = franchiseStatusLabel;
 const requirementCategoryTitle = (category?: string) => ({
@@ -46,6 +48,8 @@ const FranchiseMyApplicationsPage: React.FC = () => {
   const { logout } = useFranchiseApplicantAuth();
   const [applications, setApplications] = useState<ApplicantFranchiseApplication[]>([]);
   const [requiredResponseFiles, setRequiredResponseFiles] = useState<Record<string, Record<number, File>>>({});
+  const [draggingRequirement, setDraggingRequirement] = useState<number | null>(null);
+  const [expandedSupportingDocuments, setExpandedSupportingDocuments] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -89,11 +93,15 @@ const FranchiseMyApplicationsPage: React.FC = () => {
   }, [load]);
 
   const handleResponse = async (application: ApplicantFranchiseApplication) => {
-    const requiredFiles = requiredResponseFiles[application.id] || {};
+    const actionableIndexes = new Set((application.required_documents || [])
+      .map((document, index) => ({ document, index }))
+      .filter(({ document }) => document.required && ['pending', 'rejected'].includes(document.status))
+      .map(({ index }) => index));
+    const requiredFiles = Object.fromEntries(Object.entries(requiredResponseFiles[application.id] || {}).filter(([index]) => actionableIndexes.has(Number(index)))) as Record<number, File>;
     const missingRequiredFiles = (application.required_documents || [])
       .map((document, index) => ({ document, index }))
       .filter(({ document, index }) => document.required
-        && !['verified', 'not_applicable'].includes(document.status)
+        && ['pending', 'rejected'].includes(document.status)
         && !requiredFiles[index])
       .map(({ document }) => document.label);
     if (missingRequiredFiles.length) {
@@ -117,6 +125,21 @@ const FranchiseMyApplicationsPage: React.FC = () => {
     } finally {
       setBusyId(null);
     }
+  };
+
+  const chooseRequiredFile = (applicationId: string, index: number, file?: File) => {
+    if (!file) return;
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'].includes(extension || '')) {
+      setError('Choose a PDF, DOC, DOCX, JPG, or PNG file.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Each document must be 10 MB or smaller.');
+      return;
+    }
+    setError('');
+    setRequiredResponseFiles((current) => ({ ...current, [applicationId]: { ...(current[applicationId] || {}), [index]: file } }));
   };
 
   const handleTemplateDownload = async (application: ApplicantFranchiseApplication, index: number, name: string) => {
@@ -182,9 +205,9 @@ const FranchiseMyApplicationsPage: React.FC = () => {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-8 sm:px-6">
+    <main className="franchise-portal min-h-screen bg-[var(--oppa-cream)] px-4 py-8 sm:px-6">
       <div className="mx-auto max-w-5xl">
-        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <header className="franchise-portal-header mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.16em] text-[var(--oppa-green)]">Franchise partner portal</p>
             <h1 className="mt-1 font-serif text-3xl font-bold text-[var(--oppa-text)]">My Applications</h1>
@@ -196,38 +219,37 @@ const FranchiseMyApplicationsPage: React.FC = () => {
         </header>
         {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {message && <p role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{message}</p>}
-        {loading ? <div className="rounded-2xl bg-white p-10 text-center text-sm text-[var(--oppa-text-muted)]"><Loader2 className="mx-auto size-6 animate-spin" /><p className="mt-3">Loading your applications…</p></div> : applications.length === 0 ? (
-          <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-10 text-center">
-            <AlertCircle className="mx-auto size-10 text-[var(--oppa-green)]" />
-            <h2 className="mt-3 font-semibold">No franchise applications yet</h2>
-            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Start an application to see its progress here.</p>
-            <a href="/franchise-opportunities" className="mt-5 inline-flex rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white">Explore franchise opportunities</a>
-          </section>
+        {loading ? <FranchiseSkeleton /> : applications.length === 0 ? (
+          <FranchiseEmptyState title="No franchise applications yet" description="Start an application to see its progress here." action={<a href="/franchise-opportunities" className="inline-flex min-h-11 items-center rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white">Explore franchise opportunities</a>} />
         ) : (
           <div className="space-y-6">
             {applications.map((application) => {
               const currentStatus = application.status || 'under_review';
-              const currentStageIndex = franchiseStageIndex(application);
               const showProgress = currentStatus !== 'rejected' && currentStatus !== 'withdrawn';
               const latestPacketRequest = [...(application.events || [])].reverse().find((event) => event.title === 'Document packet requested');
               const latestPacketSubmission = [...(application.events || [])].reverse().find((event) => ['Additional information submitted', 'Document packet submitted'].includes(event.title));
-              const hasRequiredDocuments = application.required_documents?.some((document) => document.required && document.status !== 'not_applicable') === true;
+              const hasRequiredDocuments = application.required_documents?.some((document) => document.required) === true;
               const packetAlreadySubmitted = Boolean(latestPacketSubmission && (!latestPacketRequest || latestPacketSubmission.id > latestPacketRequest.id));
               const packetRequestOpen = !packetAlreadySubmitted && (
                 currentStatus === 'additional_information_required'
                 || Boolean(latestPacketRequest && (!latestPacketSubmission || latestPacketRequest.id > latestPacketSubmission.id))
                 || (currentStatus === 'location_assessment' && hasRequiredDocuments)
               );
-              const pendingPacketDocuments = (application.required_documents || [])
-                .map((document, index) => ({ document, index }))
-                .filter(({ document }) => document.required && !['verified', 'not_applicable'].includes(document.status));
+              const allRequiredDocuments = (application.required_documents || []).map((document, index) => ({ document, index })).filter(({ document }) => document.required);
+              const pendingPacketDocuments = allRequiredDocuments.filter(({ document }) => ['pending', 'rejected'].includes(document.status));
+              const underReviewDocuments = allRequiredDocuments.filter(({ document }) => ['submitted', 'received'].includes(document.status));
+              const verifiedDocuments = allRequiredDocuments.filter(({ document }) => ['verified', 'not_applicable'].includes(document.status));
+              const completedPacketDocuments = underReviewDocuments.length + verifiedDocuments.length;
+              const allPacketDocumentsResolved = allRequiredDocuments.length > 0 && allRequiredDocuments.every(({ document }) => ['verified', 'not_applicable'].includes(document.status));
+              const allPacketDocumentsVerified = allRequiredDocuments.length > 0 && allRequiredDocuments.every(({ document }) => document.status === 'verified');
+              const showRequiredDocuments = hasRequiredDocuments;
               const selectedPacketFiles = pendingPacketDocuments.filter(({ index }) => requiredResponseFiles[application.id]?.[index]).length;
               const canWithdraw = ['submitted', 'pending', 'under_review', 'additional_information_required', 'for_interview', 'location_assessment', 'on_hold'].includes(currentStatus);
               return (
-                <article key={application.id} className="overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
-                  <header className="flex flex-col gap-3 border-b border-[var(--oppa-border)] p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
-                    <div><p className="font-mono text-xs text-[var(--oppa-text-muted)]">{application.reference_number}</p><h2 className="mt-1 text-xl font-bold text-[var(--oppa-text)]">{application.franchise_name}</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Proposed location: {application.location}</p></div>
-                    <div className={`flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ${currentStatus === 'rejected' ? 'bg-red-50 text-red-700' : currentStatus === 'active' ? 'bg-green-50 text-green-700' : currentStatus === 'on_hold' ? 'bg-gray-100 text-gray-700' : 'bg-amber-50 text-amber-800'}`}><span className="size-2 rounded-full bg-current" />{title(currentStatus)}</div>
+                <article key={application.id} className="franchise-application-card overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
+                  <header className="franchise-application-header flex flex-col gap-3 border-b border-[var(--oppa-border)] p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+                    <div><p className="font-mono text-xs font-semibold tracking-wide text-[var(--oppa-green)]">{application.reference_number}</p><h2 className="mt-1 font-serif text-xl font-bold text-[var(--oppa-text)] sm:text-2xl">{application.franchise_name}</h2><p className="mt-2 flex items-center gap-1.5 text-sm text-[var(--oppa-text-muted)]"><MapPin size={15} className="shrink-0 text-[var(--oppa-green)]" aria-hidden="true" />{application.location}</p></div>
+                    <FranchiseStatusPill status={currentStatus} label={title(currentStatus)} />
                   </header>
 
                   <div className="p-5 sm:p-6">
@@ -247,89 +269,77 @@ const FranchiseMyApplicationsPage: React.FC = () => {
                     {currentStatus === 'withdrawn' && <p className="mb-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">You withdrew this application.</p>}
 
                     {showProgress && (
-                      <section aria-label="Application progress" className="mb-5 rounded-2xl border border-[var(--oppa-border)] p-4">
-                        <h3 className="mb-3 text-sm font-semibold">Franchise process</h3>
-                        <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                          {FRANCHISE_APPLICATION_STAGES.map((stage, index) => {
-                            const complete = index < currentStageIndex;
-                            const current = index === currentStageIndex;
-                            return <li key={stage.status} aria-current={current ? 'step' : undefined} className={`rounded-xl p-3 text-xs ${current ? 'bg-[var(--oppa-green)] text-white' : complete ? 'bg-green-50 text-green-800' : 'bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)]'}`}><span className="font-semibold">{index + 1}. {stage.label}</span><span className="mt-1 block">{current ? `Current: ${title(currentStatus)}` : complete ? 'Completed' : 'Next stage'}</span></li>;
-                          })}
-                        </ol>
-                      </section>
+                      <FranchiseStepper status={currentStatus} />
                     )}
 
                     {currentStatus === 'active' && <p className="mb-5 rounded-xl bg-green-50 p-3 text-sm text-green-800">Your franchise is active. Authorized franchise operations, sales reporting, and compliance monitoring are now managed through the franchise portal.</p>}
 
-                    {currentStatus !== 'rejected' && currentStatus !== 'location_assessment' && !packetRequestOpen && <section className="mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
+                    {currentStatus !== 'rejected' && currentStatus !== 'location_assessment' && !packetRequestOpen && <section className="franchise-next-step mb-5 rounded-2xl bg-[var(--oppa-cream)] p-4">
                       <div className="flex items-center gap-2 text-sm font-semibold"><Clock3 size={16} className="text-[var(--oppa-green)]" /> Your next step</div>
                       <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">{application.next_step_instructions || 'Your application is in the review queue. We will update this page when there is a next step.'}</p>
-                      {currentStatus === 'for_interview' && (application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="mt-3 rounded-xl bg-white p-3 text-sm">
+                      {currentStatus === 'for_interview' && (application.interview_at || application.interview_meeting_url || application.interview_location) && <div className="franchise-interview-card mt-3 rounded-xl border border-[var(--oppa-border)] bg-white p-4 text-sm">
                         {application.interview_at && <p className="font-medium">Interview (Philippine time): {formatPhilippineDateTime(application.interview_at)}</p>}
                         {application.interview_type && <p className="mt-1">Type: {application.interview_type === 'onsite' ? 'Onsite' : 'Online'}</p>}
                         {application.interview_location && <p className="mt-1">Location: {application.interview_location}</p>}
-                        {application.interview_meeting_url && <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex font-semibold text-[var(--oppa-green)] underline">Join online interview</a>}
+                        {application.interview_meeting_url && <a href={application.interview_meeting_url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]">Join online interview</a>}
                       </div>}
                     </section>}
 
-                    {packetRequestOpen && (
+                    {showRequiredDocuments && (
                       <section className="mb-5 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div><h3 className="font-semibold text-[var(--oppa-text)]">Upload requested documents</h3><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Upload a file for each requirement below. If the franchise team attached a template, you can download it, fill it out, and upload the completed file. Templates are optional.</p></div>
-                          <span className="w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900">{selectedPacketFiles} of {pendingPacketDocuments.length} selected</span>
+                          <div><h3 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">Upload requested documents</h3><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Every requested item stays here so you can follow its review status.</p></div>
+                          <span className="w-fit shrink-0 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-950">{completedPacketDocuments} of {allRequiredDocuments.length} completed</span>
                         </div>
-                        {!pendingPacketDocuments.length ? <p className="mt-3 rounded-xl bg-white p-3 text-sm text-[var(--oppa-text-muted)]">There are no outstanding required forms to submit.</p> : <div className="mt-3 space-y-3">
-                          {pendingPacketDocuments.map(({ document, index }) => {
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-amber-100" role="progressbar" aria-label="Required document progress" aria-valuemin={0} aria-valuemax={allRequiredDocuments.length} aria-valuenow={completedPacketDocuments}><span className="block h-full rounded-full bg-[var(--oppa-green)] transition-[width] duration-300" style={{ width: `${allRequiredDocuments.length ? completedPacketDocuments / allRequiredDocuments.length * 100 : 0}%` }} /></div>
+                        {!allRequiredDocuments.length ? <p className="mt-3 rounded-xl bg-white p-3 text-sm text-[var(--oppa-text-muted)]">There are no required documents for this application.</p> : <div className="mt-3 space-y-3">
+                          {[...pendingPacketDocuments, ...underReviewDocuments, ...verifiedDocuments].map(({ document, index }, rowIndex) => {
                             const selectedFile = requiredResponseFiles[application.id]?.[index];
-                            return <div key={`${application.id}-${index}`} className="rounded-xl border border-amber-200 bg-white p-3 text-sm">
-                              <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{document.label}</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">Required</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${document.status === 'rejected' ? 'bg-red-100 text-red-800' : document.status === 'submitted' || document.status === 'received' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>{document.status === 'rejected' ? 'Rejected' : document.status === 'submitted' || document.status === 'received' ? 'Under review' : 'Pending'}</span></div>
+                            const isVerified = document.status === 'verified';
+                            const isUnderReview = ['submitted', 'received'].includes(document.status);
+                            const submittedIndex = document.submitted_document_index;
+                            const submittedFile = typeof submittedIndex === 'number' ? application.documents?.[submittedIndex] : undefined;
+                            const verifiedEvent = isVerified ? [...(application.events || [])].reverse().find((event) => event.title === 'Document verified' && event.message?.includes(`verified your submitted document: ${document.label}.`)) : undefined;
+                            const statusText = isVerified ? 'Verified' : document.status === 'not_applicable' ? 'Not applicable' : isUnderReview ? 'Submitted / Under review' : document.status === 'rejected' ? 'Rejected / Needs resubmission' : selectedFile ? 'Selected' : 'Pending';
+                            const statusStyle = isVerified || document.status === 'not_applicable' ? 'bg-emerald-50 text-emerald-800' : isUnderReview ? 'bg-sky-50 text-sky-800' : document.status === 'rejected' ? 'bg-red-50 text-red-800' : selectedFile ? 'bg-blue-50 text-blue-800' : 'bg-stone-100 text-stone-700';
+                            const needsAction = pendingPacketDocuments.some((item) => item.index === index);
+                            const groupHeading = rowIndex === 0
+                              ? (pendingPacketDocuments.length ? 'Needs action' : underReviewDocuments.length ? 'Under review' : 'Verified')
+                              : rowIndex === pendingPacketDocuments.length && underReviewDocuments.length ? 'Under review'
+                                : rowIndex === pendingPacketDocuments.length + underReviewDocuments.length ? 'Verified' : '';
+                            return <React.Fragment key={`${application.id}-${index}`}>{groupHeading && <h4 className="pt-2 text-xs font-bold uppercase tracking-[.12em] text-[var(--oppa-text-muted)]">{groupHeading}</h4>}<div className="franchise-requirement-card rounded-2xl border border-[var(--oppa-border)] bg-white p-4 text-sm">
+                              <div className="flex flex-wrap items-center gap-2"><span className="grid size-8 place-items-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]"><FileText size={16} aria-hidden="true" /></span><span className="font-semibold">{document.label}</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">Required</span><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusStyle}`}>{statusText}</span></div>
                               <span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">{requirementCategoryTitle(document.category)}</span>
                               {document.status === 'rejected' && document.reject_reason && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">Please correct and resubmit: {document.reject_reason}</p>}
+                              {(isVerified || isUnderReview) && (submittedFile || document.submitted_document_name) && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--oppa-cream)] p-3"><span className="flex min-w-0 items-center gap-2"><FileText size={16} className="shrink-0 text-[var(--oppa-green)]" aria-hidden="true" /><span className="min-w-0"><span className="block truncate font-medium" title={submittedFile?.name || document.submitted_document_name || ''}>{submittedFile?.name || document.submitted_document_name}</span>{submittedFile?.uploaded_at && <span className="block text-xs text-[var(--oppa-text-muted)]">Uploaded {formatPhilippineDateTime(submittedFile.uploaded_at)}</span>}</span></span>{typeof submittedIndex === 'number' && <button type="button" onClick={() => void handleDownload(application, submittedIndex, submittedFile?.name || document.submitted_document_name || document.label)} disabled={busyId === application.id} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-xs font-semibold text-[var(--oppa-green)]"><Download size={14} />View / Download</button>}</div>}
+                              {isVerified && <p className="mt-2 text-xs font-medium text-emerald-800">{verifiedEvent?.created_at ? `Verified ${formatPhilippineDateTime(verifiedEvent.created_at)}` : 'Verified by the franchise team'}</p>}
                               {document.template_name && <button type="button" onClick={() => void handleTemplateDownload(application, index, document.template_name || document.label)} disabled={busyId === application.id} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-60"><Download size={14} />Download file from franchisor</button>}
-                              {!document.template_name && <p className="mt-2 rounded-lg bg-blue-50 p-2 text-xs text-blue-900">No template was attached. You can upload the requested document directly below.</p>}
-                              <div className="mt-3">
+                              {!document.template_name && needsAction && <p className="mt-2 rounded-lg bg-blue-50 p-2 text-xs text-blue-900">No template was attached. You can upload the requested document directly below.</p>}
+                              {needsAction && <div className="mt-3">
                                 <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-amber-950">Upload file for this requirement</p>
-                                <input id={`required-response-${application.id}-${index}`} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="peer sr-only" onChange={(event) => {
-                                  const file = event.target.files?.[0];
-                                  if (!file) return;
-                                  const extension = file.name.split('.').pop()?.toLowerCase();
-                                  if (!['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'].includes(extension || '')) {
-                                    setError('Choose a PDF, DOC, DOCX, JPG, or PNG file.');
-                                    event.target.value = '';
-                                    return;
-                                  }
-                                  if (file.size > 10 * 1024 * 1024) {
-                                    setError('Each document must be 10 MB or smaller.');
-                                    event.target.value = '';
-                                    return;
-                                  }
-                                  setError('');
-                                  setRequiredResponseFiles((current) => ({ ...current, [application.id]: { ...(current[application.id] || {}), [index]: file } }));
-                                }} />
-                                <label htmlFor={`required-response-${application.id}-${index}`} className="flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-amber-500 px-3 py-3 transition hover:border-[var(--oppa-green)] hover:bg-green-50 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--oppa-green)] peer-focus-visible:ring-offset-2">
+                                <input id={`required-response-${application.id}-${index}`} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="peer sr-only" onChange={(event) => { const file = event.target.files?.[0]; chooseRequiredFile(application.id, index, file); if (file && (file.size > 10 * 1024 * 1024 || !['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'].includes(file.name.split('.').pop()?.toLowerCase() || ''))) event.target.value = ''; }} />
+                                <label htmlFor={`required-response-${application.id}-${index}`} onDragOver={(event) => { event.preventDefault(); setDraggingRequirement(index); }} onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDraggingRequirement(null); }} onDrop={(event) => { event.preventDefault(); setDraggingRequirement(null); chooseRequiredFile(application.id, index, event.dataTransfer.files[0]); }} className={`flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed px-3 py-3 transition hover:border-[var(--oppa-green)] hover:bg-green-50 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--oppa-green)] peer-focus-visible:ring-offset-2 ${draggingRequirement === index ? 'border-[var(--oppa-green)] bg-green-50' : 'border-amber-400'}`}>
                                   <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-900"><Upload size={19} /></span>
                                   <span className="min-w-0 flex-1"><span className="block break-all font-semibold text-[var(--oppa-text)]">{selectedFile?.name || 'Tap here to choose your completed file'}</span><span className="mt-0.5 block text-xs text-[var(--oppa-text-muted)]">{selectedFile ? 'Ready to submit' : 'Select the filled-out file from your device'}</span></span>
-                                  <span className="shrink-0 rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-xs font-bold text-white">Choose file</span>
+                                  <span className="shrink-0 rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-xs font-bold text-white">{selectedFile ? 'Replace file' : 'Choose file'}</span>
                                 </label>
-                              </div>
-                            </div>;
+                                {selectedFile && <div className="mt-2 flex items-center justify-between gap-2 text-xs"><span className="text-[var(--oppa-text-muted)]">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB · Ready to submit</span><button type="button" onClick={() => { setRequiredResponseFiles((current) => { const next = { ...(current[application.id] || {}) }; delete next[index]; return { ...current, [application.id]: next }; }); const input = window.document.getElementById(`required-response-${application.id}-${index}`) as HTMLInputElement | null; if (input) input.value = ''; }} className="font-semibold text-red-700 underline">Remove file</button></div>}
+                              </div>}
+                            </div></React.Fragment>;
                           })}
                         </div>}
-                        <div className="mt-3 rounded-xl border border-[var(--oppa-green)]/30 bg-green-50 p-3">
+                        {allPacketDocumentsResolved ? <div role="status" className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900"><Check size={18} aria-hidden="true" />{allPacketDocumentsVerified ? 'All required documents verified' : 'All applicable required documents complete'}</div> : pendingPacketDocuments.length > 0 && <div className="mt-3 rounded-xl border border-[var(--oppa-green)]/30 bg-green-50 p-3">
                           <p className="mb-2 text-center text-sm font-semibold text-green-900">{selectedPacketFiles === pendingPacketDocuments.length ? 'All required files are ready to submit.' : `Select ${pendingPacketDocuments.length - selectedPacketFiles} more required ${pendingPacketDocuments.length - selectedPacketFiles === 1 ? 'file' : 'files'} to continue.`}</p>
                           <button type="button" onClick={() => void handleResponse(application)} disabled={busyId === application.id || !pendingPacketDocuments.length || selectedPacketFiles !== pendingPacketDocuments.length} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"><Upload size={16} />{busyId === application.id ? 'Submitting forms…' : 'Submit all completed forms'}</button>
-                        </div>
+                        </div>}
                       </section>
                     )}
 
-                    {application.documents?.length ? <section className="mb-5"><h3 className="mb-2 text-sm font-semibold">Your supporting documents</h3><ul className="space-y-2">{application.documents.map((file, index) => <li key={`${file.name}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--oppa-border)] p-3"><span className="flex min-w-0 items-center gap-2 text-sm"><FileText size={16} className="shrink-0 text-[var(--oppa-green)]" /><span className="truncate">{file.name}</span></span><button type="button" onClick={() => void handleDownload(application, index, file.name)} disabled={busyId === application.id} className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[var(--oppa-green)]"><Download size={14} />Download</button></li>)}</ul></section> : null}
+                    {application.documents?.length ? <section className="mb-5"><h3 className="mb-2 font-serif text-lg font-semibold">Your supporting documents</h3><ul className="grid gap-2 sm:grid-cols-2">{application.documents.slice(0, expandedSupportingDocuments[application.id] ? undefined : 4).map((file, index) => <li key={`${file.name}-${index}`} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[var(--oppa-border)] bg-white p-3"><span className="flex min-w-0 items-center gap-2 text-sm"><FileText size={16} className="shrink-0 text-[var(--oppa-green)]" /><span className="truncate" title={file.name}>{file.name}</span></span><button type="button" onClick={() => void handleDownload(application, index, file.name)} disabled={busyId === application.id} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-[var(--oppa-green)]"><Download size={14} />Download</button></li>)}</ul>{application.documents.length > 4 && <button type="button" onClick={() => setExpandedSupportingDocuments((current) => ({ ...current, [application.id]: !current[application.id] }))} className="mt-2 min-h-9 text-sm font-semibold text-[var(--oppa-green)]">{expandedSupportingDocuments[application.id] ? 'Show fewer' : `Show all (${application.documents.length})`}</button>}</section> : null}
 
-                    <section>
-                      <h3 className="mb-3 text-sm font-semibold">Application timeline</h3>
-                      {!application.events?.length ? <p className="text-sm text-[var(--oppa-text-muted)]">No timeline updates yet.</p> : <ol className="space-y-4">{uniqueTimelineEvents(application.events, Boolean(application.interview_at)).map((event) => <li key={event.id} className="relative border-l border-[var(--oppa-border)] pl-4"><p className="text-sm font-semibold">{event.title}</p>{event.message && <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[var(--oppa-text-muted)]">{event.message}</p>}<p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{formatPhilippineDateTime(event.created_at)}</p></li>)}</ol>}
-                    </section>
+                    <FranchiseTimeline events={uniqueTimelineEvents(application.events || [], Boolean(application.interview_at))} />
 
-                    {canWithdraw && <div className="mt-5 border-t border-[var(--oppa-border)] pt-4"><button type="button" onClick={() => void handleWithdraw(application)} disabled={busyId === application.id} className="inline-flex items-center gap-2 text-xs font-medium text-red-700 hover:underline disabled:opacity-60"><RotateCcw size={14} />Withdraw this application</button></div>}
+                    {canWithdraw && <div className="mt-7 border-t border-[var(--oppa-border)] pt-5"><button type="button" onClick={() => void handleWithdraw(application)} disabled={busyId === application.id} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-800 hover:bg-red-100 disabled:opacity-60"><RotateCcw size={14} />Withdraw this application</button></div>}
                   </div>
                 </article>
               );

@@ -14,6 +14,8 @@ import {
   type FranchiseApplication,
 } from '../../../services/franchiseAdminService';
 import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
+import { FranchiseSkeleton, FranchiseStepper, FranchiseStatusPill, FranchiseTimeline } from '../../franchise-side/components/FranchisePortalUI';
+import '../../franchise-side/pages/FranchisePortalDesign.css';
 
 const statusTitle = franchiseStatusLabel;
 const money = (amount?: string | number) => amount === undefined || amount === null ? 'Not provided' : `₱${Number(amount).toLocaleString('en-PH')}`;
@@ -704,17 +706,19 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="rounded-2xl bg-[var(--oppa-surface)] p-3 sm:p-5">
+      <div className="franchise-admin rounded-2xl bg-[var(--oppa-surface)] p-3 sm:p-5">
       <Link to="/admin/franchise-applications" className="mb-5 inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)] hover:text-[var(--oppa-green)]"><ArrowLeft size={16} /> All applications</Link>
       {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      {loading ? <div className="rounded-2xl bg-white p-10 text-center text-sm text-[var(--oppa-text-muted)]"><Loader2 className="mx-auto size-6 animate-spin" /><p className="mt-3">Loading application…</p></div> : !application ? null : (
+      {loading ? <FranchiseSkeleton rows={1} label="Loading application" /> : !application ? null : (
         <>
           <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div><p className="font-mono text-xs text-[var(--oppa-text-muted)]">{application.reference_number || 'Legacy application'}</p><h1 className="mt-1 font-serif text-2xl font-bold text-[var(--oppa-text)] sm:text-3xl">{application.contact_name}</h1><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">{application.email} · {application.phone || 'No phone number'}</p></div>
-            <span className="w-fit rounded-full bg-amber-50 px-3 py-1.5 text-sm font-semibold capitalize text-amber-800">{statusTitle(currentStatus)}</span>
+            <FranchiseStatusPill status={currentStatus} label={statusTitle(currentStatus)} />
           </header>
 
-          <div className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
+          <FranchiseStepper status={currentStatus} hidden={['rejected', 'withdrawn'].includes(currentStatus)} />
+
+          <div className="grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
             <div className="space-y-5">
               <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
                 <h2 className="mb-4 font-semibold text-[var(--oppa-text)]">Applicant and business profile</h2>
@@ -737,7 +741,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
             </div>
 
-            <form noValidate onChange={() => { formDirty.current = true; }} onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+            <div className="space-y-5"><form noValidate onChange={() => { formDirty.current = true; }} onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
               <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Review and verify the requested documents, then approve to activate dashboard access. Agreement, fee, and opening setup can be completed separately.</p></div>
               <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
               {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview is completed, select Location Assessment. This begins the combined final stage (site inspection, financial evaluation, and agreement). Add the required-document checklist in the panel below. A blank form is optional; saving the requirements automatically opens the applicant's upload area.</p>}
@@ -763,6 +767,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                 </button>
               )}
             </form>
+            {application.events?.length ? <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm"><FranchiseTimeline events={application.events} /></section> : null}</div>
           </div>
 
           {['location_assessment', 'for_final_evaluation', 'conditionally_approved', 'agreement_pending', 'requirements_pending', 'approved_for_opening'].includes(currentStatus) && (

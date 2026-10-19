@@ -40,6 +40,7 @@ export interface ApplicantFranchiseApplication {
     category?: string;
     template_name?: string | null;
     submitted_document_name?: string | null;
+    submitted_document_index?: number | null;
     reject_reason?: string | null;
   }>;
   location_readiness?: string;

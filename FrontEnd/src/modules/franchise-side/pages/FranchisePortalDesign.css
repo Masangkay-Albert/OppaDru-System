@@ -1,0 +1,62 @@
+:root {
+  --franchise-success-bg: #eaf6ee;
+  --franchise-success-text: #17633d;
+  --franchise-warning-bg: #fff5df;
+  --franchise-warning-text: #80510a;
+  --franchise-danger-bg: #fff0ee;
+  --franchise-danger-text: #9c3029;
+  --franchise-info-bg: #edf5fc;
+  --franchise-info-text: #25577b;
+  --franchise-radius-card: 1.25rem;
+  --franchise-shadow-card: 0 12px 32px rgb(29 48 38 / 7%), 0 2px 6px rgb(29 48 38 / 4%);
+}
+
+.franchise-portal { color: var(--oppa-text); }
+.franchise-portal button, .franchise-portal a, .franchise-admin button, .franchise-admin a { transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+.franchise-portal :is(button, a, input, select, textarea):focus-visible, .franchise-admin :is(button, a, input, select, textarea):focus-visible { outline: 3px solid #73a98a; outline-offset: 2px; }
+.franchise-portal-header h1 { letter-spacing: -.025em; }
+.franchise-application-header { background: linear-gradient(120deg, #fff 0%, #fff 70%, #f7fbf7 100%); }
+.franchise-application-header .franchise-status-pill { border: 1px solid currentColor; border-color: color-mix(in srgb, currentColor 18%, transparent); }
+.franchise-portal article { border-radius: var(--franchise-radius-card); box-shadow: var(--franchise-shadow-card); }
+.franchise-next-step { border: 1px solid #e7dfcc; background: linear-gradient(135deg, #fcfaf4, #f7f3e9); }
+.franchise-requirement-card { box-shadow: 0 2px 8px rgb(20 55 35 / 4%); transition: border-color 160ms ease, box-shadow 160ms ease; }
+.franchise-requirement-card:hover { border-color: #a6c5ae; box-shadow: 0 8px 20px rgb(20 55 35 / 7%); }
+.franchise-application-stepper { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
+.franchise-step { position: relative; display: flex; min-width: 0; flex-direction: column; align-items: center; gap: .6rem; padding: .5rem .25rem; text-align: center; }
+.franchise-step:not(:last-child)::after { position: absolute; z-index: 0; top: 1.38rem; left: calc(50% + 1.25rem); width: calc(100% - 2.5rem); height: 2px; content: ''; background: #e6e2d8; }
+.franchise-step.is-complete:not(:last-child)::after { background: #8bb69a; }
+.franchise-step-marker { z-index: 1; display: grid; width: 2.25rem; height: 2.25rem; flex: 0 0 auto; place-items: center; border: 1px solid #ddd9cd; border-radius: 999px; background: #fff; color: #66736a; font-size: .8rem; font-weight: 700; }
+.franchise-step.is-current .franchise-step-marker { border-color: var(--oppa-green); background: var(--oppa-green); color: #fff; box-shadow: 0 0 0 5px rgb(33 119 71 / 13%); }
+.franchise-step.is-complete .franchise-step-marker { border-color: #26794b; background: #26794b; color: #fff; }
+.franchise-step-copy { max-width: 12rem; }
+.franchise-step-copy strong { display: block; font-size: .75rem; line-height: 1.35; }
+.franchise-step-copy small { display: block; margin-top: .25rem; color: var(--oppa-text-muted); font-size: .68rem; line-height: 1.35; }
+.franchise-step.is-current .franchise-step-copy strong, .franchise-step.is-current .franchise-step-copy small { color: var(--oppa-green); }
+.franchise-timeline { position: relative; }
+.franchise-timeline li::before { position: absolute; top: 1rem; bottom: -1.3rem; left: .42rem; width: 1px; content: ''; background: #d7e3d9; }
+.franchise-timeline li:last-child::before { display: none; }
+.franchise-timeline-point { position: absolute; top: .2rem; left: 0; width: .9rem; height: .9rem; border: 3px solid #dcece0; border-radius: 50%; background: #28794b; }
+.franchise-admin { --admin-card-shadow: 0 12px 28px rgb(29 48 38 / 6%); }
+.franchise-admin .franchise-admin-card { border-radius: var(--franchise-radius-card); box-shadow: var(--admin-card-shadow); }
+.franchise-admin .franchise-admin-table-head { position: sticky; top: 0; z-index: 2; }
+.franchise-admin .franchise-admin-row:hover { background: #f6faf6; }
+.franchise-admin .franchise-status-badge { border: 1px solid color-mix(in srgb, currentColor 20%, transparent); font-weight: 650; }
+.franchise-admin :is(input, select, textarea) { transition: border-color 160ms ease, box-shadow 160ms ease; }
+.franchise-admin :is(section, form).rounded-2xl { box-shadow: var(--admin-card-shadow); }
+.franchise-admin :is(input, select, textarea) { min-height: 2.75rem; border-radius: .75rem; }
+.franchise-admin textarea { min-height: 5rem; }
+.franchise-portal .franchise-timeline-section, .franchise-portal section[aria-label="Application progress"] { border-radius: var(--franchise-radius-card); }
+.franchise-portal button:disabled { cursor: not-allowed; }
+
+@media (max-width: 640px) {
+  .franchise-application-stepper { grid-template-columns: 1fr; gap: .15rem; }
+  .franchise-step { min-height: 3.5rem; flex-direction: row; align-items: flex-start; gap: .75rem; padding: .35rem 0; text-align: left; }
+  .franchise-step:not(:last-child)::after { top: 2.5rem; bottom: -.25rem; left: 1.08rem; width: 2px; height: auto; }
+  .franchise-step-copy { max-width: none; padding-top: .15rem; }
+  .franchise-step-copy strong { font-size: .82rem; }
+  .franchise-step-copy small { font-size: .74rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .franchise-portal *, .franchise-admin * { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
