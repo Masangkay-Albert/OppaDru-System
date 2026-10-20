@@ -8,6 +8,43 @@ import {
   XCircle, AlertCircle, Image as ImageIcon, Sparkles, Percent, DollarSign, RefreshCw
 } from 'lucide-react';
 
+const PROMO_TIME_ZONE = 'Asia/Manila';
+
+const toDateTimeLocal = (value?: string | null): string => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PROMO_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value: part }) => [type, part]));
+
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+};
+
+const toPromoApiDateTime = (value: string): string => (
+  value ? `${value.length === 16 ? `${value}:00` : value}+08:00` : ''
+);
+
+const formatPromoDate = (value: string): string => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: PROMO_TIME_ZONE,
+  });
+};
+
 export default function AdminPromosPage() {
   const [promos, setPromos] = useState<Promo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -84,8 +121,8 @@ export default function AdminPromosPage() {
     setDiscountValue(promo.discount_value);
     setMinOrderAmount(promo.min_order_amount ?? 0);
     setMaxDiscountAmount(promo.max_discount_amount ?? '');
-    setStartDate(promo.start_date ? promo.start_date.slice(0, 16) : '');
-    setEndDate(promo.end_date ? promo.end_date.slice(0, 16) : '');
+    setStartDate(toDateTimeLocal(promo.start_date));
+    setEndDate(toDateTimeLocal(promo.end_date));
     setIsActive(promo.is_active);
     setSelectedCategories(promo.applicable_categories || []);
     setSelectedProducts(promo.applicable_products || []);
@@ -132,8 +169,8 @@ export default function AdminPromosPage() {
       formData.append('discount_value', String(discountValue));
       formData.append('min_order_amount', String(minOrderAmount || 0));
       if (maxDiscountAmount !== '') formData.append('max_discount_amount', String(maxDiscountAmount));
-      if (startDate) formData.append('start_date', startDate);
-      if (endDate) formData.append('end_date', endDate);
+      if (startDate) formData.append('start_date', toPromoApiDateTime(startDate));
+      if (endDate) formData.append('end_date', toPromoApiDateTime(endDate));
       formData.append('is_active', isActive ? '1' : '0');
       formData.append('applicable_categories', JSON.stringify(selectedCategories));
       formData.append('applicable_products', JSON.stringify(selectedProducts));
@@ -378,9 +415,9 @@ export default function AdminPromosPage() {
                             </span>
                           ) : promo.end_date ? (
                             <div className="space-y-0.5 text-gray-600">
-                              <span className="block font-medium">Until {new Date(promo.end_date).toLocaleDateString()}</span>
+                              <span className="block font-medium">Until {formatPromoDate(promo.end_date)}</span>
                               <span className="text-[11px] text-gray-400">
-                                {promo.start_date ? `From ${new Date(promo.start_date).toLocaleDateString()}` : 'Ongoing'}
+                                {promo.start_date ? `From ${formatPromoDate(promo.start_date)}` : 'Ongoing'}
                               </span>
                             </div>
                           ) : (
@@ -727,4 +764,3 @@ export default function AdminPromosPage() {
     </AdminLayout>
   );
 }
-

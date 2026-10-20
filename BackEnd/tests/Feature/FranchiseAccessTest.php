@@ -12,6 +12,8 @@ use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class FranchiseAccessTest extends TestCase
@@ -92,6 +94,89 @@ class FranchiseAccessTest extends TestCase
         $this->assertContains('Shared Menu Item', $names);
         $this->assertContains('North House Special', $names);
         $this->assertNotContains('South Secret Menu', $names);
+    }
+
+    public function test_franchise_product_creation_is_scoped_to_authenticated_branch(): void
+    {
+        $franchiseA = Franchise::create([
+            'name' => 'North Branch',
+            'email' => 'north@example.com',
+            'phone' => '09170000001',
+            'address' => '123 North St',
+            'status' => 'active',
+        ]);
+        $franchiseB = Franchise::create([
+            'name' => 'South Branch',
+            'email' => 'south@example.com',
+            'phone' => '09170000002',
+            'address' => '456 South St',
+            'status' => 'active',
+        ]);
+        FranchiseUser::create([
+            'franchise_id' => $franchiseA->id,
+            'full_name' => 'North Manager',
+            'email' => 'north.manager@example.com',
+            'phone' => '09170000011',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+            'role' => 'manager',
+        ]);
+        FranchiseUser::create([
+            'franchise_id' => $franchiseB->id,
+            'full_name' => 'South Manager',
+            'email' => 'south.manager@example.com',
+            'phone' => '09170000012',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+            'role' => 'manager',
+        ]);
+
+        $northLogin = $this->postJson('/api/franchise/login', [
+            'email' => 'north.manager@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $northHeaders = ['Authorization' => 'Bearer '.$northLogin->json('token')];
+
+        $request = [
+            'franchise_id' => $franchiseB->id,
+            'name' => 'North Branch Special',
+            'description' => 'Available only at the north branch.',
+            'price' => 125,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ];
+        $this->postJson('/api/franchise/products', $request, $northHeaders)->assertForbidden();
+
+        unset($request['franchise_id']);
+        $created = $this->postJson('/api/franchise/products', $request, $northHeaders)->assertCreated();
+
+        $productId = $created->json('product.id');
+        $created->assertJsonPath('product.franchise_id', $franchiseA->id);
+        $this->assertDatabaseHas('franchise_inventory', [
+            'franchise_id' => $franchiseA->id,
+            'product_id' => $productId,
+            'is_available' => true,
+        ]);
+
+        $this->getJson('/api/franchise/inventory', $northHeaders)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $productId]);
+
+        $southLogin = $this->postJson('/api/franchise/login', [
+            'email' => 'south.manager@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $this->getJson('/api/franchise/inventory', [
+            'Authorization' => 'Bearer '.$southLogin->json('token'),
+        ])->assertOk()->assertJsonMissing(['id' => $productId]);
+
+        Storage::fake('public');
+        $imageResponse = $this->post('/api/franchise/products/upload-image', [
+            'image' => UploadedFile::fake()->create('branch-product.jpg', 1, 'image/jpeg'),
+        ], $northHeaders)->assertOk();
+        Storage::disk('public')->assertExists($imageResponse->json('path'));
+        $this->assertStringStartsWith('products/franchise/'.$franchiseA->id.'/', $imageResponse->json('path'));
     }
 
     public function test_franchise_user_cannot_access_another_franchise_scope(): void

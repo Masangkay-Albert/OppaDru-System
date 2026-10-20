@@ -129,7 +129,7 @@ const AddressSearchDropdown: React.FC<AddressSearchDropdownProps> = ({
           onChange={handleInputChange}
           onFocus={handleFocus}
           placeholder={placeholder}
-          className="w-full pl-10 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-gray-800"
+          className="h-11 w-full min-w-0 truncate whitespace-nowrap pl-10 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-gray-800"
           autoComplete="off"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -212,9 +212,9 @@ const AddressSearchDropdown: React.FC<AddressSearchDropdownProps> = ({
         <div className="mt-3 p-3 bg-[#f0fdf4] rounded-xl border border-[#2d6a4f]/20">
           <div className="flex items-start gap-2">
             <FiCheckCircle className="text-[#2d6a4f] mt-0.5" size={18} />
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <p className="font-medium text-gray-800">{selectedLocation.name}</p>
-              <p className="text-sm text-gray-500">{selectedLocation.address}</p>
+              <p className="break-words text-sm text-gray-500">{selectedLocation.address}</p>
             </div>
             <button
               onClick={() => {
@@ -225,7 +225,7 @@ const AddressSearchDropdown: React.FC<AddressSearchDropdownProps> = ({
                 if (onChange) onChange('');
                 onQueryChange?.('');
               }}
-              className="text-gray-400 hover:text-gray-600 text-sm font-medium"
+              className="shrink-0 whitespace-nowrap text-gray-400 hover:text-gray-600 text-sm font-medium"
             >
               Change
             </button>

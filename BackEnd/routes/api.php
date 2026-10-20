@@ -96,7 +96,9 @@ Route::prefix('franchise')->group(function () {
         Route::put('/settings', [FranchiseController::class, 'updateBranchSettings'])->middleware('franchise.role:owner');
         Route::get('/addon-groups', [AddonController::class, 'index']);
         Route::get('/products', [FranchiseController::class, 'products']);
-        // Franchise users can only read the shared catalog and change branch availability/stock.
+        Route::post('/products', [ProductController::class, 'franchiseStore'])->middleware('franchise.role:owner,manager');
+        Route::post('/products/upload-image', [ProductController::class, 'franchiseUploadImage'])->middleware('franchise.role:owner,manager');
+        // Franchise users can change branch availability/stock; product creation is branch-scoped.
         Route::patch('/products/{id}/toggle', [ProductController::class, 'franchiseToggleAvailability']);
         Route::get('/orders', [FranchiseController::class, 'orders']);
         Route::get('/orders/{id}', [FranchiseController::class, 'showOrder']);

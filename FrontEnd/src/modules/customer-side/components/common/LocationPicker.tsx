@@ -1,6 +1,6 @@
 // src/modules/customer-side/components/common/LocationPicker.tsx
-import React, { useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import React, { useEffect, useRef, useState } from 'react';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import type { Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -53,6 +53,19 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   const [hasConfirmedPosition, setHasConfirmedPosition] = useState(hasValidInitialPosition);
   const [searchQuery, setSearchQuery] = useState('');
   const reverseGeocodeRequestRef = useRef(0);
+
+  useEffect(() => {
+    const body = document.body;
+    const previousOverflow = body.style.overflow;
+    const previousOverscrollBehavior = body.style.overscrollBehavior;
+    body.style.overflow = 'hidden';
+    body.style.overscrollBehavior = 'none';
+
+    return () => {
+      body.style.overflow = previousOverflow;
+      body.style.overscrollBehavior = previousOverscrollBehavior;
+    };
+  }, []);
 
   const handleMapClick = async (lat: number, lng: number) => {
     const requestId = ++reverseGeocodeRequestRef.current;
@@ -111,8 +124,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4 animate-fadeIn">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+    <div className="fixed inset-0 bg-black/50 z-[1000] flex items-end justify-center pt-16 sm:items-center sm:p-4 animate-fadeIn">
+      <div className="bg-white rounded-t-2xl rounded-b-none sm:rounded-2xl max-w-2xl w-full max-h-[calc(100dvh-4rem)] sm:max-h-[90dvh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] text-white flex-shrink-0">
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -127,49 +140,49 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
           </button>
         </div>
 
-        {/* Info Banner */}
-        <div className="p-4 bg-[#d8f3dc]/30 border-b border-[#2d6a4f]/10 flex-shrink-0">
-          <p className="text-sm text-[#2d6a4f] flex items-center gap-2">
-            <FiInfo size={16} />
-            Providing your location enables more accurate search and delivery across the Philippines.
-          </p>
-        </div>
-
-        {/* Search Section - Fixed height with relative positioning */}
-        <div className="p-4 border-b border-gray-200 flex-shrink-0 relative z-10">
-          <AddressSearchDropdown
-            onSelect={handleSearchSelect}
-            placeholder="Search any city, subdivision, or landmark in the Philippines..."
-            className="w-full"
-            initialValue={initialAddress}
-            onQueryChange={handleSearchQueryChange}
-          />
-        </div>
-
-        {/* Selected Location Preview */}
-        {selectedAddress && (
-          <div className="p-4 border-b border-gray-200 bg-[#fdf6ed] flex-shrink-0">
-            <p className="text-sm text-gray-500">Selected location:</p>
-            <p className="font-medium text-gray-800">{selectedName}</p>
-            <p className="text-xs text-gray-500 truncate">{selectedAddress}</p>
-            {!hasConfirmedPosition && (
-              <p className="mt-2 text-xs font-medium text-amber-700">
-                This result is only a province or region. Click the map or move the pin to set your exact delivery location.
-              </p>
-            )}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain">
+          {/* Info Banner */}
+          <div className="p-4 bg-[#d8f3dc]/30 border-b border-[#2d6a4f]/10 flex-shrink-0">
+            <p className="text-sm text-[#2d6a4f] flex items-start gap-2">
+              <FiInfo size={16} className="mt-0.5 shrink-0" />
+              <span>Providing your location enables more accurate search and delivery across the Philippines.</span>
+            </p>
           </div>
-        )}
 
-        {/* Map Section - With proper z-index and pointer events */}
-        <div className="relative flex-1 min-h-[300px]">
-          <div className="absolute inset-0 pointer-events-auto">
-            <MapContainer 
-              center={position} 
+          {/* Search Section */}
+          <div className="p-4 border-b border-gray-200 flex-shrink-0 relative z-10">
+            <AddressSearchDropdown
+              onSelect={handleSearchSelect}
+              placeholder="Search any city, subdivision, or landmark in the Philippines..."
+              className="w-full"
+              initialValue={initialAddress}
+              onQueryChange={handleSearchQueryChange}
+            />
+          </div>
+
+          {/* Selected Location Preview */}
+          {selectedAddress && (
+            <div className="p-4 border-b border-gray-200 bg-[#fdf6ed] flex-shrink-0">
+              <p className="text-sm text-gray-500">Selected location:</p>
+              <p className="font-medium text-gray-800 break-words">{selectedName}</p>
+              <p className="text-xs text-gray-500 break-words">{selectedAddress}</p>
+              {!hasConfirmedPosition && (
+                <p className="mt-2 text-xs font-medium text-amber-700">
+                  This result is only a province or region. Click the map or move the pin to set your exact delivery location.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Map Section */}
+          <div className="relative h-[200px] w-full shrink-0 sm:h-[260px] md:h-[300px]">
+            <MapContainer
+              center={position}
               zoom={hasValidInitialPosition ? 15 : 6}
               minZoom={5}
               maxBounds={PHILIPPINES_BOUNDS}
               maxBoundsViscosity={0.85}
-              style={{ height: '100%', width: '100%' }} 
+              style={{ height: '100%', width: '100%' }}
               ref={mapRef}
               className="z-0"
             >
@@ -177,40 +190,41 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
-              <Marker 
-                position={[position.lat, position.lng]} 
-                draggable={true} 
+              <Marker
+                position={[position.lat, position.lng]}
+                draggable={true}
                 eventHandlers={{
                   dragend: (e) => {
                     const marker = e.target;
                     const pos = marker.getLatLng();
                     void handleMarkerDragEnd(pos.lat, pos.lng);
                   }
-                }} 
+                }}
               />
               <MapClickHandler onMapClick={handleMapClick} />
+              <MapSizeInvalidator />
             </MapContainer>
-          </div>
-          
-          {/* Map Hint */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-gray-500 bg-white/90 px-4 py-2 rounded-full shadow-md flex items-center gap-2 z-10">
-            <FiNavigation size={14} />
-            Drag marker or click map to adjust location
+
+            {/* Map Hint */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 max-w-[calc(100%-1rem)] text-xs text-gray-500 bg-white/90 px-3 sm:px-4 py-2 rounded-full shadow-md flex items-center justify-center gap-2 text-center z-10">
+              <FiNavigation size={14} className="shrink-0" />
+              <span>Drag marker or click map to adjust location</span>
+            </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="p-4 border-t border-gray-200 flex gap-3 bg-gray-50 flex-shrink-0">
+        <div className="sticky bottom-0 z-20 grid grid-cols-2 gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-gray-200 bg-gray-50 flex-shrink-0 sm:flex">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 border-2 border-gray-300 rounded-xl hover:bg-gray-100 transition font-medium"
+            className="h-12 min-h-11 whitespace-nowrap py-2.5 border-2 border-gray-300 rounded-xl hover:bg-gray-100 transition font-medium sm:flex-1"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
             disabled={!selectedAddress || !hasConfirmedPosition}
-            className="flex-1 py-2.5 bg-[#2d6a4f] text-white rounded-xl hover:bg-[#1b4d3e] transition disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
+            className="h-12 min-h-11 whitespace-nowrap py-2.5 bg-[#2d6a4f] text-white rounded-xl hover:bg-[#1b4d3e] transition disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2 sm:flex-1"
           >
             <FiCheck size={18} />
             Confirm Location
@@ -219,6 +233,26 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
       </div>
     </div>
   );
+};
+
+const MapSizeInvalidator: React.FC = () => {
+  const map = useMap();
+
+  useEffect(() => {
+    const invalidateSize = () => {
+      window.requestAnimationFrame(() => map.invalidateSize({ pan: false }));
+    };
+    const initialResize = window.setTimeout(invalidateSize, 100);
+    const observer = new ResizeObserver(invalidateSize);
+    observer.observe(map.getContainer());
+
+    return () => {
+      window.clearTimeout(initialResize);
+      observer.disconnect();
+    };
+  }, [map]);
+
+  return null;
 };
 
 const MapClickHandler: React.FC<{ onMapClick: (lat: number, lng: number) => void }> = ({ onMapClick }) => {
