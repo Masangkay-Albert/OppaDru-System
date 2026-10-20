@@ -98,8 +98,8 @@ class FranchiseApplicationApprovalService
             $franchise = app(FranchiseProvisioningService::class)->provisionOnApproval($application);
             if (! $franchise) {
                 throw new FranchiseApprovalException(
-                    'The branch location could not be precisely geocoded. Confirm the exact branch pin on the map or provide a specific street or landmark before approval.',
-                    'BRANCH_LOCATION_PIN_REQUIRED',
+                    'The proposed branch address could not be located precisely. Add a street, subdivision, or recognizable landmark to the proposed location and try approval again.',
+                    'BRANCH_LOCATION_UNRESOLVED',
                 );
             }
 

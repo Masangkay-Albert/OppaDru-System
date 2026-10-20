@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Admin;
+use App\Models\Franchise;
 use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
+use App\Models\Product;
 use App\Services\GeocodingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -149,6 +151,14 @@ class FranchiseeLoginTest extends TestCase
     public function test_final_approval_atomically_activates_franchise_and_login_uses_applicant_credentials(): void
     {
         Mail::fake();
+        $menuItem = Product::create([
+            'name' => 'Approval menu item',
+            'description' => 'Menu item for new branch provisioning.',
+            'price' => 100,
+            'category' => 'Chicken',
+            'image' => 'approval-menu-item.png',
+            'is_available' => true,
+        ]);
         $this->mock(GeocodingService::class, fn ($mock) => $mock
             ->shouldReceive('geocodeAddress')
             ->once()
@@ -165,6 +175,9 @@ class FranchiseeLoginTest extends TestCase
             'permit_compliance_status' => 'verified',
             'training_status' => 'complete',
             'operational_preparation_status' => 'complete',
+            'proposed_latitude' => 12.8797,
+            'proposed_longitude' => 121.7740,
+            'proposed_location_pin_confirmed' => false,
         ])->save();
         $adminToken = 'franchise-final-approval-admin-token';
         Admin::create([
@@ -183,6 +196,17 @@ class FranchiseeLoginTest extends TestCase
         $this->assertNotNull($application->approved_at);
         $this->assertNotNull($application->activated_at);
         $this->assertSame('active', $franchiseUser->franchise->status);
+        $this->assertSame(14.3294, (float) $franchiseUser->franchise->latitude);
+        $this->assertSame(120.9367, (float) $franchiseUser->franchise->longitude);
+        $this->assertTrue($franchiseUser->franchise->is_active);
+        $this->assertTrue($franchiseUser->franchise->accepts_online_orders);
+        $this->assertTrue($franchiseUser->franchise->delivery_enabled);
+        $this->assertSame((float) config('delivery.default_radius_km'), (float) $franchiseUser->franchise->delivery_radius_km);
+        $this->assertDatabaseHas('franchise_inventory', [
+            'franchise_id' => $franchiseUser->franchise->id,
+            'product_id' => $menuItem->id,
+            'is_available' => true,
+        ]);
         $this->assertTrue(Hash::check('ApplicantPass123!', \Illuminate\Support\Facades\DB::table('franchise_users')->where('id', $franchiseUser->id)->value('password')), 'Approved applicant credentials must be copied to the franchise-user record.');
         $this->assertTrue(Hash::check('ApplicantPass123!', $franchiseUser->password), 'The approved franchise user must retain the applicant password.');
 
@@ -240,11 +264,11 @@ class FranchiseeLoginTest extends TestCase
         ]);
     }
 
-    public function test_approval_is_blocked_until_an_exact_branch_pin_is_confirmed(): void
+    public function test_unresolved_address_can_be_recovered_with_an_optional_branch_pin(): void
     {
         Mail::fake();
         $geocoder = $this->mock(GeocodingService::class);
-        $geocoder->shouldReceive('geocodeAddress')->once()->andReturn(null);
+        $geocoder->shouldReceive('geocodeAddress')->twice()->andReturn(null);
         [$applicant, $application] = $this->createApplicantApplication();
         $application->forceFill([
             'status' => 'location_assessment',
@@ -265,8 +289,8 @@ class FranchiseeLoginTest extends TestCase
 
         $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)
             ->assertStatus(409)
-            ->assertJsonPath('code', 'BRANCH_LOCATION_PIN_REQUIRED')
-            ->assertJsonPath('message', 'The branch location could not be precisely geocoded. Confirm the exact branch pin on the map or provide a specific street or landmark before approval.');
+            ->assertJsonPath('code', 'BRANCH_LOCATION_UNRESOLVED')
+            ->assertJsonPath('message', 'The proposed branch address could not be located precisely. Add a street, subdivision, or recognizable landmark to the proposed location and try approval again.');
 
         $this->assertDatabaseCount('franchises', 0);
         $this->assertDatabaseMissing('franchise_users', ['email' => $applicant->email]);
@@ -281,6 +305,7 @@ class FranchiseeLoginTest extends TestCase
             'location' => 'Exact branch pin, Dasmarinas, Cavite',
             'proposed_latitude' => 14.3294,
             'proposed_longitude' => 120.9367,
+            'proposed_location_pin_confirmed' => true,
         ], $headers)->assertOk();
 
         $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)
@@ -289,13 +314,13 @@ class FranchiseeLoginTest extends TestCase
             ->assertJsonPath('provisioning_pending', false);
 
         $application->refresh();
-        $franchise = $application->franchise;
+        $franchise = $application->fresh()->franchise;
         $this->assertNotNull($franchise);
         $this->assertNotNull($franchise->latitude);
         $this->assertNotNull($franchise->longitude);
         $this->assertTrue($franchise->accepts_online_orders);
         $this->assertTrue($franchise->delivery_enabled);
-        $this->assertSame(15.0, (float) $franchise->delivery_radius_km);
+        $this->assertSame((float) config('delivery.default_radius_km'), (float) $franchise->delivery_radius_km);
         $this->assertDatabaseCount('franchises', 1);
         $this->assertDatabaseHas('franchise_users', [
             'email' => $applicant->email,
@@ -307,7 +332,7 @@ class FranchiseeLoginTest extends TestCase
     {
         $geocoder = $this->mock(GeocodingService::class);
         $geocoder->shouldReceive('geocodeAddress')
-            ->once()
+            ->twice()
             ->andReturn(['lat' => 14.3294, 'lng' => 120.9367, 'matchedQuery' => 'Dasmarinas, Cavite']);
         [, $application] = $this->createApplicantApplication();
         $application->forceFill([
@@ -327,11 +352,19 @@ class FranchiseeLoginTest extends TestCase
         ]);
         $headers = ['Authorization' => 'Bearer '.$adminToken];
 
-        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)->assertOk();
-        $franchiseId = $application->fresh()->franchise_id;
+        $approval = $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)
+            ->assertOk();
+        $franchiseId = $approval->json('data.franchise.id');
+        $franchise = Franchise::findOrFail($franchiseId);
+        $franchise->forceFill([
+            'latitude' => 12.8797,
+            'longitude' => 121.7740,
+        ])->save();
         $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)->assertOk();
 
         $this->assertSame($franchiseId, $application->fresh()->franchise_id);
+        $this->assertSame(14.3294, (float) $franchise->fresh()->latitude);
+        $this->assertSame(120.9367, (float) $franchise->fresh()->longitude);
         $this->assertDatabaseCount('franchises', 1);
         $this->assertDatabaseCount('franchise_users', 1);
     }

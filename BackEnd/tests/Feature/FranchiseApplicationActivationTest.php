@@ -71,7 +71,7 @@ class FranchiseApplicationActivationTest extends TestCase
             'id' => $application->fresh()->franchise_id,
             'accepts_online_orders' => true,
             'delivery_enabled' => true,
-            'delivery_radius_km' => 15,
+            'delivery_radius_km' => config('delivery.default_radius_km'),
         ]);
         $this->assertDatabaseHas('franchise_inventory', [
             'franchise_id' => $application->fresh()->franchise_id,

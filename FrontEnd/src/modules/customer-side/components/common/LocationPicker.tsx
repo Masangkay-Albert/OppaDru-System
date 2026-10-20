@@ -36,15 +36,16 @@ L.Icon.Default.mergeOptions({
 const LocationPicker: React.FC<LocationPickerProps> = ({
   onSelectLocation,
   onClose,
-  initialLat = PHILIPPINES_CENTER.lat,
-  initialLng = PHILIPPINES_CENTER.lng,
+  initialLat,
+  initialLng,
   initialAddress = ''
 }) => {
   const mapRef = useRef<any>(null);
   const hasValidInitialPosition = Number.isFinite(initialLat) && Number.isFinite(initialLng)
-    && !(initialLat === 0 && initialLng === 0);
+    && initialLat! >= PHILIPPINES_BOUNDS[0][0] && initialLat! <= PHILIPPINES_BOUNDS[1][0]
+    && initialLng! >= PHILIPPINES_BOUNDS[0][1] && initialLng! <= PHILIPPINES_BOUNDS[1][1];
   const [position, setPosition] = useState(hasValidInitialPosition
-    ? { lat: initialLat, lng: initialLng }
+    ? { lat: initialLat!, lng: initialLng! }
     : PHILIPPINES_CENTER);
   const [selectedAddress, setSelectedAddress] = useState<string>(initialAddress);
   const [selectedName, setSelectedName] = useState<string>('');

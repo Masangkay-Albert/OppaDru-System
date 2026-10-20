@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Franchise;
+use App\Models\FranchiseAccount;
 use App\Models\FranchiseInventory;
 use App\Models\Product;
 use App\Services\GeocodingService;
@@ -52,6 +53,31 @@ class BranchRoutingTest extends TestCase
                 ->assertJsonPath('data.name', $expectedBranch->name)
                 ->assertJsonPath('data.unavailable_items', []);
         }
+    }
+
+    public function test_dasmarinas_routes_to_the_cavite_branch_when_its_coordinates_are_correct(): void
+    {
+        $legacyMisnamedBranch = $this->branch('Oppa Dru Korean Fried Chicken - Laguna', 14.3294, 120.9367);
+        $cavite = $this->branch('Oppa Dru Korean Fried Chicken - Cavite', 14.3294, 120.9367);
+        $account = FranchiseAccount::create([
+            'name' => 'Cavite franchise account',
+            'email' => 'cavite-account@example.test',
+            'status' => 'active',
+        ]);
+        $cavite->franchise_account_id = $account->id;
+        $cavite->save();
+        $product = $this->product();
+        $this->addInventory($cavite, $product);
+        $this->addInventory($legacyMisnamedBranch, $product);
+
+        $this->postJson('/api/branches/resolve', [
+            'address' => 'Paliparan 3, Dasmarinas, Cavite',
+            'coordinates' => ['lat' => 14.3441, 'lng' => 120.9740],
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertOk()
+            ->assertJsonPath('data.branch.id', $cavite->id)
+            ->assertJsonPath('data.branch.name', 'Oppa Dru Korean Fried Chicken - Cavite');
     }
 
     public function test_pinned_baliwag_address_routes_to_the_bulacan_branch(): void

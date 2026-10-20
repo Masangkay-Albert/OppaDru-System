@@ -286,9 +286,12 @@ trait FranchiseAdminActions
         $activeDelivery = $request->boolean('is_active', true)
             && $request->input('status', 'active') === 'active'
             && $request->boolean('delivery_enabled', true);
-        if ($activeDelivery && (! is_numeric($request->input('delivery_radius_km'))
-            || (float) $request->input('delivery_radius_km') <= 0
-            || (float) $request->input('delivery_radius_km') > 100)) {
+        $deliveryRadius = $request->filled('delivery_radius_km')
+            ? $request->input('delivery_radius_km')
+            : config('delivery.default_radius_km');
+        if ($activeDelivery && (! is_numeric($deliveryRadius)
+            || (float) $deliveryRadius <= 0
+            || (float) $deliveryRadius > 100)) {
             return response()->json(['message' => 'Enter a delivery radius greater than zero and no more than 100 km before activating delivery.'], 422);
         }
         if (! $hasLatitude) {
@@ -320,7 +323,7 @@ trait FranchiseAdminActions
             'is_active' => $request->boolean('is_active', true),
             'accepts_online_orders' => $request->boolean('accepts_online_orders', true),
             'delivery_enabled' => $request->boolean('delivery_enabled', true),
-            'delivery_radius_km' => $request->input('delivery_radius_km', config('delivery.default_radius_km')),
+            'delivery_radius_km' => $deliveryRadius,
             'location_status' => $hasLatitude ? 'manual' : 'geocoded',
             'location_error' => null,
             'owner_admin_id' => null,

@@ -490,6 +490,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const [status, setStatus] = useState('');
   const [proposedLocation, setProposedLocation] = useState('');
   const [proposedCoordinates, setProposedCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [proposedCoordinatesConfirmed, setProposedCoordinatesConfirmed] = useState(false);
   const [showProposedLocationPicker, setShowProposedLocationPicker] = useState(false);
   const [instructions, setInstructions] = useState('');
   const [interviewAt, setInterviewAt] = useState('');
@@ -506,7 +507,6 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [approving, setApproving] = useState(false);
   const [approvalNotice, setApprovalNotice] = useState('');
-  const resumeApprovalAfterPin = useRef(false);
   const approvalRequestInFlight = useRef(false);
   const formDirty = useRef(false);
   const requestInFlight = useRef(false);
@@ -542,6 +542,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             ? { lat: Number(data.proposed_latitude), lng: Number(data.proposed_longitude) }
             : null,
         );
+        setProposedCoordinatesConfirmed(data.proposed_location_pin_confirmed === true);
         setInstructions(data.next_step_instructions || '');
         setInterviewAt(data.interview_at ? toManilaDateTimeInput(data.interview_at) : '');
         setInterviewType(data.interview_type || 'online');
@@ -613,6 +614,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
           proposed_latitude: proposedCoordinates.lat,
           proposed_longitude: proposedCoordinates.lng,
         } : {}),
+        proposed_location_pin_confirmed: proposedCoordinates ? proposedCoordinatesConfirmed : false,
         next_step_instructions: instructions,
         ...(interviewAt && (status === 'for_interview' || interviewChanged) ? { interview_at: interviewAtIso } : {}),
         interview_type: interviewType,
@@ -698,6 +700,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
           proposed_latitude: proposedCoordinates.lat,
           proposed_longitude: proposedCoordinates.lng,
         } : {}),
+        proposed_location_pin_confirmed: proposedCoordinates ? proposedCoordinatesConfirmed : false,
       });
       const result = await approveFranchiseApplication(id);
       setApprovalDialogOpen(false);
@@ -708,11 +711,8 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
         : result.notification_warning || '');
     } catch (approvalError) {
       if (approvalError instanceof Error && 'code' in approvalError
-        && approvalError.code === 'BRANCH_LOCATION_PIN_REQUIRED') {
-        resumeApprovalAfterPin.current = true;
-        setApprovalDialogOpen(false);
-        setShowProposedLocationPicker(true);
-        setError('Please confirm the exact branch entrance on the map. After confirming the pin, review the approval and try again.');
+        && approvalError.code === 'BRANCH_LOCATION_UNRESOLVED') {
+        setError('The proposed branch address could not be located precisely. Add a street, subdivision, or recognizable landmark to the address and try approval again.');
       } else {
         setError(approvalError instanceof Error ? approvalError.message : 'Unable to approve this application.');
       }
@@ -739,6 +739,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
           proposed_latitude: proposedCoordinates.lat,
           proposed_longitude: proposedCoordinates.lng,
         } : {}),
+        proposed_location_pin_confirmed: proposedCoordinates ? proposedCoordinatesConfirmed : false,
       });
       const result = await approveFranchiseApplication(id);
       formDirty.current = false;
@@ -746,6 +747,31 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       setApprovalNotice(result.provisioning_pending ? result.message : result.notification_warning || '');
     } catch (retryError) {
       setError(retryError instanceof Error ? retryError.message : 'Unable to save the address and retry branch setup.');
+    } finally {
+      approvalRequestInFlight.current = false;
+      setApproving(false);
+    }
+  };
+
+  const refreshApprovedBranchLocation = async () => {
+    if (!application || !id || approvalRequestInFlight.current) return;
+    approvalRequestInFlight.current = true;
+    setApproving(true);
+    setError('');
+    try {
+      await reviewFranchiseApplication(id, {
+        status: application.status || status,
+        location: proposedLocation.trim(),
+        proposed_location_pin_confirmed: false,
+      });
+      const result = await approveFranchiseApplication(id);
+      formDirty.current = false;
+      await load();
+      setApprovalNotice(result.provisioning_pending
+        ? result.message
+        : 'Branch location refreshed from the proposed address.');
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : 'Unable to refresh the branch location.');
     } finally {
       approvalRequestInFlight.current = false;
       setApproving(false);
@@ -798,6 +824,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                         onChange={(event) => {
                           setProposedLocation(event.target.value);
                           setProposedCoordinates(null);
+                          setProposedCoordinatesConfirmed(false);
                         }}
                         rows={2}
                         maxLength={2000}
@@ -806,9 +833,9 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                     </label>
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                       <p className="text-xs text-[var(--oppa-text-muted)]">
-                        {proposedCoordinates
+                        {proposedCoordinates && proposedCoordinatesConfirmed
                           ? `Confirmed map pin: ${proposedCoordinates.lat.toFixed(6)}, ${proposedCoordinates.lng.toFixed(6)}`
-                          : 'Confirm the exact branch entrance on the map if the address geocodes only to a city or town.'}
+                          : 'The proposed address is geocoded automatically. An exact map pin is optional if the address cannot be located.'}
                       </p>
                       <button
                         type="button"
@@ -845,8 +872,19 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                 ? <InlineMessage variant="success" message="Final approval is complete and the franchise dashboard account is active." />
                 : <InlineMessage variant="warning" message="Needs location: approval is complete, but the branch and dashboard are not provisioned until its address can be located." />)}
               {approvalNotice && <InlineMessage variant="warning" message={approvalNotice} />}
+              {application.status === 'approved' && application.franchise_id && (
+                <button
+                  type="button"
+                  onClick={() => void refreshApprovedBranchLocation()}
+                  disabled={approving}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-[var(--oppa-green)] hover:bg-emerald-50 disabled:opacity-60"
+                >
+                  {approving ? <Loader2 size={16} className="animate-spin" /> : <MapPin size={16} />}
+                  {approving ? 'Refreshing branch location…' : 'Refresh branch location from proposed address'}
+                </button>
+              )}
               {application.status === 'approved' && !application.franchise_id && <>
-                <label className="block text-sm font-medium">Proposed branch address<input value={proposedLocation} onChange={(event) => { setProposedLocation(event.target.value); setProposedCoordinates(null); }} maxLength={2000} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
+                <label className="block text-sm font-medium">Proposed branch address<input value={proposedLocation} onChange={(event) => { setProposedLocation(event.target.value); setProposedCoordinates(null); setProposedCoordinatesConfirmed(false); }} maxLength={2000} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
                 <button type="button" onClick={() => void saveLocationAndRetryProvisioning()} disabled={approving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500 px-4 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-60">
                   {approving ? <Loader2 size={16} className="animate-spin" /> : <MapPin size={16} />}
                   {approving ? 'Saving and retrying…' : 'Save address and retry setup'}
@@ -932,19 +970,15 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       )}
       {showProposedLocationPicker && (
         <LocationPicker
-          initialLat={proposedCoordinates?.lat}
-          initialLng={proposedCoordinates?.lng}
+          initialLat={proposedCoordinatesConfirmed ? proposedCoordinates?.lat : undefined}
+          initialLng={proposedCoordinatesConfirmed ? proposedCoordinates?.lng : undefined}
           initialAddress={proposedLocation}
           onClose={() => setShowProposedLocationPicker(false)}
           onSelectLocation={(location) => {
             setProposedLocation(location.address);
             setProposedCoordinates({ lat: location.lat, lng: location.lng });
+            setProposedCoordinatesConfirmed(true);
             setShowProposedLocationPicker(false);
-            if (resumeApprovalAfterPin.current) {
-              resumeApprovalAfterPin.current = false;
-              setError('Exact branch pin confirmed. Review and approve again to create the branch.');
-              setApprovalDialogOpen(true);
-            }
           }}
         />
       )}

@@ -47,6 +47,7 @@ export interface FranchiseApplication {
   location?: string;
   proposed_latitude?: number | null;
   proposed_longitude?: number | null;
+  proposed_location_pin_confirmed?: boolean;
   applicant_address?: string;
   business_experience?: string;
   investment_capacity?: string | number;
@@ -404,6 +405,7 @@ export const reviewFranchiseApplication = async (id: string | number, data: {
   location?: string;
   proposed_latitude?: number | null;
   proposed_longitude?: number | null;
+  proposed_location_pin_confirmed?: boolean;
   request_document_packet?: boolean;
   admin_notes?: string;
   next_step_instructions?: string;

@@ -257,9 +257,12 @@ class FranchiseAccountController extends Controller
         $activeDelivery = $request->boolean('is_active', true)
             && $request->input('status', 'active') === 'active'
             && $request->boolean('delivery_enabled', false);
-        if ($activeDelivery && (! is_numeric($request->input('delivery_radius_km'))
-            || (float) $request->input('delivery_radius_km') <= 0
-            || (float) $request->input('delivery_radius_km') > 100)) {
+        $deliveryRadius = $request->filled('delivery_radius_km')
+            ? $request->input('delivery_radius_km')
+            : config('delivery.default_radius_km');
+        if ($activeDelivery && (! is_numeric($deliveryRadius)
+            || (float) $deliveryRadius <= 0
+            || (float) $deliveryRadius > 100)) {
             return response()->json(['message' => 'Enter a delivery radius greater than zero and no more than 100 km before activating delivery.'], 422);
         }
         if (! $hasLatitude) {
@@ -299,7 +302,7 @@ class FranchiseAccountController extends Controller
             'delivery_enabled' => $request->boolean('delivery_enabled', false),
             'latitude' => $latitude,
             'longitude' => $longitude,
-            'delivery_radius_km' => $request->input('delivery_radius_km'),
+            'delivery_radius_km' => $deliveryRadius,
         ]);
         app(FranchiseInventoryService::class)->initializeBranchMenu((string) $location->id);
         $location->refresh();

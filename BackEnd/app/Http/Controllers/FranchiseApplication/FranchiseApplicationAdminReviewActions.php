@@ -74,6 +74,7 @@ trait FranchiseApplicationAdminReviewActions
             'location' => 'sometimes|required|string|max:2000',
             'proposed_latitude' => 'sometimes|nullable|numeric|between:4,22',
             'proposed_longitude' => 'sometimes|nullable|numeric|between:116,127',
+            'proposed_location_pin_confirmed' => 'sometimes|boolean',
             'request_document_packet' => 'sometimes|boolean',
             'admin_notes' => 'nullable|string|max:5000',
             'next_step_instructions' => 'nullable|string|max:2000',
@@ -92,6 +93,13 @@ trait FranchiseApplicationAdminReviewActions
             return response()->json([
                 'message' => 'Latitude and longitude must be provided together.',
                 'errors' => ['proposed_latitude' => ['Provide both map coordinates or leave both blank.']],
+            ], 422);
+        }
+        if ($request->boolean('proposed_location_pin_confirmed')
+            && ! $request->filled('proposed_latitude')) {
+            return response()->json([
+                'message' => 'Confirmed map pin coordinates are required.',
+                'errors' => ['proposed_location_pin_confirmed' => ['Select a location on the map before confirming the pin.']],
             ], 422);
         }
 
@@ -247,11 +255,18 @@ trait FranchiseApplicationAdminReviewActions
                     && ! $request->filled('proposed_longitude')) {
                     $application->proposed_latitude = null;
                     $application->proposed_longitude = null;
+                    $application->proposed_location_pin_confirmed = false;
                 }
             }
             if ($request->filled('proposed_latitude') && $request->filled('proposed_longitude')) {
                 $application->proposed_latitude = (float) $request->input('proposed_latitude');
                 $application->proposed_longitude = (float) $request->input('proposed_longitude');
+                $application->proposed_location_pin_confirmed = $request->boolean('proposed_location_pin_confirmed');
+            } elseif ($request->has('proposed_location_pin_confirmed')
+                && ! $request->boolean('proposed_location_pin_confirmed')) {
+                $application->proposed_latitude = null;
+                $application->proposed_longitude = null;
+                $application->proposed_location_pin_confirmed = false;
             }
             if ($request->filled('admin_notes')) {
                 $application->admin_notes = trim(implode("\n\n", array_filter([

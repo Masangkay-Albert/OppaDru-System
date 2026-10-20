@@ -23,7 +23,7 @@ class GeocodingService
             return null;
         }
 
-        $cacheKey = 'geocode:v3:'.md5(mb_strtolower($normalized));
+        $cacheKey = 'geocode:v4:'.md5(mb_strtolower($normalized));
         $cache = null;
         try {
             $cache = Cache::store('file');
@@ -46,6 +46,7 @@ class GeocodingService
             }
         }
 
+        $broadResult = null;
         foreach ($levels as $level) {
             $variants = array_values(array_unique([$level, trim(Str::ascii($level))]));
             foreach ($variants as $query) {
@@ -54,31 +55,25 @@ class GeocodingService
                 }
 
                 try {
-                    $results = $this->nominatim->search($query, 1);
-                    $latitude = isset($results[0]['lat']) ? (float) $results[0]['lat'] : null;
-                    $longitude = isset($results[0]['lon']) ? (float) $results[0]['lon'] : null;
-                    if ($latitude === null || $longitude === null || ! is_finite($latitude) || ! is_finite($longitude)) {
-                        continue;
-                    }
-
-                    $resolved = [
-                        'lat' => $latitude,
-                        'lng' => $longitude,
-                        'matchedQuery' => $query,
-                        'isBroad' => $this->isBroadResult($results[0])
-                            || ! $this->matchesFullQuery($query, $normalized),
-                    ];
-                    if ($cache) {
-                        try {
-                            $cache->put($cacheKey, $resolved, now()->addDays(self::CACHE_TTL_DAYS));
-                        } catch (Throwable $exception) {
-                            Log::warning('Address geocoding result could not be cached.', [
-                                'address_hash' => $cacheKey,
-                                'exception' => $exception->getMessage(),
-                            ]);
+                    $results = $this->nominatim->search($query, 5);
+                    foreach ($results as $result) {
+                        $latitude = isset($result['lat']) ? (float) $result['lat'] : null;
+                        $longitude = isset($result['lon']) ? (float) $result['lon'] : null;
+                        if ($latitude === null || $longitude === null || ! is_finite($latitude) || ! is_finite($longitude)) {
+                            continue;
                         }
+
+                        $resolved = [
+                            'lat' => $latitude,
+                            'lng' => $longitude,
+                            'matchedQuery' => $query,
+                            'isBroad' => $this->isBroadResult($result),
+                        ];
+                        if (! $resolved['isBroad']) {
+                            return $this->cacheResult($cache, $cacheKey, $resolved);
+                        }
+                        $broadResult ??= $resolved;
                     }
-                    return $resolved;
                 } catch (Throwable $exception) {
                     Log::warning('Address geocoding attempt failed.', [
                         'address_hash' => $cacheKey,
@@ -89,11 +84,22 @@ class GeocodingService
             }
         }
 
-        return null;
+        return $broadResult ? $this->cacheResult($cache, $cacheKey, $broadResult) : null;
     }
 
     private function isBroadResult(array $result): bool
     {
+        $featureClass = strtolower((string) ($result['class'] ?? ''));
+        $featureType = strtolower((string) ($result['type'] ?? ''));
+        $broadTypes = ['administrative', 'city', 'county', 'municipality', 'province', 'region', 'state', 'town', 'village'];
+        if (in_array($featureType, $broadTypes, true)) {
+            return true;
+        }
+        if (($featureClass !== '' && ! in_array($featureClass, ['place', 'boundary'], true))
+            || ($featureType !== '' && ! in_array($featureType, $broadTypes, true))) {
+            return false;
+        }
+
         $address = $result['address'] ?? null;
         if (! is_array($address)) {
             return true;
@@ -120,13 +126,19 @@ class GeocodingService
         return true;
     }
 
-    private function matchesFullQuery(string $matchedQuery, string $normalizedAddress): bool
+    private function cacheResult(mixed $cache, string $cacheKey, array $resolved): array
     {
-        $normalize = static fn (string $value): string => mb_strtolower(trim((string) preg_replace('/\s+/u', ' ', $value)));
+        if ($cache) {
+            try {
+                $cache->put($cacheKey, $resolved, now()->addDays(self::CACHE_TTL_DAYS));
+            } catch (Throwable $exception) {
+                Log::warning('Address geocoding result could not be cached.', [
+                    'address_hash' => $cacheKey,
+                    'exception' => $exception->getMessage(),
+                ]);
+            }
+        }
 
-        return in_array($normalize($matchedQuery), [
-            $normalize($normalizedAddress),
-            $normalize(Str::ascii($normalizedAddress)),
-        ], true);
+        return $resolved;
     }
 }

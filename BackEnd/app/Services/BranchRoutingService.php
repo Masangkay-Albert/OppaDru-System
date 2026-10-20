@@ -72,6 +72,9 @@ class BranchRoutingService
             ->filter(fn (array $candidate) => $candidate['distance'] <= $candidate['radius'])
             ->sort(function (array $left, array $right) {
                 if ($left['distance'] !== $right['distance']) return $left['distance'] <=> $right['distance'];
+                $leftHasAccount = $left['branch']->franchise_account_id !== null;
+                $rightHasAccount = $right['branch']->franchise_account_id !== null;
+                if ($leftHasAccount !== $rightHasAccount) return $leftHasAccount ? -1 : 1;
                 if ($left['open'] !== $right['open']) return $left['open'] ? -1 : 1;
                 if ($left['load'] !== $right['load']) return $left['load'] <=> $right['load'];
                 return strcmp((string) $left['branch']->id, (string) $right['branch']->id);

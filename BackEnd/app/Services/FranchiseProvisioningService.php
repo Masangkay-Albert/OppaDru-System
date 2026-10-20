@@ -24,22 +24,28 @@ class FranchiseProvisioningService
             && (float) $franchise->longitude >= 116
             && (float) $franchise->longitude <= 127;
         $location = trim((string) $application->location);
-        $hasApplicationPin = is_numeric($application->proposed_latitude)
+        $hasApplicationPin = $application->proposed_location_pin_confirmed
+            && is_numeric($application->proposed_latitude)
             && is_numeric($application->proposed_longitude)
             && app(BranchRoutingService::class)->validBranchCoordinatePair(
                 $application->proposed_latitude,
                 $application->proposed_longitude,
             );
-        $coordinates = $hasApplicationPin
-            ? [
-                'lat' => (float) $application->proposed_latitude,
-                'lng' => (float) $application->proposed_longitude,
-                'matchedQuery' => 'administrator-confirmed map pin',
-                'isBroad' => false,
-            ]
-            : ($hasCoordinates
-                ? ['lat' => (float) $franchise->latitude, 'lng' => (float) $franchise->longitude, 'matchedQuery' => 'existing coordinates', 'isBroad' => false]
-                : ($location === '' ? null : $this->geocoding->geocodeAddress($location.', Philippines')));
+        $geocodedCoordinates = $location === ''
+            ? null
+            : $this->geocoding->geocodeAddress($location.', Philippines');
+        $coordinates = $geocodedCoordinates && ! ($geocodedCoordinates['isBroad'] ?? false)
+            ? $geocodedCoordinates
+            : ($hasApplicationPin
+                ? [
+                    'lat' => (float) $application->proposed_latitude,
+                    'lng' => (float) $application->proposed_longitude,
+                    'matchedQuery' => 'administrator-confirmed map pin',
+                    'isBroad' => false,
+                ]
+                : ($hasCoordinates
+                    ? ['lat' => (float) $franchise->latitude, 'lng' => (float) $franchise->longitude, 'matchedQuery' => 'existing coordinates', 'isBroad' => false]
+                    : $geocodedCoordinates));
         if (($coordinates['isBroad'] ?? false) === true) {
             $coordinates = null;
         }

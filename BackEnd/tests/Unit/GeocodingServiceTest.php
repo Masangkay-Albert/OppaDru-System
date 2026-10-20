@@ -12,21 +12,21 @@ class GeocodingServiceTest extends TestCase
     public function test_it_retries_simplified_and_ascii_addresses_and_caches_a_success(): void
     {
         $address = 'Viva Homes, Salawag, Dasmariñas, Cavite';
-        $cacheKey = 'geocode:v3:'.md5(mb_strtolower($address));
+        $cacheKey = 'geocode:v4:'.md5(mb_strtolower($address));
         Cache::store('file')->forget($cacheKey);
 
         $nominatim = $this->mock(NominatimGeocodingService::class);
         $nominatim->shouldReceive('search')
             ->once()
-            ->with($address, 1)
+            ->with($address, 5)
             ->andReturn([]);
         $nominatim->shouldReceive('search')
             ->once()
-            ->with('Viva Homes, Salawag, Dasmarinas, Cavite', 1)
+            ->with('Viva Homes, Salawag, Dasmarinas, Cavite', 5)
             ->andReturn([]);
         $nominatim->shouldReceive('search')
             ->once()
-            ->with('Salawag, Dasmariñas, Cavite', 1)
+            ->with('Salawag, Dasmariñas, Cavite', 5)
             ->andReturn([['lat' => '14.3194', 'lon' => '120.9943']]);
 
         $geocoding = app(GeocodingService::class);
@@ -46,13 +46,13 @@ class GeocodingServiceTest extends TestCase
     public function test_it_marks_a_province_only_match_as_broad(): void
     {
         $address = 'Laguna, Calabarzon, Philippines';
-        $cacheKey = 'geocode:v3:'.md5(mb_strtolower($address));
+        $cacheKey = 'geocode:v4:'.md5(mb_strtolower($address));
         Cache::store('file')->forget($cacheKey);
 
         $this->mock(NominatimGeocodingService::class)
             ->shouldReceive('search')
             ->once()
-            ->with($address, 1)
+            ->with($address, 5)
             ->andReturn([[
                 'lat' => '14.1667',
                 'lon' => '121.3333',
@@ -72,13 +72,13 @@ class GeocodingServiceTest extends TestCase
     public function test_it_marks_a_town_centroid_as_broad_even_when_the_full_query_matched(): void
     {
         $address = 'Bulakan, Bulacan, Central Luzon, 3017, Philippines';
-        $cacheKey = 'geocode:v3:'.md5(mb_strtolower($address));
+        $cacheKey = 'geocode:v4:'.md5(mb_strtolower($address));
         Cache::store('file')->forget($cacheKey);
 
         $this->mock(NominatimGeocodingService::class)
             ->shouldReceive('search')
             ->once()
-            ->with($address, 1)
+            ->with($address, 5)
             ->andReturn([[
                 'lat' => '14.7946733',
                 'lon' => '120.8792703',
@@ -86,6 +86,7 @@ class GeocodingServiceTest extends TestCase
                 'address' => [
                     'town' => 'Bulakan',
                     'county' => 'Bulacan',
+                    'suburb' => 'Bulakan',
                     'state' => 'Central Luzon',
                     'postcode' => '3017',
                     'country' => 'Philippines',
@@ -97,6 +98,42 @@ class GeocodingServiceTest extends TestCase
         $this->assertSame(14.7946733, $result['lat']);
         $this->assertSame(120.8792703, $result['lng']);
         $this->assertTrue($result['isBroad']);
+        Cache::store('file')->forget($cacheKey);
+    }
+
+    public function test_it_accepts_a_precise_landmark_match_from_a_simplified_query(): void
+    {
+        $address = 'Puregold, Burol III, City of Dasmariñas, Cavite, Philippines';
+        $cacheKey = 'geocode:v4:'.md5(mb_strtolower($address));
+        Cache::store('file')->forget($cacheKey);
+
+        $nominatim = $this->mock(NominatimGeocodingService::class);
+        $nominatim->shouldReceive('search')
+            ->once()
+            ->with($address, 5)
+            ->andReturn([]);
+        $nominatim->shouldReceive('search')
+            ->once()
+            ->with('Burol III, City of Dasmariñas, Cavite, Philippines', 5)
+            ->andReturn([[
+                'lat' => '14.3294',
+                'lon' => '120.9367',
+                'class' => 'shop',
+                'type' => 'supermarket',
+                'name' => 'Puregold',
+                'address' => [
+                    'suburb' => 'Burol III',
+                    'city' => 'Dasmariñas',
+                    'state' => 'Cavite',
+                    'country' => 'Philippines',
+                ],
+            ]]);
+
+        $result = app(GeocodingService::class)->geocodeAddress($address);
+
+        $this->assertSame(14.3294, $result['lat']);
+        $this->assertSame(120.9367, $result['lng']);
+        $this->assertFalse($result['isBroad']);
         Cache::store('file')->forget($cacheKey);
     }
 }

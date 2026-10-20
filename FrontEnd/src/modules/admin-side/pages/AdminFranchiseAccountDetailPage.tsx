@@ -81,9 +81,9 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
         && form.get('status') === 'active'
         && form.get('delivery_enabled') === 'on';
       const deliveryRadius = form.get('delivery_radius_km');
-      if (activeDelivery && (!deliveryRadius || !Number.isFinite(Number(deliveryRadius))
+      if (activeDelivery && deliveryRadius && (!Number.isFinite(Number(deliveryRadius))
         || Number(deliveryRadius) <= 0 || Number(deliveryRadius) > 100)) {
-        throw new Error('Enter a delivery radius greater than zero and no more than 100 km before activating delivery.');
+        throw new Error('Enter a delivery radius greater than zero and no more than 100 km.');
       }
       if (latitude === null || longitude === null) {
         const address = newLocationAddress.trim();
