@@ -21,20 +21,20 @@ interface AddressSearchDropdownProps {
   onSelect: (location: LocationResult) => void;
   placeholder?: string;
   className?: string;
-  value?: string;
   onChange?: (value: string) => void;
   initialValue?: string;
   onFocusChange?: (isFocused: boolean) => void;
+  onQueryChange?: (value: string) => void;
 }
 
 const AddressSearchDropdown: React.FC<AddressSearchDropdownProps> = ({
   onSelect,
   placeholder = 'Search for any location in the Philippines...',
   className = '',
-  value = '',
   onChange,
   initialValue = '',
-  onFocusChange
+  onFocusChange,
+  onQueryChange,
 }) => {
   const {
     searchQuery,
@@ -47,16 +47,9 @@ const AddressSearchDropdown: React.FC<AddressSearchDropdownProps> = ({
   } = useLocationSearch();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(initialValue || value);
+  const [inputValue, setInputValue] = useState(initialValue);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (value && value !== inputValue) {
-      setInputValue(value);
-      setSearchQuery(value);
-    }
-  }, [value, setSearchQuery, inputValue]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -76,6 +69,7 @@ const AddressSearchDropdown: React.FC<AddressSearchDropdownProps> = ({
     setSearchQuery(val);
     setIsOpen(val.length > 1);
     if (onChange) onChange(val);
+    onQueryChange?.(val);
   };
 
   const handleSelect = (location: LocationResult) => {
@@ -149,6 +143,7 @@ const AddressSearchDropdown: React.FC<AddressSearchDropdownProps> = ({
                 setSearchQuery('');
                 setIsOpen(false);
                 if (onChange) onChange('');
+                onQueryChange?.('');
               }}
               className="text-gray-400 hover:text-gray-600 transition p-1"
               type="button"
@@ -201,10 +196,14 @@ const AddressSearchDropdown: React.FC<AddressSearchDropdownProps> = ({
       )}
 
       {error && (
-        <div className="absolute z-[999] w-full mt-2 bg-red-50 rounded-xl border border-red-200 p-4">
+        <div className="pointer-events-none absolute z-[999] w-full mt-2 bg-red-50 rounded-xl border border-red-200 p-4">
           <div className="flex items-start gap-2">
             <FiAlertCircle className="text-red-500 mt-0.5" size={18} />
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-red-600">
+              {error.includes('No locations found')
+                ? 'No search results. You can still click the map or move the pin to set your location.'
+                : error}
+            </p>
           </div>
         </div>
       )}
@@ -222,7 +221,9 @@ const AddressSearchDropdown: React.FC<AddressSearchDropdownProps> = ({
                 selectLocation(null);
                 setInputValue('');
                 setSearchQuery('');
+                setIsOpen(false);
                 if (onChange) onChange('');
+                onQueryChange?.('');
               }}
               className="text-gray-400 hover:text-gray-600 text-sm font-medium"
             >

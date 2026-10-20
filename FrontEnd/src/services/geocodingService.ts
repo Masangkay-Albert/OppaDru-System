@@ -62,20 +62,26 @@ export const searchAddresses = async (query: string): Promise<Array<{
   if (!query.trim()) return [];
 
   try {
-    const response = await requestNominatim('search', new URLSearchParams({
-      q: query,
-      limit: '15',
-    }));
-    if (!response.ok) {
-      reportNominatimFailure('Search addresses', response);
-      return [];
+    const search = async (searchQuery: string): Promise<NominatimSearchResult[]> => {
+      const response = await requestNominatim('search', new URLSearchParams({
+        q: searchQuery,
+        limit: '15',
+      }));
+      if (!response.ok) {
+        reportNominatimFailure('Search addresses', response);
+        return [];
+      }
+
+      const data: unknown = await response.json();
+      return Array.isArray(data) ? data as NominatimSearchResult[] : [];
+    };
+
+    let data = await search(query.trim());
+    if (data.length === 0 && !/\bphilippines\b/i.test(query)) {
+      data = await search(`${query.trim()}, Philippines`);
     }
 
-    const data: NominatimSearchResult[] = await response.json();
-
-    if (!Array.isArray(data)) return [];
-
-    return data.map((item) => ({
+    return data.filter((item) => Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon))).map((item) => ({
       name: item.display_name.split(',')[0]?.trim() || item.display_name,
       address: item.display_name,
       lat: parseFloat(item.lat),

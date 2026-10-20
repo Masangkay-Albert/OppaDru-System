@@ -1,7 +1,8 @@
 // src/modules/customer-side/components/common/LocationPicker.tsx
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import type { Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { FiX, FiMapPin, FiInfo, FiNavigation, FiCheck } from 'react-icons/fi';
 import { reverseGeocode } from '../../../../services/geocodingService';
@@ -26,7 +27,7 @@ interface LocationPickerProps {
 }
 
 // Fix for default marker icon
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as L.Icon.Default & { _getIconUrl?: string })._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
@@ -40,7 +41,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   initialLng,
   initialAddress = ''
 }) => {
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
   const hasValidInitialPosition = Number.isFinite(initialLat) && Number.isFinite(initialLng)
     && initialLat! >= PHILIPPINES_BOUNDS[0][0] && initialLat! <= PHILIPPINES_BOUNDS[1][0]
     && initialLng! >= PHILIPPINES_BOUNDS[0][1] && initialLng! <= PHILIPPINES_BOUNDS[1][1];
@@ -48,36 +49,53 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     ? { lat: initialLat!, lng: initialLng! }
     : PHILIPPINES_CENTER);
   const [selectedAddress, setSelectedAddress] = useState<string>(initialAddress);
-  const [selectedName, setSelectedName] = useState<string>('');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [selectedName, setSelectedName] = useState<string>(initialAddress.split(',')[0]?.trim() || '');
   const [hasConfirmedPosition, setHasConfirmedPosition] = useState(hasValidInitialPosition);
-
-  useEffect(() => {
-    if (initialAddress) {
-      setSelectedAddress(initialAddress);
-      setSelectedName(initialAddress.split(',')[0]?.trim() || initialAddress);
-    }
-  }, [initialAddress]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const reverseGeocodeRequestRef = useRef(0);
 
   const handleMapClick = async (lat: number, lng: number) => {
+    const requestId = ++reverseGeocodeRequestRef.current;
     setPosition({ lat, lng });
     setHasConfirmedPosition(true);
     const address = await reverseGeocode(lat, lng);
-    if (address) {
-      setSelectedAddress(address);
-      setSelectedName(address.split(',')[0]?.trim() || address);
-    }
+    if (requestId !== reverseGeocodeRequestRef.current) return;
+    const fallbackAddress = searchQuery.trim() || `Pinned location (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+    const resolvedAddress = address || fallbackAddress;
+    setSelectedAddress(resolvedAddress);
+    setSelectedName(resolvedAddress.split(',')[0]?.trim() || resolvedAddress);
   };
 
   const handleSearchSelect = (location: LocationResult) => {
+    reverseGeocodeRequestRef.current++;
     setPosition({ lat: location.lat, lng: location.lng });
     setHasConfirmedPosition(!location.isBroad);
     setSelectedAddress(location.address);
     setSelectedName(location.name);
-    setIsSearchFocused(false);
+    setSearchQuery(location.address);
     if (mapRef.current) {
       mapRef.current.setView([location.lat, location.lng], location.isBroad ? 8 : 16, { animate: false });
     }
+  };
+
+  const handleSearchQueryChange = (query: string) => {
+    reverseGeocodeRequestRef.current++;
+    setSearchQuery(query);
+    if (query.trim() === selectedAddress.trim()) return;
+    setSelectedAddress('');
+    setSelectedName('');
+    setHasConfirmedPosition(false);
+  };
+
+  const handleMarkerDragEnd = async (lat: number, lng: number) => {
+    const requestId = ++reverseGeocodeRequestRef.current;
+    setPosition({ lat, lng });
+    setHasConfirmedPosition(true);
+    const address = await reverseGeocode(lat, lng);
+    if (requestId !== reverseGeocodeRequestRef.current) return;
+    const resolvedAddress = address || searchQuery.trim() || `Pinned location (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+    setSelectedAddress(resolvedAddress);
+    setSelectedName(resolvedAddress.split(',')[0]?.trim() || resolvedAddress);
   };
 
   const handleConfirm = () => {
@@ -124,7 +142,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             placeholder="Search any city, subdivision, or landmark in the Philippines..."
             className="w-full"
             initialValue={initialAddress}
-            onFocusChange={setIsSearchFocused}
+            onQueryChange={handleSearchQueryChange}
           />
         </div>
 
@@ -144,7 +162,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
 
         {/* Map Section - With proper z-index and pointer events */}
         <div className="relative flex-1 min-h-[300px]">
-          <div className={`absolute inset-0 ${isSearchFocused ? 'pointer-events-none' : 'pointer-events-auto'}`}>
+          <div className="absolute inset-0 pointer-events-auto">
             <MapContainer 
               center={position} 
               zoom={hasValidInitialPosition ? 15 : 6}
@@ -166,14 +184,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
                   dragend: (e) => {
                     const marker = e.target;
                     const pos = marker.getLatLng();
-                    setPosition({ lat: pos.lat, lng: pos.lng });
-                    setHasConfirmedPosition(true);
-                    reverseGeocode(pos.lat, pos.lng).then((addr) => {
-                      if (addr) {
-                        setSelectedAddress(addr);
-                        setSelectedName(addr.split(',')[0]?.trim() || addr);
-                      }
-                    });
+                    void handleMarkerDragEnd(pos.lat, pos.lng);
                   }
                 }} 
               />

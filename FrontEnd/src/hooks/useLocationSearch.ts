@@ -33,13 +33,10 @@ export const useLocationSearch = (debounceDelay: number = 300) => {
 
   useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    setError(null);
 
     const q = searchQuery.trim();
 
     if (q.length <= 1) {
-      setSearchResults([]);
-      setIsSearching(false);
       return;
     }
 
@@ -94,7 +91,11 @@ export const useLocationSearch = (debounceDelay: number = 300) => {
   }, []);
 
   const handleInputChange = useCallback((value: string) => {
+    requestIdRef.current++;
     setSearchQuery(value);
+    setSearchResults([]);
+    setIsSearching(false);
+    setError(null);
     if (selectedLocation) {
       setSelectedLocation(null);
     }
