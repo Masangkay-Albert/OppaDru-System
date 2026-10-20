@@ -287,7 +287,9 @@ export const approveFranchiseApplication = async (id: string | number) => {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const readiness = Array.isArray(body.requirements) ? ` ${body.requirements.join(' ')}` : '';
-    throw new Error(`${body.message || 'Unable to approve this application.'}${readiness}`);
+    const error = new Error(`${body.message || 'Unable to approve this application.'}${readiness}`);
+    Object.assign(error, { code: body.code });
+    throw error;
   }
   return body;
 };

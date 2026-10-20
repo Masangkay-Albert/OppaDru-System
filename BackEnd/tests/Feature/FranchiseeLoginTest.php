@@ -265,6 +265,7 @@ class FranchiseeLoginTest extends TestCase
 
         $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)
             ->assertStatus(409)
+            ->assertJsonPath('code', 'BRANCH_LOCATION_PIN_REQUIRED')
             ->assertJsonPath('message', 'The branch location could not be precisely geocoded. Confirm the exact branch pin on the map or provide a specific street or landmark before approval.');
 
         $this->assertDatabaseCount('franchises', 0);

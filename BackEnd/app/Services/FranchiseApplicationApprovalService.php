@@ -99,6 +99,7 @@ class FranchiseApplicationApprovalService
             if (! $franchise) {
                 throw new FranchiseApprovalException(
                     'The branch location could not be precisely geocoded. Confirm the exact branch pin on the map or provide a specific street or landmark before approval.',
+                    'BRANCH_LOCATION_PIN_REQUIRED',
                 );
             }
 

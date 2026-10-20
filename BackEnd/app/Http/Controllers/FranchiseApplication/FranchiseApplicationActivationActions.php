@@ -40,7 +40,10 @@ trait FranchiseApplicationActivationActions
                 'requirements' => $exception->issues,
             ], 409);
         } catch (FranchiseApprovalException $exception) {
-            return response()->json(['message' => $exception->getMessage()], 409);
+            return response()->json([
+                'code' => $exception->errorCode,
+                'message' => $exception->getMessage(),
+            ], 409);
         }
 
         $shouldNotify = ! $wasAlreadyApproved || ($wasPendingProvisioning && $approved->franchise_id);

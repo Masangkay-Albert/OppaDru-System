@@ -506,6 +506,8 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [approving, setApproving] = useState(false);
   const [approvalNotice, setApprovalNotice] = useState('');
+  const resumeApprovalAfterPin = useRef(false);
+  const approvalRequestInFlight = useRef(false);
   const formDirty = useRef(false);
   const requestInFlight = useRef(false);
   const refreshQueued = useRef(false);
@@ -684,7 +686,8 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   };
 
   const finalizeApproval = async () => {
-    if (!application || !id || approving) return;
+    if (!application || !id || approvalRequestInFlight.current) return;
+    approvalRequestInFlight.current = true;
     setApproving(true);
     setError('');
     try {
@@ -704,18 +707,28 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
         ? result.message
         : result.notification_warning || '');
     } catch (approvalError) {
-      setError(approvalError instanceof Error ? approvalError.message : 'Unable to approve this application.');
+      if (approvalError instanceof Error && 'code' in approvalError
+        && approvalError.code === 'BRANCH_LOCATION_PIN_REQUIRED') {
+        resumeApprovalAfterPin.current = true;
+        setApprovalDialogOpen(false);
+        setShowProposedLocationPicker(true);
+        setError('Please confirm the exact branch entrance on the map. After confirming the pin, review the approval and try again.');
+      } else {
+        setError(approvalError instanceof Error ? approvalError.message : 'Unable to approve this application.');
+      }
     } finally {
+      approvalRequestInFlight.current = false;
       setApproving(false);
     }
   };
 
   const saveLocationAndRetryProvisioning = async () => {
-    if (!application || !id || approving) return;
+    if (!application || !id || approvalRequestInFlight.current) return;
     if (!proposedLocation.trim()) {
       setError('Enter the proposed branch address before retrying location setup.');
       return;
     }
+    approvalRequestInFlight.current = true;
     setApproving(true);
     setError('');
     try {
@@ -734,6 +747,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     } catch (retryError) {
       setError(retryError instanceof Error ? retryError.message : 'Unable to save the address and retry branch setup.');
     } finally {
+      approvalRequestInFlight.current = false;
       setApproving(false);
     }
   };
@@ -926,6 +940,11 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             setProposedLocation(location.address);
             setProposedCoordinates({ lat: location.lat, lng: location.lng });
             setShowProposedLocationPicker(false);
+            if (resumeApprovalAfterPin.current) {
+              resumeApprovalAfterPin.current = false;
+              setError('Exact branch pin confirmed. Review and approve again to create the branch.');
+              setApprovalDialogOpen(true);
+            }
           }}
         />
       )}
