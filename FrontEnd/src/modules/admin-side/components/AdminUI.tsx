@@ -79,6 +79,7 @@ export const ConfirmDialog: React.FC<{
 
 const badgeMap: Record<string, { label: string; style: string }> = {
   active: { label: 'Active', style: 'bg-emerald-100 text-emerald-800' },
+  assigned: { label: 'Assigned', style: 'bg-emerald-100 text-emerald-800' },
   inactive: { label: 'Inactive', style: 'bg-slate-200 text-slate-800' },
   available: { label: 'Available', style: 'bg-emerald-100 text-emerald-800' },
   out_of_stock: { label: 'Out of stock', style: 'bg-red-100 text-red-800' },
@@ -95,7 +96,7 @@ const badgeMap: Record<string, { label: string; style: string }> = {
 export const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const normalized = status.trim().toLowerCase().replace(/[\s-]+/g, '_');
   const badge = badgeMap[normalized] || { label: status.replace(/[_-]+/g, ' '), style: 'bg-slate-100 text-slate-800' };
-  return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${badge.style}`}>
+  return <span className={`franchise-status-badge franchise-status-badge--${normalized} inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${badge.style}`}>
     <span className="size-1.5 rounded-full bg-current opacity-70" aria-hidden="true" />{badge.label}
   </span>;
 };

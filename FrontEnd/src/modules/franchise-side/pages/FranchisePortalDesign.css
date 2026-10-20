@@ -117,10 +117,476 @@
 .franchise-portal .franchise-timeline-section, .franchise-portal section[aria-label="Application progress"] { border-radius: var(--franchise-radius-card); }
 .franchise-portal button:disabled { cursor: not-allowed; }
 
+.franchise-shell {
+  --oppa-green: #166534;
+  --oppa-green-dark: #14532d;
+  --oppa-green-bright: #15803d;
+  --oppa-green-soft: #e8f2e9;
+  --oppa-cream: #faf7f2;
+  --oppa-surface: #fff;
+  --oppa-surface-raised: #fffefa;
+  --oppa-text: #1f2922;
+  --oppa-text-muted: #59665d;
+  --oppa-border: #e7e2d8;
+  --oppa-focus: #15803d;
+  --franchise-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --franchise-chart-1: #166534;
+  --franchise-chart-2: #70a77f;
+  --franchise-chart-3: #e4aa49;
+  --franchise-chart-4: #5299a1;
+  --franchise-chart-5: #cf7661;
+  --franchise-radius-card: 16px;
+  --franchise-shadow-card: 0 1px 2px rgb(20 35 24 / 4%), 0 4px 16px rgb(20 35 24 / 4%);
+  --shadow-card: var(--franchise-shadow-card);
+  --shadow-hover: 0 4px 16px rgb(20 35 24 / 6%);
+  --admin-card-shadow: var(--franchise-shadow-card);
+  background: var(--oppa-cream);
+  color: var(--oppa-text);
+  font-family: var(--franchise-font-sans);
+  font-size: 14px;
+}
+
+[data-theme='dark'] .franchise-shell {
+  --oppa-green: #4ade80;
+  --oppa-green-dark: #22c55e;
+  --oppa-green-bright: #4ade80;
+  --oppa-green-soft: #203b2a;
+  --oppa-cream: #111a14;
+  --oppa-surface: #1b281f;
+  --oppa-surface-raised: #223128;
+  --oppa-text: #eff5ef;
+  --oppa-text-muted: #b3c1b6;
+  --oppa-border: #3a4a3e;
+  --oppa-focus: #86efac;
+  --franchise-chart-1: #4ade80;
+  --franchise-chart-2: #85b997;
+  --franchise-chart-3: #e5bd6c;
+  --franchise-chart-4: #71b7bc;
+  --franchise-chart-5: #dd8b7a;
+  --franchise-shadow-card: 0 1px 3px rgb(0 0 0 / 20%), 0 4px 16px rgb(0 0 0 / 14%);
+}
+
+.franchise-shell .bg-oppa-gradient {
+  background: linear-gradient(180deg, #1f7a46 0%, #14532d 100%);
+}
+
+.franchise-shell > main > header {
+  min-height: 68px;
+}
+
+.franchise-shell > main > header > button,
+.franchise-shell > main > header > div > button {
+  border-radius: 12px;
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.franchise-shell > main > header > div > button:hover {
+  background: var(--oppa-green-soft);
+}
+
+.franchise-shell aside nav h2 {
+  color: rgb(255 255 255 / 58%);
+  font-size: 10px;
+  letter-spacing: .15em;
+}
+
+.franchise-shell aside nav a[aria-current='page'] {
+  box-shadow: 0 2px 8px rgb(8 46 23 / 16%);
+}
+
+.franchise-shell aside nav a[aria-current='page'] svg {
+  color: var(--oppa-green);
+}
+
+.franchise-shell .franchise-admin {
+  color: var(--oppa-text);
+}
+
+.franchise-admin .admin-card,
+.franchise-admin .franchise-admin-card,
+.franchise-admin > main table,
+.franchise-admin > section.admin-card {
+  border-radius: var(--franchise-radius-card);
+  box-shadow: var(--franchise-shadow-card);
+}
+
+.franchise-admin article {
+  border: 1px solid var(--oppa-border);
+  border-radius: 12px;
+  background: var(--oppa-surface);
+}
+
+.franchise-admin .admin-card:hover {
+  transform: none;
+  box-shadow: var(--franchise-shadow-card);
+}
+
+.franchise-admin :is(h2, .font-serif) {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.franchise-admin h1 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -.025em;
+}
+
+.franchise-admin > main {
+  min-height: calc(100dvh - 68px);
+  padding: 1.5rem clamp(1rem, 2.4vw, 2rem);
+  background: var(--oppa-cream);
+}
+
+.franchise-admin > main > div,
+.franchise-admin > div {
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+}
+
+.franchise-admin > header:first-child,
+.franchise-admin > main > div > header:first-child {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1.25rem;
+}
+
+.franchise-admin > main > div > header:first-child > div > p:first-child {
+  display: none;
+}
+
+.franchise-admin > main > div > header:first-child p,
+.franchise-admin > header:first-child p {
+  color: var(--oppa-text-muted);
+}
+
+.franchise-admin .admin-table thead th,
+.franchise-admin > main table thead {
+  background: var(--oppa-green-soft);
+  color: var(--oppa-text-muted);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.franchise-admin .admin-table tbody tr,
+.franchise-admin > main table tbody tr {
+  border-bottom: 1px solid color-mix(in srgb, var(--oppa-border) 75%, transparent);
+  transition: background-color 160ms ease;
+}
+
+.franchise-admin .admin-table tbody tr:hover,
+.franchise-admin > main table tbody tr:hover {
+  background: color-mix(in srgb, var(--oppa-green-soft) 46%, var(--oppa-surface));
+}
+
+.franchise-admin .admin-table td,
+.franchise-admin > main table td {
+  color: var(--oppa-text);
+}
+
+.franchise-admin .franchise-status-badge {
+  border: 1px solid transparent;
+  font-weight: 650;
+}
+
+.franchise-admin .franchise-status-badge--active,
+.franchise-admin .franchise-status-badge--available,
+.franchise-admin .franchise-status-badge--delivered,
+.franchise-admin .franchise-status-badge--completed,
+.franchise-admin .franchise-status-badge--ready,
+.franchise-admin .franchise-status-badge--assigned {
+  border-color: #bfe4d0;
+  background: #e7f6ed;
+  color: #145c35;
+}
+
+.franchise-admin .franchise-status-badge--pending,
+.franchise-admin .franchise-status-badge--scheduled {
+  border-color: #f1d99e;
+  background: #fff5dc;
+  color: #76500b;
+}
+
+.franchise-admin .franchise-status-badge--preparing,
+.franchise-admin .franchise-status-badge--on_the_way,
+.franchise-admin .franchise-status-badge--on_theway {
+  border-color: #c8ddf2;
+  background: #eaf3fd;
+  color: #24577d;
+}
+
+.franchise-admin .franchise-status-badge--cancelled,
+.franchise-admin .franchise-status-badge--failed,
+.franchise-admin .franchise-status-badge--out_of_stock {
+  border-color: #f0c9c6;
+  background: #fff0ee;
+  color: #8b2e29;
+}
+
+.franchise-admin .franchise-status-badge--inactive {
+  border-color: var(--oppa-border);
+  background: var(--oppa-surface-raised);
+  color: var(--oppa-text-muted);
+}
+
+.franchise-channel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.franchise-channel-badge--online {
+  border-color: #bfe4d0;
+  background: #e7f6ed;
+  color: #145c35;
+}
+
+.franchise-channel-badge--onsite {
+  border-color: #f1d99e;
+  background: #fff5dc;
+  color: #76500b;
+}
+
+.franchise-admin :is(input, select, textarea) {
+  min-height: 2.5rem;
+  border-color: var(--oppa-border);
+  border-radius: 12px;
+  color: var(--oppa-text);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.franchise-admin :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--oppa-focus) 46%, transparent);
+  outline-offset: 2px;
+}
+
+.franchise-admin .admin-table td[data-label='Position'] select {
+  appearance: none;
+}
+
+.franchise-role-badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.franchise-role-badge--driver {
+  border-color: #c5e3f7;
+  background: #e6f4fd;
+  color: #15557a;
+}
+
+.franchise-role-badge--kitchen {
+  border-color: #f2d7b5;
+  background: #fff2df;
+  color: #78400d;
+}
+
+.franchise-role-badge--cashier {
+  border-color: #bfe4d8;
+  background: #e4f5ef;
+  color: #145943;
+}
+
+.franchise-role-badge--owner {
+  border-color: #ddd0f2;
+  background: #f1eafb;
+  color: #57358b;
+}
+
+.franchise-role-badge--manager {
+  border-color: #cfdfcc;
+  background: #edf4e9;
+  color: #355d2c;
+}
+
+.franchise-button-primary,
+.franchise-button-secondary {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 650;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.franchise-button-primary {
+  border: 1px solid var(--oppa-green);
+  background: var(--oppa-green);
+  color: #fff;
+}
+
+.franchise-button-primary:hover:not(:disabled) {
+  border-color: var(--oppa-green-dark);
+  background: var(--oppa-green-dark);
+}
+
+.franchise-button-secondary {
+  border: 1px solid var(--oppa-border);
+  background: var(--oppa-surface);
+  color: var(--oppa-text);
+}
+
+.franchise-button-secondary:hover:not(:disabled) {
+  background: var(--oppa-green-soft);
+}
+
+.franchise-button-primary:disabled,
+.franchise-button-secondary:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.franchise-admin .admin-card.relative.min-h-36 {
+  min-height: 124px;
+  padding-bottom: 1.25rem;
+}
+
+.franchise-admin .admin-card.relative.min-h-36 > div:first-child > p:first-child {
+  font-size: clamp(1.5rem, 2.3vw, 1.875rem);
+}
+
+.franchise-admin :is(.overflow-x-auto, .admin-scrollbar) {
+  scrollbar-color: color-mix(in srgb, var(--oppa-green) 55%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.franchise-admin :is(.overflow-x-auto, .admin-scrollbar)::-webkit-scrollbar {
+  height: 6px;
+}
+
+.franchise-admin :is(.overflow-x-auto, .admin-scrollbar)::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--oppa-green) 48%, transparent);
+}
+
+[data-theme='dark'] .franchise-admin .franchise-role-badge--driver {
+  border-color: #315c75;
+  background: #203c4e;
+  color: #b9e3fb;
+}
+
+[data-theme='dark'] .franchise-admin .franchise-role-badge--kitchen {
+  border-color: #72502e;
+  background: #49341e;
+  color: #ffdfb2;
+}
+
+[data-theme='dark'] .franchise-admin .franchise-role-badge--cashier {
+  border-color: #315e4d;
+  background: #203e31;
+  color: #bcebd8;
+}
+
+[data-theme='dark'] .franchise-admin .franchise-role-badge--owner {
+  border-color: #594479;
+  background: #38294d;
+  color: #decafa;
+}
+
+[data-theme='dark'] .franchise-admin .franchise-role-badge--manager {
+  border-color: #496244;
+  background: #2c3e28;
+  color: #d3e8c9;
+}
+
+[data-theme='dark'] .franchise-admin :is(.franchise-status-badge--active, .franchise-status-badge--available, .franchise-status-badge--delivered, .franchise-status-badge--completed, .franchise-status-badge--ready, .franchise-status-badge--assigned) {
+  border-color: #315e43;
+  background: #203b2b;
+  color: #bce8c9;
+}
+
+[data-theme='dark'] .franchise-admin :is(.franchise-status-badge--pending, .franchise-status-badge--scheduled) {
+  border-color: #69532c;
+  background: #40351f;
+  color: #f4dcaa;
+}
+
+[data-theme='dark'] .franchise-admin :is(.franchise-status-badge--preparing, .franchise-status-badge--on_the_way, .franchise-status-badge--on_theway) {
+  border-color: #355673;
+  background: #22384c;
+  color: #c1e1f8;
+}
+
+[data-theme='dark'] .franchise-admin :is(.franchise-status-badge--cancelled, .franchise-status-badge--failed, .franchise-status-badge--out_of_stock) {
+  border-color: #70413d;
+  background: #472b29;
+  color: #fac9c4;
+}
+
+[data-theme='dark'] .franchise-admin .franchise-status-badge--inactive {
+  border-color: var(--oppa-border);
+  background: var(--oppa-surface-raised);
+  color: var(--oppa-text-muted);
+}
+
+[data-theme='dark'] .franchise-admin .franchise-channel-badge--online {
+  border-color: #315e43;
+  background: #203b2b;
+  color: #bce8c9;
+}
+
+[data-theme='dark'] .franchise-admin .franchise-channel-badge--onsite {
+  border-color: #69532c;
+  background: #40351f;
+  color: #f4dcaa;
+}
+
+[data-theme='dark'] .franchise-admin :is(.bg-green-100, .bg-emerald-100) {
+  background: #203b2b !important;
+  color: #bce8c9 !important;
+}
+
+[data-theme='dark'] .franchise-admin :is(.bg-amber-100, .bg-orange-100) {
+  background: #40351f !important;
+  color: #f4dcaa !important;
+}
+
+[data-theme='dark'] .franchise-admin :is(.bg-blue-100, .bg-sky-100) {
+  background: #22384c !important;
+  color: #c1e1f8 !important;
+}
+
+[data-theme='dark'] .franchise-admin .bg-red-50 {
+  border-color: #70413d;
+  background: #472b29;
+  color: #fac9c4;
+}
+
+@media (max-width: 1280px) {
+  .franchise-admin .franchise-orders-table {
+    min-width: 920px;
+  }
+}
+
 @media (max-width: 640px) {
   .franchise-admin > main {
     padding: 1rem;
   }
+  .franchise-admin > header:first-child,
   .franchise-admin > main > div > header:first-child {
     align-items: flex-start;
   }

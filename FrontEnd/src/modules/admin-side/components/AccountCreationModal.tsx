@@ -22,6 +22,7 @@ interface AccountCreationModalProps {
   submitError?: string;
   branchName?: string;
   extraFields?: React.ReactNode;
+  positionPreview?: (position: string) => React.ReactNode;
 }
 
 const defaultValues: AccountCreationValues = {
@@ -83,6 +84,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
   submitError,
   branchName,
   extraFields,
+  positionPreview,
 }) => {
   const [form, setForm] = useState<AccountCreationValues>(defaultValues);
   const [errors, setErrors] = useState<Partial<Record<keyof AccountCreationValues, string>>>({});
@@ -255,6 +257,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                   {isBranchStaff && <option value="driver">Driver</option>}
                 </select>
               </div>
+              {positionPreview && <div className="mt-2">{positionPreview(form.position || 'cashier')}</div>}
               {errors.position && <p className={errorClass}>{errors.position}</p>}
             </div>
           )}

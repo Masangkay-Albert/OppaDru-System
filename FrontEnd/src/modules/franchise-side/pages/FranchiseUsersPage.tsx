@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Search, UserPlus } from 'lucide-react';
 import AccountCreationModal, { type AccountCreationValues } from '../../admin-side/components/AccountCreationModal';
 import { AdminDate, Avatar, DataTable, EmptyState, PageHeader, RowActionsMenu, StatusBadge } from '../../admin-side/components/AdminUI';
+import { RoleBadge } from '../components/FranchisePortalUI';
 import { useToast } from '../../customer-side/components/ToastProvider';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { API_URL } from '../../../services/apiConfig';
@@ -19,21 +20,6 @@ interface BranchUser {
   created_at: string | null;
 }
 
-const positionLabel = (role: string) => {
-  const normalized = role.trim().toLowerCase().replaceAll('_', ' ');
-  if (normalized === 'kitchen staff') return 'Kitchen Staff';
-  if (normalized === 'franchise manager') return 'Manager';
-  return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
-};
-
-const positionTone = (role: string) => {
-  const normalized = role.toLowerCase();
-  if (normalized.includes('owner') || normalized.includes('manager')) return 'bg-violet-100 text-violet-900';
-  if (normalized.includes('kitchen')) return 'bg-orange-100 text-orange-900';
-  if (normalized.includes('driver')) return 'bg-sky-100 text-sky-900';
-  return 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]';
-};
-
 const FranchiseUsersPage: React.FC = () => {
   const { franchiseUser } = useFranchiseAuth();
   const { showToast } = useToast();
@@ -43,6 +29,9 @@ const FranchiseUsersPage: React.FC = () => {
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [editingRoleUser, setEditingRoleUser] = useState<BranchUser | null>(null);
+  const [roleDraft, setRoleDraft] = useState('');
+  const [savingRole, setSavingRole] = useState(false);
   const [search, setSearch] = useState('');
   const [positionFilter, setPositionFilter] = useState('all');
 
@@ -103,7 +92,7 @@ const FranchiseUsersPage: React.FC = () => {
       if (!response.ok) throw new Error(payload.message || 'Could not create branch staff account.');
       setShowAdd(false);
       await loadUsers(false);
-      const roleName = values.position === 'kitchen_staff' ? 'Kitchen Staff' : positionLabel(values.position || 'cashier');
+      const roleName = values.position === 'kitchen_staff' ? 'Kitchen Staff' : (values.position || 'cashier');
       showToast(`${values.fullName} added as ${roleName} to ${branchName}.`, 'success');
     } catch (createError) {
       setSubmitError(createError instanceof Error ? createError.message : 'Could not create branch staff account.');
@@ -131,6 +120,7 @@ const FranchiseUsersPage: React.FC = () => {
 
   const updateEmployeeRole = async (user: BranchUser, role: string) => {
     setError('');
+    setSavingRole(true);
     try {
       const position = role === 'kitchen_staff' ? 'kitchen staff' : role;
       const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/users/employee/${encodeURIComponent(user.id)}`, {
@@ -140,9 +130,12 @@ const FranchiseUsersPage: React.FC = () => {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Could not update staff role.');
       await loadUsers(false);
+      setEditingRoleUser(null);
       showToast('Staff position updated.', 'success');
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'Could not update staff role.');
+    } finally {
+      setSavingRole(false);
     }
   };
 
@@ -217,7 +210,7 @@ const FranchiseUsersPage: React.FC = () => {
             return <div key={`manager-${manager.id}`} className="flex items-center gap-3 px-4 py-3">
               <Avatar name={manager.name} />
               <div className="min-w-0 flex-1"><p className="truncate font-semibold text-[var(--oppa-text)]">{manager.name}{currentUser && <span className="ml-2 text-xs font-normal text-[var(--oppa-text-muted)]">(You)</span>}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{manager.email}</p></div>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${positionTone(label)}`}>{label}</span>
+              <RoleBadge role={label} />
               <StatusBadge status={manager.status} />
             </div>;
           })}
@@ -246,11 +239,12 @@ const FranchiseUsersPage: React.FC = () => {
         {filteredStaff.map((user) => <tr key={`${user.user_type}-${user.id}`} className="border-b border-[var(--oppa-border)]/70 last:border-0 hover:bg-[var(--oppa-cream)]">
           <td data-label="Employee" className="px-4 py-3"><div className="flex min-w-0 items-center gap-3"><Avatar name={user.name} /><div className="min-w-0"><p className="truncate font-semibold text-[var(--oppa-text)]">{user.name}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{user.email}</p></div></div></td>
           <td data-label="Position" className="px-4 py-3">
-            {user.user_type === 'employee' && ['cashier', 'kitchen_staff'].includes(user.role) ? <select aria-label={`Change ${user.name}'s position`} value={user.role} onChange={(event) => void updateEmployeeRole(user, event.target.value)} className={`max-w-full rounded-full border-0 px-2.5 py-1 text-xs font-semibold ${positionTone(user.role)}`}><option value="cashier">Cashier</option><option value="kitchen_staff">Kitchen Staff</option></select> : <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${positionTone(user.role)}`}>{positionLabel(user.role)}</span>}
+            <RoleBadge role={user.role} />
           </td>
           <td data-label="Status" className="px-4 py-3"><StatusBadge status={user.status} /></td>
           <td data-label="Joined" className="px-4 py-3 text-[var(--oppa-text-muted)]"><AdminDate value={user.created_at} /></td>
           <td data-label="Actions" className="px-4 py-3"><div className="flex justify-end"><RowActionsMenu label={user.name} items={[
+            ...(user.user_type === 'employee' && ['cashier', 'kitchen_staff'].includes(user.role) ? [{ label: 'Edit role', onSelect: () => { setRoleDraft(user.role); setEditingRoleUser(user); } }] : []),
             { label: user.status === 'active' ? 'Deactivate staff' : 'Activate staff', onSelect: () => void toggleStatus(user) },
             { label: 'Reset password', onSelect: () => void resetPassword(user) },
             { label: 'Remove staff', onSelect: () => void removeStaff(user), destructive: true },
@@ -266,7 +260,28 @@ const FranchiseUsersPage: React.FC = () => {
         isSubmitting={saving}
         submitError={submitError}
         branchName={branchName}
+        positionPreview={(role) => <RoleBadge role={role} />}
       />
+      {editingRoleUser && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !savingRole) setEditingRoleUser(null);
+      }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="edit-role-title" onKeyDown={(event) => {
+          if (event.key === 'Escape' && !savingRole) setEditingRoleUser(null);
+        }} className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl">
+          <h2 id="edit-role-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">Edit staff role</h2>
+          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Choose a position for {editingRoleUser.name}.</p>
+          <label htmlFor="branch-user-role" className="mt-5 block text-sm font-medium text-[var(--oppa-text)]">Position</label>
+          <div className="mt-2"><RoleBadge role={roleDraft} /></div>
+          <select id="branch-user-role" autoFocus value={roleDraft} onChange={(event) => setRoleDraft(event.target.value)} disabled={savingRole} className="mt-1 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]">
+            <option value="cashier">Cashier</option>
+            <option value="kitchen_staff">Kitchen Staff</option>
+          </select>
+          <div className="mt-6 flex justify-end gap-2">
+            <button type="button" onClick={() => setEditingRoleUser(null)} disabled={savingRole} className="franchise-button-secondary">Cancel</button>
+            <button type="button" onClick={() => void updateEmployeeRole(editingRoleUser, roleDraft)} disabled={savingRole || roleDraft === editingRoleUser.role} className="franchise-button-primary">{savingRole ? 'Saving…' : 'Save role'}</button>
+          </div>
+        </section>
+      </div>}
     </>
   );
 };

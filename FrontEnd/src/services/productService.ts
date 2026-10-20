@@ -73,8 +73,11 @@ class ProductService {
     return products.map((p: any) => this.mapProduct(p));
   }
 
-  private async fetchPublicProducts(path: string): Promise<Product[]> {
-    const response = await fetch(`${API_URL}${path}`, { headers: this.getHeaders() });
+  private async fetchPublicProducts(path: string, options: RequestInit = {}): Promise<Product[]> {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: this.getHeaders(),
+    });
     if (!response.ok) throw new Error('Failed to fetch products');
     return this.parseProducts(await response.json());
   }
@@ -207,11 +210,11 @@ class ProductService {
   async getAvailableProducts(franchiseId?: string | null): Promise<Product[]> {
     if (franchiseId) {
       const params = new URLSearchParams({ franchise_id: franchiseId });
-      return this.fetchPublicProducts(`/products/available?${params.toString()}`);
+      return this.fetchPublicProducts(`/products/available?${params.toString()}`, { cache: 'no-store' });
     }
 
     try {
-      const products = await this.fetchPublicProducts('/products/available');
+      const products = await this.fetchPublicProducts('/products/available', { cache: 'no-store' });
       const orderedProducts = [...products].sort((a, b) => {
         if (a.category < b.category) return -1;
         if (a.category > b.category) return 1;

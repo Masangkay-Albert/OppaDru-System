@@ -58,16 +58,6 @@ const getItemsSummary = (order: BranchOrder) => {
   return items.length > 1 ? `${first} +${items.length - 1} more` : first;
 };
 
-const getStatusLabel = (status: string) => status.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
-
-const statusTone = (status: string) => {
-  const normalized = status.toLowerCase();
-  if (['delivered', 'completed'].includes(normalized)) return 'bg-emerald-100 text-emerald-800';
-  if (['cancelled', 'failed'].includes(normalized)) return 'bg-red-100 text-red-800';
-  if (['preparing', 'prepared', 'ready', 'on_the_way', 'arrived'].includes(normalized)) return 'bg-blue-100 text-blue-800';
-  return 'bg-amber-100 text-amber-900';
-};
-
 const FranchiseOrdersPage: React.FC = () => {
   const { franchiseUser } = useFranchiseAuth();
   const [orders, setOrders] = useState<BranchOrder[]>([]);
@@ -212,17 +202,17 @@ const FranchiseOrdersPage: React.FC = () => {
         ) : (
           <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm">
             <div className="overflow-x-auto">
-              <table className="admin-table w-full min-w-[1120px] table-fixed text-left text-sm">
+              <table className="admin-table franchise-orders-table w-full table-fixed text-left text-sm">
                 <thead><tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
-                  <th className="w-[15%] px-3 py-3 font-semibold">Order ID</th>
-                  <th className="w-[18%] px-3 py-3 font-semibold">Customer</th>
-                  <th className="w-[9%] px-3 py-3 font-semibold">Channel</th>
-                  <th className="w-[14%] px-3 py-3 font-semibold">Branch</th>
+                  <th className="w-[13%] px-3 py-3 font-semibold">Order ID</th>
+                  <th className="w-[17%] px-3 py-3 font-semibold">Customer</th>
+                  <th className="w-[8%] px-3 py-3 font-semibold">Channel</th>
+                  <th className="w-[13%] px-3 py-3 font-semibold">Branch</th>
                   <th className="w-[17%] px-3 py-3 font-semibold">Items</th>
-                  <th className="w-[10%] px-3 py-3 text-right font-semibold">Total</th>
-                  <th className="w-[11%] px-3 py-3 font-semibold">Status</th>
-                  <th className="w-[11%] px-3 py-3 font-semibold">Date</th>
-                  <th className="w-[5%] px-2 py-3 text-right font-semibold">View</th>
+                  <th className="w-[9%] px-3 py-3 text-right font-semibold">Total</th>
+                  <th className="w-[10%] px-3 py-3 font-semibold">Status</th>
+                  <th className="w-[9%] px-3 py-3 font-semibold">Date</th>
+                  <th className="w-[4%] px-2 py-3 text-right font-semibold">View</th>
                 </tr></thead>
                 <tbody>
                   {filteredOrders.map((order) => {
@@ -232,7 +222,7 @@ const FranchiseOrdersPage: React.FC = () => {
                     return <tr key={order.id} className="group border-b border-[var(--oppa-border)]/60 last:border-0 transition hover:bg-[var(--oppa-cream)]/50">
                       <td className="whitespace-nowrap px-3 py-3 font-mono text-xs font-semibold text-[var(--oppa-text)]" title={orderId}>{orderId}</td>
                       <td className="px-3 py-2.5"><div className="flex min-w-0 items-center gap-2"><span aria-hidden="true" className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">{customerName.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || '?'}</span><div className="min-w-0"><span className="block truncate font-medium text-[var(--oppa-text)]">{customerName}</span><span className="block truncate text-xs text-[var(--oppa-text-muted)]">{order.email || order.user?.email || ' '}</span></div></div></td>
-                      <td className="px-3 py-3"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${orderChannel === 'onsite' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>{orderChannel === 'onsite' ? <Store size={12} aria-hidden="true" /> : <Globe2 size={12} aria-hidden="true" />}{orderChannel === 'onsite' ? 'Onsite' : 'Online'}</span></td>
+                      <td className="px-3 py-3"><span className={`franchise-channel-badge ${orderChannel === 'onsite' ? 'franchise-channel-badge--onsite' : 'franchise-channel-badge--online'}`}>{orderChannel === 'onsite' ? <Store size={12} aria-hidden="true" /> : <Globe2 size={12} aria-hidden="true" />}{orderChannel === 'onsite' ? 'Onsite' : 'Online'}</span></td>
                       <td className="truncate px-3 py-3 text-[var(--oppa-text)]" title={branchName}>{branchName}</td>
                       <td className="truncate px-3 py-3 text-xs text-[var(--oppa-text-muted)]" title={getOrderItems(order).map((item) => `${item.quantity || 1}x ${item.product_name || item.name || 'Item'}`).join(', ')}>{getItemsSummary(order)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-[var(--oppa-text)]">{formatCurrency(order.total)}</td>
@@ -251,7 +241,7 @@ const FranchiseOrdersPage: React.FC = () => {
       {selectedOrder && <div className="fixed inset-0 z-50 flex justify-end bg-black/40" role="presentation" onClick={() => setSelectedOrder(null)}><section role="dialog" aria-modal="true" aria-label="Order details" onClick={(event) => event.stopPropagation()} className="h-full w-full max-w-xl overflow-y-auto bg-[var(--oppa-surface)] p-6 text-[var(--oppa-text)] shadow-xl">
         <div className="mb-5 flex items-start justify-between"><div><p className="text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">Branch order</p><h2 className="mt-1 text-xl font-semibold">{selectedOrder.order_number || selectedOrder.id}</h2></div><button type="button" aria-label="Close order details" onClick={() => setSelectedOrder(null)} className="rounded-lg p-2 hover:bg-[var(--oppa-green-soft)]"><X size={18} /></button></div>
         {detailLoading ? <p className="py-10 text-center text-sm text-[var(--oppa-text-muted)]">Loading order details...</p> : <>
-          <div className="grid grid-cols-2 gap-4 rounded-xl bg-[var(--oppa-green-soft)] p-4 text-sm"><div><p className="text-xs text-[var(--oppa-text-muted)]">Customer</p><p className="mt-1 font-medium">{getCustomerName(selectedOrder)}</p></div><div><p className="text-xs text-[var(--oppa-text-muted)]">Status</p><p className="mt-1"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone(selectedOrder.status)}`}>{getStatusLabel(selectedOrder.status)}</span></p></div><div><p className="text-xs text-[var(--oppa-text-muted)]">Payment</p><p className="mt-1">{selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div><div><p className="text-xs text-[var(--oppa-text-muted)]">Order type</p><p className="mt-1">{getChannel(selectedOrder) === 'onsite' ? 'Onsite' : 'Online'}</p></div><div className="col-span-2"><p className="text-xs text-[var(--oppa-text-muted)]">Address / notes</p><p className="mt-1">{selectedOrder.delivery_address || '—'}</p></div></div>
+          <div className="grid grid-cols-2 gap-4 rounded-xl bg-[var(--oppa-green-soft)] p-4 text-sm"><div><p className="text-xs text-[var(--oppa-text-muted)]">Customer</p><p className="mt-1 font-medium">{getCustomerName(selectedOrder)}</p></div><div><p className="text-xs text-[var(--oppa-text-muted)]">Status</p><p className="mt-1"><StatusBadge status={selectedOrder.status} /></p></div><div><p className="text-xs text-[var(--oppa-text-muted)]">Payment</p><p className="mt-1">{selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div><div><p className="text-xs text-[var(--oppa-text-muted)]">Order type</p><p className="mt-1">{getChannel(selectedOrder) === 'onsite' ? 'Onsite' : 'Online'}</p></div><div className="col-span-2"><p className="text-xs text-[var(--oppa-text-muted)]">Address / notes</p><p className="mt-1">{selectedOrder.delivery_address || '—'}</p></div></div>
           <h3 className="mb-3 mt-6 font-semibold">Items</h3>
           {detailItems.length ? <div className="divide-y divide-[var(--oppa-border)]">{detailItems.map((item, index) => <div key={`${item.product_name || item.name || 'item'}-${index}`} className="flex justify-between gap-4 py-3 text-sm"><span>{item.quantity || 1} × {item.product_name || item.name || 'Item'}</span><span>{formatCurrency(Number(item.product_price ?? item.price ?? 0) * (item.quantity || 1))}</span></div>)}</div> : <p className="py-5 text-sm text-[var(--oppa-text-muted)]">No item details provided.</p>}
           <div className="mt-4 flex justify-between border-t border-[var(--oppa-border)] pt-4 font-semibold"><span>Total</span><span>{formatCurrency(selectedOrder.total)}</span></div>

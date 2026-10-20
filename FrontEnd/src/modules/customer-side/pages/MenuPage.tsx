@@ -61,10 +61,25 @@ const MenuPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchProducts();
-    const handleProductsUpdated = () => fetchProducts();
+    const refreshProducts = () => {
+      if (document.visibilityState === 'visible') void fetchProducts();
+    };
+    const initialFetchId = window.setTimeout(() => void fetchProducts(), 0);
+    const intervalId = window.setInterval(refreshProducts, 15000);
+    const handleProductsUpdated = () => refreshProducts();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void fetchProducts();
+    };
     window.addEventListener('products-updated', handleProductsUpdated);
-    return () => window.removeEventListener('products-updated', handleProductsUpdated);
+    window.addEventListener('focus', refreshProducts);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.clearTimeout(initialFetchId);
+      window.clearInterval(intervalId);
+      window.removeEventListener('products-updated', handleProductsUpdated);
+      window.removeEventListener('focus', refreshProducts);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [fetchProducts]);
 
   const handleBranchChange = (branchId: string) => {

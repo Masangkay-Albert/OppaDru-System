@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Building2, MapPin, RefreshCw, Store } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
-import { PageHeader } from '../../admin-side/components/AdminUI';
+import { PageHeader, StatusBadge } from '../../admin-side/components/AdminUI';
 
 interface ManagementLocation {
   id: string;
@@ -59,7 +59,7 @@ const FranchiseManagementPage: React.FC = () => {
           <>
             {data.franchise ? (
               <section className="admin-card mb-5 p-5">
-                <div className="mb-4 flex items-center gap-3"><span className="rounded-xl bg-[var(--oppa-green-soft)] p-3 text-[var(--oppa-green)]"><Building2 size={22} /></span><div><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Authorized franchise</p><h2 className="text-xl font-semibold">{data.franchise.name}</h2></div><span className="ml-auto rounded-full bg-green-100 px-3 py-1 text-xs font-semibold capitalize text-green-800">{data.franchise.status}</span></div>
+                <div className="mb-4 flex items-center gap-3"><span className="rounded-xl bg-[var(--oppa-green-soft)] p-3 text-[var(--oppa-green)]"><Building2 size={22} /></span><div><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Authorized franchise</p><h2 className="text-xl font-semibold">{data.franchise.name}</h2></div><span className="ml-auto"><StatusBadge status={data.franchise.status} /></span></div>
                 <dl className="grid gap-4 sm:grid-cols-2"><Info label="Franchise ID" value={data.franchise.id} /><Info label="Email" value={data.franchise.email} /><Info label="Phone" value={data.franchise.phone} /><Info label="Head office address" value={data.franchise.address} /></dl>
               </section>
             ) : <section className="admin-card mb-5 p-5"><p className="text-sm text-gray-600">Your account is assigned to a location. Franchise account information has not been assigned to this manager.</p></section>}
@@ -82,7 +82,7 @@ const FranchiseManagementPage: React.FC = () => {
 
 const LocationCard: React.FC<{ location: ManagementLocation; assigned: boolean }> = ({ location, assigned }) => (
   <article className="rounded-xl bg-[var(--oppa-cream)] p-4">
-    <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><MapPin size={16} className="shrink-0 text-[var(--oppa-green)]" /><div className="min-w-0"><h3 className="truncate font-medium">{location.name}</h3><p className="text-xs text-gray-500">{location.id}</p></div></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${location.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>{assigned ? 'Assigned' : location.status}</span></div>
+    <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><MapPin size={16} className="shrink-0 text-[var(--oppa-green)]" /><div className="min-w-0"><h3 className="truncate font-medium">{location.name}</h3><p className="text-xs text-gray-500">{location.id}</p></div></div><span className="shrink-0">{assigned ? <StatusBadge status="assigned" /> : <StatusBadge status={location.status} />}</span></div>
     <p className="mt-3 text-sm text-gray-600">{location.address || 'Address not provided'}</p>
     <p className="mt-1 text-xs text-gray-500">{location.email || 'No email'}{location.phone ? ` · ${location.phone}` : ''}</p>
   </article>

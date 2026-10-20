@@ -3,7 +3,7 @@ import { BarChart3, CalendarDays, CreditCard, DollarSign, RefreshCw, ShoppingCar
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
-import { PageHeader } from '../../admin-side/components/AdminUI';
+import { EmptyState, PageHeader } from '../../admin-side/components/AdminUI';
 import StatCard from '../../admin-side/components/StatCard';
 
 interface ProductSale {
@@ -69,7 +69,13 @@ const FranchiseReportsPage: React.FC = () => {
   };
   const paymentEntries = Object.entries(report?.payment_summary || {});
   const totalPaymentSales = paymentEntries.reduce((sum, [, summary]) => sum + Number(summary.amount || 0), 0);
-  const paymentColors = ['#1e7045', '#70a77f', '#e4aa49', '#5299a1', '#cf7661'];
+  const paymentColors = [
+    'var(--franchise-chart-1)',
+    'var(--franchise-chart-2)',
+    'var(--franchise-chart-3)',
+    'var(--franchise-chart-4)',
+    'var(--franchise-chart-5)',
+  ];
   let currentAngle = 0;
   const paymentGradient = paymentEntries.map(([, summary], index) => {
     const segment = totalPaymentSales > 0 ? (Number(summary.amount) / totalPaymentSales) * 360 : 0;
@@ -129,8 +135,10 @@ const FranchiseReportsPage: React.FC = () => {
               </div>
               <div className="admin-card p-5">
                 <div className="mb-4"><h2 className="text-lg font-semibold">Discount summary</h2><p className="mt-1 text-xs text-gray-500">Approved discounts for this period</p></div>
-                <div className="grid grid-cols-2 gap-4 rounded-xl bg-[#edf5ef] p-4 text-sm"><span>Discounted orders</span><strong className="text-right">{report.discount_summary.discounted_orders}</strong><span>Discount amount</span><strong className="text-right">{money(report.discount_summary.discount_amount)}</strong></div>
-                <p className="mt-4 text-xs text-gray-500">Cancelled orders in range: <strong className="text-gray-800">{report.cancelled_orders}</strong></p>
+                {report.discount_summary.discounted_orders > 0 || report.discount_summary.discount_amount > 0 ? <>
+                  <div className="grid grid-cols-2 gap-4 rounded-xl bg-[var(--oppa-green-soft)] p-4 text-sm"><span>Discounted orders</span><strong className="text-right">{report.discount_summary.discounted_orders}</strong><span>Discount amount</span><strong className="text-right">{money(report.discount_summary.discount_amount)}</strong></div>
+                  <p className="mt-4 text-xs text-gray-500">Cancelled orders in range: <strong className="text-gray-800">{report.cancelled_orders}</strong></p>
+                </> : <EmptyState title="No discounts in this period" description="Approved discounts will appear here when they are recorded." />}
               </div>
             </section>
           </>

@@ -2,6 +2,26 @@ import React from 'react';
 import { AlertCircle, Check } from 'lucide-react';
 import { FRANCHISE_APPLICATION_STAGES, franchiseStageIndex, franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 
+const roleLabel = (role: string) => {
+  const normalized = role.trim().toLowerCase().replaceAll('_', ' ');
+  if (normalized === 'kitchen staff') return 'Kitchen Staff';
+  if (normalized === 'franchise manager') return 'Manager';
+  return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
+const roleTone = (role: string) => {
+  const normalized = role.trim().toLowerCase().replaceAll('_', ' ');
+  if (normalized.includes('owner')) return 'franchise-role-badge--owner';
+  if (normalized.includes('manager')) return 'franchise-role-badge--manager';
+  if (normalized.includes('driver')) return 'franchise-role-badge--driver';
+  if (normalized.includes('kitchen')) return 'franchise-role-badge--kitchen';
+  return 'franchise-role-badge--cashier';
+};
+
+export const RoleBadge: React.FC<{ role: string; className?: string }> = ({ role, className = '' }) => (
+  <span className={`franchise-role-badge ${roleTone(role)} ${className}`}>{roleLabel(role)}</span>
+);
+
 const statusTone = (status: string) => {
   if (['rejected', 'withdrawn'].includes(status)) return 'bg-red-50 text-red-800';
   if (['approved', 'active'].includes(status)) return 'bg-emerald-50 text-emerald-800';

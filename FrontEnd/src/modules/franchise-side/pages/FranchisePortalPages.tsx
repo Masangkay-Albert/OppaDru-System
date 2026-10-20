@@ -128,7 +128,7 @@ export const MenuAvailabilityPage: React.FC = () => {
                   {filteredItems.map((item) => <tr key={item.id} className="border-b border-[var(--oppa-border)]/60 last:border-0 transition hover:bg-[var(--oppa-cream)]/50">
                     <td className="px-4 py-2.5">
                       <div className="flex min-w-0 items-center gap-3">
-                        <ProductThumbnail src={item.image} name={item.name} className="size-10" />
+                        <ProductThumbnail src={item.image} name={item.name} className="size-12" />
                         <div className="min-w-0"><p className="truncate font-medium text-[var(--oppa-text)]">{item.name}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{item.description || 'Catalog details are read-only'}</p></div>
                       </div>
                     </td>
