@@ -14,4 +14,9 @@ class OrderItem extends Model
     {
         return $this->hasMany(OrderItemAddon::class);
     }
+
+    public function order()
+    {
+        return $this->belongsTo(Order::class);
+    }
 }

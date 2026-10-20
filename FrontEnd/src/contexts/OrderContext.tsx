@@ -71,6 +71,8 @@ interface OrderContextType {
     discountType?: 'PWD' | 'Senior Citizen' | null,
     discountProof?: File | null,
     franchiseId?: string | null,
+    promoId?: string | null,
+    promoCode?: string | null,
   ) => Promise<boolean>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   clearOrder: () => void;
@@ -331,6 +333,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     discountType?: 'PWD' | 'Senior Citizen' | null,
     discountProof?: File | null,
     franchiseId?: string | null,
+    promoId?: string | null,
+    promoCode?: string | null,
   ): Promise<boolean> => {
     const activeUser = user ?? authService.getUserFromStorage();
     if (!activeUser) {
@@ -377,6 +381,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         delivery_coordinates: deliveryAddressCoords,
         payment_reference: paymentReference,
         voucher_discount: voucherDiscount,
+        promo_id: promoId || undefined,
+        promo_code: promoCode || undefined,
+        promo_discount: voucherDiscount,
         discount_rate: discountRate,
         discount_type: discountType || undefined,
         proof_image: discountProof || undefined,

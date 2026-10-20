@@ -9,6 +9,7 @@ import { FavoritesProvider } from "./contexts/FavoritesContext";
 import { OrderProvider } from "./contexts/OrderContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import ToastProvider from "./modules/customer-side/components/ToastProvider";
+import "./styles/thermal-receipt.css";
 
 // ============ CUSTOMER PAGES ============
 import LandingPage from "./modules/customer-side/pages/LandingPage";
@@ -31,6 +32,7 @@ const AdminProductsPage = lazy(() => import("./modules/admin-side/pages/AdminPro
 const AdminAddonsPage = lazy(() => import("./modules/admin-side/pages/AdminAddonsPage"));
 const AdminAddProductPage = lazy(() => import("./modules/admin-side/pages/AdminAddProductPage"));
 const AdminOrdersPage = lazy(() => import("./modules/admin-side/pages/AdminOrdersPage"));
+const AdminPromosPage = lazy(() => import("./modules/admin-side/pages/AdminPromosPage"));
 const AdminDiscountApprovalsPage = lazy(() => import("./modules/admin-side/pages/AdminDiscountApprovalsPage"));
 const AdminAnnouncementsPage = lazy(() => import("./modules/admin-side/pages/AdminAnnouncementsPage"));
 const AdminCustomersPage = lazy(() => import("./modules/admin-side/pages/AdminCustomersPage"));
@@ -82,8 +84,8 @@ import ProtectedEmployeeRoute from "./modules/employee-side/components/Protected
 import EmployeeMenuPage from "./modules/employee-side/pages/EmployeeMenuPage";
 import EmployeeCheckoutPage from "./modules/employee-side/pages/EmployeeCheckoutPage";
 import EmployeeOrdersPage from "./modules/employee-side/pages/EmployeeOrdersPage";
-import EmployeeFavoritesPage from "./modules/employee-side/pages/EmployeeFavoritesPage";
 import EmployeeSettingsPage from "./modules/employee-side/pages/EmployeeSettingsPage";
+import MostPopularMealsPage from "./modules/employee-side/pages/MostPopularMealsPage";
 
 function App() {
   return (
@@ -130,6 +132,7 @@ function App() {
                       <Route path="/admin/addons" element={<ProtectedAdminRoute><AdminAddonsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/products/add" element={<ProtectedAdminRoute><AdminAddProductPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/orders" element={<ProtectedAdminRoute><AdminOrdersPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/promos" element={<ProtectedAdminRoute><AdminPromosPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/discount-approvals" element={<ProtectedAdminRoute><AdminDiscountApprovalsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/announcements" element={<ProtectedAdminRoute><AdminAnnouncementsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/delivery" element={<ProtectedAdminRoute><AdminDelivery /></ProtectedAdminRoute>} />
@@ -177,17 +180,19 @@ function App() {
                       <Route path="/employee/checkout" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />
                       <Route path="/employee/pos" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />
                       <Route path="/employee/orders" element={<ProtectedEmployeeRoute><EmployeeOrdersPage /></ProtectedEmployeeRoute>} />
-                      <Route path="/employee/favorites" element={<ProtectedEmployeeRoute><EmployeeFavoritesPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/employee/favorites" element={<Navigate to="/employee" replace />} />
+                      <Route path="/employee/popular" element={<ProtectedEmployeeRoute><MostPopularMealsPage /></ProtectedEmployeeRoute>} />
                       <Route path="/employee/settings" element={<ProtectedEmployeeRoute><EmployeeSettingsPage /></ProtectedEmployeeRoute>} />
 
                       {/* Cashier routes matching employeeLogin.tsx redirect */}
                       <Route path="/cashier" element={<ProtectedEmployeeRoute><EmployeeMenuPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/popular" element={<ProtectedEmployeeRoute><MostPopularMealsPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/pos" element={<ProtectedEmployeeRoute portal="branch-cashier"><FranchisePOSPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/transactions" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierTransactionsPage view="transactions" /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/branch-orders" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierTransactionsPage view="orders" /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/checkout" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/orders" element={<ProtectedEmployeeRoute><EmployeeOrdersPage /></ProtectedEmployeeRoute>} />
-                      <Route path="/cashier/favorites" element={<ProtectedEmployeeRoute><EmployeeFavoritesPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/favorites" element={<Navigate to="/cashier" replace />} />
                       <Route path="/cashier/settings" element={<ProtectedEmployeeRoute><EmployeeSettingsPage /></ProtectedEmployeeRoute>} />
 
                       <Route path="/kitchen/dashboard" element={<ProtectedEmployeeRoute portal="kitchen"><KitchenDashboardPage /></ProtectedEmployeeRoute>} />

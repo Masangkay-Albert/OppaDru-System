@@ -12,7 +12,7 @@ interface CheckoutSummaryProps {
   cartItems: CartItem[];
   deliveryType: 'standard' | 'priority' | 'scheduled';
   onPlaceOrder: () => void;
-  onVoucherApply: (discount: number) => void;
+  onVoucherApply: (discount: number, promo?: any) => void;
   voucherDiscount: number;
   deliveryCoordinates?: { lat: number; lng: number };
   branchCoordinates?: { lat: number; lng: number };

@@ -78,6 +78,8 @@ export type AdminOrder = Omit<Order, 'timestamp' | 'items'> & {
   payment_method?: string;
   paymentMethod?: string;
   payment_status?: string;
+  payment_reference?: string | null;
+  paymentReference?: string | null;
   served?: boolean;
   order_number?: string;
   delivery_proof_image_url?: string | null;
@@ -89,6 +91,10 @@ export type AdminOrder = Omit<Order, 'timestamp' | 'items'> & {
   notes?: string;
   cashTendered?: number;
   changeDue?: number;
+  promo_id?: string | null;
+  promo_code?: string | null;
+  promo_discount?: number;
+  cashierEmail?: string;
   delivery_type?: string;
   scheduled_at?: string | null;
   scheduled_date?: string | null;
@@ -299,6 +305,9 @@ export interface OnsiteOrderData {
   discountRate?: number;
   discountAmount?: number;
   discountIdNumber?: string;
+  promoId?: string | null;
+  promoCode?: string | null;
+  promoDiscount?: number;
   cashTendered?: number;
   changeDue?: number;
   subtotal?: number;
@@ -360,6 +369,9 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
     discount_rate: data.discountRate || 0,
     discount_amount: data.discountAmount || 0,
     discount_id_number: data.discountIdNumber,
+    promo_id: data.promoId || null,
+    promo_code: data.promoCode || null,
+    promo_discount: data.promoDiscount || 0,
     items: itemsPayload,
     total: calculatedTotal,
     vat: data.vat || Math.round(calculatedTotal * 0.12 * 100) / 100,
@@ -440,6 +452,10 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
     notes: data.notes || '',
     cashTendered: data.cashTendered,
     changeDue: data.changeDue,
+    payment_reference: data.paymentReference,
+    paymentReference: data.paymentReference,
+    promo_code: data.promoCode,
+    promo_discount: data.promoDiscount,
     served: false,
   };
 

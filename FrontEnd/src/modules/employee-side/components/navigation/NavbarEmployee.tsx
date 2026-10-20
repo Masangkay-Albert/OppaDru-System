@@ -1,13 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useFavorites } from "../../../../contexts/FavoritesContext";
-import { Heart, ChevronDown, Package, LogOut, Settings, ClipboardList } from "lucide-react";
+import { ChevronDown, Package, LogOut, Settings, ClipboardList, TrendingUp } from "lucide-react";
 import oppaLogo from "../../../../assets/oppadrulogo.jpg";
 import { employeeAuth } from "../../../../services/employeeAuth";
 
 const NavbarEmployee: React.FC = () => {
   const navigate = useNavigate();
-  const { favoriteNotificationCount } = useFavorites();
   const [showDropdown, setShowDropdown] = useState(false);
   const [employee] = useState<{ full_name?: string; fullName?: string; email?: string; position?: string; franchise?: { name?: string } | null } | null>(() => {
     try {
@@ -32,8 +30,6 @@ const NavbarEmployee: React.FC = () => {
     setShowDropdown(false);
     navigate("/employee/login");
   };
-
-  const showBadge = favoriteNotificationCount > 0;
 
   return (
     <nav className="bg-[var(--oppa-green-dark)] sticky top-0 z-50 shadow-md">
@@ -71,16 +67,13 @@ const NavbarEmployee: React.FC = () => {
             </button>
 
             <button
-              onClick={() => navigate("/employee/favorites")}
+              onClick={() => navigate("/employee/popular")}
               className="relative flex items-center gap-1 sm:gap-2 text-[var(--oppa-cream)] font-sans font-medium hover:text-white transition-colors duration-200"
+              title="Most Popular Meal This Month"
             >
-              <Heart size={16} className="sm:w-[18px] sm:h-[18px] md:w-5 md:h-5" />
-              <span className="text-sm sm:text-base">Favorites</span>
-              {showBadge && (
-                <span className="absolute -top-2 -right-3 sm:-right-4 bg-[var(--oppa-accent)] text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] sm:min-w-[20px] sm:h-[20px] flex items-center justify-center px-1.5">
-                  {favoriteNotificationCount}
-                </span>
-              )}
+              <TrendingUp size={16} className="sm:w-[18px] sm:h-[18px] md:w-5 md:h-5 text-amber-300" />
+              <span className="text-sm sm:text-base hidden lg:inline">Most Popular This Month</span>
+              <span className="text-sm sm:text-base lg:hidden">Popular</span>
             </button>
 
             <div className="relative">
@@ -132,6 +125,16 @@ const NavbarEmployee: React.FC = () => {
                     >
                       <ClipboardList size={16} className="text-gray-500" />
                       <span>Onsite Orders</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowDropdown(false);
+                        navigate("/employee/popular");
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors duration-150 font-sans"
+                    >
+                      <TrendingUp size={16} className="text-amber-500" />
+                      <span>Most Popular This Month</span>
                     </button>
                     <button
                       onClick={() => {

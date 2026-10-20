@@ -13,9 +13,9 @@ interface GCashPaymentModalProps {
   onClose: () => void;
   amount: number;
   items: CartItem[];
-  deliveryType: 'standard' | 'priority' | 'scheduled';
-  voucherDiscount: number;
-  discountRate: number;
+  deliveryType?: 'standard' | 'priority' | 'scheduled' | 'onsite';
+  voucherDiscount?: number;
+  discountRate?: number;
   deliveryCoordinates?: { lat: number; lng: number } | null;
   franchiseId?: string | null;
   onPaymentComplete: (result: PaymentResult) => void;
@@ -28,9 +28,9 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   onClose,
   amount,
   items,
-  deliveryType,
-  voucherDiscount,
-  discountRate,
+  deliveryType = 'onsite',
+  voucherDiscount = 0,
+  discountRate = 0,
   deliveryCoordinates,
   franchiseId,
   onPaymentComplete,

@@ -61,6 +61,17 @@ trait OrderOnsiteActions
         $discountAmount = $discountType ? round((float) $request->input('discount_amount', 0)) : null;
         $discountIdNumber = $request->input('discount_id_number');
 
+        $promoCode = $request->input('promo_code');
+        $promoDiscount = (float) $request->input('promo_discount', $request->input('voucher_discount', 0));
+        $promoId = $request->input('promo_id');
+        if (empty($promoId) && !empty($promoCode)) {
+            $promo = \App\Models\Promo::where('code', strtoupper(trim($promoCode)))->first();
+            if ($promo) {
+                $promoId = $promo->id;
+                $promo->increment('times_used');
+            }
+        }
+
         $total = round((float) $request->input('total', 0));
         $vat = round((float) $request->input('vat', round($total * 0.12)));
 
@@ -106,6 +117,9 @@ trait OrderOnsiteActions
             'discount_type' => $discountType ?: null,
             'discount_rate' => $discountRate,
             'discount_amount' => $discountAmount,
+            'promo_id' => $promoId,
+            'promo_code' => $promoCode,
+            'promo_discount' => $promoDiscount > 0 ? $promoDiscount : null,
             'discount_status' => $discountType ? 'approved' : 'not_requested',
             'discount_proof_image' => $discountIdNumber
                 ? "Verified ID: {$discountIdNumber}"
@@ -113,6 +127,17 @@ trait OrderOnsiteActions
             'discount_requested_at' => $discountType ? now() : null,
             'discount_reviewed_at' => $discountType ? now() : null,
         ]);
+
+        if ($paymentMethod === 'gcash' && !empty($paymentReference)) {
+            $payment = \App\Models\Payment::where('reference', $paymentReference)->first();
+            if ($payment) {
+                $payment->update([
+                    'order_id' => $order->id,
+                    'status' => 'paid',
+                    'paid_at' => $payment->paid_at ?? now(),
+                ]);
+            }
+        }
 
         $this->orderDataService->syncOrderItems($order, $orderItems);
 

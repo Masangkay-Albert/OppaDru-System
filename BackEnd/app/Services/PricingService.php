@@ -88,12 +88,18 @@ class PricingService
         $settings = $this->settings();
         $deliveryDistanceKm = $this->distanceInKilometers($deliveryCoordinates, $originCoordinates);
 
-        $deliveryFee = round(min(
-            $settings['delivery_max_fee'],
-            max(0, $settings['delivery_base_fee'] + max(0, $deliveryDistanceKm - $settings['delivery_base_distance_km']) * $settings['delivery_per_km_rate'])
-        ));
-        $serviceFee = round(min($settings['service_fee_max'], max($settings['service_fee_min'], $subtotal * $settings['service_fee_rate'])));
-        $priorityFee = strtolower($deliveryType) === 'priority' ? 99.0 : 0.0;
+        if (strtolower($deliveryType) === 'onsite') {
+            $deliveryFee = 0.0;
+            $serviceFee = 0.0;
+            $priorityFee = 0.0;
+        } else {
+            $deliveryFee = round(min(
+                $settings['delivery_max_fee'],
+                max(0, $settings['delivery_base_fee'] + max(0, $deliveryDistanceKm - $settings['delivery_base_distance_km']) * $settings['delivery_per_km_rate'])
+            ));
+            $serviceFee = round(min($settings['service_fee_max'], max($settings['service_fee_min'], $subtotal * $settings['service_fee_rate'])));
+            $priorityFee = strtolower($deliveryType) === 'priority' ? 99.0 : 0.0;
+        }
         $discountAmount = round(($subtotal + $deliveryFee + $serviceFee + $priorityFee) * max(0, $discountRate));
         $roundedVoucherDiscount = round(max(0, $voucherDiscount));
         $afterDiscount = max(0, $subtotal + $deliveryFee + $serviceFee + $priorityFee - $discountAmount - $roundedVoucherDiscount);

@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle, X, Eye, Package, CalendarDays, Copy, Search, Globe2, Store } from 'lucide-react';
+import { CheckCircle, X, Eye, Package, CalendarDays, Copy, Search, Globe2, Store, Printer } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { AdminDate, Avatar, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
 import { getAllOrders, markOrderServed, type AdminOrder } from '../../../services/adminOrderService';
+import POSReceiptModal from '../../employee-side/components/pos/POSReceiptModal';
 import { formatCurrency } from '../../../utils/formatters';
 import { getScheduledOrderDetails } from '../../../utils/orderUtils';
 
@@ -22,6 +23,7 @@ const AdminOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
+  const [printingOrder, setPrintingOrder] = useState<AdminOrder | null>(null);
   const [channelFilter, setChannelFilter] = useState<'all' | 'online' | 'onsite'>('all');
   const [branchFilter, setBranchFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -428,15 +430,26 @@ const AdminOrdersPage: React.FC = () => {
                 <h2 className="font-serif text-xl font-semibold text-[var(--oppa-text)]">Order Details</h2>
                 <p className="truncate font-mono text-xs text-[var(--oppa-text-muted)]">{selectedOrder.order_number || selectedOrder.id}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedOrder(null)}
-                aria-label="Close order details"
-                title="Close order details"
-                className="ml-3 inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-white text-[var(--oppa-text)] shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
-              >
-                <X size={20} strokeWidth={2.5} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPrintingOrder(selectedOrder)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[var(--oppa-border)] bg-white text-xs font-bold text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)] transition shadow-xs"
+                  title="Print Thermal Receipt"
+                >
+                  <Printer size={15} />
+                  <span>Print Receipt</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrder(null)}
+                  aria-label="Close order details"
+                  title="Close order details"
+                  className="ml-1 inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-white text-[var(--oppa-text)] shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
+                >
+                  <X size={20} strokeWidth={2.5} />
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -555,6 +568,12 @@ const AdminOrdersPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      {printingOrder && (
+        <POSReceiptModal
+          order={printingOrder}
+          onClose={() => setPrintingOrder(null)}
+        />
       )}
     </AdminLayout>
   );

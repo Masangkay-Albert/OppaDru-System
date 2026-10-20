@@ -24,11 +24,11 @@ trait PaymentCheckoutActions
             'items.*.selected_addons' => 'nullable|array',
             'items.*.selected_addons.*.id' => 'required|integer|exists:addons,id',
             'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
-            'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
-            'fulfillment_type' => 'nullable|string|in:pickup,delivery',
-            'delivery_coordinates' => 'nullable|array|required_unless:fulfillment_type,pickup',
-            'delivery_coordinates.lat' => 'required_unless:fulfillment_type,pickup|numeric|between:-90,90',
-            'delivery_coordinates.lng' => 'required_unless:fulfillment_type,pickup|numeric|between:-180,180',
+            'delivery_type' => 'nullable|string|in:standard,priority,scheduled,onsite',
+            'fulfillment_type' => 'nullable|string|in:pickup,delivery,onsite',
+            'delivery_coordinates' => 'nullable|array|required_unless:fulfillment_type,pickup,onsite',
+            'delivery_coordinates.lat' => 'required_unless:fulfillment_type,pickup,onsite|numeric|between:-90,90',
+            'delivery_coordinates.lng' => 'required_unless:fulfillment_type,pickup,onsite|numeric|between:-180,180',
         ]);
 
         if ($validator->fails()) {
@@ -36,7 +36,7 @@ trait PaymentCheckoutActions
         }
 
         try {
-            $isPickup = $request->input('fulfillment_type') === 'pickup';
+            $isPickup = in_array($request->input('fulfillment_type'), ['pickup', 'onsite'], true) || $request->input('delivery_type') === 'onsite';
             $branchResolution = $this->branchRoutingService->resolve(
                 $request->input('delivery_coordinates'),
                 $isPickup ? $request->input('franchise_id') : null,

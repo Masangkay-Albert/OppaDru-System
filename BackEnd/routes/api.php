@@ -29,6 +29,8 @@ use App\Http\Controllers\FranchiseAccountController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BranchRoutingController;
 use App\Http\Controllers\GeocodingController;
+use App\Http\Controllers\PromoController;
+use App\Http\Controllers\PopularMealsController;
 use Illuminate\Http\Request;
 
 
@@ -50,6 +52,10 @@ Route::get('/storage/{path}', function (string $path) {
 })->where('path', '.*');
 
 Route::get('/settings/pricing', [SettingController::class, 'index']);
+Route::get('/promos', [PromoController::class, 'index']);
+Route::post('/promos/validate', [PromoController::class, 'validatePromo']);
+Route::get('/reports/popular-meals', [PopularMealsController::class, 'getMostPopularThisMonth']);
+Route::get('/cashier/popular-meals', [PopularMealsController::class, 'getMostPopularThisMonth']);
 Route::get('/announcements', [AnnouncementController::class, 'publicList']);
 Route::get('/franchise-opportunities', [FranchiseApplicationController::class, 'opportunities']);
 Route::get('/geo/provinces', [FranchiseApplicationController::class, 'provinces']);
@@ -140,7 +146,6 @@ Route::get('/addon-groups', [AddonController::class, 'index']);
 
 Route::post('/orders/onsite', [OrderController::class, 'storeOnsite']);
 Route::patch('/orders/{id}/status-update', [OrderController::class, 'updateStatusOnsite']);
-Route::get('/settings/pricing', [SettingController::class, 'index']);
 
 
 /// KITCHEN
@@ -220,6 +225,13 @@ Route::middleware(['admin.access'])->prefix('admin')->group(function () {
     Route::patch('/announcements/{id}/status', [AnnouncementController::class, 'toggleStatus']);
     Route::post('/announcements/{id}/publish-facebook', [AnnouncementController::class, 'publishToFacebook']);
     Route::get('/facebook/status', [AnnouncementController::class, 'getFacebookStatus']);
+
+    Route::get('/promos', [PromoController::class, 'adminIndex']);
+    Route::post('/promos', [PromoController::class, 'store']);
+    Route::get('/promos/{id}', [PromoController::class, 'show']);
+    Route::put('/promos/{id}', [PromoController::class, 'update']);
+    Route::delete('/promos/{id}', [PromoController::class, 'destroy']);
+    Route::patch('/promos/{id}/toggle-active', [PromoController::class, 'toggleActive']);
 
     Route::post('/addon-groups', [AddonController::class, 'storeGroup']);
     Route::put('/addon-groups/{addonGroup}', [AddonController::class, 'updateGroup']);

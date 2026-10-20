@@ -7,8 +7,12 @@ import NavbarEmployee from '../components/navigation/NavbarEmployee';
 import CheckoutForm from '../components/checkout/CheckoutForm';
 import CheckoutSummary from '../components/checkout/CheckoutSummary';
 import POSReceiptModal from '../components/pos/POSReceiptModal';
+import GCashPaymentModal from '../../customer-side/components/checkout/GCashPaymentModal';
+import type { PaymentResult } from '../../customer-side/components/checkout/paymentTypes';
 import { addOnsiteOrder, type AdminOrder } from '../../../services/adminOrderService';
 import { calculateSubtotal } from '../../../services/cartService';
+import { validateVoucherAsync } from '../../../services/voucherService';
+import type { Promo } from '../../../services/promoService';
 
 const EmployeeCheckoutPage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,12 +32,93 @@ const EmployeeCheckoutPage: React.FC = () => {
   const [completedOrder, setCompletedOrder] = useState<AdminOrder | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
+  // GCash Integration Matching Customer Side
+  const [showGCashModal, setShowGCashModal] = useState(false);
+
+  // Promo code & voucher management
+  const [promoCode, setPromoCode] = useState('');
+  const [promoDiscount, setPromoDiscount] = useState(0);
+  const [appliedPromo, setAppliedPromo] = useState<Promo | null>(null);
+  const [isPromoValidating, setIsPromoValidating] = useState(false);
+  const [promoError, setPromoError] = useState('');
+
   const subtotal = calculateSubtotal(cartItems);
   const discountRate = discountType ? 0.20 : 0;
   const discountAmount = subtotal * discountRate;
-  const netTotal = Math.max(0, subtotal - discountAmount);
+  const netTotal = Math.max(0, subtotal - discountAmount - promoDiscount);
   const vat = Math.round(netTotal * 0.12 * 100) / 100;
   const finalTotal = netTotal;
+
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) {
+      setPromoError('Please enter a promo code');
+      return;
+    }
+
+    setIsPromoValidating(true);
+    setPromoError('');
+
+    try {
+      const result = await validateVoucherAsync(promoCode, subtotal);
+      if (result.isValid) {
+        setAppliedPromo(result.promo || null);
+        setPromoDiscount(result.discount);
+        setPromoError('');
+        showToast(`Promo ${promoCode.toUpperCase()} applied successfully!`, 'success');
+      } else {
+        setPromoError(result.error || 'Invalid promo code');
+      }
+    } catch {
+      setPromoError('Failed to validate promo code.');
+    } finally {
+      setIsPromoValidating(false);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoDiscount(0);
+    setPromoCode('');
+    setPromoError('');
+  };
+
+  const executeOrderPlacement = async (confirmedReference?: string) => {
+    setIsPlacingOrder(true);
+    const activeRef = (confirmedReference || paymentReference).trim();
+
+    try {
+      const order = await addOnsiteOrder({
+        customerName: customerName.trim() || 'Walk-in Customer',
+        phone: customerPhone.trim() || undefined,
+        items: cartItems,
+        diningOption,
+        notes: notes.trim() || undefined,
+        paymentMethod,
+        paymentReference: activeRef || undefined,
+        discountType,
+        discountRate,
+        discountAmount,
+        discountIdNumber: discountType ? discountIdNumber.trim() : undefined,
+        promoId: appliedPromo?.id,
+        promoCode: appliedPromo?.code || (promoDiscount > 0 ? promoCode : undefined),
+        promoDiscount: promoDiscount > 0 ? promoDiscount : undefined,
+        cashTendered: paymentMethod === 'cash' ? cashTendered : undefined,
+        changeDue: paymentMethod === 'cash' ? Math.max(0, cashTendered - finalTotal) : undefined,
+        subtotal,
+        total: finalTotal,
+        vat,
+      });
+
+      setCompletedOrder(order);
+      setShowReceiptModal(true);
+      clearCart();
+      showToast('Onsite order completed successfully!', 'success');
+    } catch {
+      showToast('Failed to process onsite order. Please try again.', 'error');
+    } finally {
+      setIsPlacingOrder(false);
+    }
+  };
 
   const handlePlaceOrder = async () => {
     if (cartItems.length === 0) {
@@ -51,36 +136,23 @@ const EmployeeCheckoutPage: React.FC = () => {
       return;
     }
 
-    setIsPlacingOrder(true);
+    if (paymentMethod === 'gcash' && !paymentReference) {
+      setShowGCashModal(true);
+      return;
+    }
 
-    try {
-      const order = await addOnsiteOrder({
-        customerName: customerName.trim() || 'Walk-in Customer',
-        phone: customerPhone.trim() || undefined,
-        items: cartItems,
-        diningOption,
-        notes: notes.trim() || undefined,
-        paymentMethod,
-        paymentReference: paymentReference.trim() || undefined,
-        discountType,
-        discountRate,
-        discountAmount,
-        discountIdNumber: discountType ? discountIdNumber.trim() : undefined,
-        cashTendered: paymentMethod === 'cash' ? cashTendered : undefined,
-        changeDue: paymentMethod === 'cash' ? Math.max(0, cashTendered - finalTotal) : undefined,
-        subtotal,
-        total: finalTotal,
-        vat,
-      });
+    await executeOrderPlacement();
+  };
 
-      setCompletedOrder(order);
-      setShowReceiptModal(true);
-      clearCart();
-      showToast('Onsite order completed successfully!', 'success');
-    } catch {
-      showToast('Failed to process onsite order. Please try again.', 'error');
-    } finally {
-      setIsPlacingOrder(false);
+  const handleGCashPaymentComplete = (result: PaymentResult) => {
+    if (result.success) {
+      setPaymentReference(result.referenceNumber);
+      setShowGCashModal(false);
+      showToast('GCash payment confirmed!', 'success');
+      void executeOrderPlacement(result.referenceNumber);
+    } else {
+      showToast(result.message || 'GCash payment was not completed.', 'error');
+      setShowGCashModal(false);
     }
   };
 
@@ -144,6 +216,15 @@ const EmployeeCheckoutPage: React.FC = () => {
               setDiscountType={setDiscountType}
               discountIdNumber={discountIdNumber}
               setDiscountIdNumber={setDiscountIdNumber}
+              onOpenGCashModal={() => setShowGCashModal(true)}
+              promoCode={promoCode}
+              setPromoCode={setPromoCode}
+              promoDiscount={promoDiscount}
+              promoTitle={appliedPromo?.title}
+              onApplyPromo={handleApplyPromo}
+              onRemovePromo={handleRemovePromo}
+              isPromoValidating={isPromoValidating}
+              promoError={promoError}
             />
           </div>
 
@@ -153,11 +234,25 @@ const EmployeeCheckoutPage: React.FC = () => {
               onPlaceOrder={handlePlaceOrder}
               discountRate={discountRate}
               discountAmount={discountAmount}
+              promoDiscount={promoDiscount}
+              promoCode={promoCode}
               isPlacingOrder={isPlacingOrder}
             />
           </div>
         </div>
       </div>
+
+      <GCashPaymentModal
+        isOpen={showGCashModal}
+        onClose={() => setShowGCashModal(false)}
+        amount={finalTotal}
+        items={cartItems}
+        deliveryType="onsite"
+        voucherDiscount={promoDiscount}
+        discountRate={discountRate}
+        onPaymentComplete={handleGCashPaymentComplete}
+        onPaymentCreated={(ref) => setPaymentReference(ref)}
+      />
 
       {showReceiptModal && completedOrder && (
         <POSReceiptModal

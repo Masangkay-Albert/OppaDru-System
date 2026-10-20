@@ -11,9 +11,9 @@ interface UseGCashPaymentFlowProps {
   isOpen: boolean;
   amount: number;
   items: CartItem[];
-  deliveryType: 'standard' | 'priority' | 'scheduled';
-  voucherDiscount: number;
-  discountRate: number;
+  deliveryType?: 'standard' | 'priority' | 'scheduled' | 'onsite';
+  voucherDiscount?: number;
+  discountRate?: number;
   deliveryCoordinates?: { lat: number; lng: number };
   franchiseId?: string | null;
   onPaymentComplete: (result: PaymentResult) => void;
@@ -24,9 +24,9 @@ export const useGCashPaymentFlow = ({
   isOpen,
   amount,
   items,
-  deliveryType,
-  voucherDiscount,
-  discountRate,
+  deliveryType = 'standard',
+  voucherDiscount = 0,
+  discountRate = 0,
   deliveryCoordinates,
   franchiseId,
   onPaymentComplete,

@@ -9,6 +9,8 @@ interface CheckoutSummaryProps {
   onPlaceOrder: () => void;
   discountRate?: number;
   discountAmount?: number;
+  promoDiscount?: number;
+  promoCode?: string;
   isPlacingOrder?: boolean;
 }
 
@@ -17,12 +19,14 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   onPlaceOrder,
   discountRate = 0,
   discountAmount = 0,
+  promoDiscount = 0,
+  promoCode = '',
   isPlacingOrder = false,
 }) => {
   const navigate = useNavigate();
   const subtotal = calculateSubtotal(cartItems);
   const calculatedDiscount = discountAmount > 0 ? discountAmount : subtotal * (discountRate || 0);
-  const netBeforeTax = Math.max(0, subtotal - calculatedDiscount);
+  const netBeforeTax = Math.max(0, subtotal - calculatedDiscount - promoDiscount);
   const vat = Math.round(netBeforeTax * 0.12 * 100) / 100;
   const finalTotal = netBeforeTax;
   const hasItems = cartItems.length > 0;
@@ -105,6 +109,13 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
           <div className="flex justify-between text-emerald-600 font-medium">
             <span>Special Discount</span>
             <span className="tabular-nums">−{formatPeso(calculatedDiscount)}</span>
+          </div>
+        )}
+
+        {promoDiscount > 0 && (
+          <div className="flex justify-between text-emerald-600 font-medium">
+            <span>Promo Discount {promoCode ? `(${promoCode})` : ''}</span>
+            <span className="tabular-nums">−{formatPeso(promoDiscount)}</span>
           </div>
         )}
 

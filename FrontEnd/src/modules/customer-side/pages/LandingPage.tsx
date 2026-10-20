@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight, Clock3, CookingPot, CupSoda, Drumstick, GlassWater,
   MapPin, Phone, Sandwich, Soup, Truck, Utensils,
 } from 'lucide-react';
 import { BrandFooter, BrandNavbar } from '../../shared/components/BrandChrome';
+import { promoService, type Promo } from '../../../services/promoService';
 import '../../../styles/LandingPage.css';
 import oppaLogo from '../../../assets/oppadrulogo.jpg';
 import chickenHero from '../../../assets/ChickenMeal/original-chicken.jpg';
@@ -35,15 +36,24 @@ const featuredProducts = [
   { name: 'Tteokkboki (Ricecake + Fishcake)', description: 'Korean rice cakes and fishcake in spicy sauce.', price: '₱139', photo: tteokbokkiPhoto },
 ];
 
-const promotions = [
-  { title: 'Chicken Meal', description: 'Sulit Big Chicken', price: '₱415', tone: 'light' },
-  { title: 'Rice Meal', description: 'Best seller combo', price: '₱198', tone: 'dark' },
-  { title: 'Fruity Soda & Milk', description: 'A refreshing drink pairing', price: '₱109', tone: 'yellow' },
-];
-
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const goToLogin = () => navigate('/login');
+  const [promos, setPromos] = useState<Promo[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    promoService.getActivePromos()
+      .then((data) => {
+        if (active && Array.isArray(data)) {
+          setPromos(data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const sections = document.querySelectorAll<HTMLElement>('[data-reveal]');
@@ -129,13 +139,38 @@ const LandingPage: React.FC = () => {
         <section id="promos" className="oppa-landing-section oppa-landing-container" data-reveal>
           <SectionHeading eyebrow="Limited-time favorites" title="Special offers" text="A few satisfying combinations to make your next meal even better." />
           <div className="oppa-promo-grid">
-            {promotions.map((promo) => (
-              <article className={`oppa-promo-card tone-${promo.tone}`} key={promo.title}>
-                <div className="oppa-promo-top"><span className="oppa-promo-tag">Promo</span><span className="oppa-promo-decoration" aria-hidden="true"><Drumstick size={48} /></span></div>
-                <div><h3>{promo.title}</h3><p>{promo.description}</p><strong>{promo.price}</strong></div>
-                <button type="button" onClick={goToLogin} className="oppa-promo-order">Order Now <ArrowRight size={15} /></button>
-              </article>
-            ))}
+            {promos.length > 0 ? (
+              promos.map((promo, idx) => {
+                const tones = ['light', 'dark', 'yellow'];
+                const tone = tones[idx % tones.length];
+                const discountText = promo.discount_type === 'percent'
+                  ? `${promo.discount_value}% OFF`
+                  : `₱${promo.discount_value} OFF`;
+                return (
+                  <article className={`oppa-promo-card tone-${tone}`} key={promo.id || promo.code}>
+                    <div className="oppa-promo-top">
+                      <span className="oppa-promo-tag">CODE: {promo.code}</span>
+                      <span className="oppa-promo-decoration" aria-hidden="true"><Drumstick size={48} /></span>
+                    </div>
+                    <div>
+                      <h3>{promo.title}</h3>
+                      <p>{promo.description}</p>
+                      <strong>{discountText}</strong>
+                    </div>
+                    <button type="button" onClick={goToLogin} className="oppa-promo-order">
+                      Order Now <ArrowRight size={15} />
+                    </button>
+                  </article>
+                );
+              })
+            ) : (
+              <div className="col-span-full text-center py-10 bg-white/70 rounded-2xl border border-[var(--oppa-border)]">
+                <p className="text-gray-600 font-medium">Check our menu for everyday Korean fried chicken favorites and seasonal combos!</p>
+                <button type="button" onClick={goToLogin} className="oppa-promo-order mt-4 mx-auto inline-flex">
+                  Explore Menu <ArrowRight size={15} />
+                </button>
+              </div>
+            )}
           </div>
         </section>
 

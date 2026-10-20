@@ -1,7 +1,8 @@
 import React from 'react';
 import DiningOptionSelector from '../pos/DiningOptionSelector';
 import POSCashCalculator from '../pos/POSCashCalculator';
-import { Check, CreditCard, Smartphone } from 'lucide-react';
+import { Check, CreditCard, Smartphone, QrCode, Tag, Loader2 } from 'lucide-react';
+import { formatPeso } from '../../../../utils/formatters';
 
 interface CheckoutFormProps {
   diningOption: 'dine_in' | 'takeout';
@@ -23,6 +24,15 @@ interface CheckoutFormProps {
   setDiscountType: (val: 'PWD' | 'Senior Citizen' | null) => void;
   discountIdNumber: string;
   setDiscountIdNumber: (val: string) => void;
+  onOpenGCashModal?: () => void;
+  promoCode?: string;
+  setPromoCode?: (val: string) => void;
+  promoDiscount?: number;
+  promoTitle?: string;
+  onApplyPromo?: () => void;
+  onRemovePromo?: () => void;
+  isPromoValidating?: boolean;
+  promoError?: string;
 }
 
 const CheckoutForm: React.FC<CheckoutFormProps> = ({
@@ -45,6 +55,15 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   setDiscountType,
   discountIdNumber,
   setDiscountIdNumber,
+  onOpenGCashModal,
+  promoCode = '',
+  setPromoCode,
+  promoDiscount = 0,
+  promoTitle = '',
+  onApplyPromo,
+  onRemovePromo,
+  isPromoValidating = false,
+  promoError = '',
 }) => {
   return (
     <div className="space-y-6">
@@ -97,9 +116,9 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         </div>
       </div>
 
-      {/* Onsite Discounts (Senior / PWD) */}
+      {/* Onsite Discounts & Promos */}
       <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm space-y-4">
-        <h3 className="font-bold text-gray-800 text-base">Discounts</h3>
+        <h3 className="font-bold text-gray-800 text-base">Discounts & Promos</h3>
         
         <div className="flex flex-wrap gap-2.5">
           <button
@@ -151,6 +170,54 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
             />
           </div>
         )}
+
+        {/* Promo Code Input for Cashier */}
+        <div className="pt-3 border-t border-gray-100">
+          <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-gray-700">
+            <Tag size={14} className="text-[var(--oppa-green)]" />
+            <span>Apply Store Promo / Voucher</span>
+          </div>
+
+          {promoDiscount > 0 ? (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-emerald-800">{promoTitle || 'Active Promo Applied'}</p>
+                <p className="text-[11px] text-emerald-600">
+                  Code: <span className="font-mono font-bold uppercase">{promoCode}</span> · Discount: −{formatPeso(promoDiscount)}
+                </p>
+              </div>
+              {onRemovePromo && (
+                <button
+                  type="button"
+                  onClick={onRemovePromo}
+                  className="text-xs text-red-600 hover:underline font-semibold"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={promoCode}
+                onChange={(e) => setPromoCode?.(e.target.value.toUpperCase())}
+                placeholder="Enter promo code (e.g. OPPA10, DEAL99)"
+                className="flex-1 px-4 py-2 rounded-xl border border-gray-200 text-xs font-mono uppercase focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
+              />
+              <button
+                type="button"
+                disabled={isPromoValidating || !promoCode.trim()}
+                onClick={onApplyPromo}
+                className="px-4 py-2 bg-[var(--oppa-green)] text-white rounded-xl text-xs font-bold hover:bg-[var(--oppa-green-dark)] transition disabled:opacity-50 flex items-center gap-1"
+              >
+                {isPromoValidating && <Loader2 size={12} className="animate-spin" />}
+                <span>Apply Promo</span>
+              </button>
+            </div>
+          )}
+          {promoError && <p className="text-red-500 text-xs mt-1.5">{promoError}</p>}
+        </div>
       </div>
 
       {/* POS Payment Methods */}
@@ -185,7 +252,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
           >
             <Smartphone size={22} className="mb-1 text-blue-500" />
             {paymentMethod === 'gcash' && <Check size={14} className="absolute right-2 top-2" aria-hidden="true" />}
-            <span className="text-xs font-semibold">GCash</span>
+            <span className="text-xs font-semibold">GCash (QR Scan)</span>
           </button>
 
           <button
@@ -212,17 +279,60 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
           />
         )}
 
-        {(paymentMethod === 'gcash' || paymentMethod === 'credit_card') && (
+        {paymentMethod === 'gcash' && (
+          <div className="pt-2 p-4 bg-blue-50/60 border border-blue-200/80 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center">
+                  <QrCode size={18} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-blue-900">GCash Dynamic QR Payment</h4>
+                  <p className="text-xs text-blue-700">Identical customer-facing QR code and real-time verification.</p>
+                </div>
+              </div>
+              {onOpenGCashModal && (
+                <button
+                  type="button"
+                  onClick={onOpenGCashModal}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                >
+                  <QrCode size={14} />
+                  <span>{paymentReference ? 'View QR' : 'Show QR Code'}</span>
+                </button>
+              )}
+            </div>
+
+            {paymentReference ? (
+              <div className="flex items-center justify-between bg-white rounded-xl p-3 border border-emerald-200 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-gray-600">Reference:</span>
+                  <span className="font-mono font-bold text-emerald-800">{paymentReference}</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">
+                  Payment Verified
+                </span>
+              </div>
+            ) : (
+              <p className="text-xs text-blue-800 bg-white/70 p-2.5 rounded-xl border border-blue-100">
+                A dynamic QR code for <strong className="text-blue-950">{formatPeso(totalDue)}</strong> will display when you charge the order, or click &quot;Show QR Code&quot; above to let the customer scan now.
+              </p>
+            )}
+          </div>
+        )}
+
+        {paymentMethod === 'credit_card' && (
           <div className="pt-2">
             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">
-              {paymentMethod === 'gcash' ? 'GCash Reference Number' : 'POS Terminal / Card Reference'}
+              POS Terminal / Card Reference Number
             </label>
             <input
               type="text"
               value={paymentReference}
               onChange={(e) => setPaymentReference(e.target.value)}
               placeholder="Enter reference / transaction #"
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)] focus:border-transparent"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)] focus:border-transparent font-mono"
             />
           </div>
         )}

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../../contexts/CartContext';
 import { useFavorites } from '../../../contexts/FavoritesContext';
 import { categories } from '../../../data/mockData';
@@ -9,11 +10,12 @@ import CartSidebar from '../components/cart/CartSidebar';
 import NavbarEmployee from '../components/navigation/NavbarEmployee';
 import NotificationToast from '../components/common/ProductNotification';
 import GreetingBanner from '../components/common/GreetingBanner';
-import { FiShoppingCart, FiMenu, FiX, FiSearch } from 'react-icons/fi';
+import { FiShoppingCart, FiMenu, FiX, FiSearch, FiTrendingUp } from 'react-icons/fi';
 import '../../../styles/global.css';
 import { productService } from '../../../services/productService';
 
 const EmployeeMenuPage: React.FC = () => {
+  const navigate = useNavigate();
   const [employee, setEmployee] = useState<any>(null);
   const { getTotalItems } = useCart();
   const { showNotification, newFavoriteName, clearNotification } = useFavorites();
@@ -160,6 +162,18 @@ const EmployeeMenuPage: React.FC = () => {
               </button>
             ))}
           </nav>
+
+          <div className="pt-4 mt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => navigate('/employee/popular')}
+              className="w-full flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition shadow-xs group"
+            >
+              <FiTrendingUp className="text-amber-600 text-sm group-hover:scale-110 transition-transform" />
+              <span className="flex-1 text-left">Most Popular This Month</span>
+              <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded-full font-black">TOP 10</span>
+            </button>
+          </div>
         </aside>
 
         {/* Main Products Grid */}

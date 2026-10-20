@@ -265,6 +265,17 @@ trait OrderPlacementActions
         $user = User::where('email', $request->email)->first();
         $userId = $user ? $user->id : null;
 
+        $promoCode = $request->input('promo_code');
+        $promoDiscount = (float) $request->input('promo_discount', $request->input('voucher_discount', 0));
+        $promoId = $request->input('promo_id');
+        if (empty($promoId) && !empty($promoCode)) {
+            $promo = \App\Models\Promo::where('code', strtoupper(trim($promoCode)))->first();
+            if ($promo) {
+                $promoId = $promo->id;
+                $promo->increment('times_used');
+            }
+        }
+
         $discountAmount = 0;
         $discountProofData = null;
 
@@ -350,6 +361,9 @@ trait OrderPlacementActions
                     'discount_type' => $discountType !== '' ? $discountType : null,
                     'discount_rate' => $discountType !== '' ? $discountRate : null,
                     'discount_amount' => $discountType !== '' ? $discountAmount : null,
+                    'promo_id' => $promoId,
+                    'promo_code' => $promoCode,
+                    'promo_discount' => $promoDiscount > 0 ? $promoDiscount : null,
                     'discount_status' => $discountType !== '' ? 'pending' : 'not_requested',
                     'discount_proof_image' => null,
                     'discount_proof_image_data' => $discountType !== '' ? $discountProofData : null,

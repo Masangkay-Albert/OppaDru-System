@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   BadgeCheck, Bell, Briefcase, Car, ChevronDown, ChevronsLeft, ChevronsRight,
   FileBarChart, Home, LayoutDashboard, LogOut, Megaphone, Menu, Moon, Package,
-  Search, SlidersHorizontal, ShoppingBag, Store, Sun, Users, X,
+  Search, SlidersHorizontal, ShoppingBag, Store, Sun, Tag, Users, X,
 } from 'lucide-react';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
@@ -30,7 +30,7 @@ class AdminErrorBoundary extends React.Component<React.PropsWithChildren, AdminE
 const navGroups = [
   { title: 'Overview', items: [{ to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard }] },
   { title: 'Catalog', items: [{ to: '/admin/products', label: 'Products', icon: Package }, { to: '/admin/addons', label: 'Add-ons', icon: SlidersHorizontal }] },
-  { title: 'Sales', items: [{ to: '/admin/orders', label: 'Orders', icon: ShoppingBag }, { to: '/admin/discount-approvals', label: 'Discount Approvals', icon: BadgeCheck }, { to: '/admin/reports', label: 'Reports', icon: FileBarChart }] },
+  { title: 'Sales & Marketing', items: [{ to: '/admin/orders', label: 'Orders', icon: ShoppingBag }, { to: '/admin/promos', label: 'Promos', icon: Tag }, { to: '/admin/discount-approvals', label: 'Discount Approvals', icon: BadgeCheck }, { to: '/admin/reports', label: 'Reports', icon: FileBarChart }] },
   { title: 'Communication', items: [{ to: '/admin/announcements', label: 'Announcements', icon: Megaphone }] },
   { title: 'People', items: [{ to: '/admin/customers', label: 'Customers', icon: Users }, { to: '/admin/admins', label: 'Admins', icon: Users }, { to: '/admin/employees', label: 'Employees', icon: Briefcase }] },
   { title: 'Operations', items: [{ to: '/admin/franchises', label: 'Franchises', icon: Store }, { to: '/admin/franchise-applications', label: 'Franchise Apps', icon: BadgeCheck }, { to: '/admin/delivery', label: 'Delivery', icon: Car }] },

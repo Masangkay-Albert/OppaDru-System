@@ -68,7 +68,9 @@ const CheckoutPage: React.FC = () => {
     paymentMethod,
     setPaymentMethod,
     voucherDiscount,
+    setVoucherDiscount,
   } = useCheckoutForm();
+  const [appliedPromo, setAppliedPromo] = useState<any>(null);
 
   const buildFullDeliveryAddress = () => {
     const parts: string[] = [];
@@ -239,7 +241,9 @@ const CheckoutPage: React.FC = () => {
         scheduleWindowValue,
         discountType,
         discountProof,
-        branchResolution.branch.id
+        branchResolution.branch.id,
+        appliedPromo?.id || null,
+        appliedPromo?.code || null
       );
 
       if (success) {
@@ -407,7 +411,10 @@ const CheckoutPage: React.FC = () => {
               cartItems={cartItems}
               deliveryType={deliveryType}
               onPlaceOrder={handlePlaceOrder}
-              onVoucherApply={() => {}}
+              onVoucherApply={(discount, promo) => {
+                setVoucherDiscount(discount);
+                setAppliedPromo(promo || null);
+              }}
               voucherDiscount={voucherDiscount}
             deliveryCoordinates={deliveryCoordinates || undefined}
             branchCoordinates={branchResolution ? { lat: branchResolution.branch.latitude, lng: branchResolution.branch.longitude } : undefined}
