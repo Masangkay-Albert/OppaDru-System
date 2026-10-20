@@ -128,9 +128,8 @@ const AdminFranchisesPage: React.FC = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2"><h2 className="text-base font-semibold text-[var(--oppa-text)]">{mainBranch.name}</h2><span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-800">Main</span><Status status={mainBranch.status || 'active'} /></div>
                   <p className="mt-0.5 break-words text-xs text-[var(--oppa-text-muted)]">{mainBranch.address || 'No address'} · ID: {mainBranch.id}</p>
-                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600"><span>Latitude: {mainBranch.latitude ?? 'Not set'}</span><span>Longitude: {mainBranch.longitude ?? 'Not set'}</span><span>Delivery radius: {mainBranch.delivery_radius_km ?? 'Not set'} km</span></div>
+                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600"><span>Delivery radius: {mainBranch.delivery_radius_km ?? 'Not set'} km</span></div>
                 </div>
-                <Link to={`/admin/franchises/${mainBranch.id}`} className="w-fit rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]">View details</Link>
               </div>
             </article>
           )}

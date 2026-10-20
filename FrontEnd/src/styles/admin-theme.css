@@ -11,6 +11,18 @@
   --oppa-surface: #ffffff;
   --oppa-surface-raised: #fffefa;
   --oppa-focus: #d69e00;
+  --promo-success-bg: #f0fdf4;
+  --promo-success-border: #bbf7d0;
+  --promo-success-text: #166534;
+  --promo-warning-bg: #fffbeb;
+  --promo-warning-border: #fde68a;
+  --promo-warning-text: #92400e;
+  --promo-info-bg: #eff6ff;
+  --promo-info-border: #bfdbfe;
+  --promo-info-text: #1e40af;
+  --promo-danger-bg: #fef2f2;
+  --promo-danger-border: #fecaca;
+  --promo-danger-text: #991b1b;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -43,6 +55,18 @@
   --oppa-green-soft: #294634;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, .2);
   --shadow-hover: 0 12px 24px rgba(0, 0, 0, .3);
+  --promo-success-bg: #1e3a2a;
+  --promo-success-border: #315a3d;
+  --promo-success-text: #bbf7d0;
+  --promo-warning-bg: #3b2e12;
+  --promo-warning-border: #6b521c;
+  --promo-warning-text: #fde68a;
+  --promo-info-bg: #172a40;
+  --promo-info-border: #23476a;
+  --promo-info-text: #bfdbfe;
+  --promo-danger-bg: #3a2020;
+  --promo-danger-border: #673434;
+  --promo-danger-text: #fecaca;
 }
 
 [data-theme='dark'] .admin-page-enter .bg-white {
@@ -227,6 +251,42 @@ body {
 .admin-page-enter {
   animation: fadeIn 150ms ease-out both;
   scroll-padding-top: 76px;
+}
+
+.admin-promo-backdrop {
+  animation: promo-backdrop-in 180ms ease-out both;
+}
+
+.admin-promo-dialog {
+  animation: promo-dialog-in 180ms ease-out both;
+}
+
+.promo-modal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--oppa-text-muted) 32%, transparent) transparent;
+}
+
+.promo-modal-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.promo-modal-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.promo-modal-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--oppa-text-muted) 32%, transparent);
+}
+
+@keyframes promo-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes promo-dialog-in {
+  from { opacity: 0; transform: translateY(8px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes admin-shimmer {

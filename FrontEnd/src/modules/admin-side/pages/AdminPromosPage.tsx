@@ -1,14 +1,39 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent, ReactNode } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { promoService, type Promo } from '../../../services/promoService';
 import { formatCurrency } from '../../../utils/formatters';
 import { categories } from '../../../data/mockData';
+import { PageContainer, PageHeader } from '../../../components/ui/AdminPage';
 import {
-  Tag, Plus, Search, Edit2, Trash2, CheckCircle2,
-  XCircle, AlertCircle, Image as ImageIcon, Sparkles, Percent, DollarSign, RefreshCw
-} from 'lucide-react';
+  CategoryBadge,
+  DiscountBadge,
+  FieldLabel,
+  IconButton,
+  PromoModal,
+  SegmentedControl,
+  StatusBadge,
+  Toggle,
+} from '../../../components/ui/AdminPromoControls';
+import { getLocalDateTimeMin, stripEmoji } from '../../../utils/promoUi';
+import {
+  LuCalendar,
+  LuCheck,
+  LuImage,
+  LuLoaderCircle,
+  LuBanknote,
+  LuPencil,
+  LuPercent,
+  LuPlus,
+  LuSearch,
+  LuSparkles,
+  LuTag,
+  LuTrash2,
+  LuX,
+} from 'react-icons/lu';
 
 const PROMO_TIME_ZONE = 'Asia/Manila';
+type PromoStatusFilter = 'all' | 'active' | 'inactive' | 'expired';
 
 const toDateTimeLocal = (value?: string | null): string => {
   if (!value) return '';
@@ -25,7 +50,6 @@ const toDateTimeLocal = (value?: string | null): string => {
     hourCycle: 'h23',
   }).formatToParts(date);
   const values = Object.fromEntries(parts.map(({ type, value: part }) => [type, part]));
-
   return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
 };
 
@@ -36,7 +60,6 @@ const toPromoApiDateTime = (value: string): string => (
 const formatPromoDate = (value: string): string => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-
   return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -45,19 +68,204 @@ const formatPromoDate = (value: string): string => {
   });
 };
 
+const errorMessage = (error: unknown, fallback: string): string => (
+  error instanceof Error ? error.message : fallback
+);
+
+const localDateTimeTimestamp = (value: string): number => new Date(value).getTime();
+
+const statusLabel = (promo: Promo): string => (
+  promo.is_expired ? 'expired' : promo.is_active ? 'active' : 'inactive'
+);
+
+function PromoSkeleton() {
+  return (
+    <div className="space-y-3 p-4 sm:p-6" aria-label="Loading promotions" role="status">
+      {[0, 1, 2, 3].map((row) => (
+        <div key={row} className="admin-skeleton h-[76px] rounded-xl" />
+      ))}
+      <span className="sr-only">Loading promotions...</span>
+    </div>
+  );
+}
+
+interface PromoDetailsProps {
+  promo: Promo;
+}
+
+function PromoDetails({ promo }: PromoDetailsProps) {
+  const title = stripEmoji(promo.title);
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      {promo.image_url ? (
+        <img
+          src={promo.image_url}
+          alt=""
+          className="size-11 shrink-0 rounded-xl border border-[var(--oppa-border)] object-cover"
+        />
+      ) : (
+        <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--oppa-green-soft)] bg-[var(--oppa-green-soft)]/60 text-[var(--oppa-green)]">
+          <LuSparkles size={20} aria-hidden="true" />
+        </span>
+      )}
+      <div className="min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h3 className="min-w-0 truncate text-sm font-semibold text-[var(--oppa-text)]">{title}</h3>
+          {promo.code && (
+            <span className="rounded-md border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-2 py-0.5 font-mono text-xs font-medium text-[var(--oppa-text-muted)]">
+              {promo.code}
+            </span>
+          )}
+        </div>
+        {promo.description && (
+          <p className="mt-0.5 line-clamp-1 text-xs text-[var(--oppa-text-muted)]">{promo.description}</p>
+        )}
+        {promo.times_used !== undefined && promo.times_used > 0 && (
+          <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Used {promo.times_used} times</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface PromoRowProps {
+  promo: Promo;
+  onEdit: () => void;
+  onDelete: () => void;
+  onToggle: () => void;
+}
+
+function PromoRow({ promo, onEdit, onDelete, onToggle }: PromoRowProps) {
+  const isExpired = Boolean(promo.is_expired);
+  return (
+    <>
+      <tr className="min-h-[76px] transition-colors duration-150 hover:bg-green-50/40">
+        <td className="min-w-[320px] px-5 py-4"><PromoDetails promo={promo} /></td>
+        <td className="w-40 px-4 py-4">
+          <DiscountBadge type={promo.discount_type} value={Number(promo.discount_value)} />
+          {Number(promo.min_order_amount) > 0 && (
+            <p className="mt-1.5 text-xs text-[var(--oppa-text-muted)]">
+              Min. order: {formatCurrency(Number(promo.min_order_amount))}
+            </p>
+          )}
+        </td>
+        <td className="w-44 px-4 py-4">
+          {promo.applicable_categories?.length ? (
+            <div className="flex flex-wrap gap-1.5">
+              {promo.applicable_categories.map((category) => (
+                <CategoryBadge key={category}>{category.replaceAll('-', ' ')}</CategoryBadge>
+              ))}
+            </div>
+          ) : <CategoryBadge neutral>All Categories</CategoryBadge>}
+        </td>
+        <td className="w-44 px-4 py-4 text-sm">
+          {isExpired ? (
+            <StatusBadge active={false} expired />
+          ) : promo.end_date ? (
+            <div>
+              <p className="font-medium text-[var(--oppa-text)]">Until {formatPromoDate(promo.end_date)}</p>
+              <p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">
+                {promo.start_date ? `From ${formatPromoDate(promo.start_date)}` : 'Ongoing'}
+              </p>
+            </div>
+          ) : <span className="text-sm text-[var(--oppa-text-muted)]">No expiration</span>}
+        </td>
+        <td className="w-32 px-4 py-4">
+          <button type="button" onClick={onToggle} aria-label={`${promo.is_active ? 'Deactivate' : 'Activate'} ${stripEmoji(promo.title)}`}>
+            <StatusBadge active={promo.is_active} expired={isExpired} />
+          </button>
+        </td>
+        <td className="w-24 px-4 py-4">
+          <div className="flex items-center justify-end gap-1">
+            <IconButton icon={LuPencil} label={`Edit ${stripEmoji(promo.title)}`} onClick={onEdit} />
+            <IconButton icon={LuTrash2} label={`Delete ${stripEmoji(promo.title)}`} onClick={onDelete} tone="danger" />
+          </div>
+        </td>
+      </tr>
+    </>
+  );
+}
+
+function PromoCard({ promo, onEdit, onDelete, onToggle }: PromoRowProps) {
+  const isExpired = Boolean(promo.is_expired);
+  return (
+    <article className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4 shadow-card">
+      <div className="flex items-start justify-between gap-3">
+        <PromoDetails promo={promo} />
+        <div className="flex shrink-0 items-center gap-1">
+          <IconButton icon={LuPencil} label={`Edit ${stripEmoji(promo.title)}`} onClick={onEdit} />
+          <IconButton icon={LuTrash2} label={`Delete ${stripEmoji(promo.title)}`} onClick={onDelete} tone="danger" />
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-[var(--oppa-border)] pt-3">
+        <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Discount</p>
+          <DiscountBadge type={promo.discount_type} value={Number(promo.discount_value)} />
+          {Number(promo.min_order_amount) > 0 && (
+            <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Min. order: {formatCurrency(Number(promo.min_order_amount))}</p>
+          )}
+        </div>
+        <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Status</p>
+          <button type="button" onClick={onToggle} aria-label={`${promo.is_active ? 'Deactivate' : 'Activate'} ${stripEmoji(promo.title)}`}>
+            <StatusBadge active={promo.is_active} expired={isExpired} />
+          </button>
+        </div>
+        <div className="col-span-2">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Applicable to</p>
+          <div className="flex flex-wrap gap-1.5">
+            {promo.applicable_categories?.length
+              ? promo.applicable_categories.map((category) => <CategoryBadge key={category}>{category.replaceAll('-', ' ')}</CategoryBadge>)
+              : <CategoryBadge neutral>All Categories</CategoryBadge>}
+          </div>
+        </div>
+        <div className="col-span-2">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Validity</p>
+          <p className="text-sm font-medium text-[var(--oppa-text)]">
+            {promo.end_date ? `Until ${formatPromoDate(promo.end_date)}` : 'No expiration'}
+          </p>
+          {promo.start_date && <p className="text-xs text-[var(--oppa-text-muted)]">From {formatPromoDate(promo.start_date)}</p>}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+interface FormFieldProps {
+  children: ReactNode;
+  error?: string;
+}
+
+function FormField({ children, error }: FormFieldProps) {
+  return (
+    <div>
+      {children}
+      {error && <p className="mt-1.5 text-xs font-medium text-[var(--promo-danger-text)]" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+const inputClass = (invalid = false) => (
+  `h-11 w-full rounded-xl border bg-[var(--oppa-surface)] px-3.5 text-sm text-[var(--oppa-text)] transition-colors duration-150 focus-visible:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/30 ${
+    invalid ? 'border-red-500' : 'border-[var(--oppa-border)]'
+  }`
+);
+
 export default function AdminPromosPage() {
   const [promos, setPromos] = useState<Promo[]>([]);
+  const [promoCounts, setPromoCounts] = useState<Record<PromoStatusFilter, number>>({
+    all: 0,
+    active: 0,
+    inactive: 0,
+    expired: 0,
+  });
   const [loading, setLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'expired'>('all');
+  const [statusFilter, setStatusFilter] = useState<PromoStatusFilter>('all');
   const [search, setSearch] = useState('');
-
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPromo, setEditingPromo] = useState<Promo | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Form Fields
   const [title, setTitle] = useState('');
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
@@ -72,25 +280,48 @@ export default function AdminPromosPage() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-
-  // Delete modal state
+  const [startDateError, setStartDateError] = useState('');
+  const [endDateError, setEndDateError] = useState('');
+  const [dateTimeMin, setDateTimeMin] = useState(getLocalDateTimeMin);
   const [deleteTarget, setDeleteTarget] = useState<Promo | null>(null);
+  const [imageInputKey, setImageInputKey] = useState(0);
+  const [initialStartDate, setInitialStartDate] = useState('');
+  const [initialEndDate, setInitialEndDate] = useState('');
+  const searchRef = useRef(search);
 
-  const loadPromos = async () => {
+  const loadPromos = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await promoService.getAllPromos({ status: statusFilter, search });
+      const data = await promoService.getAllPromos({ status: statusFilter, search: searchRef.current });
       setPromos(data);
-    } catch (err: any) {
-      console.error(err);
+      setPromoCounts((previous) => {
+        if (statusFilter !== 'all') return { ...previous, [statusFilter]: data.length };
+        return {
+          all: data.length,
+          active: data.filter((promo) => statusLabel(promo) === 'active').length,
+          inactive: data.filter((promo) => statusLabel(promo) === 'inactive').length,
+          expired: data.filter((promo) => statusLabel(promo) === 'expired').length,
+        };
+      });
+    } catch (error: unknown) {
+      console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter]);
 
   useEffect(() => {
-    loadPromos();
-  }, [statusFilter]);
+    void Promise.resolve().then(loadPromos);
+  }, [loadPromos]);
+
+  useEffect(() => () => {
+    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+  }, [imagePreview]);
+
+  const resetDateErrors = () => {
+    setStartDateError('');
+    setEndDateError('');
+  };
 
   const openCreateModal = () => {
     setEditingPromo(null);
@@ -103,16 +334,23 @@ export default function AdminPromosPage() {
     setMaxDiscountAmount('');
     setStartDate('');
     setEndDate('');
+    setInitialStartDate('');
+    setInitialEndDate('');
+    setDateTimeMin(getLocalDateTimeMin());
     setIsActive(true);
     setSelectedCategories([]);
     setSelectedProducts([]);
     setImageFile(null);
     setImagePreview(null);
+    setImageInputKey((key) => key + 1);
     setFormError(null);
+    resetDateErrors();
     setIsModalOpen(true);
   };
 
   const openEditModal = (promo: Promo) => {
+    const savedStartDate = toDateTimeLocal(promo.start_date);
+    const savedEndDate = toDateTimeLocal(promo.end_date);
     setEditingPromo(promo);
     setTitle(promo.title);
     setCode(promo.code || '');
@@ -121,35 +359,94 @@ export default function AdminPromosPage() {
     setDiscountValue(promo.discount_value);
     setMinOrderAmount(promo.min_order_amount ?? 0);
     setMaxDiscountAmount(promo.max_discount_amount ?? '');
-    setStartDate(toDateTimeLocal(promo.start_date));
-    setEndDate(toDateTimeLocal(promo.end_date));
+    setStartDate(savedStartDate);
+    setEndDate(savedEndDate);
+    setInitialStartDate(savedStartDate);
+    setInitialEndDate(savedEndDate);
+    setDateTimeMin(getLocalDateTimeMin());
     setIsActive(promo.is_active);
     setSelectedCategories(promo.applicable_categories || []);
     setSelectedProducts(promo.applicable_products || []);
     setImageFile(null);
     setImagePreview(promo.image_url || null);
+    setImageInputKey((key) => key + 1);
     setFormError(null);
+    resetDateErrors();
     setIsModalOpen(true);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setImageInputKey((key) => key + 1);
+  };
+
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories((previous) => (
+      previous.includes(categoryId)
+        ? previous.filter((category) => category !== categoryId)
+        : [...previous, categoryId]
+    ));
+  };
+
+  const validateDates = (): boolean => {
+    resetDateErrors();
+    const nowWithTolerance = Date.now() - 60_000;
+    let valid = true;
+    const startWasEdited = startDate !== initialStartDate;
+    const endWasEdited = endDate !== initialEndDate;
+
+    if (startDate && startWasEdited && localDateTimeTimestamp(startDate) < nowWithTolerance) {
+      setStartDateError('Start date cannot be in the past.');
+      valid = false;
+    }
+
+    if (endDate && endWasEdited && localDateTimeTimestamp(endDate) < Date.now()) {
+      setEndDateError('End date cannot be in the past.');
+      valid = false;
+    }
+
+    if (startDate && endDate && localDateTimeTimestamp(endDate) <= localDateTimeTimestamp(startDate)) {
+      setEndDateError('End date must be after the start date.');
+      valid = false;
+    }
+    return valid;
+  };
+
+  const handleStartDateChange = (value: string) => {
+    setStartDate(value);
+    setStartDateError(value
+      && value !== initialStartDate
+      && localDateTimeTimestamp(value) < Date.now() - 60_000
+      ? 'Start date cannot be in the past.'
+      : '');
+    setEndDateError('');
+    if (value && endDate && localDateTimeTimestamp(endDate) <= localDateTimeTimestamp(value)) {
+      setEndDate('');
     }
   };
 
-  const toggleCategory = (catId: string) => {
-    setSelectedCategories(prev =>
-      prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]
-    );
+  const handleEndDateChange = (value: string) => {
+    setEndDate(value);
+    if (value && value !== initialEndDate && localDateTimeTimestamp(value) < Date.now()) {
+      setEndDateError('End date cannot be in the past.');
+    } else if (value && startDate && localDateTimeTimestamp(value) <= localDateTimeTimestamp(startDate)) {
+      setEndDateError('End date must be after the start date.');
+    } else {
+      setEndDateError('');
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setFormError(null);
-
     if (!title.trim()) {
       setFormError('Please enter a promo title.');
       return;
@@ -158,6 +455,7 @@ export default function AdminPromosPage() {
       setFormError('Discount value must be greater than zero.');
       return;
     }
+    if (!validateDates()) return;
 
     setIsSubmitting(true);
     try {
@@ -174,10 +472,7 @@ export default function AdminPromosPage() {
       formData.append('is_active', isActive ? '1' : '0');
       formData.append('applicable_categories', JSON.stringify(selectedCategories));
       formData.append('applicable_products', JSON.stringify(selectedProducts));
-
-      if (imageFile) {
-        formData.append('image', imageFile);
-      }
+      if (imageFile) formData.append('image', imageFile);
 
       if (editingPromo) {
         await promoService.updatePromo(editingPromo.id, formData);
@@ -186,9 +481,9 @@ export default function AdminPromosPage() {
       }
 
       setIsModalOpen(false);
-      loadPromos();
-    } catch (err: any) {
-      setFormError(err.message || 'Failed to save promo.');
+      await loadPromos();
+    } catch (error: unknown) {
+      setFormError(errorMessage(error, 'Failed to save promo.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -199,568 +494,391 @@ export default function AdminPromosPage() {
     try {
       await promoService.deletePromo(deleteTarget.id);
       setDeleteTarget(null);
-      loadPromos();
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete promo.');
+      await loadPromos();
+    } catch (error: unknown) {
+      window.alert(errorMessage(error, 'Failed to delete promo.'));
     }
   };
 
   const handleToggleActive = async (promo: Promo) => {
     try {
-      await promoService.toggleActive(promo.id);
-      setPromos(prev =>
-        prev.map(p => (p.id === promo.id ? { ...p, is_active: !p.is_active } : p))
-      );
-    } catch (err: any) {
-      alert(err.message || 'Failed to toggle promo.');
+      const updated = await promoService.toggleActive(promo.id);
+      setPromos((previous) => previous.map((item) => (
+        item.id === promo.id ? { ...item, is_active: updated.is_active } : item
+      )));
+    } catch (error: unknown) {
+      window.alert(errorMessage(error, 'Failed to toggle promo.'));
     }
   };
 
-  const filteredPromos = useMemo(() => {
-    return promos.filter(p => {
-      const matchSearch =
-        p.title.toLowerCase().includes(search.toLowerCase()) ||
-        (p.code && p.code.toLowerCase().includes(search.toLowerCase())) ||
-        (p.description && p.description.toLowerCase().includes(search.toLowerCase()));
-      return matchSearch;
-    });
-  }, [promos, search]);
+  const filteredPromos = useMemo(() => promos.filter((promo) => {
+    const query = search.trim().toLowerCase();
+    return !query
+      || promo.title.toLowerCase().includes(query)
+      || Boolean(promo.code?.toLowerCase().includes(query))
+      || Boolean(promo.description?.toLowerCase().includes(query));
+  }), [promos, search]);
+
+  const visiblePromos = filteredPromos;
+  const endDateMin = startDate && startDate > dateTimeMin ? startDate : dateTimeMin;
+  const startDateMin = editingPromo
+    && startDate === initialStartDate
+    && startDate
+    && startDate < dateTimeMin
+    ? undefined
+    : dateTimeMin;
+  const endDateInputMin = editingPromo
+    && endDate === initialEndDate
+    && endDate
+    && endDate < endDateMin
+    ? undefined
+    : endDateMin;
+  const modalFooter = (
+    <div className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
+      <button
+        type="button"
+        onClick={() => setIsModalOpen(false)}
+        className="h-11 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold text-[var(--oppa-text)] transition-colors duration-150 hover:bg-[var(--oppa-cream)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50"
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        form="promo-form"
+        disabled={isSubmitting}
+        className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[var(--oppa-green)] px-5 text-sm font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isSubmitting && <LuLoaderCircle size={16} className="animate-spin" aria-hidden="true" />}
+        {editingPromo ? 'Save Changes' : 'Create Promo'}
+      </button>
+    </div>
+  );
 
   return (
     <AdminLayout>
-      <div className="space-y-6 p-4 md:p-8 max-w-7xl mx-auto">
-        {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="p-2 rounded-xl bg-[var(--oppa-green)]/10 text-[var(--oppa-green)]">
-                <Tag size={22} />
-              </span>
-              <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[var(--oppa-text)]">
-                Promos & Discounts
-              </h1>
-            </div>
-            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">
-              Create, schedule, and manage database-driven promotions across Customer and Cashier POS.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
+      <PageContainer>
+        <PageHeader
+          icon={LuTag}
+          title="Promos & Discounts"
+          subtitle="Create, schedule, and manage database-driven promotions across Customer and Cashier POS."
+          action={(
             <button
-              onClick={loadPromos}
-              disabled={loading}
-              className="p-2.5 rounded-xl border border-[var(--oppa-border)] bg-white text-[var(--oppa-text)] hover:bg-gray-50 transition"
-              title="Refresh Promos"
-            >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            </button>
-            <button
+              type="button"
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:opacity-95 transition"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50 focus-visible:ring-offset-2"
             >
-              <Plus size={18} />
+              <LuPlus size={18} aria-hidden="true" />
               Add New Promo
             </button>
-          </div>
-        </div>
+          )}
+        />
 
-        {/* Filters and Search Bar */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-[var(--oppa-border)] shadow-sm">
-          {/* Status Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-            {(['all', 'active', 'inactive', 'expired'] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => setStatusFilter(tab)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold capitalize transition ${
-                  statusFilter === tab
-                    ? 'bg-[var(--oppa-green)] text-white shadow-xs'
-                    : 'text-[var(--oppa-text-muted)] hover:bg-gray-100 hover:text-[var(--oppa-text)]'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          {/* Search Bar */}
-          <div className="relative min-w-[260px]">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search title, code, or description..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl border border-[var(--oppa-border)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)] focus:border-transparent bg-gray-50/50"
-            />
-          </div>
-        </div>
-
-        {/* Promos Table / Grid */}
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white overflow-hidden shadow-sm">
-          {loading && promos.length === 0 ? (
-            <div className="p-12 text-center text-sm text-[var(--oppa-text-muted)]">
-              <RefreshCw className="size-6 animate-spin mx-auto mb-2 text-[var(--oppa-green)]" />
-              Loading database promos...
+        <section className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 shadow-card sm:p-4" aria-label="Promotion filters">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="-mx-1 overflow-x-auto px-1 pb-1 lg:pb-0">
+              <SegmentedControl<PromoStatusFilter>
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  { value: 'all', label: 'All', count: promoCounts.all },
+                  { value: 'active', label: 'Active', count: promoCounts.active },
+                  { value: 'inactive', label: 'Inactive', count: promoCounts.inactive },
+                  { value: 'expired', label: 'Expired', count: promoCounts.expired },
+                ]}
+              />
             </div>
-          ) : filteredPromos.length === 0 ? (
-            <div className="p-12 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3">
-                <Tag size={24} />
-              </div>
-              <h3 className="font-semibold text-gray-800">No promos found</h3>
-              <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
-                {search ? `No promotions match "${search}"` : 'Get started by creating your first promotional offer.'}
+            <label className="relative block w-full min-w-[260px] lg:max-w-md lg:flex-1">
+              <span className="sr-only">Search title, code, or description</span>
+              <LuSearch size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
+              <input
+                type="search"
+                placeholder="Search title, code, or description..."
+                value={search}
+                onChange={(event) => {
+                  searchRef.current = event.target.value;
+                  setSearch(event.target.value);
+                }}
+                className="h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] pl-10 pr-4 text-sm text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus-visible:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/30"
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-card" aria-label="Promotions">
+          {loading && promos.length === 0 ? (
+            <PromoSkeleton />
+          ) : visiblePromos.length === 0 ? (
+            <div className="flex flex-col items-center px-6 py-14 text-center">
+              <span className="mb-4 grid size-14 place-items-center rounded-2xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]">
+                <LuTag size={24} aria-hidden="true" />
+              </span>
+              <h2 className="font-display text-xl font-semibold text-[var(--oppa-text)]">No promos found</h2>
+              <p className="mt-1 max-w-md text-sm text-[var(--oppa-text-muted)]">
+                {search ? `No promotions match "${search}".` : 'Get started by creating your first promotional offer.'}
               </p>
               {!search && (
                 <button
+                  type="button"
                   onClick={openCreateModal}
-                  className="mt-4 px-4 py-2 rounded-xl bg-[var(--oppa-green)] text-white text-sm font-semibold hover:opacity-90"
+                  className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50"
                 >
-                  Create Promo
+                  <LuPlus size={18} aria-hidden="true" />
+                  Add New Promo
                 </button>
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-[var(--oppa-border)] bg-[var(--oppa-cream)]/40 text-xs uppercase tracking-wider text-[var(--oppa-text-muted)] font-semibold">
-                  <tr>
-                    <th className="py-3.5 px-4">Promo Details</th>
-                    <th className="py-3.5 px-4">Discount</th>
-                    <th className="py-3.5 px-4">Applicable To</th>
-                    <th className="py-3.5 px-4">Validity</th>
-                    <th className="py-3.5 px-4">Active</th>
-                    <th className="py-3.5 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--oppa-border)]">
-                  {filteredPromos.map(promo => {
-                    const isExpired = promo.is_expired;
-                    return (
-                      <tr key={promo.id} className="hover:bg-gray-50/60 transition-colors">
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-3">
-                            {promo.image_url ? (
-                              <img
-                                src={promo.image_url}
-                                alt={promo.title}
-                                className="w-12 h-12 rounded-xl object-cover border border-gray-200 shrink-0"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-[var(--oppa-green)] flex items-center justify-center shrink-0 border border-emerald-100">
-                                <Sparkles size={20} />
-                              </div>
-                            )}
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-[var(--oppa-text)]">{promo.title}</span>
-                                {promo.code && (
-                                  <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 font-semibold border border-gray-200">
-                                    {promo.code}
-                                  </span>
-                                )}
-                              </div>
-                              {promo.description && (
-                                <p className="text-xs text-[var(--oppa-text-muted)] mt-0.5 max-w-xs line-clamp-1">
-                                  {promo.description}
-                                </p>
-                              )}
-                              {promo.times_used !== undefined && promo.times_used > 0 && (
-                                <span className="text-[11px] text-gray-400 mt-1 block">
-                                  Used {promo.times_used} times
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="py-4 px-4 font-semibold text-[var(--oppa-green)]">
-                          <div className="flex items-center gap-1.5">
-                            {promo.discount_type === 'percent' ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-green-50 text-green-700 text-xs font-bold border border-green-200/60">
-                                <Percent size={12} /> {promo.discount_value}% OFF
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200/60">
-                                ₱{Number(promo.discount_value).toFixed(2)} OFF
-                              </span>
-                            )}
-                          </div>
-                          {Number(promo.min_order_amount) > 0 && (
-                            <span className="text-[11px] text-gray-500 font-normal block mt-1">
-                              Min. order: {formatCurrency(Number(promo.min_order_amount))}
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="py-4 px-4 text-xs text-[var(--oppa-text)]">
-                          {promo.applicable_categories && promo.applicable_categories.length > 0 ? (
-                            <div className="flex flex-wrap gap-1 max-w-[200px]">
-                              {promo.applicable_categories.map(c => (
-                                <span key={c} className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[11px] capitalize border border-blue-100">
-                                  {c.replace('-', ' ')}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-gray-500 italic">All Categories</span>
-                          )}
-                        </td>
-
-                        <td className="py-4 px-4 text-xs">
-                          {isExpired ? (
-                            <span className="inline-flex items-center gap-1 text-red-600 font-semibold bg-red-50 px-2 py-1 rounded-md">
-                              <AlertCircle size={13} /> Expired
-                            </span>
-                          ) : promo.end_date ? (
-                            <div className="space-y-0.5 text-gray-600">
-                              <span className="block font-medium">Until {formatPromoDate(promo.end_date)}</span>
-                              <span className="text-[11px] text-gray-400">
-                                {promo.start_date ? `From ${formatPromoDate(promo.start_date)}` : 'Ongoing'}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-gray-500 font-medium">No Expiration</span>
-                          )}
-                        </td>
-
-                        <td className="py-4 px-4">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleActive(promo)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition ${
-                              promo.is_active
-                                ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            {promo.is_active ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-                            {promo.is_active ? 'Active' : 'Inactive'}
-                          </button>
-                        </td>
-
-                        <td className="py-4 px-4 text-right">
-                          <div className="inline-flex items-center gap-1">
-                            <button
-                              onClick={() => openEditModal(promo)}
-                              className="p-1.5 rounded-lg text-gray-600 hover:text-[var(--oppa-green)] hover:bg-gray-100 transition"
-                              title="Edit promo"
-                            >
-                              <Edit2 size={15} />
-                            </button>
-                            <button
-                              onClick={() => setDeleteTarget(promo)}
-                              className="p-1.5 rounded-lg text-gray-600 hover:text-red-600 hover:bg-red-50 transition"
-                              title="Delete promo"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Create / Edit Promo Modal */}
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-[var(--oppa-border)]">
-              <div className="sticky top-0 bg-white border-b border-[var(--oppa-border)] px-6 py-4 flex items-center justify-between z-10">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-emerald-50 text-[var(--oppa-green)]">
-                    <Tag size={20} />
-                  </div>
-                  <h3 className="font-serif text-xl font-bold text-[var(--oppa-text)]">
-                    {editingPromo ? 'Edit Promotion' : 'Create New Promotion'}
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="rounded-full p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-                >
-                  ✕
-                </button>
+            <>
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[1080px] table-fixed text-left">
+                  <colgroup>
+                    <col />
+                    <col className="w-40" />
+                    <col className="w-44" />
+                    <col className="w-44" />
+                    <col className="w-32" />
+                    <col className="w-24" />
+                  </colgroup>
+                  <thead className="bg-[var(--oppa-green-soft)]/60 text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                    <tr>
+                      <th scope="col" className="px-5 py-3.5 font-semibold">Promo details</th>
+                      <th scope="col" className="px-4 py-3.5 font-semibold">Discount</th>
+                      <th scope="col" className="px-4 py-3.5 font-semibold">Applicable to</th>
+                      <th scope="col" className="px-4 py-3.5 font-semibold">Validity</th>
+                      <th scope="col" className="px-4 py-3.5 font-semibold">Active</th>
+                      <th scope="col" className="px-4 py-3.5 text-right font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--oppa-border)]">
+                    {visiblePromos.map((promo) => (
+                      <PromoRow
+                        key={promo.id}
+                        promo={promo}
+                        onEdit={() => openEditModal(promo)}
+                        onDelete={() => setDeleteTarget(promo)}
+                        onToggle={() => void handleToggleActive(promo)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
               </div>
-
-              <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                {formError && (
-                  <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-center gap-2">
-                    <AlertCircle size={18} className="shrink-0" />
-                    <span>{formError}</span>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
-                      Promo Title *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. 10% Welcome Treat"
-                      value={title}
-                      onChange={e => setTitle(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm focus:ring-2 focus:ring-[var(--oppa-green)] focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
-                      Promo Code (Voucher)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. OPPA10, WEEKEND50"
-                      value={code}
-                      onChange={e => setCode(e.target.value.toUpperCase())}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm font-mono uppercase focus:ring-2 focus:ring-[var(--oppa-green)] focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
-                    Description
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="Brief description displayed on the banner and promotional sections..."
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm focus:ring-2 focus:ring-[var(--oppa-green)] focus:outline-none"
+              <div className="space-y-3 p-3 md:hidden">
+                {visiblePromos.map((promo) => (
+                  <PromoCard
+                    key={promo.id}
+                    promo={promo}
+                    onEdit={() => openEditModal(promo)}
+                    onDelete={() => setDeleteTarget(promo)}
+                    onToggle={() => void handleToggleActive(promo)}
                   />
-                </div>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
 
-                {/* Discount Type & Value */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
-                      Discount Type *
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setDiscountType('percent')}
-                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1 ${
-                          discountType === 'percent'
-                            ? 'bg-[var(--oppa-green)] text-white border-[var(--oppa-green)]'
-                            : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        <Percent size={13} /> Percent
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDiscountType('fixed')}
-                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1 ${
-                          discountType === 'fixed'
-                            ? 'bg-[var(--oppa-green)] text-white border-[var(--oppa-green)]'
-                            : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        <DollarSign size={13} /> Fixed (₱)
-                      </button>
-                    </div>
-                  </div>
+        <PromoModal
+          open={isModalOpen}
+          title={editingPromo ? 'Edit Promotion' : 'Create New Promotion'}
+          icon={LuTag}
+          onClose={() => setIsModalOpen(false)}
+          labelledBy="promo-modal-title"
+          footer={modalFooter}
+        >
+          <form id="promo-form" onSubmit={handleSubmit} className="promo-modal-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
+            {formError && (
+              <div role="alert" className="flex items-start gap-2 rounded-xl border border-[var(--promo-danger-border)] bg-[var(--promo-danger-bg)] p-3 text-sm text-[var(--promo-danger-text)]">
+                <LuX size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <span>{formError}</span>
+              </div>
+            )}
 
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
-                      Value {discountType === 'percent' ? '(%)' : '(₱)'} *
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0.01"
-                      required
-                      placeholder={discountType === 'percent' ? '15' : '50'}
-                      value={discountValue}
-                      onChange={e => setDiscountValue(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm font-semibold focus:ring-2 focus:ring-[var(--oppa-green)] focus:outline-none"
-                    />
-                  </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+              <div className="sm:col-span-7">
+                <FieldLabel htmlFor="promo-title">Promo title <span className="text-[var(--promo-danger-text)]">*</span></FieldLabel>
+                <input id="promo-title" type="text" required placeholder="e.g. 10% Welcome Treat" value={stripEmoji(title)} onChange={(event) => setTitle(event.target.value)} className={inputClass()} />
+              </div>
+              <div className="sm:col-span-5">
+                <FieldLabel htmlFor="promo-code">Promo code (voucher)</FieldLabel>
+                <input id="promo-code" type="text" placeholder="e.g. OPPA10, WEEKEND50" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className={`${inputClass()} font-mono uppercase`} />
+              </div>
+              <div className="sm:col-span-12">
+                <FieldLabel htmlFor="promo-description">Description</FieldLabel>
+                <textarea
+                  id="promo-description"
+                  rows={3}
+                  placeholder="Brief description displayed on the banner and promotional sections..."
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  className="min-h-24 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3.5 py-3 text-sm text-[var(--oppa-text)] transition-colors duration-150 focus-visible:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/30"
+                />
+              </div>
+            </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
-                      Min. Order Spend (₱)
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      placeholder="0"
-                      value={minOrderAmount}
-                      onChange={e => setMinOrderAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm focus:ring-2 focus:ring-[var(--oppa-green)] focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Validity Dates */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
-                      Start Date & Time (Optional)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={startDate}
-                      onChange={e => setStartDate(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl border border-[var(--oppa-border)] text-sm focus:ring-2 focus:ring-[var(--oppa-green)] focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
-                      End Date & Time (Optional)
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={endDate}
-                      onChange={e => setEndDate(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl border border-[var(--oppa-border)] text-sm focus:ring-2 focus:ring-[var(--oppa-green)] focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Applicable Categories */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
-                    Applicable Categories (Leave empty for All)
-                  </label>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {categories.filter(c => c.id !== 'all').map(cat => {
-                      const isSelected = selectedCategories.includes(cat.id);
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => toggleCategory(cat.id)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition ${
-                            isSelected
-                              ? 'bg-[var(--oppa-green)] text-white border-[var(--oppa-green)] font-semibold'
-                              : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                          }`}
-                        >
-                          {isSelected ? '✓ ' : '+ '}
-                          {cat.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Image Upload */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">
-                    Optional Promo Banner Image
-                  </label>
-                  <div className="flex items-center gap-4">
-                    {imagePreview ? (
-                      <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200 shrink-0">
-                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setImageFile(null);
-                            setImagePreview(null);
-                          }}
-                          className="absolute top-1 right-1 bg-black/70 text-white rounded-full p-1 text-xs hover:bg-black"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 shrink-0">
-                        <ImageIcon size={20} />
-                        <span className="text-[10px] mt-1">No Image</span>
-                      </div>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="text-xs text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer"
-                    />
-                  </div>
-                </div>
-
-                {/* Active Toggle */}
-                <div className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50 border border-gray-200">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">Activate Promo Immediately</p>
-                    <p className="text-xs text-gray-500">When enabled, this promo will immediately show in the banner and be usable.</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={isActive}
-                    onChange={e => setIsActive(e.target.checked)}
-                    className="w-5 h-5 accent-[var(--oppa-green)] rounded"
-                  />
-                </div>
-
-                {/* Modal Footer Actions */}
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--oppa-border)]">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Discount type <span className="text-[var(--promo-danger-text)]">*</span></p>
+                <div className="grid h-11 grid-cols-2 gap-1 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-1" role="group" aria-label="Discount type">
                   <button
                     type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                    aria-pressed={discountType === 'percent'}
+                    onClick={() => setDiscountType('percent')}
+                    className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50 ${discountType === 'percent' ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-surface)]'}`}
                   >
-                    Cancel
+                    <LuPercent size={16} aria-hidden="true" /> Percent
                   </button>
                   <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-6 py-2.5 rounded-xl bg-[var(--oppa-green)] text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-50 transition flex items-center gap-2"
+                    type="button"
+                    aria-pressed={discountType === 'fixed'}
+                    onClick={() => setDiscountType('fixed')}
+                    className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50 ${discountType === 'fixed' ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-surface)]'}`}
                   >
-                    {isSubmitting && <RefreshCw size={14} className="animate-spin" />}
-                    {editingPromo ? 'Save Changes' : 'Create Promo'}
+                    <LuBanknote size={16} aria-hidden="true" /> Fixed (P)
                   </button>
                 </div>
-              </form>
+              </div>
+              <div>
+                <FieldLabel htmlFor="promo-value">Value ({discountType === 'percent' ? '%' : 'P'}) <span className="text-[var(--promo-danger-text)]">*</span></FieldLabel>
+                <div className="relative">
+                  <span className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm font-semibold text-[var(--oppa-text-muted)] ${discountType === 'fixed' ? 'left-3.5' : 'right-3.5'}`}>
+                    {discountType === 'fixed' ? '₱' : '%'}
+                  </span>
+                  <input id="promo-value" type="number" step="any" min="0.01" required placeholder={discountType === 'percent' ? '15' : '50'} value={discountValue} onChange={(event) => setDiscountValue(event.target.value === '' ? '' : Number(event.target.value))} className={`${inputClass()} font-semibold ${discountType === 'fixed' ? 'pl-8' : 'pr-9'}`} />
+                </div>
+              </div>
+              <div>
+                <FieldLabel htmlFor="promo-min-order">Min. order spend (P)</FieldLabel>
+                <input id="promo-min-order" type="number" step="any" min="0" placeholder="0" value={minOrderAmount} onChange={(event) => setMinOrderAmount(event.target.value === '' ? '' : Number(event.target.value))} className={inputClass()} />
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* Delete Confirmation Modal */}
-        {deleteTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-[var(--oppa-border)]">
-              <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mb-4">
-                <Trash2 size={24} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField error={startDateError}>
+                <FieldLabel htmlFor="promo-start-date">Start date & time (optional)</FieldLabel>
+                <div className="relative">
+                  <LuCalendar size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
+                  <input
+                    id="promo-start-date"
+                    type="datetime-local"
+                    step={60}
+                    min={startDateMin}
+                    value={startDate}
+                    onChange={(event) => handleStartDateChange(event.target.value)}
+                    className={`${inputClass(Boolean(startDateError))} cursor-pointer pl-10 [font-family:inherit]`}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Choose now or a future start time.</p>
+              </FormField>
+              <FormField error={endDateError}>
+                <FieldLabel htmlFor="promo-end-date">End date & time (optional)</FieldLabel>
+                <div className="relative">
+                  <LuCalendar size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
+                  <input
+                    id="promo-end-date"
+                    type="datetime-local"
+                    step={60}
+                    min={endDateInputMin}
+                    value={endDate}
+                    onChange={(event) => handleEndDateChange(event.target.value)}
+                    className={`${inputClass(Boolean(endDateError))} cursor-pointer pl-10 [font-family:inherit]`}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Must be after the start time.</p>
+              </FormField>
+            </div>
+
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Applicable categories</p>
+              <div id="promo-category-chip" className="flex flex-wrap gap-2">
+                {categories.filter((category) => category.id !== 'all').map((category) => {
+                  const selected = selectedCategories.includes(category.id);
+                  const Icon = selected ? LuCheck : LuPlus;
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => toggleCategory(category.id)}
+                      className={`inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50 ${
+                        selected
+                          ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]'
+                          : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]'
+                      }`}
+                    >
+                      <Icon size={14} aria-hidden="true" />
+                      {category.name}
+                    </button>
+                  );
+                })}
               </div>
-              <h3 className="font-serif text-lg font-bold text-gray-900">
-                Delete "{deleteTarget.title}"?
-              </h3>
-              <p className="text-sm text-gray-500 mt-2">
-                Are you sure you want to delete this promotion? This action cannot be undone. Customers will no longer be able to use this promo code.
-              </p>
-              <div className="mt-6 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(null)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  className="px-5 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 shadow-sm"
-                >
-                  Yes, Delete
-                </button>
+              <p className="mt-1.5 text-xs text-[var(--oppa-text-muted)]">Leave empty to apply to all.</p>
+            </div>
+
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Optional promo banner image</p>
+              <div className="flex flex-col gap-3 rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/50 p-3 sm:flex-row sm:items-center">
+                {imagePreview ? (
+                  <div className="relative size-16 shrink-0 overflow-hidden rounded-xl border border-[var(--oppa-border)]">
+                    <img src={imagePreview} alt="Promo banner preview" className="size-full object-cover" />
+                    <button
+                      type="button"
+                      aria-label="Remove banner image"
+                      title="Remove image"
+                      onClick={removeImage}
+                      className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white transition-colors hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    >
+                      <LuX size={14} aria-hidden="true" />
+                    </button>
+                  </div>
+                ) : (
+                  <span className="grid size-16 shrink-0 place-items-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]">
+                    <LuImage size={22} aria-hidden="true" />
+                  </span>
+                )}
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+                  <input key={imageInputKey} id="promo-image" type="file" accept="image/*" onChange={handleImageChange} className="sr-only" />
+                  <label
+                    htmlFor="promo-image"
+                    className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3.5 text-sm font-semibold text-[var(--oppa-text)] transition-colors hover:bg-[var(--oppa-cream)] focus-within:ring-2 focus-within:ring-[var(--oppa-green)]/50"
+                  >
+                    <LuImage size={16} aria-hidden="true" />
+                    Choose file
+                  </label>
+                  <span className="min-w-0 truncate text-xs text-[var(--oppa-text-muted)]">
+                    {imageFile?.name || (imagePreview ? 'Current banner image' : 'No file chosen')}
+                  </span>
+                </div>
               </div>
             </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/60 p-3.5">
+              <div>
+                <p className="text-sm font-semibold text-[var(--oppa-text)]">Activate Promo Immediately</p>
+                <p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">When enabled, this promo will immediately show in the banner and be usable.</p>
+              </div>
+              <Toggle checked={isActive} onChange={setIsActive} label="Activate Promo Immediately" />
+            </div>
+          </form>
+        </PromoModal>
+
+        {deleteTarget && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDeleteTarget(null);
+          }}>
+            <section role="alertdialog" aria-modal="true" aria-labelledby="delete-promo-title" className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl">
+              <span className="mb-4 grid size-12 place-items-center rounded-xl bg-[var(--promo-danger-bg)] text-[var(--promo-danger-text)]"><LuTrash2 size={22} aria-hidden="true" /></span>
+              <h2 id="delete-promo-title" className="font-display text-xl font-bold text-[var(--oppa-text)]">Delete “{stripEmoji(deleteTarget.title)}”?</h2>
+              <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">Are you sure you want to delete this promotion? This action cannot be undone. Customers will no longer be able to use this promo code.</p>
+              <div className="mt-6 flex justify-end gap-3">
+                <button type="button" onClick={() => setDeleteTarget(null)} className="h-10 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold text-[var(--oppa-text)] transition-colors hover:bg-[var(--oppa-cream)]">Cancel</button>
+                <button type="button" onClick={() => void handleDelete()} className="inline-flex h-10 items-center gap-2 rounded-xl bg-red-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-800">
+                  <LuTrash2 size={16} aria-hidden="true" /> Delete promo
+                </button>
+              </div>
+            </section>
           </div>
         )}
-      </div>
+      </PageContainer>
     </AdminLayout>
   );
 }
