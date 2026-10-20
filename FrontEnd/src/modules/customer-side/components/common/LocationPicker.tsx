@@ -75,7 +75,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     setSelectedName(location.name);
     setIsSearchFocused(false);
     if (mapRef.current) {
-      mapRef.current.flyTo([location.lat, location.lng], location.isBroad ? 8 : 16);
+      mapRef.current.setView([location.lat, location.lng], location.isBroad ? 8 : 16, { animate: false });
     }
   };
 

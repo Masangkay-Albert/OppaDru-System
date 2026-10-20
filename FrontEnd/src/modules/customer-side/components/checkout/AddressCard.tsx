@@ -8,7 +8,6 @@ interface AddressCardProps {
   address: string;
   isDefault: boolean;
   isSelected: boolean;
-  needsPin?: boolean;
   label?: string;
   details?: {
     block?: string;
@@ -29,7 +28,6 @@ const AddressCard: React.FC<AddressCardProps> = ({
   address,
   isDefault,
   isSelected,
-  needsPin = false,
   label,
   details,
   onSelect,
@@ -58,9 +56,6 @@ const AddressCard: React.FC<AddressCardProps> = ({
             {isSelected && <FiCheck className="checkout-address-selected-icon text-[#2d6a4f] flex-shrink-0" size={16} />}
             {label && (
               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full flex-shrink-0">{label}</span>
-            )}
-            {needsPin && (
-              <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full flex-shrink-0">Pin needed</span>
             )}
           </div>
           <p className="checkout-address-text text-sm text-gray-600 mt-1 truncate">{address}</p>
