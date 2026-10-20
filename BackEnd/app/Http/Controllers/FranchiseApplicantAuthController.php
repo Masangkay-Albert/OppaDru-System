@@ -17,7 +17,7 @@ class FranchiseApplicantAuthController extends Controller
         $validator = Validator::make($request->all(), [
             'full_name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:franchise_applicants,email',
-            'phone' => 'nullable|string|max:50',
+            'phone' => ['nullable', 'string', 'regex:/^09\d{9}$/'],
             'password' => 'required|string|min:8|confirmed',
         ]);
         if ($validator->fails()) {

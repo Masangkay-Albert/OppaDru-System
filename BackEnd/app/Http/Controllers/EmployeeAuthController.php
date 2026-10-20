@@ -49,4 +49,18 @@ class EmployeeAuthController extends Controller
             'message' => 'Login successful'
         ]);
     }
+
+    public function logout(Request $request)
+    {
+        $token = $request->bearerToken();
+        if ($token) {
+            $employee = Employee::where('api_token', hash('sha256', $token))->first();
+            if ($employee) {
+                $employee->api_token = null;
+                $employee->save();
+            }
+        }
+
+        return response()->json(['message' => 'Logout successful.']);
+    }
 }

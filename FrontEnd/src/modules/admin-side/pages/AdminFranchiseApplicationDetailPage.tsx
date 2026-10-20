@@ -753,31 +753,6 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     }
   };
 
-  const refreshApprovedBranchLocation = async () => {
-    if (!application || !id || approvalRequestInFlight.current) return;
-    approvalRequestInFlight.current = true;
-    setApproving(true);
-    setError('');
-    try {
-      await reviewFranchiseApplication(id, {
-        status: application.status || status,
-        location: proposedLocation.trim(),
-        proposed_location_pin_confirmed: false,
-      });
-      const result = await approveFranchiseApplication(id);
-      formDirty.current = false;
-      await load();
-      setApprovalNotice(result.provisioning_pending
-        ? result.message
-        : 'Branch location refreshed from the proposed address.');
-    } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : 'Unable to refresh the branch location.');
-    } finally {
-      approvalRequestInFlight.current = false;
-      setApproving(false);
-    }
-  };
-
   const downloadTemplate = async (index: number, name: string) => {
     if (!id) return;
     const key = `template-${index}`;
@@ -872,17 +847,6 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                 ? <InlineMessage variant="success" message="Final approval is complete and the franchise dashboard account is active." />
                 : <InlineMessage variant="warning" message="Needs location: approval is complete, but the branch and dashboard are not provisioned until its address can be located." />)}
               {approvalNotice && <InlineMessage variant="warning" message={approvalNotice} />}
-              {application.status === 'approved' && application.franchise_id && (
-                <button
-                  type="button"
-                  onClick={() => void refreshApprovedBranchLocation()}
-                  disabled={approving}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-[var(--oppa-green)] hover:bg-emerald-50 disabled:opacity-60"
-                >
-                  {approving ? <Loader2 size={16} className="animate-spin" /> : <MapPin size={16} />}
-                  {approving ? 'Refreshing branch location…' : 'Refresh branch location from proposed address'}
-                </button>
-              )}
               {application.status === 'approved' && !application.franchise_id && <>
                 <label className="block text-sm font-medium">Proposed branch address<input value={proposedLocation} onChange={(event) => { setProposedLocation(event.target.value); setProposedCoordinates(null); setProposedCoordinatesConfirmed(false); }} maxLength={2000} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
                 <button type="button" onClick={() => void saveLocationAndRetryProvisioning()} disabled={approving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500 px-4 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-60">

@@ -3,6 +3,8 @@ import { Boxes, PackageCheck, PackageX, RefreshCw, Search, TriangleAlert } from 
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
+import StatCard from '../../admin-side/components/StatCard';
+import { PageHeader } from '../../admin-side/components/AdminUI';
 
 interface InventoryItem {
   id: string;
@@ -87,22 +89,15 @@ const FranchiseInventoryPage: React.FC = () => {
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="mx-auto max-w-[1500px]">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--oppa-green)]">Franchise Portal · Inventory</p>
-            <h1 className="mt-1 text-2xl font-semibold text-[var(--oppa-text)]">Branch Inventory</h1>
-            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage branch stock and availability without changing the shared catalog.</p>
-          </div>
-          <button onClick={() => { setError(''); setIsLoading(true); void loadInventory(); }} className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm hover:bg-[var(--oppa-cream)]"><RefreshCw size={15} /> Refresh</button>
-        </header>
+        <PageHeader title="Inventory" subtitle="Manage branch stock and availability without changing the shared catalog." actions={<button type="button" onClick={() => { setError(''); setIsLoading(true); void loadInventory(); }} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><RefreshCw size={15} /> Refresh</button>} />
 
         {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button onClick={() => { setError(''); setIsLoading(true); void loadInventory(); }} className="font-semibold underline">Retry</button></div>}
         {message && <p role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{message}</p>}
         {!isLoading && items.length > 0 && <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <InventoryMetric icon={Boxes} label="Products tracked" value={items.length} tone="green" />
-          <InventoryMetric icon={PackageCheck} label="Available" value={items.filter((item) => item.branch_available).length} tone="green" />
-          <InventoryMetric icon={TriangleAlert} label="Low stock" value={items.filter((item) => item.low_stock).length} tone="amber" />
-          <InventoryMetric icon={PackageX} label="Out of stock" value={items.filter((item) => item.branch_stock_tracked && item.branch_stock === 0).length} tone="red" />
+          <StatCard icon={Boxes} label="Products tracked" value={items.length} />
+          <StatCard icon={PackageCheck} label="Available" value={items.filter((item) => item.branch_available).length} />
+          <StatCard icon={TriangleAlert} label="Low stock" value={items.filter((item) => item.low_stock).length} accent="amber" />
+          <StatCard icon={PackageX} label="Out of stock" value={items.filter((item) => item.branch_stock_tracked && item.branch_stock === 0).length} accent="red" />
         </section>}
         {isLoading ? <p className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading branch inventory...</p> : items.length === 0 ? (
           <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-10 text-center text-sm text-[var(--oppa-text-muted)]">No inventory data available yet.</section>
@@ -116,7 +111,7 @@ const FranchiseInventoryPage: React.FC = () => {
             </div>
             {filteredItems.length === 0 ? <p className="p-8 text-center text-sm text-[var(--oppa-text-muted)]">No products match these filters.</p> : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[800px] text-left text-sm">
+                <table className="admin-table w-full min-w-[800px] text-left text-sm">
                   <thead className="bg-[#edf5ef] text-xs uppercase text-[var(--oppa-text-muted)]"><tr><th className="px-4 py-3">Product</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Branch stock</th><th className="px-4 py-3">Availability</th><th className="px-4 py-3">Price</th><th className="px-4 py-3">Update</th></tr></thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredItems.map((item) => (
@@ -151,12 +146,3 @@ const FranchiseInventoryPage: React.FC = () => {
 };
 
 export default FranchiseInventoryPage;
-
-const InventoryMetric: React.FC<{ icon: React.ElementType; label: string; value: number; tone: 'green' | 'amber' | 'red' }> = ({ icon: Icon, label, value, tone }) => {
-  const styles = {
-    green: 'bg-emerald-50 text-emerald-700',
-    amber: 'bg-amber-50 text-amber-700',
-    red: 'bg-red-50 text-red-700',
-  };
-  return <div className="flex items-center gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm"><span className={`rounded-xl p-2.5 ${styles[tone]}`}><Icon size={19} /></span><div><p className="text-sm text-gray-500">{label}</p><p className="text-xl font-bold text-[var(--oppa-text)]">{value}</p></div></div>;
-};

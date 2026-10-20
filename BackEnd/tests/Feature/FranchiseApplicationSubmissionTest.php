@@ -280,6 +280,24 @@ class FranchiseApplicationSubmissionTest extends TestCase
         ])->assertOk()->assertJsonPath('applicant.id', $applicant->id);
     }
 
+    public function test_applicant_registration_rejects_non_philippine_phone_numbers(): void
+    {
+        Notification::fake();
+
+        $this->postJson('/api/franchise-applicants/register', [
+            'full_name' => 'New Franchise Applicant',
+            'email' => 'invalid.phone@example.test',
+            'phone' => 'dasda',
+            'password' => 'SecurePassword1!',
+            'password_confirmation' => 'SecurePassword1!',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['phone']);
+
+        $this->assertDatabaseMissing('franchise_applicants', [
+            'email' => 'invalid.phone@example.test',
+        ]);
+    }
+
     private function createVerifiedApplicant(string $email = 'applicant@example.test'): array
     {
         return $this->createApplicant(true, $email);

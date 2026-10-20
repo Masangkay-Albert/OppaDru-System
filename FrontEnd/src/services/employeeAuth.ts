@@ -48,7 +48,16 @@ export const employeeAuth = {
   },
 
   logout: () => {
+    const token = localStorage.getItem('employee_token');
     localStorage.removeItem("employee_auth");
     localStorage.removeItem("employee_token");
+    if (token) {
+      void fetch(`${API_BASE_URL}/employee/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      }).catch((error: unknown) => {
+        console.error('Employee logout request failed', error);
+      });
+    }
   }
 };

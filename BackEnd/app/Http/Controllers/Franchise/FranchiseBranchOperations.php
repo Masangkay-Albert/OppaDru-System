@@ -128,7 +128,7 @@ trait FranchiseBranchOperations
             'email' => 'required|string|email|max:255',
             'phone' => 'nullable|string|max:50',
             'password' => 'required|string|min:8',
-            'role' => 'required|string|in:cashier,kitchen_staff,staff,driver',
+            'role' => 'required|string|in:cashier,kitchen_staff,driver',
             'vehicle_type' => 'required_if:role,driver|nullable|string|max:100',
         ]);
         if ($validator->fails()) {
@@ -136,9 +136,9 @@ trait FranchiseBranchOperations
         }
 
         $email = strtolower(trim((string) $request->email));
-        if (FranchiseUser::where('email', $email)->exists()
-            || Employee::where('email', $email)->exists()
-            || Driver::where('email', $email)->exists()) {
+        if (FranchiseUser::whereRaw('LOWER(email) = ?', [$email])->exists()
+            || Employee::whereRaw('LOWER(email) = ?', [$email])->exists()
+            || Driver::whereRaw('LOWER(email) = ?', [$email])->exists()) {
             return response()->json(['message' => 'This email address is already assigned to an account.'], 422);
         }
 
@@ -171,7 +171,6 @@ trait FranchiseBranchOperations
                 'password' => (string) $request->password,
                 'position' => match ($request->role) {
                     'kitchen_staff' => 'kitchen staff',
-                    'staff' => 'staff',
                     default => 'cashier',
                 },
                 'is_active' => true,
@@ -203,9 +202,15 @@ trait FranchiseBranchOperations
         if ($type === 'employee') {
             $staff = Employee::where('franchise_id', $user->franchise_id)->findOrFail($id);
             $staff->is_active = $validated['is_active'];
+            if (! $validated['is_active']) {
+                $staff->api_token = null;
+            }
         } elseif ($type === 'driver') {
             $staff = Driver::where('franchise_id', $user->franchise_id)->findOrFail($id);
             $staff->isActive = $validated['is_active'];
+            if (! $validated['is_active']) {
+                $staff->api_token = null;
+            }
         } else {
             return response()->json(['message' => 'Unsupported branch user type.'], 422);
         }
@@ -223,7 +228,7 @@ trait FranchiseBranchOperations
 
         $employee = Employee::where('franchise_id', $user->franchise_id)->findOrFail($id);
         $validated = $request->validate([
-            'position' => 'sometimes|required|in:cashier,kitchen staff,staff',
+            'position' => 'sometimes|required|in:cashier,kitchen staff',
             'is_active' => 'sometimes|boolean',
         ]);
         if ($validated === []) {
@@ -235,6 +240,9 @@ trait FranchiseBranchOperations
         }
         if (array_key_exists('is_active', $validated)) {
             $employee->is_active = $validated['is_active'];
+            if (! $validated['is_active']) {
+                $employee->api_token = null;
+            }
         }
         $employee->save();
 
@@ -249,6 +257,51 @@ trait FranchiseBranchOperations
             ],
             'message' => 'Branch staff updated.',
         ]);
+    }
+
+    public function resetBranchUserPassword(Request $request, string $type, string $id)
+    {
+        $user = $request->user();
+        if (! $user instanceof FranchiseUser || ! $user->franchise_id) {
+            return response()->json(['message' => 'Franchise access required'], 403);
+        }
+
+        $validated = $request->validate(['password' => 'required|string|min:8']);
+        $staff = match ($type) {
+            'employee' => Employee::where('franchise_id', $user->franchise_id)->findOrFail($id),
+            'driver' => Driver::where('franchise_id', $user->franchise_id)->findOrFail($id),
+            default => null,
+        };
+        if (! $staff) {
+            return response()->json(['message' => 'Unsupported branch user type.'], 422);
+        }
+
+        $staff->password = $validated['password'];
+        $staff->api_token = null;
+        $staff->save();
+
+        return response()->json(['message' => 'Branch staff password reset successfully.']);
+    }
+
+    public function deleteBranchUser(Request $request, string $type, string $id)
+    {
+        $user = $request->user();
+        if (! $user instanceof FranchiseUser || ! $user->franchise_id) {
+            return response()->json(['message' => 'Franchise access required'], 403);
+        }
+
+        $staff = match ($type) {
+            'employee' => Employee::where('franchise_id', $user->franchise_id)->findOrFail($id),
+            'driver' => Driver::where('franchise_id', $user->franchise_id)->findOrFail($id),
+            default => null,
+        };
+        if (! $staff) {
+            return response()->json(['message' => 'Unsupported branch user type.'], 422);
+        }
+
+        $staff->delete();
+
+        return response()->json(['message' => 'Branch staff account removed.']);
     }
 
     public function branchSettings(Request $request)

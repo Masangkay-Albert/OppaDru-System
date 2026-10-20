@@ -160,10 +160,15 @@ trait FranchiseAdminActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $email = strtolower(trim((string) $request->email));
+        if ($this->emailUsedByOtherStaff($email)) {
+            return response()->json(['message' => 'This email address is already assigned to another staff account.'], 422);
+        }
+
         $user = FranchiseUser::create([
             'franchise_id' => $franchise->id,
             'full_name' => $request->full_name,
-            'email' => strtolower(trim((string) $request->email)),
+            'email' => $email,
             'phone' => $request->phone,
             'password' => Hash::make((string) $request->input('password', 'Franchise@123')),
             'is_active' => $request->boolean('is_active', true),
@@ -195,6 +200,13 @@ trait FranchiseAdminActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        if ($request->filled('email')) {
+            $email = strtolower(trim((string) $request->email));
+            if ($this->emailUsedByOtherStaff($email)) {
+                return response()->json(['message' => 'This email address is already assigned to another staff account.'], 422);
+            }
+        }
+
         if ($request->filled('full_name')) {
             $user->full_name = $request->full_name;
         }
@@ -209,10 +221,16 @@ trait FranchiseAdminActions
 
         if ($request->filled('password')) {
             $user->password = Hash::make((string) $request->password);
+            $user->api_token = null;
+            $user->api_token_expires_at = null;
         }
 
         if ($request->has('is_active')) {
             $user->is_active = $request->boolean('is_active');
+            if (! $user->is_active) {
+                $user->api_token = null;
+                $user->api_token_expires_at = null;
+            }
         }
         if ($request->has('can_process_pos')) {
             $user->can_process_pos = $request->boolean('can_process_pos');
@@ -241,6 +259,10 @@ trait FranchiseAdminActions
         }
 
         $user->is_active = $request->boolean('is_active');
+        if (! $user->is_active) {
+            $user->api_token = null;
+            $user->api_token_expires_at = null;
+        }
         $user->save();
 
         return response()->json([
@@ -447,5 +469,11 @@ trait FranchiseAdminActions
         $franchise->delete();
 
         return response()->json(['message' => 'Franchise deleted successfully']);
+    }
+
+    private function emailUsedByOtherStaff(string $email): bool
+    {
+        return \App\Models\Employee::whereRaw('LOWER(email) = ?', [$email])->exists()
+            || \App\Models\Driver::whereRaw('LOWER(email) = ?', [$email])->exists();
     }
 }

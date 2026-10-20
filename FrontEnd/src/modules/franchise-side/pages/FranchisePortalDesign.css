@@ -51,10 +51,79 @@
 .franchise-admin :is(section, form).rounded-2xl { box-shadow: var(--admin-card-shadow); }
 .franchise-admin :is(input, select, textarea) { min-height: 2.75rem; border-radius: .75rem; }
 .franchise-admin textarea { min-height: 5rem; }
+.franchise-admin > main {
+  min-height: calc(100dvh - 68px);
+  padding: 1.25rem 1.75rem;
+  background: var(--oppa-cream);
+}
+.franchise-admin > main > div {
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+}
+.franchise-admin > main > div > header:first-child {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.franchise-admin > main > div > header:first-child > div > p:first-child {
+  display: none;
+}
+.franchise-admin > main > div > header:first-child h1 {
+  margin-top: 0;
+  color: var(--oppa-text);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(1.875rem, 3vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -.025em;
+}
+.franchise-admin > main > div > header:first-child p {
+  color: var(--oppa-text-muted);
+}
+.franchise-admin > main table {
+  border-collapse: collapse;
+}
+.franchise-admin > main table thead {
+  background: var(--oppa-green-soft);
+  color: var(--oppa-text-muted);
+  font-size: .7rem;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.franchise-admin > main table tbody tr {
+  border-bottom: 1px solid color-mix(in srgb, var(--oppa-border) 65%, transparent);
+  transition: background-color 160ms ease;
+}
+.franchise-admin > main table tbody tr:hover {
+  background: color-mix(in srgb, var(--oppa-cream) 62%, transparent);
+}
+.franchise-admin > main :is(input, select, textarea) {
+  border-color: var(--oppa-border);
+  color: var(--oppa-text);
+}
+.franchise-admin > main :is(input, select, textarea):focus-visible {
+  border-color: var(--oppa-green);
+  outline: 2px solid color-mix(in srgb, var(--oppa-green) 20%, transparent);
+  outline-offset: 1px;
+}
 .franchise-portal .franchise-timeline-section, .franchise-portal section[aria-label="Application progress"] { border-radius: var(--franchise-radius-card); }
 .franchise-portal button:disabled { cursor: not-allowed; }
 
 @media (max-width: 640px) {
+  .franchise-admin > main {
+    padding: 1rem;
+  }
+  .franchise-admin > main > div > header:first-child {
+    align-items: flex-start;
+  }
   .franchise-application-stepper { grid-template-columns: 1fr; gap: .15rem; }
   .franchise-step { min-height: 3.5rem; flex-direction: row; align-items: flex-start; gap: .75rem; padding: .35rem 0; text-align: left; }
   .franchise-step:not(:last-child)::after { top: 2.5rem; bottom: -.25rem; left: 1.08rem; width: 2px; height: auto; }

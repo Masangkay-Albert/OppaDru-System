@@ -6,7 +6,7 @@ import { productService } from '../../../services/productService';
 import type { Product, ProductCategory } from '../../../types/product.types';
 import { formatCurrency } from '../../../utils/formatters';
 import { categories } from '../../../data/mockData';
-import { AvailabilitySwitch, ConfirmDialog, EmptyState, PageHeader, RowActionsMenu, Toast } from '../components/AdminUI';
+import { AvailabilitySwitch, ConfirmDialog, EmptyState, PageHeader, ProductThumbnail, RowActionsMenu, Toast } from '../components/AdminUI';
 
 const categoryOptions: Array<{ value: ProductCategory | 'all'; label: string }> = [
   { value: 'all', label: 'All' },
@@ -21,20 +21,14 @@ type ProductFormState = {
   isAvailable: boolean;
 };
 
-const ProductImage: React.FC<{ src?: string; name: string; className?: string }> = ({ src, name, className = '' }) => {
-  const [failed, setFailed] = useState(false);
-  const image = src && src !== '/oppadrulogo.jpg' && !failed;
-  return (
-    <span className={`group/image relative inline-flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] ${className}`}>
-      {image
-        ? <img src={src} alt={name} onError={() => setFailed(true)} className="size-full object-cover" />
-        : <ImageIcon size={21} aria-label={`${name} placeholder image`} />}
-      <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 bg-black/65 text-[10px] font-semibold text-white opacity-0 transition-opacity group-hover/image:opacity-100 group-focus-within/image:opacity-100">
-        <ImagePlus size={13} aria-hidden="true" /> Add photo
-      </span>
-    </span>
-  );
-};
+const ProductImage: React.FC<{ src?: string; name: string; className?: string }> = (props) => (
+  <ProductThumbnail
+    {...props}
+    overlay={<span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 bg-black/65 text-[10px] font-semibold text-white opacity-0 transition-opacity group-hover/product-image:opacity-100 group-focus-within/product-image:opacity-100">
+      <ImagePlus size={13} aria-hidden="true" /> Add photo
+    </span>}
+  />
+);
 
 const createEmptyForm = (): ProductFormState => ({
   name: '',

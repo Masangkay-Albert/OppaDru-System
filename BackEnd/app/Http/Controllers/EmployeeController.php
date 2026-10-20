@@ -59,6 +59,10 @@ class EmployeeController extends Controller
         if (array_key_exists('franchise_id', $validated) && $employee->isDirty('franchise_id')) {
             $employee->api_token = null;
         }
+        if ((array_key_exists('is_active', $validated) && ! $validated['is_active'])
+            || (isset($validated['position']) && $employee->isDirty('position'))) {
+            $employee->api_token = null;
+        }
         $employee->save();
 
         return response()->json($employee->load(['franchise.franchiseAccount']));
@@ -81,8 +85,7 @@ class EmployeeController extends Controller
         ]);
 
         $employee = Employee::findOrFail($id);
-        
-        // Again, automatically hashed by the Model
+        $employee->api_token = null;
         $employee->update([
             'password' => $request->password
         ]);
@@ -92,7 +95,7 @@ class EmployeeController extends Controller
 
     private function emailUsedByOtherStaff(string $email): bool
     {
-        return \App\Models\FranchiseUser::where('email', $email)->exists()
-            || \App\Models\Driver::where('email', $email)->exists();
+        return \App\Models\FranchiseUser::whereRaw('LOWER(email) = ?', [$email])->exists()
+            || \App\Models\Driver::whereRaw('LOWER(email) = ?', [$email])->exists();
     }
 }

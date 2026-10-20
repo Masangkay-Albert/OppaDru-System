@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BriefcaseBusiness, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, User, X } from 'lucide-react';
 
-export type AccountCreationMode = 'admin' | 'employee';
+export type AccountCreationMode = 'admin' | 'employee' | 'branch-staff';
 
 export interface AccountCreationValues {
   fullName: string;
@@ -9,6 +9,8 @@ export interface AccountCreationValues {
   password: string;
   confirmPassword: string;
   position?: string;
+  phone?: string;
+  vehicle_type?: string;
 }
 
 interface AccountCreationModalProps {
@@ -18,6 +20,7 @@ interface AccountCreationModalProps {
   onSubmit: (values: AccountCreationValues) => Promise<void> | void;
   isSubmitting?: boolean;
   submitError?: string;
+  branchName?: string;
   extraFields?: React.ReactNode;
 }
 
@@ -27,6 +30,8 @@ const defaultValues: AccountCreationValues = {
   password: '',
   confirmPassword: '',
   position: 'cashier',
+  phone: '',
+  vehicle_type: '',
 };
 
 const fieldClass =
@@ -49,6 +54,8 @@ const getValidationErrors = (values: AccountCreationValues, mode: AccountCreatio
 
   if (!values.password) {
     errors.password = 'Password is required.';
+  } else if (mode === 'branch-staff' && values.password.length < 8) {
+    errors.password = 'Use at least 8 characters.';
   }
 
   if (!values.confirmPassword) {
@@ -57,8 +64,11 @@ const getValidationErrors = (values: AccountCreationValues, mode: AccountCreatio
     errors.confirmPassword = 'Passwords do not match.';
   }
 
-  if (mode === 'employee' && !values.position) {
+  if ((mode === 'employee' || mode === 'branch-staff') && !values.position) {
     errors.position = 'Please choose a position.';
+  }
+  if (mode === 'branch-staff' && values.position === 'driver' && !values.vehicle_type?.trim()) {
+    errors.vehicle_type = 'Vehicle type is required for drivers.';
   }
 
   return errors;
@@ -71,6 +81,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
   onSubmit,
   isSubmitting = false,
   submitError,
+  branchName,
   extraFields,
 }) => {
   const [form, setForm] = useState<AccountCreationValues>(defaultValues);
@@ -83,10 +94,13 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
       return;
     }
 
-    setForm({ ...defaultValues, ...(mode === 'employee' ? { position: 'cashier' } : {}) });
-    setErrors({});
-    setShowPassword(false);
-    setShowConfirmPassword(false);
+    const timeout = window.setTimeout(() => {
+      setForm({ ...defaultValues, ...(['employee', 'branch-staff'].includes(mode) ? { position: 'cashier' } : {}) });
+      setErrors({});
+      setShowPassword(false);
+      setShowConfirmPassword(false);
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [isOpen, mode]);
 
   if (!isOpen) {
@@ -112,14 +126,20 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
       ...form,
       fullName: form.fullName.trim(),
       email: form.email.trim(),
-      position: mode === 'employee' ? form.position || 'cashier' : undefined,
+      position: mode === 'admin' ? undefined : form.position || 'cashier',
+      phone: isBranchStaff ? form.phone?.trim() || '' : undefined,
+      vehicle_type: isBranchStaff && form.position === 'driver' ? form.vehicle_type?.trim() || '' : undefined,
     });
   };
 
-  const title = mode === 'admin' ? 'Add New Administrator' : 'Add New Employee';
-  const subtitle = mode === 'admin' ? 'Create an account for the admin panel.' : 'Create an employee account.';
-  const submitLabel = mode === 'admin' ? 'Create Admin' : 'Create Employee';
-  const loadingLabel = mode === 'admin' ? 'Creating Admin...' : 'Creating Employee...';
+  const isBranchStaff = mode === 'branch-staff';
+  const emailServerError = isBranchStaff && submitError?.toLowerCase().includes('email')
+    ? submitError
+    : undefined;
+  const title = mode === 'admin' ? 'Add New Administrator' : isBranchStaff ? 'Add Branch Staff' : 'Add New Employee';
+  const subtitle = mode === 'admin' ? 'Create an account for the admin panel.' : isBranchStaff ? 'Create an account limited to this branch.' : 'Create an employee account.';
+  const submitLabel = mode === 'admin' ? 'Create Admin' : isBranchStaff ? 'Add Staff' : 'Create Employee';
+  const loadingLabel = mode === 'admin' ? 'Creating Admin...' : isBranchStaff ? 'Adding Staff...' : 'Creating Employee...';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4 backdrop-blur-[1px]">
@@ -154,7 +174,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
           </button>
         </div>
 
-        {submitError && (
+        {submitError && !emailServerError && (
           <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
             {submitError}
           </div>
@@ -162,6 +182,11 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4" noValidate>
           {extraFields}
+          {isBranchStaff && (
+            <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-3 py-2.5 text-sm text-[var(--oppa-text-muted)]">
+              <span className="font-semibold text-[var(--oppa-text)]">Adding to:</span> {branchName || 'Current branch'}
+            </div>
+          )}
           <div>
             <label htmlFor="account-full-name" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">
               Full Name
@@ -200,9 +225,16 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
               />
             </div>
             {errors.email && <p className={errorClass}>{errors.email}</p>}
+            {emailServerError && <p className={errorClass}>{emailServerError}</p>}
           </div>
 
-          {mode === 'employee' && (
+          {isBranchStaff && (
+            <div>
+              <label htmlFor="account-phone" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">Phone (optional)</label>
+              <input id="account-phone" name="phone" type="tel" value={form.phone || ''} onChange={(event) => updateField('phone', event.target.value)} placeholder="09XX XXX XXXX" className={fieldClass.replace('pl-10', 'pl-3')} />
+            </div>
+          )}
+          {(mode === 'employee' || isBranchStaff) && (
             <div>
               <label htmlFor="account-position" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">
                 Position
@@ -218,11 +250,19 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                   aria-invalid={Boolean(errors.position)}
                 >
                   <option value="cashier">Cashier</option>
-                  <option value="kitchen staff">Kitchen Staff</option>
-                  <option value="staff">Staff</option>
+                  <option value={isBranchStaff ? 'kitchen_staff' : 'kitchen staff'}>Kitchen Staff</option>
+                  {!isBranchStaff && <option value="staff">Staff</option>}
+                  {isBranchStaff && <option value="driver">Driver</option>}
                 </select>
               </div>
               {errors.position && <p className={errorClass}>{errors.position}</p>}
+            </div>
+          )}
+          {isBranchStaff && form.position === 'driver' && (
+            <div>
+              <label htmlFor="account-vehicle-type" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">Vehicle type</label>
+              <input id="account-vehicle-type" name="vehicle_type" value={form.vehicle_type || ''} onChange={(event) => updateField('vehicle_type', event.target.value)} placeholder="e.g. Motorcycle" className={fieldClass.replace('pl-10', 'pl-3')} aria-invalid={Boolean(errors.vehicle_type)} />
+              {errors.vehicle_type && <p className={errorClass}>{errors.vehicle_type}</p>}
             </div>
           )}
 
@@ -230,6 +270,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
             <label htmlFor="account-password" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">
               Password
             </label>
+            {isBranchStaff && <p className="mb-1.5 text-xs text-[var(--oppa-text-muted)]">Use at least 8 characters.</p>}
             <div className="relative">
               <Lock size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
               <input

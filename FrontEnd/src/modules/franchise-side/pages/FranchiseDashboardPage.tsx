@@ -5,6 +5,8 @@ import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { formatCurrency } from '../../../utils/formatters';
+import AdminStatCard from '../../admin-side/components/StatCard';
+import { AdminDate, Avatar, DataTable, EmptyState, PageHeader, StatusBadge } from '../../admin-side/components/AdminUI';
 
 interface OrderSummary {
   id: string | number;
@@ -93,21 +95,12 @@ const FranchiseDashboardPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-5 flex flex-col gap-4 rounded-3xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--oppa-green)]">Branch-specific overview</p>
-            <h1 className="mt-2 text-2xl font-semibold text-[var(--oppa-text)]">{branchName}</h1>
-            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">
-              {dashboard.branch_address || franchiseUser?.franchise?.address || 'Branch location not provided'}
-              {' · '}
-              <span className="capitalize">{dashboard.branch_status || franchiseUser?.franchise?.status || 'active'}</span>
-              {dashboard.franchise_id && <> · Branch ID: {dashboard.franchise_id}</>}
-            </p>
-          </div>
-
-          {franchiseUser?.can_process_pos && <NavButton primary onClick={() => navigate('/franchise/pos')}>Open POS</NavButton>}
-        </header>
+      <div className="mx-auto max-w-[1500px]">
+        <PageHeader title="Dashboard" subtitle={`Branch overview for ${branchName}.`} actions={franchiseUser?.can_process_pos ? <NavButton primary onClick={() => navigate('/franchise/pos')}>Open POS</NavButton> : undefined} />
+        <section className="admin-card mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Current branch</p><p className="mt-1 font-semibold text-[var(--oppa-text)]">{branchName}</p><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">{dashboard.branch_address || franchiseUser?.franchise?.address || 'Branch location not provided'}</p></div>
+          <div className="text-right"><StatusBadge status={dashboard.branch_status || franchiseUser?.franchise?.status || 'active'} /><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Branch ID: {dashboard.franchise_id || franchiseUser?.branch_id || '—'}</p></div>
+        </section>
 
         {error && (
           <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -118,20 +111,20 @@ const FranchiseDashboardPage: React.FC = () => {
         {isLoading && <p className="mb-4 text-sm text-[var(--oppa-text-muted)]">Loading branch dashboard...</p>}
 
         <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <StatCard icon={ShoppingCart} label="Branch orders" value={dashboard.total_orders ?? dashboard.orders ?? 0} tone="default" />
-          <StatCard icon={DollarSign} label="Branch revenue" value={money.format(dashboard.total_revenue ?? 0)} tone="success" />
-          <StatCard icon={Users} label="Branch staff" value={dashboard.branch_users ?? 0} tone="warning" />
-          <StatCard icon={Boxes} label="Inventory items" value={dashboard.inventory_items ?? dashboard.available_products ?? 0} tone="default" />
-          <StatCard icon={Activity} label="POS activity" value={dashboard.pos_activity_count ?? 0} tone="warning" />
+          <AdminStatCard icon={ShoppingCart} label="Branch orders" value={dashboard.total_orders ?? dashboard.orders ?? 0} />
+          <AdminStatCard icon={DollarSign} label="Branch revenue" value={money.format(dashboard.total_revenue ?? 0)} accent="green" />
+          <AdminStatCard icon={Users} label="Branch staff" value={dashboard.branch_users ?? 0} accent="amber" />
+          <AdminStatCard icon={Boxes} label="Inventory items" value={dashboard.inventory_items ?? dashboard.available_products ?? 0} />
+          <AdminStatCard icon={Activity} label="POS activity" value={dashboard.pos_activity_count ?? 0} accent="amber" />
         </section>
 
         <section className="mb-5 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
+          <div className="admin-card p-4">
             <div className="flex items-center gap-2 text-sm font-semibold"><MapPin size={17} className="text-[var(--oppa-green)]" /> Assigned location</div>
             <p className="mt-2 text-sm text-[var(--oppa-text)]">{branchName}</p>
             <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{dashboard.branch_address || franchiseUser?.franchise?.address || 'Address not provided'} · <span className="capitalize">{dashboard.branch_status || franchiseUser?.franchise?.status || 'active'}</span></p>
           </div>
-          <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
+          <div className="admin-card p-4">
             <div className="flex items-center gap-2 text-sm font-semibold"><Activity size={17} className="text-[var(--oppa-green)]" /> POS sales</div>
             <p className="mt-2 text-xl font-semibold text-[var(--oppa-green)]">{money.format(dashboard.pos_sales ?? 0)}</p>
             <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{dashboard.tracked_inventory_items ?? 0} inventory items with tracked stock</p>
@@ -146,7 +139,7 @@ const FranchiseDashboardPage: React.FC = () => {
           {franchiseUser?.can_process_pos && <button onClick={() => navigate('/franchise/pos')} className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">Open POS</button>}
         </section>
 
-        <section className="rounded-3xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
+        <section className="admin-card p-5">
           <div className="mb-4 flex items-center justify-between">
             <div><h2 className="text-lg font-semibold text-[var(--oppa-text)]">Order status</h2><p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">Live fulfillment for this branch</p></div>
             <button onClick={() => navigate('/franchise/orders')} className="inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)]">
@@ -173,67 +166,28 @@ const FranchiseDashboardPage: React.FC = () => {
           </div>
         </section>
 
-        <section className="mt-6 overflow-hidden rounded-3xl border border-[var(--oppa-border)] bg-white shadow-sm">
+        <section className="mt-6">
           <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4">
             <div><h2 className="text-lg font-semibold text-[var(--oppa-text)]">Recent branch orders</h2><p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">Latest activity from this branch only</p></div>
             <button onClick={retryDashboard} className="text-sm text-[var(--oppa-green)] hover:underline">Refresh</button>
           </div>
-          {isLoading ? (
-            <p className="p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading recent branch orders...</p>
-          ) : recentOrders.length === 0 ? (
-            <p className="p-8 text-center text-sm text-[var(--oppa-text-muted)]">No branch orders yet. Orders from this branch will appear here.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-[var(--oppa-green-soft)]/50 text-left text-[var(--oppa-text-muted)]">
-                  <tr>
-                    <th className="px-5 py-3">Order ID</th><th className="px-5 py-3">Customer</th>
-                    <th className="px-5 py-3">Type</th><th className="px-5 py-3">Amount</th>
-                    <th className="px-5 py-3">Status</th><th className="px-5 py-3">Date / time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.map((order) => (
-                    <tr key={order.id} className="border-t border-[var(--oppa-border)]">
-                      <td className="px-5 py-3 font-medium">{order.order_number || `#${order.id}`}</td>
-                      <td className="px-5 py-3">{order.user?.full_name || order.email || 'Walk-in Customer'}</td>
-                      <td className="px-5 py-3 capitalize">{order.delivery_type === 'onsite' ? 'In person' : 'Online'}</td>
-                      <td className="px-5 py-3">{money.format(Number(order.total ?? 0))}</td>
-                      <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${order.status === 'completed' || order.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' : order.status === 'cancelled' ? 'bg-red-100 text-red-800' : order.status === 'preparing' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>{order.status || 'pending'}</span></td>
-                      <td className="px-5 py-3">{order.created_at ? new Date(order.created_at).toLocaleString() : 'N/A'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DataTable
+            headers={['Order ID', 'Customer', 'Type', 'Amount', 'Status', 'Date']}
+            caption="Recent orders for this branch"
+            loading={isLoading}
+            emptyState={<EmptyState title="No branch orders yet" description="Orders from this branch will appear here." />}
+          >
+            {recentOrders.map((order) => <tr key={order.id} className="border-b border-[var(--oppa-border)]/70 last:border-0 hover:bg-[var(--oppa-cream)]">
+              <td className="px-4 py-3 font-mono text-xs font-semibold">{order.order_number || `#${order.id}`}</td>
+              <td className="px-4 py-3"><div className="flex items-center gap-3"><Avatar name={order.user?.full_name || order.email || 'Walk-in Customer'} /><span className="truncate">{order.user?.full_name || order.email || 'Walk-in Customer'}</span></div></td>
+              <td className="px-4 py-3">{order.delivery_type === 'onsite' ? 'In person' : 'Online'}</td>
+              <td className="px-4 py-3 font-semibold">{money.format(Number(order.total ?? 0))}</td>
+              <td className="px-4 py-3"><StatusBadge status={order.status || 'pending'} /></td>
+              <td className="px-4 py-3"><AdminDate value={order.created_at} /></td>
+            </tr>)}
+          </DataTable>
         </section>
       </div>
-    </div>
-  );
-};
-
-interface StatCardProps {
-  icon: React.ElementType;
-  label: string;
-  value: string | number;
-  tone?: 'default' | 'success' | 'warning';
-}
-
-const StatCard: React.FC<StatCardProps> = ({ icon: Icon, label, value, tone = 'default' }) => {
-  const palette = {
-    default: 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]',
-    success: 'bg-green-100 text-green-700',
-    warning: 'bg-yellow-100 text-yellow-700',
-  };
-
-  return (
-    <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <span className={`inline-flex rounded-xl p-2 ${palette[tone]}`}><Icon size={18} /></span>
-      </div>
-      <p className="text-2xl font-semibold text-[var(--oppa-text)]">{value}</p>
-      <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">{label}</p>
     </div>
   );
 };

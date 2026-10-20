@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithEmployeeAuth } from '../../../services/employeeAuth';
 import { formatPeso } from '../../../utils/formatters';
+import StaffBranchBadge from '../../shared/components/StaffBranchBadge';
 
 interface CashierOrder {
   id: string;
@@ -20,6 +21,18 @@ const CashierTransactionsPage: React.FC<{ view?: 'orders' | 'transactions' }> = 
   const [orders, setOrders] = useState<CashierOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const staff = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('employee_auth') || 'null') as {
+        franchise_id?: string | null;
+        franchise?: { id?: string; name?: string } | null;
+      } | null;
+    } catch {
+      return null;
+    }
+  })();
+  const branchName = staff?.franchise?.name || 'Main system';
+  const branchId = staff?.franchise?.id || staff?.franchise_id || null;
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -37,12 +50,15 @@ const CashierTransactionsPage: React.FC<{ view?: 'orders' | 'transactions' }> = 
   }, []);
 
   useEffect(() => { void Promise.resolve().then(loadOrders); }, [loadOrders]);
+  useEffect(() => {
+    document.title = `${branchName} | My ${view === 'orders' ? 'Orders' : 'Transactions'} | Oppa Dru`;
+  }, [branchName, view]);
 
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-6 sm:px-8">
       <div className="mx-auto max-w-6xl">
         <header className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--oppa-green)]">Branch cashier</p><h1 className="mt-1 text-2xl font-semibold">My {view === 'orders' ? 'orders' : 'transactions'}</h1><p className="mt-1 text-sm text-gray-500">Only orders placed using your cashier account and assigned franchise location are shown.</p></div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--oppa-green)]">Branch cashier</p><h1 className="mt-1 text-2xl font-semibold">My {view === 'orders' ? 'orders' : 'transactions'}</h1><p className="mt-1 text-sm text-gray-500">Only orders placed using your cashier account and assigned franchise location are shown.</p><div className="mt-2"><StaffBranchBadge name={branchName} id={branchId} /></div></div>
           <div className="flex flex-wrap gap-2">
             <Link to="/cashier/pos" className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">POS</Link>
             <Link to="/cashier/branch-orders" className={`rounded-xl border px-4 py-2 text-sm font-medium ${view === 'orders' ? 'border-[var(--oppa-green)] text-[var(--oppa-green)]' : ''}`}>Orders</Link>

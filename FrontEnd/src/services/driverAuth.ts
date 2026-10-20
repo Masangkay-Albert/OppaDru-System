@@ -25,13 +25,15 @@ export const driverAuth = {
       localStorage.setItem("driver_token", data.token);
 
       return { success: true, message: "Login successful" };
-    } catch (error: any) {
+    } catch {
       return { success: false, message: "Server connection failed. Is Laravel running?" };
     }
   },
 
   logout: async () => {
     const token = localStorage.getItem("driver_token");
+    localStorage.removeItem("driver_auth");
+    localStorage.removeItem("driver_token");
     if (token) {
       try {
         await fetch(`${API_BASE_URL}/driver/logout`, {
@@ -46,8 +48,5 @@ export const driverAuth = {
       }
     }
     
-    // Clear local storage regardless of API success
-    localStorage.removeItem("driver_auth");
-    localStorage.removeItem("driver_token");
   }
 };

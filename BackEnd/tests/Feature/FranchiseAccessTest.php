@@ -164,6 +164,7 @@ class FranchiseAccessTest extends TestCase
         ]);
 
         $ownOrder = Order::create([
+            'branch_id' => $franchiseA->id,
             'franchise_id' => $franchiseA->id,
             'email' => 'customer-a@example.com',
             'phone' => '09170000021',
@@ -175,6 +176,7 @@ class FranchiseAccessTest extends TestCase
         ]);
 
         $otherOrder = Order::create([
+            'branch_id' => $franchiseB->id,
             'franchise_id' => $franchiseB->id,
             'email' => 'customer-b@example.com',
             'phone' => '09170000022',
@@ -211,8 +213,8 @@ class FranchiseAccessTest extends TestCase
         ], [
             'Authorization' => 'Bearer ' . $token,
         ]);
-        $statusResponse->assertOk();
-        $this->assertSame('ready', $statusResponse->json('data.status'));
+        $statusResponse->assertNotFound();
+        $this->assertSame('pending', $ownOrder->fresh()->status);
 
         $blockedResponse = $this->getJson('/api/franchise/orders/' . $otherOrder->id, [
             'Authorization' => 'Bearer ' . $token,

@@ -108,6 +108,10 @@ class FranchiseStaffManagementTest extends TestCase
         ])->assertOk();
         $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
 
+        $this->getJson('/api/franchise/users', $headers)
+            ->assertOk()
+            ->assertJsonMissing(['email' => 'other.staff@test']);
+
         $created = $this->postJson('/api/franchise/users', [
             'name' => 'Lake Cashier',
             'email' => 'lake.cashier@test',
@@ -126,12 +130,7 @@ class FranchiseStaffManagementTest extends TestCase
             'email' => 'lake.staff@test',
             'password' => 'Staff@123',
             'role' => 'staff',
-        ], $headers)->assertCreated();
-        $this->assertDatabaseHas('employees', [
-            'email' => 'lake.staff@test',
-            'franchise_id' => $location->id,
-            'position' => 'staff',
-        ]);
+        ], $headers)->assertUnprocessable();
 
         $this->patchJson('/api/franchise/users/employee/' . $otherEmployee->id, [
             'is_active' => false,
@@ -140,11 +139,11 @@ class FranchiseStaffManagementTest extends TestCase
 
         $this->patchJson('/api/franchise/users/employee/' . $created->json('data.id'), [
             'position' => 'staff',
-        ], $headers)->assertOk();
+        ], $headers)->assertUnprocessable();
         $this->assertDatabaseHas('employees', [
             'id' => $created->json('data.id'),
             'franchise_id' => $location->id,
-            'position' => 'staff',
+            'position' => 'cashier',
         ]);
     }
 
@@ -172,7 +171,8 @@ class FranchiseStaffManagementTest extends TestCase
         $login = $this->postJson('/api/employee/login', [
             'email' => $employee->email,
             'password' => 'Cashier@123',
-        ])->assertOk();
+        ])->assertOk()
+            ->assertJsonPath('employee.franchise.name', $location->name);
 
         $this->getJson('/api/employee/pos/products?franchise_id=' . $location->id, [
             'Authorization' => 'Bearer ' . $login->json('token'),
@@ -180,6 +180,113 @@ class FranchiseStaffManagementTest extends TestCase
         $this->getJson('/api/employee/pos/products?franchise_id=some-other-location', [
             'Authorization' => 'Bearer ' . $login->json('token'),
         ])->assertForbidden();
+    }
+
+    public function test_branch_manager_can_reset_and_remove_only_staff_at_their_branch(): void
+    {
+        $account = FranchiseAccount::create([
+            'name' => 'Branch Manager Foods',
+            'slug' => 'branch-manager-foods',
+            'status' => 'active',
+        ]);
+        $branch = Franchise::create([
+            'franchise_account_id' => $account->id,
+            'name' => 'Manager Branch',
+            'slug' => 'manager-branch',
+            'status' => 'active',
+        ]);
+        $otherAccount = FranchiseAccount::create([
+            'name' => 'Other Manager Foods',
+            'slug' => 'other-manager-foods',
+            'status' => 'active',
+        ]);
+        $otherBranch = Franchise::create([
+            'franchise_account_id' => $otherAccount->id,
+            'name' => 'Other Manager Branch',
+            'slug' => 'other-manager-branch',
+            'status' => 'active',
+        ]);
+        $manager = FranchiseUser::create([
+            'franchise_account_id' => $account->id,
+            'franchise_id' => $branch->id,
+            'full_name' => 'Branch Manager',
+            'email' => 'staff-manager@test',
+            'password' => Hash::make('Manager@123'),
+            'role' => 'manager',
+            'is_active' => true,
+        ]);
+        $ownDriver = \App\Models\Driver::create([
+            'franchise_id' => $branch->id,
+            'name' => 'Own Driver',
+            'email' => 'own-driver@test',
+            'password' => Hash::make('Driver@123'),
+            'phone' => '09123456789',
+            'vehicleType' => 'Motorcycle',
+            'isActive' => true,
+        ]);
+        $otherDriver = \App\Models\Driver::create([
+            'franchise_id' => $otherBranch->id,
+            'name' => 'Other Driver',
+            'email' => 'other-driver@test',
+            'password' => Hash::make('Driver@123'),
+            'phone' => '09123456789',
+            'vehicleType' => 'Motorcycle',
+            'isActive' => true,
+        ]);
+        $login = $this->postJson('/api/franchise/login', [
+            'email' => $manager->email,
+            'password' => 'Manager@123',
+        ])->assertOk();
+        $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
+
+        $this->getJson('/api/franchise/users', $headers)
+            ->assertOk()
+            ->assertJsonMissing(['email' => $otherDriver->email]);
+
+        $this->putJson('/api/franchise/users/driver/' . $otherDriver->id . '/password', [
+            'password' => 'NewDriver@123',
+        ], $headers)->assertNotFound();
+        $this->deleteJson('/api/franchise/users/driver/' . $otherDriver->id, [], $headers)->assertNotFound();
+        $this->putJson('/api/franchise/users/driver/' . $ownDriver->id . '/password', [
+            'password' => 'NewDriver@123',
+        ], $headers)->assertOk();
+        $this->assertTrue(Hash::check('NewDriver@123', $ownDriver->fresh()->password));
+        $this->assertNull($ownDriver->fresh()->api_token);
+
+        $this->deleteJson('/api/franchise/users/driver/' . $ownDriver->id, [], $headers)->assertOk();
+        $this->assertDatabaseMissing('drivers', ['id' => $ownDriver->id]);
+    }
+
+    public function test_employee_logout_revokes_the_server_side_token(): void
+    {
+        $account = FranchiseAccount::create([
+            'name' => 'Logout Foods',
+            'slug' => 'logout-foods',
+            'status' => 'active',
+        ]);
+        $branch = Franchise::create([
+            'franchise_account_id' => $account->id,
+            'name' => 'Logout Branch',
+            'slug' => 'logout-branch',
+            'status' => 'active',
+        ]);
+        $employee = Employee::create([
+            'franchise_id' => $branch->id,
+            'fullName' => 'Kitchen Staff',
+            'email' => 'logout-kitchen@test',
+            'password' => Hash::make('Staff@123'),
+            'position' => 'kitchen staff',
+            'is_active' => true,
+        ]);
+        $login = $this->postJson('/api/employee/login', [
+            'email' => $employee->email,
+            'password' => 'Staff@123',
+        ])->assertOk();
+        $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
+
+        $this->postJson('/api/employee/logout', [], $headers)->assertOk();
+        $this->getJson('/api/kitchen/orders', $headers)->assertUnauthorized();
+        $this->assertNull($employee->fresh()->api_token);
     }
 
     private function createAdminToken(): string

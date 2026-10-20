@@ -220,6 +220,7 @@ trait FranchisePosOrderActions
                 }
                 $order = Order::create([
                     'franchise_id' => $user->franchise_id,
+                    'branch_id' => $user->franchise_id,
                     'cashier_employee_id' => $cashierEmployeeId,
                     'franchise_user_id' => $franchiseUserId,
                     'include_cutlery' => $request->boolean('include_cutlery'),

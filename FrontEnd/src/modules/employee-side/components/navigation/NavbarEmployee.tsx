@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useFavorites } from "../../../../contexts/FavoritesContext";
 import { Heart, ChevronDown, Package, LogOut, Settings, ClipboardList } from "lucide-react";
@@ -9,18 +9,14 @@ const NavbarEmployee: React.FC = () => {
   const navigate = useNavigate();
   const { favoriteNotificationCount } = useFavorites();
   const [showDropdown, setShowDropdown] = useState(false);
-  const [employee, setEmployee] = useState<{ full_name?: string; fullName?: string; email?: string; position?: string } | null>(null);
-
-  useEffect(() => {
+  const [employee] = useState<{ full_name?: string; fullName?: string; email?: string; position?: string; franchise?: { name?: string } | null } | null>(() => {
     try {
       const raw = localStorage.getItem("employee_auth");
-      if (raw) {
-        setEmployee(JSON.parse(raw));
-      }
+      return raw ? JSON.parse(raw) : null;
     } catch {
-      setEmployee(null);
+      return null;
     }
-  }, []);
+  });
 
   const employeeName = employee?.fullName || employee?.full_name || "Cashier Staff";
   const employeeEmail = employee?.email || "staff@oppadru.com";
@@ -60,7 +56,7 @@ const NavbarEmployee: React.FC = () => {
                 Oppa Dru POS
               </span>
               <span className="text-[10px] uppercase font-semibold text-[var(--oppa-cream)]/75 tracking-wider hidden sm:inline">
-                Onsite POS Register • {employeePosition}
+                Onsite POS Register • {employeePosition} • {employee?.franchise?.name || 'Main system'}
               </span>
             </div>
           </div>

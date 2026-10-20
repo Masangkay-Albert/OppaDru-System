@@ -1,13 +1,15 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ClipboardList, Eye, RefreshCw, Search, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Eye, Globe2, RefreshCw, Search, Store, X } from 'lucide-react';
+import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
+import { AdminDate, PageHeader, StatusBadge } from '../../admin-side/components/AdminUI';
 
 interface OrderItem {
   product_name?: string;
   name?: string;
-  quantity: number;
+  quantity?: number;
   product_price?: number | string;
   price?: number | string;
 }
@@ -22,6 +24,7 @@ interface BranchOrder {
   delivery_type?: string | null;
   delivery_address?: string | null;
   email?: string;
+  customer_name?: string;
   user?: { full_name?: string; email?: string };
   created_at: string;
   items?: OrderItem[];
@@ -29,33 +32,61 @@ interface BranchOrder {
   orderItems?: OrderItem[];
 }
 
-const ORDER_STATUSES = ['pending', 'confirmed', 'preparing', 'prepared', 'ready', 'delivered', 'completed', 'cancelled'];
+type StatusFilter = 'all' | 'pending' | 'on_the_way' | 'delivered' | 'cancelled';
+type ChannelFilter = 'all' | 'online' | 'onsite';
+
+const STATUS_TABS: Array<{ label: string; value: StatusFilter }> = [
+  { label: 'All', value: 'all' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'On the way', value: 'on_the_way' },
+  { label: 'Delivered', value: 'delivered' },
+  { label: 'Cancelled', value: 'cancelled' },
+];
+
+const getChannel = (order: BranchOrder): Exclude<ChannelFilter, 'all'> =>
+  order.delivery_type?.toLowerCase() === 'onsite' ? 'onsite' : 'online';
+
+const getCustomerName = (order: BranchOrder) =>
+  order.user?.full_name || order.customer_name || order.email || order.user?.email || 'Walk-in customer';
+
+const getOrderItems = (order: BranchOrder) => order.items || order.order_items || order.orderItems || [];
+
+const getItemsSummary = (order: BranchOrder) => {
+  const items = getOrderItems(order);
+  if (!items.length) return 'No items';
+  const first = `${items[0].quantity || 1}x ${items[0].product_name || items[0].name || 'Item'}`;
+  return items.length > 1 ? `${first} +${items.length - 1} more` : first;
+};
+
+const getStatusLabel = (status: string) => status.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const statusTone = (status: string) => {
+  const normalized = status.toLowerCase();
+  if (['delivered', 'completed'].includes(normalized)) return 'bg-emerald-100 text-emerald-800';
+  if (['cancelled', 'failed'].includes(normalized)) return 'bg-red-100 text-red-800';
+  if (['preparing', 'prepared', 'ready', 'on_the_way', 'arrived'].includes(normalized)) return 'bg-blue-100 text-blue-800';
+  return 'bg-amber-100 text-amber-900';
+};
 
 const FranchiseOrdersPage: React.FC = () => {
+  const { franchiseUser } = useFranchiseAuth();
   const [orders, setOrders] = useState<BranchOrder[]>([]);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('all');
-  const [type, setType] = useState('all');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const [channel, setChannel] = useState<ChannelFilter>('all');
+  const [date, setDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
-  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<BranchOrder | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [newOrdersNotice, setNewOrdersNotice] = useState('');
   const knownOrderIds = useRef<Set<string> | null>(null);
+  const branchName = franchiseUser?.branch?.name || franchiseUser?.franchise?.name || 'Current branch';
 
   const loadOrders = useCallback(async () => {
     try {
-      const params = new URLSearchParams();
-      if (search.trim()) params.set('search', search.trim());
-      if (status !== 'all') params.set('status', status);
-      if (type !== 'all') params.set('type', type);
-      if (from) params.set('from', from);
-      if (to) params.set('to', to);
-      const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/orders?${params}`, {
+      const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/orders`, {
         signal: AbortSignal.timeout(15000),
       });
       const payload = await response.json().catch(() => ({}));
@@ -68,6 +99,10 @@ const FranchiseOrdersPage: React.FC = () => {
       }
       knownOrderIds.current = new Set(nextOrders.map((order) => order.id));
       setOrders(nextOrders);
+      setSelectedOrder((current) => {
+        const updated = current && nextOrders.find((order) => order.id === current.id);
+        return updated ? { ...current, ...updated } : current;
+      });
     } catch (loadError) {
       setError(loadError instanceof Error && loadError.name === 'TimeoutError'
         ? 'Loading orders took too long. Please retry.'
@@ -75,7 +110,7 @@ const FranchiseOrdersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [search, status, type, from, to]);
+  }, []);
 
   useEffect(() => { void Promise.resolve().then(loadOrders); }, [loadOrders, reload]);
   useEffect(() => {
@@ -83,24 +118,19 @@ const FranchiseOrdersPage: React.FC = () => {
     return () => window.clearInterval(interval);
   }, [loadOrders]);
 
-  const updateStatus = async (order: BranchOrder, nextStatus: string) => {
-    setUpdatingOrderId(order.id);
-    setError('');
-    try {
-      const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/orders/${encodeURIComponent(order.id)}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.message || 'Could not update the order status.');
-      setOrders((current) => current.map((item) => item.id === order.id ? { ...item, status: nextStatus } : item));
-      if (selectedOrder?.id === order.id) setSelectedOrder({ ...selectedOrder, status: nextStatus });
-    } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : 'Could not update the order status.');
-    } finally {
-      setUpdatingOrderId(null);
-    }
-  };
+  const filteredOrders = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return orders.filter((order) => {
+      if (query && !`${order.order_number || ''} ${order.id} ${getCustomerName(order)} ${order.email || ''}`.toLowerCase().includes(query)) return false;
+      if (channel !== 'all' && getChannel(order) !== channel) return false;
+      if (status !== 'all' && order.status.toLowerCase() !== status) return false;
+      if (date && !order.created_at?.startsWith(date)) return false;
+      return true;
+    });
+  }, [orders, search, status, channel, date]);
+
+  const statusCount = (filter: StatusFilter) =>
+    orders.filter((order) => filter === 'all' || order.status.toLowerCase() === filter).length;
 
   const viewOrder = async (order: BranchOrder) => {
     setSelectedOrder(order);
@@ -119,69 +149,112 @@ const FranchiseOrdersPage: React.FC = () => {
     }
   };
 
-  const orderRevenue = orders.reduce((sum, order) => {
-    const orderStatus = order.status.trim().toLowerCase();
-    const paymentStatus = String(order.payment_status || '').trim().toLowerCase();
-    const paymentMethod = order.payment_method.trim().toLowerCase();
-    const isCancelledOrFailed = ['cancelled', 'failed'].includes(orderStatus)
-      || ['failed', 'cancelled', 'expired'].includes(paymentStatus);
-    const isPaid = paymentStatus === 'paid';
-    const isDeliveredCod = paymentMethod === 'cash_on_delivery'
-      && orderStatus === 'delivered'
-      && ['pending', 'unpaid', ''].includes(paymentStatus);
-
-    return isCancelledOrFailed || (!isPaid && !isDeliveredCod)
-      ? sum
-      : sum + Number(order.total || 0);
-  }, 0);
+  const clearFilters = () => {
+    setSearch('');
+    setStatus('all');
+    setChannel('all');
+    setDate('');
+  };
+  const hasFilters = search !== '' || status !== 'all' || channel !== 'all' || date !== '';
+  const detailItems = selectedOrder ? getOrderItems(selectedOrder) : [];
 
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="mx-auto max-w-[1500px]">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--oppa-green)]">Franchise Portal · Orders</p><h1 className="mt-1 text-2xl font-semibold text-[var(--oppa-text)]">Branch Orders</h1><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Search and manage this branch’s online and in-person orders.</p></div>
-          <button onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-white px-4 py-2 text-sm disabled:opacity-50"><RefreshCw size={15} /> Refresh</button>
-        </header>
+        <PageHeader title="Orders" subtitle="Track this branch’s online and onsite orders. Statuses update as authorized kitchen and delivery roles process each order." actions={
+          <button
+            type="button"
+            aria-label="Refresh orders"
+            title="Refresh orders"
+            onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }}
+            disabled={loading}
+            className="inline-flex size-10 items-center justify-center rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)] disabled:opacity-50"
+          ><RefreshCw size={16} /></button>
+        } />
 
-        {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="font-semibold underline">Retry</button></div>}
-        {newOrdersNotice && <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><span>{newOrdersNotice}</span><button onClick={() => setNewOrdersNotice('')} className="font-semibold underline">Dismiss</button></div>}
-        <div className="mb-4 flex w-fit gap-1 rounded-xl border border-[var(--oppa-border)] bg-white p-1 shadow-sm" role="tablist" aria-label="Order source"><button type="button" role="tab" aria-selected={type === 'onsite'} onClick={() => setType('onsite')} className={`rounded-lg px-4 py-2 text-sm font-medium ${type === 'onsite' ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]'}`}>POS Orders</button><button type="button" role="tab" aria-selected={type === 'online'} onClick={() => setType('online')} className={`rounded-lg px-4 py-2 text-sm font-medium ${type === 'online' ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]'}`}>Online Orders</button><button type="button" role="tab" aria-selected={type === 'all'} onClick={() => setType('all')} className={`rounded-lg px-4 py-2 text-sm font-medium ${type === 'all' ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]'}`}>All</button></div>
-        <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <OrderMetric icon={ClipboardList} label="Orders in view" value={orders.length} />
-          <OrderMetric icon={ClipboardList} label="Pending" value={orders.filter((order) => order.status === 'pending').length} tone="amber" />
-          <OrderMetric icon={ClipboardList} label="Preparing" value={orders.filter((order) => ['confirmed', 'preparing', 'prepared'].includes(order.status)).length} tone="blue" />
-          <OrderMetric icon={ClipboardList} label="Branch sales" value={formatCurrency(orderRevenue)} tone="green" />
-        </section>
-        <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
-          <div className="border-b border-[var(--oppa-border)] px-4 py-4"><h2 className="font-semibold text-[var(--oppa-text)]">Order list</h2><p className="mt-1 text-xs text-gray-500">Filters apply to this branch only.</p></div>
-          <div className="grid gap-3 border-b border-[var(--oppa-border)] bg-[#fbfcfa] p-4 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_150px_140px_160px_160px]">
-            <label className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Order #, customer, email..." className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-3 text-sm" /></label>
-            <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"><option value="all">All statuses</option>{ORDER_STATUSES.map((value) => <option key={value} value={value}>{value}</option>)}</select>
-            <select value={type} onChange={(event) => setType(event.target.value)} className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"><option value="all">All types</option><option value="online">Online</option><option value="onsite">In person</option></select>
-            <input aria-label="Orders from date" type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm" />
-            <input aria-label="Orders to date" type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm" />
+        {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="font-semibold underline">Retry</button></div>}
+        {newOrdersNotice && <div role="status" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><span>{newOrdersNotice}</span><button type="button" onClick={() => setNewOrdersNotice('')} className="font-semibold underline">Dismiss</button></div>}
+
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div role="tablist" aria-label="Filter orders by status" className="flex gap-2 overflow-x-auto pb-1">
+            {STATUS_TABS.map((tab) => <button
+              key={tab.value}
+              type="button"
+              role="tab"
+              aria-selected={status === tab.value}
+              onClick={() => setStatus(tab.value)}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${status === tab.value ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]'}`}
+            >{tab.label}<span className={`rounded-full px-1.5 py-0.5 text-[10px] ${status === tab.value ? 'bg-white/20' : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]'}`}>{statusCount(tab.value)}</span></button>)}
           </div>
-          {loading ? <p className="p-10 text-center text-sm text-[var(--oppa-text-muted)]">Loading orders...</p> : orders.length === 0 ? <p className="p-10 text-center text-sm text-[var(--oppa-text-muted)]">No branch orders match these filters.</p> : (
-            <div className="overflow-x-auto"><table className="w-full min-w-[950px] text-left text-sm"><thead className="bg-[#edf5ef] text-xs uppercase text-[var(--oppa-text-muted)]"><tr><th className="px-4 py-3">Order</th><th className="px-4 py-3">Type / Customer</th><th className="px-4 py-3">Total</th><th className="px-4 py-3">Payment</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Details</th></tr></thead><tbody className="divide-y divide-gray-100">{orders.map((order) => <tr key={order.id} className="transition hover:bg-[#fbfcfa]">
-              <td className="px-4 py-4 font-medium">{order.order_number}</td>
-              <td className="max-w-xs px-4 py-4"><span className="block capitalize">{order.delivery_type === 'onsite' ? 'In person' : 'Online'}</span><span className="block truncate text-xs text-gray-500">{order.user?.full_name || order.email || order.user?.email || order.delivery_address || 'Customer'}</span></td>
-              <td className="px-4 py-4 font-semibold">{formatCurrency(order.total)}</td>
-              <td className="px-4 py-4 capitalize">{order.payment_method?.replaceAll('_', ' ') || '—'}</td>
-              <td className="px-4 py-4"><select value={order.status} disabled={updatingOrderId === order.id} onChange={(event) => void updateStatus(order, event.target.value)} className="rounded-lg border border-gray-200 px-2 py-1.5 capitalize disabled:opacity-50">{ORDER_STATUSES.map((value) => <option key={value} value={value}>{value}</option>)}</select></td>
-              <td className="px-4 py-4 text-xs text-gray-500">{order.created_at ? new Date(order.created_at).toLocaleString() : '—'}</td>
-              <td className="px-4 py-4"><button onClick={() => void viewOrder(order)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs hover:bg-gray-50"><Eye size={14} /> View</button></td>
-            </tr>)}</tbody></table></div>
-          )}
-        </section>
+          <span className="text-xs text-[var(--oppa-text-muted)]">Showing <strong className="tabular-nums text-[var(--oppa-text)]">{filteredOrders.length}</strong> of <strong className="tabular-nums text-[var(--oppa-text)]">{orders.length}</strong> orders</span>
+        </div>
+
+        <div className="mb-4 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]">
+              <Search size={16} aria-hidden="true" />
+              <input aria-label="Search orders by ID, customer, or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order ID, customer, email..." className="min-w-0 w-full bg-transparent text-sm text-[var(--oppa-text)] outline-none placeholder:text-[var(--oppa-text-muted)]" />
+            </label>
+            <select aria-label="Filter by channel" value={channel} onChange={(event) => setChannel(event.target.value as ChannelFilter)} className="h-11 min-w-36 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]"><option value="all">All channels</option><option value="online">Online</option><option value="onsite">Onsite</option></select>
+            <label className="flex h-11 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]"><span className="whitespace-nowrap">Date</span><input aria-label="Filter by date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className="min-w-0 bg-transparent text-[var(--oppa-text)]" /></label>
+            {hasFilters && <button type="button" onClick={clearFilters} className="h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">Clear filters</button>}
+          </div>
+        </div>
+
+        {loading ? (
+          <div aria-label="Loading orders" aria-busy="true" className="admin-card space-y-3 p-5">{[0, 1, 2, 3].map((row) => <div key={row} className="h-14 animate-pulse rounded-xl bg-[var(--oppa-green-soft)]" />)}</div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="admin-card p-10 text-center">
+            <p className="font-semibold text-[var(--oppa-text)]">{hasFilters ? 'No orders match these filters' : 'No orders yet'}</p>
+            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">{hasFilters ? 'Try adjusting or clearing your filters.' : 'New orders for this branch will appear here.'}</p>
+            {hasFilters && <button type="button" onClick={clearFilters} className="mt-3 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Clear filters</button>}
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="admin-table w-full min-w-[1120px] table-fixed text-left text-sm">
+                <thead><tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                  <th className="w-[15%] px-3 py-3 font-semibold">Order ID</th>
+                  <th className="w-[18%] px-3 py-3 font-semibold">Customer</th>
+                  <th className="w-[9%] px-3 py-3 font-semibold">Channel</th>
+                  <th className="w-[14%] px-3 py-3 font-semibold">Branch</th>
+                  <th className="w-[17%] px-3 py-3 font-semibold">Items</th>
+                  <th className="w-[10%] px-3 py-3 text-right font-semibold">Total</th>
+                  <th className="w-[11%] px-3 py-3 font-semibold">Status</th>
+                  <th className="w-[11%] px-3 py-3 font-semibold">Date</th>
+                  <th className="w-[5%] px-2 py-3 text-right font-semibold">View</th>
+                </tr></thead>
+                <tbody>
+                  {filteredOrders.map((order) => {
+                    const orderId = String(order.order_number || order.id);
+                    const customerName = getCustomerName(order);
+                    const orderChannel = getChannel(order);
+                    return <tr key={order.id} className="group border-b border-[var(--oppa-border)]/60 last:border-0 transition hover:bg-[var(--oppa-cream)]/50">
+                      <td className="whitespace-nowrap px-3 py-3 font-mono text-xs font-semibold text-[var(--oppa-text)]" title={orderId}>{orderId}</td>
+                      <td className="px-3 py-2.5"><div className="flex min-w-0 items-center gap-2"><span aria-hidden="true" className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">{customerName.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || '?'}</span><div className="min-w-0"><span className="block truncate font-medium text-[var(--oppa-text)]">{customerName}</span><span className="block truncate text-xs text-[var(--oppa-text-muted)]">{order.email || order.user?.email || ' '}</span></div></div></td>
+                      <td className="px-3 py-3"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${orderChannel === 'onsite' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>{orderChannel === 'onsite' ? <Store size={12} aria-hidden="true" /> : <Globe2 size={12} aria-hidden="true" />}{orderChannel === 'onsite' ? 'Onsite' : 'Online'}</span></td>
+                      <td className="truncate px-3 py-3 text-[var(--oppa-text)]" title={branchName}>{branchName}</td>
+                      <td className="truncate px-3 py-3 text-xs text-[var(--oppa-text-muted)]" title={getOrderItems(order).map((item) => `${item.quantity || 1}x ${item.product_name || item.name || 'Item'}`).join(', ')}>{getItemsSummary(order)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-[var(--oppa-text)]">{formatCurrency(order.total)}</td>
+                      <td className="px-3 py-3"><StatusBadge status={order.status} /></td>
+                      <td className="px-3 py-2.5 text-xs text-[var(--oppa-text-muted)]"><AdminDate value={order.created_at} /></td>
+                      <td className="px-2 py-3 text-right"><button type="button" onClick={() => void viewOrder(order)} aria-label={`View order ${orderId}`} className="inline-flex items-center gap-1 rounded-full border border-[var(--oppa-border)] px-2.5 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]"><Eye size={13} /> View</button></td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
-      {selectedOrder && <div className="fixed inset-0 z-50 flex justify-end bg-black/40" role="presentation" onClick={() => setSelectedOrder(null)}><section role="dialog" aria-modal="true" aria-label="Order details" onClick={(event) => event.stopPropagation()} className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-xl">
-        <div className="mb-5 flex items-start justify-between"><div><p className="text-xs uppercase tracking-wider text-gray-500">Branch order</p><h2 className="mt-1 text-xl font-semibold">{selectedOrder.order_number}</h2></div><button aria-label="Close order details" onClick={() => setSelectedOrder(null)} className="rounded-lg p-2 hover:bg-gray-100"><X size={18} /></button></div>
-        {detailLoading ? <p className="py-10 text-center text-sm text-gray-500">Loading order details...</p> : <>
-          <div className="grid grid-cols-2 gap-4 rounded-xl bg-[#edf5ef] p-4 text-sm"><div><p className="text-xs text-gray-500">Customer</p><p className="mt-1 font-medium">{selectedOrder.user?.full_name || selectedOrder.email || 'Walk-in customer'}</p></div><div><p className="text-xs text-gray-500">Status</p><p className="mt-1 capitalize">{selectedOrder.status}</p></div><div><p className="text-xs text-gray-500">Payment</p><p className="mt-1 capitalize">{selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div><div><p className="text-xs text-gray-500">Order type</p><p className="mt-1">{selectedOrder.delivery_type === 'onsite' ? 'In person' : 'Online'}</p></div><div className="col-span-2"><p className="text-xs text-gray-500">Address / notes</p><p className="mt-1">{selectedOrder.delivery_address || '—'}</p></div></div>
+      {selectedOrder && <div className="fixed inset-0 z-50 flex justify-end bg-black/40" role="presentation" onClick={() => setSelectedOrder(null)}><section role="dialog" aria-modal="true" aria-label="Order details" onClick={(event) => event.stopPropagation()} className="h-full w-full max-w-xl overflow-y-auto bg-[var(--oppa-surface)] p-6 text-[var(--oppa-text)] shadow-xl">
+        <div className="mb-5 flex items-start justify-between"><div><p className="text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">Branch order</p><h2 className="mt-1 text-xl font-semibold">{selectedOrder.order_number || selectedOrder.id}</h2></div><button type="button" aria-label="Close order details" onClick={() => setSelectedOrder(null)} className="rounded-lg p-2 hover:bg-[var(--oppa-green-soft)]"><X size={18} /></button></div>
+        {detailLoading ? <p className="py-10 text-center text-sm text-[var(--oppa-text-muted)]">Loading order details...</p> : <>
+          <div className="grid grid-cols-2 gap-4 rounded-xl bg-[var(--oppa-green-soft)] p-4 text-sm"><div><p className="text-xs text-[var(--oppa-text-muted)]">Customer</p><p className="mt-1 font-medium">{getCustomerName(selectedOrder)}</p></div><div><p className="text-xs text-[var(--oppa-text-muted)]">Status</p><p className="mt-1"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone(selectedOrder.status)}`}>{getStatusLabel(selectedOrder.status)}</span></p></div><div><p className="text-xs text-[var(--oppa-text-muted)]">Payment</p><p className="mt-1">{selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div><div><p className="text-xs text-[var(--oppa-text-muted)]">Order type</p><p className="mt-1">{getChannel(selectedOrder) === 'onsite' ? 'Onsite' : 'Online'}</p></div><div className="col-span-2"><p className="text-xs text-[var(--oppa-text-muted)]">Address / notes</p><p className="mt-1">{selectedOrder.delivery_address || '—'}</p></div></div>
           <h3 className="mb-3 mt-6 font-semibold">Items</h3>
-          {(selectedOrder.items || selectedOrder.order_items || selectedOrder.orderItems || []).length ? <div className="divide-y">{(selectedOrder.items || selectedOrder.order_items || selectedOrder.orderItems || []).map((item, index) => <div key={`${item.product_name || item.name || 'item'}-${index}`} className="flex justify-between gap-4 py-3 text-sm"><span>{item.quantity} × {item.product_name || item.name || 'Item'}</span><span>{formatCurrency(Number(item.product_price ?? item.price ?? 0) * item.quantity)}</span></div>)}</div> : <p className="py-5 text-sm text-gray-500">No item details provided.</p>}
-          <div className="mt-4 flex justify-between border-t pt-4 font-semibold"><span>Total</span><span>{formatCurrency(selectedOrder.total)}</span></div>
+          {detailItems.length ? <div className="divide-y divide-[var(--oppa-border)]">{detailItems.map((item, index) => <div key={`${item.product_name || item.name || 'item'}-${index}`} className="flex justify-between gap-4 py-3 text-sm"><span>{item.quantity || 1} × {item.product_name || item.name || 'Item'}</span><span>{formatCurrency(Number(item.product_price ?? item.price ?? 0) * (item.quantity || 1))}</span></div>)}</div> : <p className="py-5 text-sm text-[var(--oppa-text-muted)]">No item details provided.</p>}
+          <div className="mt-4 flex justify-between border-t border-[var(--oppa-border)] pt-4 font-semibold"><span>Total</span><span>{formatCurrency(selectedOrder.total)}</span></div>
         </>}
       </section></div>}
     </main>
@@ -189,8 +262,3 @@ const FranchiseOrdersPage: React.FC = () => {
 };
 
 export default FranchiseOrdersPage;
-
-const OrderMetric: React.FC<{ icon: React.ElementType; label: string; value: string | number; tone?: 'green' | 'amber' | 'blue' }> = ({ icon: Icon, label, value, tone = 'green' }) => {
-  const palette = { green: 'bg-emerald-50 text-emerald-700', amber: 'bg-amber-50 text-amber-700', blue: 'bg-blue-50 text-blue-700' };
-  return <div className="flex items-center gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm"><span className={`rounded-xl p-2.5 ${palette[tone]}`}><Icon size={18} /></span><div><p className="text-sm text-gray-500">{label}</p><p className="text-lg font-bold text-[var(--oppa-text)]">{value}</p></div></div>;
-};

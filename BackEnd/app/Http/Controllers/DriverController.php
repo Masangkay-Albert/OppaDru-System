@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Driver;
+use App\Models\Employee;
+use App\Models\FranchiseUser;
 use Illuminate\Http\Request;
 
 class DriverController extends Controller
@@ -32,6 +34,11 @@ class DriverController extends Controller
             'isActive'    => 'boolean',
         ]);
 
+        $validated['email'] = strtolower(trim($validated['email']));
+        if ($this->emailUsedByOtherStaff($validated['email'])) {
+            return response()->json(['message' => 'This email address is already assigned to another staff account.'], 422);
+        }
+
         // Default isActive to true if not provided
         if (!isset($validated['isActive'])) {
             $validated['isActive'] = true;
@@ -56,6 +63,16 @@ class DriverController extends Controller
             'isActive'    => 'sometimes|boolean',
         ]);
 
+        if (isset($validated['email'])) {
+            $validated['email'] = strtolower(trim($validated['email']));
+            if ($this->emailUsedByOtherStaff($validated['email'])) {
+                return response()->json(['message' => 'This email address is already assigned to another staff account.'], 422);
+            }
+        }
+
+        if (array_key_exists('isActive', $validated) && ! $validated['isActive']) {
+            $driver->api_token = null;
+        }
         $driver->update($validated);
 
         return response()->json($driver);
@@ -78,12 +95,17 @@ class DriverController extends Controller
         ]);
 
         $driver = Driver::findOrFail($id);
-        
-        // Automatically hashed by the Model
+        $driver->api_token = null;
         $driver->update([
             'password' => $request->password
         ]);
         
         return response()->json(['message' => 'Password reset successfully']);
+    }
+
+    private function emailUsedByOtherStaff(string $email): bool
+    {
+        return Employee::whereRaw('LOWER(email) = ?', [$email])->exists()
+            || FranchiseUser::whereRaw('LOWER(email) = ?', [$email])->exists();
     }
 }

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, MoreHorizontal, PackageCheck, Search } from 'lucide-react';
+import { getProductImage } from '../../../data/productImages';
+import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 
 export const PageHeader: React.FC<{
   title: string;
@@ -103,6 +105,30 @@ export const Avatar: React.FC<{ name: string; className?: string }> = ({ name, c
   const color = [...name].reduce((sum, character) => sum + character.charCodeAt(0), 0) % colors.length;
   const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || '?';
   return <span aria-hidden="true" className={`inline-flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${colors[color]} ${className}`}>{initials}</span>;
+};
+
+export const ProductThumbnail: React.FC<{
+  src?: string | null;
+  name: string;
+  className?: string;
+  overlay?: React.ReactNode;
+}> = ({ src, name, className = '', overlay }) => {
+  const imageSrc = getProductImage(src || '');
+  const [failedSrc, setFailedSrc] = useState('');
+  const fallbackSrc = oppaDruLogo;
+  const displayedSrc = failedSrc === imageSrc ? fallbackSrc : imageSrc;
+
+  return <span className={`group/product-image relative inline-flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--oppa-green-soft)] ${className}`}>
+    <img
+      src={displayedSrc}
+      alt={name}
+      onError={() => {
+        if (displayedSrc !== fallbackSrc) setFailedSrc(imageSrc);
+      }}
+      className="size-full object-cover"
+    />
+    {overlay}
+  </span>;
 };
 
 export const AvailabilitySwitch: React.FC<{

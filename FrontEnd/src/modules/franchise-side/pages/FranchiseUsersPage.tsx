@@ -1,6 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
-import { Plus, RefreshCw, Users, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Search, UserPlus } from 'lucide-react';
+import AccountCreationModal, { type AccountCreationValues } from '../../admin-side/components/AccountCreationModal';
+import { AdminDate, Avatar, DataTable, EmptyState, PageHeader, RowActionsMenu, StatusBadge } from '../../admin-side/components/AdminUI';
+import { useToast } from '../../customer-side/components/ToastProvider';
+import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 
@@ -16,18 +19,34 @@ interface BranchUser {
   created_at: string | null;
 }
 
-const emptyForm = { name: '', email: '', phone: '', password: '', role: 'cashier', vehicle_type: '' };
+const positionLabel = (role: string) => {
+  const normalized = role.trim().toLowerCase().replaceAll('_', ' ');
+  if (normalized === 'kitchen staff') return 'Kitchen Staff';
+  if (normalized === 'franchise manager') return 'Manager';
+  return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
+const positionTone = (role: string) => {
+  const normalized = role.toLowerCase();
+  if (normalized.includes('owner') || normalized.includes('manager')) return 'bg-violet-100 text-violet-900';
+  if (normalized.includes('kitchen')) return 'bg-orange-100 text-orange-900';
+  if (normalized.includes('driver')) return 'bg-sky-100 text-sky-900';
+  return 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]';
+};
 
 const FranchiseUsersPage: React.FC = () => {
+  const { franchiseUser } = useFranchiseAuth();
+  const { showToast } = useToast();
   const [users, setUsers] = useState<BranchUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [reload, setReload] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [submitError, setSubmitError] = useState('');
+  const [search, setSearch] = useState('');
+  const [positionFilter, setPositionFilter] = useState('all');
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(async (showLoading = true) => {
     try {
       const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/users`, {
         signal: AbortSignal.timeout(15000),
@@ -39,36 +58,55 @@ const FranchiseUsersPage: React.FC = () => {
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Could not load branch users.');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { void Promise.resolve().then(loadUsers); }, [loadUsers, reload]);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => { void loadUsers(); }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadUsers]);
 
-  const addStaff = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadUsers(false);
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [loadUsers]);
+
+  const isOwner = (franchiseUser?.role || '').toLowerCase().includes('owner');
+  const managerRole = (franchiseUser?.role || '').toLowerCase();
+  const canManageStaff = managerRole.includes('owner') || managerRole.includes('manager');
+  const branchName = franchiseUser?.branch?.name || franchiseUser?.franchise?.name || 'Current branch';
+
+  const addStaff = async (values: AccountCreationValues) => {
     setSaving(true);
-    setError('');
+    setSubmitError('');
     try {
       const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/users`, {
         method: 'POST',
         body: JSON.stringify({
-          name: form.name,
-          email: form.email,
-          phone: form.phone || null,
-          password: form.password,
-          role: form.role,
-          vehicle_type: form.role === 'driver' ? form.vehicle_type : undefined,
+          name: values.fullName,
+          email: values.email,
+          phone: values.phone || null,
+          password: values.password,
+          role: values.position || 'cashier',
+          vehicle_type: values.position === 'driver' ? values.vehicle_type : undefined,
         }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Could not create branch staff account.');
-      setForm(emptyForm);
       setShowAdd(false);
-      setLoading(true);
-      setReload((value) => value + 1);
+      await loadUsers(false);
+      const roleName = values.position === 'kitchen_staff' ? 'Kitchen Staff' : positionLabel(values.position || 'cashier');
+      showToast(`${values.fullName} added as ${roleName} to ${branchName}.`, 'success');
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : 'Could not create branch staff account.');
+      setSubmitError(createError instanceof Error ? createError.message : 'Could not create branch staff account.');
     } finally {
       setSaving(false);
     }
@@ -79,13 +117,13 @@ const FranchiseUsersPage: React.FC = () => {
     setError('');
     try {
       const response = await fetchWithFranchiseAuth(
-        `${API_URL}/franchise/users/${user.user_type}/${user.id}/status`,
+        `${API_URL}/franchise/users/${user.user_type}/${encodeURIComponent(user.id)}/status`,
         { method: 'PATCH', body: JSON.stringify({ is_active: user.status !== 'active' }) },
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Could not update staff status.');
-      setLoading(true);
-      setReload((value) => value + 1);
+      await loadUsers(false);
+      showToast(`Staff account ${user.status === 'active' ? 'deactivated' : 'activated'}.`, 'success');
     } catch (statusError) {
       setError(statusError instanceof Error ? statusError.message : 'Could not update staff status.');
     }
@@ -95,50 +133,141 @@ const FranchiseUsersPage: React.FC = () => {
     setError('');
     try {
       const position = role === 'kitchen_staff' ? 'kitchen staff' : role;
-      const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/users/employee/${user.id}`, {
+      const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/users/employee/${encodeURIComponent(user.id)}`, {
         method: 'PATCH',
         body: JSON.stringify({ position }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Could not update staff role.');
-      setLoading(true);
-      setReload((value) => value + 1);
+      await loadUsers(false);
+      showToast('Staff position updated.', 'success');
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'Could not update staff role.');
     }
   };
 
+  const resetPassword = async (user: BranchUser) => {
+    if (!user.user_type) return;
+    const password = window.prompt(`Enter a new password for ${user.name} (at least 8 characters):`);
+    if (password === null) return;
+    if (password.length < 8) {
+      setError('The new password must be at least 8 characters.');
+      return;
+    }
+    setError('');
+    try {
+      const response = await fetchWithFranchiseAuth(
+        `${API_URL}/franchise/users/${user.user_type}/${encodeURIComponent(user.id)}/password`,
+        { method: 'PUT', body: JSON.stringify({ password }) },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Could not reset the staff password.');
+      showToast(`Password reset for ${user.name}.`, 'success');
+    } catch (passwordError) {
+      setError(passwordError instanceof Error ? passwordError.message : 'Could not reset the staff password.');
+    }
+  };
+
+  const removeStaff = async (user: BranchUser) => {
+    if (!user.user_type || !window.confirm(`Remove ${user.name}'s staff account from this branch?`)) return;
+    setError('');
+    try {
+      const response = await fetchWithFranchiseAuth(
+        `${API_URL}/franchise/users/${user.user_type}/${encodeURIComponent(user.id)}`,
+        { method: 'DELETE' },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Could not remove staff account.');
+      await loadUsers(false);
+      showToast(`${user.name} was removed from branch staff.`, 'success');
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : 'Could not remove staff account.');
+    }
+  };
+
+  const managers = useMemo(() => users.filter((user) => !user.user_type), [users]);
+  const staff = useMemo(() => users.filter((user) => Boolean(user.user_type)), [users]);
+  const filteredStaff = useMemo(() => staff.filter((user) => {
+    const matchesSearch = `${user.name} ${user.email}`.toLowerCase().includes(search.trim().toLowerCase());
+    const matchesPosition = positionFilter === 'all' || user.role.toLowerCase().replaceAll('_', ' ') === positionFilter;
+    return matchesSearch && matchesPosition;
+  }), [staff, search, positionFilter]);
+
+  const positionOptions = [
+    { value: 'all', label: 'All positions' },
+    { value: 'cashier', label: 'Cashier' },
+    { value: 'kitchen staff', label: 'Kitchen Staff' },
+    { value: 'driver', label: 'Driver' },
+  ];
+
   return (
-    <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
-      <div className="mx-auto max-w-[1500px]">
-        <header className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--oppa-green)]">Franchise Portal · Team</p><h1 className="mt-1 text-2xl font-semibold">Branch users</h1><p className="mt-1 text-sm text-gray-500">Manage cashier, kitchen, and driver accounts for this branch.</p></div>
-          <div className="flex gap-2"><button onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-border)] px-4 py-2 text-sm disabled:opacity-50"><RefreshCw size={15} /> Refresh</button><button onClick={() => setShowAdd(true)} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white"><Plus size={16} /> Add Staff</button></div>
-        </header>
-        {error && <div role="alert" className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}<button onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="font-semibold underline">Retry</button></div>}
-        <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
-          <div className="border-b border-[var(--oppa-border)] px-4 py-4"><h2 className="font-semibold text-[var(--oppa-text)]">Team members</h2><p className="mt-1 text-xs text-gray-500">{users.length} account{users.length === 1 ? '' : 's'} assigned to this location</p></div>
-          {loading ? <p className="p-10 text-center text-sm text-gray-500">Loading branch users...</p> : users.length === 0 ? <p className="p-10 text-center text-sm text-gray-500">No staff accounts are assigned to this branch yet.</p> : (
-            <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-[#edf5ef] text-xs uppercase text-gray-500"><tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Date added</th><th className="px-4 py-3">Access</th></tr></thead><tbody className="divide-y divide-gray-100">{users.map((user) => <tr key={`${user.user_type || user.role}-${user.id}`} className="transition hover:bg-[#fbfcfa]"><td className="px-4 py-3.5 font-medium">{user.name}</td><td className="px-4 py-3.5">{user.email}</td><td className="px-4 py-3.5">{user.user_type === 'employee' ? <select aria-label={`Change ${user.name}'s role`} value={user.role} onChange={(event) => void updateEmployeeRole(user, event.target.value)} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs capitalize"><option value="cashier">Cashier</option><option value="kitchen_staff">Kitchen staff</option><option value="staff">Staff</option></select> : <span className="capitalize">{user.role.replaceAll('_', ' ')}</span>}</td><td className="px-4 py-3.5"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>{user.status}</span></td><td className="px-4 py-3.5 text-gray-500">{user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</td><td className="px-4 py-3.5">{user.user_type && <button onClick={() => void toggleStatus(user)} className="rounded-lg border px-3 py-1.5 text-xs font-medium">{user.status === 'active' ? 'Deactivate' : 'Activate'}</button>}</td></tr>)}</tbody></table></div>
-          )}
-        </section>
-        <p className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">Staff accounts created here are automatically limited to this branch. Branch managers cannot create or manage HQ-level manager accounts.</p>
+    <>
+      {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => void loadUsers()} className="font-semibold underline">Retry</button></div>}
+      <PageHeader
+        title="Branch Users"
+        subtitle="Manage cashier, kitchen, and driver accounts for this branch."
+        actions={canManageStaff ? <button type="button" onClick={() => { setSubmitError(''); setShowAdd(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><UserPlus size={16} />Add Staff</button> : undefined}
+      />
+      {managers.length > 0 && <section className="admin-card mb-4 overflow-hidden">
+        <div className="border-b border-[var(--oppa-border)] px-4 py-3"><h2 className="font-semibold text-[var(--oppa-text)]">Branch management</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Owner and manager accounts are shown for reference and cannot be changed here.</p></div>
+        <div className="divide-y divide-[var(--oppa-border)]">
+          {managers.map((manager) => {
+            const currentUser = String(manager.id) === String(franchiseUser?.id);
+            const label = currentUser && isOwner ? 'Owner' : 'Manager';
+            return <div key={`manager-${manager.id}`} className="flex items-center gap-3 px-4 py-3">
+              <Avatar name={manager.name} />
+              <div className="min-w-0 flex-1"><p className="truncate font-semibold text-[var(--oppa-text)]">{manager.name}{currentUser && <span className="ml-2 text-xs font-normal text-[var(--oppa-text-muted)]">(You)</span>}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{manager.email}</p></div>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${positionTone(label)}`}>{label}</span>
+              <StatusBadge status={manager.status} />
+            </div>;
+          })}
+        </div>
+      </section>}
+
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row">
+        <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]">
+          <Search size={17} aria-hidden="true" />
+          <input aria-label="Search branch users by name or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email..." className="admin-embedded-input w-full text-sm" />
+        </label>
+        <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]">
+          Position<select aria-label="Filter branch users by position" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} className="admin-embedded-input max-w-40 font-medium text-[var(--oppa-text)]">
+            {positionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
       </div>
-      {showAdd && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowAdd(false); }}>
-        <form onSubmit={addStaff} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-          <div className="mb-5 flex items-start justify-between"><div className="flex items-center gap-3"><span className="rounded-xl bg-[var(--oppa-green-soft)] p-2 text-[var(--oppa-green)]"><Users size={20} /></span><div><h2 className="font-semibold">Add branch staff</h2><p className="text-sm text-gray-500">This account can only access this branch.</p></div></div><button type="button" aria-label="Close dialog" onClick={() => setShowAdd(false)} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={18} /></button></div>
-          <div className="space-y-3">
-            <label className="block text-sm font-medium">Role<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal"><option value="cashier">Cashier</option><option value="staff">Staff</option><option value="kitchen_staff">Kitchen staff</option><option value="driver">Driver</option></select></label>
-            <label className="block text-sm font-medium">Full name<input required maxLength={255} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
-            <label className="block text-sm font-medium">Email<input required type="email" maxLength={255} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
-            <label className="block text-sm font-medium">Phone<input maxLength={50} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
-            {form.role === 'driver' && <label className="block text-sm font-medium">Vehicle type<input required maxLength={100} value={form.vehicle_type} onChange={(event) => setForm({ ...form, vehicle_type: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>}
-            <label className="block text-sm font-medium">Initial password<input required type="password" minLength={8} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
-          </div>
-          <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setShowAdd(false)} className="rounded-xl border px-4 py-2 text-sm">Cancel</button><button disabled={saving} className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Creating…' : 'Create staff account'}</button></div>
-        </form>
-      </div>}
-    </main>
+
+      <DataTable
+        headers={['Employee', 'Position', 'Status', 'Joined', 'Actions']}
+        caption="Branch staff accounts"
+        columnWidths={['38%', '20%', '14%', '16%', '12%']}
+        loading={loading}
+        emptyState={<EmptyState title={search || positionFilter !== 'all' ? 'No staff match these filters' : 'No staff yet. Add your first cashier, kitchen, or driver account.'} description={search || positionFilter !== 'all' ? 'Try another name, email, or position.' : 'Staff accounts for this branch will appear here after they are added.'} />}
+      >
+        {filteredStaff.map((user) => <tr key={`${user.user_type}-${user.id}`} className="border-b border-[var(--oppa-border)]/70 last:border-0 hover:bg-[var(--oppa-cream)]">
+          <td data-label="Employee" className="px-4 py-3"><div className="flex min-w-0 items-center gap-3"><Avatar name={user.name} /><div className="min-w-0"><p className="truncate font-semibold text-[var(--oppa-text)]">{user.name}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{user.email}</p></div></div></td>
+          <td data-label="Position" className="px-4 py-3">
+            {user.user_type === 'employee' && ['cashier', 'kitchen_staff'].includes(user.role) ? <select aria-label={`Change ${user.name}'s position`} value={user.role} onChange={(event) => void updateEmployeeRole(user, event.target.value)} className={`max-w-full rounded-full border-0 px-2.5 py-1 text-xs font-semibold ${positionTone(user.role)}`}><option value="cashier">Cashier</option><option value="kitchen_staff">Kitchen Staff</option></select> : <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${positionTone(user.role)}`}>{positionLabel(user.role)}</span>}
+          </td>
+          <td data-label="Status" className="px-4 py-3"><StatusBadge status={user.status} /></td>
+          <td data-label="Joined" className="px-4 py-3 text-[var(--oppa-text-muted)]"><AdminDate value={user.created_at} /></td>
+          <td data-label="Actions" className="px-4 py-3"><div className="flex justify-end"><RowActionsMenu label={user.name} items={[
+            { label: user.status === 'active' ? 'Deactivate staff' : 'Activate staff', onSelect: () => void toggleStatus(user) },
+            { label: 'Reset password', onSelect: () => void resetPassword(user) },
+            { label: 'Remove staff', onSelect: () => void removeStaff(user), destructive: true },
+          ]} /></div></td>
+        </tr>)}
+      </DataTable>
+
+      <AccountCreationModal
+        mode="branch-staff"
+        isOpen={showAdd}
+        onClose={() => { setShowAdd(false); setSubmitError(''); }}
+        onSubmit={addStaff}
+        isSubmitting={saving}
+        submitError={submitError}
+        branchName={branchName}
+      />
+    </>
   );
 };
 

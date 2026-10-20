@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import StaffBranchBadge from '../shared/components/StaffBranchBadge';
 import {
   ArrowDownUp, CalendarClock, CheckCircle, ChefHat, ChevronDown, ClipboardList, Eye, Flame,
 } from 'lucide-react';
@@ -40,6 +41,8 @@ const KitchenDashboardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<KitchenTab>('pending');
   const [sortOrder, setSortOrder] = useState<KitchenSort>('desc');
   const [staffName, setStaffName] = useState('Kitchen Staff');
+  const [branchName, setBranchName] = useState('Main system');
+  const [branchId, setBranchId] = useState<string | null>(null);
   const [scheduledCount, setScheduledCount] = useState(0);
   const [newCount, setNewCount] = useState(0);
   const [scheduledDateFilter, setScheduledDateFilter] = useState<ScheduledDateFilter>('all');
@@ -61,14 +64,19 @@ const KitchenDashboardPage: React.FC = () => {
       navigate('/staff/login', { replace: true });
       return;
     }
-    let employee: { fullName?: string; name?: string };
+    let employee: { fullName?: string; name?: string; franchise_id?: string | null; franchise?: { id?: string; name?: string } | null };
     try {
       employee = JSON.parse(authData);
     } catch {
       navigate('/staff/login', { replace: true });
       return;
     }
-    const timer = window.setTimeout(() => setStaffName(employee.fullName || employee.name || 'Kitchen Staff'), 0);
+    const timer = window.setTimeout(() => {
+      setStaffName(employee.fullName || employee.name || 'Kitchen Staff');
+      setBranchName(employee.franchise?.name || 'Main system');
+      setBranchId(employee.franchise?.id || employee.franchise_id || null);
+      document.title = `${employee.franchise?.name || 'Main system'} | Kitchen Dashboard | Oppa Dru`;
+    }, 0);
     return () => window.clearTimeout(timer);
   }, [navigate]);
 
@@ -275,7 +283,10 @@ const KitchenDashboardPage: React.FC = () => {
         <div className="min-w-0">
           <h1 className="font-serif text-3xl font-bold leading-tight tracking-tight text-[var(--oppa-text)] sm:text-4xl">Kitchen Dashboard</h1>
         </div>
-        <UserChip name={staffName} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StaffBranchBadge name={branchName} id={branchId} />
+          <UserChip name={staffName} />
+        </div>
       </div>
 
       {promotionNotice && (

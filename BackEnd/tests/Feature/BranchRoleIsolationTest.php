@@ -46,6 +46,7 @@ class BranchRoleIsolationTest extends TestCase
         $this->assertDatabaseHas('orders', [
             'id' => $response->json('order.id'),
             'franchise_id' => $branch->id,
+            'branch_id' => $branch->id,
             'cashier_employee_id' => $cashier->id,
         ]);
         $this->getJson('/api/employee/pos/orders', ['Authorization' => 'Bearer ' . $token])
@@ -66,6 +67,7 @@ class BranchRoleIsolationTest extends TestCase
             'full_name' => 'Branch Manager',
             'email' => 'manager@branch.test',
             'password' => Hash::make('Manager@123'),
+            'role' => 'manager',
             'is_active' => true,
         ]);
         $login = $this->postJson('/api/franchise/login', [
@@ -135,6 +137,7 @@ class BranchRoleIsolationTest extends TestCase
     public function test_driver_sees_only_own_branch_delivery_data_without_financial_fields(): void
     {
         $branch = $this->makeBranch('Driver Branch');
+        $branch->update(['latitude' => 14.5, 'longitude' => 121.0]);
         $otherBranch = $this->makeBranch('Other Driver Branch');
         $driver = $this->makeDriver($branch, 'driver@branch.test');
         $ownOrder = $this->makeDelivery($branch, 'DRIVER-OWN-ORDER');
@@ -147,6 +150,8 @@ class BranchRoleIsolationTest extends TestCase
 
         $this->assertSame([$ownOrder->id], collect($response->json())->pluck('id')->all());
         $this->assertSame($ownOrder->order_number, $response->json()[0]['order_number']);
+        $this->assertSame('Driver Branch', $response->json()[0]['branchName']);
+        $this->assertSame(['lat' => 14.5, 'lng' => 121], $response->json()[0]['branchCoordinates']);
         $this->assertArrayNotHasKey('total', $response->json()[0]);
         $this->assertArrayNotHasKey('paymentMethod', $response->json()[0]);
         $this->assertArrayNotHasKey('product_price', $response->json()[0]['items'][0]);
@@ -260,7 +265,7 @@ class BranchRoleIsolationTest extends TestCase
 
     private function makeProduct(Franchise $branch, string $name): Product
     {
-        return Product::create([
+        $product = Product::create([
             'name' => $name,
             'description' => 'Test branch product',
             'price' => 80,
@@ -269,6 +274,9 @@ class BranchRoleIsolationTest extends TestCase
             'franchise_id' => $branch->id,
             'is_available' => true,
         ]);
+        app(\App\Services\FranchiseInventoryService::class)->initializeBranchMenu((string) $branch->id);
+
+        return $product;
     }
 
     private function makeDelivery(Franchise $branch, string $id): Order

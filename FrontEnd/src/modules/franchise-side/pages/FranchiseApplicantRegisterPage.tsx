@@ -15,16 +15,25 @@ const FranchiseApplicantRegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
   const [error, setError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const params = new URLSearchParams(location.search);
   const requestedReturnTo = params.get('returnTo');
   const returnTo = requestedReturnTo === '/franchise/apply' || requestedReturnTo === '/franchise/my-applications'
     ? requestedReturnTo
     : '/franchise/apply';
+  const handlePhoneChange = (value: string) => {
+    setPhone(value.replace(/\D/g, '').slice(0, 11));
+    setPhoneError('');
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
+    if (phone && !/^09\d{9}$/.test(phone)) {
+      setPhoneError('Enter a valid 11-digit Philippine mobile number starting with 09.');
+      return;
+    }
     setIsLoading(true);
     try {
       await franchiseApplicantAuthService.register({
@@ -79,8 +88,13 @@ const FranchiseApplicantRegisterPage: React.FC = () => {
               Phone number
               <span className="relative mt-1.5 block">
                 <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input type="tel" maxLength={50} autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="e.g. 0917 123 4567" />
+                <input type="tel" inputMode="numeric" maxLength={11} autoComplete="tel-national" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} onBlur={() => {
+                  if (phone && !/^09\d{9}$/.test(phone)) {
+                    setPhoneError('Enter a valid 11-digit Philippine mobile number starting with 09.');
+                  }
+                }} aria-invalid={Boolean(phoneError)} aria-describedby={phoneError ? 'applicant-phone-error' : undefined} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="e.g. 09171234567" />
               </span>
+              {phoneError && <span id="applicant-phone-error" role="alert" className="mt-1 block text-xs text-red-700">{phoneError}</span>}
             </label>
             <label className="block text-sm font-medium text-[var(--oppa-green)]">
               Password

@@ -10,6 +10,8 @@ use App\Models\FranchiseApplication;
 use App\Models\FranchiseApplicationEvent;
 use App\Models\FranchiseApplicant;
 use App\Models\FranchiseUser;
+use App\Models\Employee;
+use App\Models\Driver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -53,6 +55,12 @@ class FranchiseApplicationApprovalService
                 throw new FranchiseApprovalException('The applicant password credential could not be linked to the franchise account.');
             }
             $existingUser = FranchiseUser::whereRaw('LOWER(email) = ?', [$email])->first();
+            if (Employee::whereRaw('LOWER(email) = ?', [$email])->exists()
+                || Driver::whereRaw('LOWER(email) = ?', [$email])->exists()) {
+                throw new FranchiseApprovalException(
+                    'The applicant email is already assigned to another staff account. Resolve the duplicate email before approval.',
+                );
+            }
 
             $name = trim($application->franchise_name) ?: 'Oppa Dru Franchise';
             $account = $application->franchise_account_id

@@ -160,37 +160,4 @@ trait FranchiseDashboardActions
         return response()->json(['data' => $order->load(['user:id,full_name,email,phone', 'orderItems'])]);
     }
 
-    public function updateOrderStatus(Request $request, string $id)
-    {
-        $user = $request->user();
-        if (! $user || ! $user->franchise_id) {
-            return response()->json(['message' => 'Franchise access required'], 403);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'status' => 'required|string|in:pending,confirmed,preparing,prepared,ready,delivered,completed,cancelled',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $order = Order::where('branch_id', $user->franchise_id)->find($id);
-
-        if (! $order) {
-            return response()->json(['message' => 'Order not found for this franchise'], 404);
-        }
-
-        if ($request->status === 'cancelled' && $order->status !== 'pending') {
-            return response()->json(['message' => 'Only pending franchise orders can be cancelled.'], 422);
-        }
-
-        $order->status = $request->status;
-        $order->save();
-
-        return response()->json([
-            'data' => $order,
-            'message' => 'Franchise order status updated successfully.',
-        ]);
-    }
 }

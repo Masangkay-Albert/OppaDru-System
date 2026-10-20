@@ -1,16 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Activity, Building2, CheckCircle2, DollarSign, Loader2, MapPin, Phone, Plus, Search, ShoppingCart, Users } from 'lucide-react';
+import { Building2, CheckCircle2, DollarSign, Loader2, MapPin, Phone, Plus, Search, Users } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { createFranchiseAccount, getFranchiseAccounts, updateFranchiseAccount } from '../../../services/franchiseAdminService';
-import type { FranchiseAccount, FranchiseAdminActivity } from '../../../services/franchiseAdminService';
+import type { FranchiseAccount } from '../../../services/franchiseAdminService';
 import { formatCurrency } from '../../../utils/formatters';
 
 const AdminFranchisesPage: React.FC = () => {
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<FranchiseAccount[]>([]);
-  const [recentActivity, setRecentActivity] = useState<FranchiseAdminActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -25,7 +24,6 @@ const AdminFranchisesPage: React.FC = () => {
     try {
       const dashboard = await getFranchiseAccounts();
       setAccounts(dashboard.accounts);
-      setRecentActivity(dashboard.recent_activity);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load franchises.');
     } finally {
@@ -106,23 +104,6 @@ const AdminFranchisesPage: React.FC = () => {
       </div>
 
       {error && <div role="alert" className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}<button onClick={() => void load()} className="font-semibold underline">Retry</button></div>}
-      <section className="mb-5 overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-[var(--oppa-border)] px-4 py-3"><Activity size={17} className="text-[var(--oppa-green)]" /><div><h2 className="text-sm font-semibold">Franchise activity</h2><p className="text-xs text-[var(--oppa-text-muted)]">Latest orders across franchise locations</p></div></div>
-        {loading ? <p className="p-5 text-sm text-gray-500">Loading franchise activity...</p> : recentActivity.length === 0 ? <p className="p-5 text-sm text-gray-500">No franchise activity recorded yet.</p> : (
-          <div className="divide-y divide-gray-100">
-            {recentActivity.map((activity) => (
-              <Link key={activity.id} to={`/admin/franchise-accounts/${activity.franchise_account_id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-[var(--oppa-cream)]">
-                <ShoppingCart size={15} className="text-[var(--oppa-green)]" />
-                <span className="min-w-36 flex-1 text-sm font-medium">{activity.order_number || `Order ${activity.id}`}</span>
-                <span className="text-xs text-gray-600">{activity.franchise_name || 'Franchise'} · {activity.location_name || 'Location'}</span>
-                <span className="text-sm font-semibold tabular-nums">{formatCurrency(activity.total)}</span>
-                <span className="rounded-full bg-[var(--oppa-green-soft)] px-2 py-1 text-xs capitalize text-[var(--oppa-green)]">{activity.status}</span>
-                <time className="text-xs text-gray-500">{new Date(activity.created_at).toLocaleString()}</time>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
       <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-3 sm:flex-row">
         <label className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search franchise or location..." className="w-full rounded-xl border border-gray-300 py-2.5 pl-9 pr-3 text-sm" /></label>
         <select aria-label="Filter franchises by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm sm:min-w-40"><option value="all">All status</option><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select>
