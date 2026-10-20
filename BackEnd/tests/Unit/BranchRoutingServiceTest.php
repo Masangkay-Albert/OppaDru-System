@@ -81,6 +81,23 @@ class BranchRoutingServiceTest extends TestCase
         }
     }
 
+    public function test_branch_specific_delivery_radius_above_default_is_honored(): void
+    {
+        $laguna = $this->branch('Laguna branch', 14.3181, 121.1011);
+        $laguna->delivery_radius_km = 40;
+        $laguna->save();
+        config(['delivery.default_radius_km' => 15]);
+
+        $result = app(BranchRoutingService::class)->resolve([
+            'lat' => 14.1700,
+            'lng' => 121.2400,
+        ]);
+
+        $this->assertSame($laguna->id, $result['branch']->id);
+        $this->assertGreaterThan(15, $result['distance_km']);
+        $this->assertLessThanOrEqual(40, $result['distance_km']);
+    }
+
     public function test_imus_and_bacoor_coordinates_select_cavite_branch(): void
     {
         config(['services.delivery.max_km' => 20]);

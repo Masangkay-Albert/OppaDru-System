@@ -8,6 +8,7 @@ use App\Models\FranchiseAccount;
 use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
+use App\Models\Product;
 use App\Services\FranchiseProvisioningService;
 use App\Services\GeocodingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,6 +22,14 @@ class FranchiseApplicationActivationTest extends TestCase
 
     public function test_activation_geocodes_the_branch_and_enables_delivery(): void
     {
+        $menuItem = Product::create([
+            'name' => 'New Branch Menu Item',
+            'description' => 'Shared menu item',
+            'price' => 120,
+            'category' => 'rice',
+            'image' => '',
+            'is_available' => true,
+        ]);
         $this->mock(GeocodingService::class, fn ($mock) => $mock
             ->shouldReceive('geocodeAddress')
             ->once()
@@ -63,6 +72,11 @@ class FranchiseApplicationActivationTest extends TestCase
             'accepts_online_orders' => true,
             'delivery_enabled' => true,
             'delivery_radius_km' => 15,
+        ]);
+        $this->assertDatabaseHas('franchise_inventory', [
+            'franchise_id' => $application->fresh()->franchise_id,
+            'product_id' => $menuItem->id,
+            'is_available' => true,
         ]);
     }
 
@@ -147,6 +161,14 @@ class FranchiseApplicationActivationTest extends TestCase
 
     public function test_authorized_activation_creates_one_active_location_and_manager_only_after_all_gates_pass(): void
     {
+        $menuItem = Product::create([
+            'name' => 'Activated Branch Menu Item',
+            'description' => 'Shared menu item',
+            'price' => 120,
+            'category' => 'rice',
+            'image' => '',
+            'is_available' => true,
+        ]);
         $this->mock(GeocodingService::class, fn ($mock) => $mock
             ->shouldReceive('geocodeAddress')
             ->once()
@@ -210,6 +232,12 @@ class FranchiseApplicationActivationTest extends TestCase
         $this->getJson('/api/franchise/dashboard', [
             'Authorization' => 'Bearer '.$login->json('token'),
         ])->assertOk();
+        $this->getJson('/api/franchise/inventory', [
+            'Authorization' => 'Bearer '.$login->json('token'),
+        ])->assertOk()
+            ->assertJsonPath('data.items.0.id', $menuItem->id)
+            ->assertJsonPath('data.items.0.branch_enabled', true)
+            ->assertJsonPath('data.items.0.branch_available', true);
     }
 
     public function test_only_an_admin_can_activate_and_manager_credentials_are_required(): void

@@ -9,6 +9,7 @@ use App\Models\FranchiseAccount;
 use App\Models\FranchiseUser;
 use App\Models\Order;
 use App\Services\BranchRoutingService;
+use App\Services\FranchiseInventoryService;
 use App\Services\GeocodingService;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
@@ -292,6 +293,7 @@ class FranchiseAccountController extends Controller
             'longitude' => $longitude,
             'delivery_radius_km' => $request->input('delivery_radius_km'),
         ]);
+        app(FranchiseInventoryService::class)->initializeBranchMenu((string) $location->id);
         $location->refresh();
         if ($location->latitude === null || $location->longitude === null) {
             return response()->json([

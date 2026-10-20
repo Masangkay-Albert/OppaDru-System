@@ -9,6 +9,7 @@ use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
 use App\Models\Order;
+use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -20,6 +21,14 @@ class FranchiseManagementModuleTest extends TestCase
     public function test_admin_can_manage_franchise_account_locations_and_assigned_managers(): void
     {
         $adminToken = $this->createAdminToken();
+        $menuItem = Product::create([
+            'name' => 'Account Location Menu Item',
+            'description' => 'Shared menu item',
+            'price' => 120,
+            'category' => 'rice',
+            'image' => '',
+            'is_available' => true,
+        ]);
         $coordinates = [
             'latitude' => fake()->randomFloat(7, 4, 22),
             'longitude' => fake()->randomFloat(7, 116, 127),
@@ -50,6 +59,11 @@ class FranchiseManagementModuleTest extends TestCase
         $this->assertDatabaseHas('franchises', [
             'id' => $locationId,
             'franchise_account_id' => $accountId,
+        ]);
+        $this->assertDatabaseHas('franchise_inventory', [
+            'franchise_id' => $locationId,
+            'product_id' => $menuItem->id,
+            'is_available' => true,
         ]);
 
         $managerResponse = $this->postJson('/api/admin/franchise-accounts/'.$accountId.'/managers', [

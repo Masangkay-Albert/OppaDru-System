@@ -73,10 +73,7 @@ class BranchRoutingService
             ->map(fn (Franchise $branch) => [
                 'branch' => $branch,
                 'distance' => $this->distance($branch, $coordinates),
-                'radius' => min(
-                    (float) ($branch->delivery_radius_km ?? $this->maxDeliveryKm()),
-                    $this->maxDeliveryKm(),
-                ),
+                'radius' => $this->deliveryRadius($branch),
                 'open' => $this->isOpen($branch),
                 'load' => (int) ($loads[$branch->id] ?? 0),
             ]);
@@ -134,10 +131,7 @@ class BranchRoutingService
             $distance = $coordinates && $this->validBranchCoordinates($branch)
                 ? round($this->distance($branch, $coordinates), 3)
                 : null;
-            $deliveryRadius = min(
-                (float) ($branch->delivery_radius_km ?? $this->maxDeliveryKm()),
-                $this->maxDeliveryKm(),
-            );
+            $deliveryRadius = $this->deliveryRadius($branch);
             if ($distance !== null && $distance > $deliveryRadius) {
                 $reasons[] = 'outside delivery radius';
             }
@@ -161,9 +155,14 @@ class BranchRoutingService
         })->values()->all();
     }
 
-    private function maxDeliveryKm(): float
+    private function deliveryRadius(Franchise $branch): float
     {
-        return max(0.0, (float) config('services.delivery.max_km', self::DEFAULT_MAX_DELIVERY_KM));
+        $configuredRadius = $branch->delivery_radius_km;
+        $radius = $configuredRadius === null
+            ? config('services.delivery.max_km', self::DEFAULT_MAX_DELIVERY_KM)
+            : $configuredRadius;
+
+        return min(100.0, max(0.0, (float) $radius));
     }
 
     public function validateCatalog(string $branchId, array $items): array

@@ -8,6 +8,27 @@ use Illuminate\Support\Collection;
 
 class FranchiseInventoryService
 {
+    public function initializeBranchMenu(string $franchiseId): void
+    {
+        $products = Product::where(function ($query) use ($franchiseId) {
+            $query->whereNull('franchise_id')->orWhere('franchise_id', $franchiseId);
+        })->get(['id', 'is_available']);
+
+        if ($products->isEmpty()) {
+            return;
+        }
+
+        $now = now();
+        FranchiseInventory::query()->insertOrIgnore($products->map(fn (Product $product) => [
+            'franchise_id' => $franchiseId,
+            'product_id' => $product->id,
+            'stock_quantity' => null,
+            'is_available' => $product->is_available,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->all());
+    }
+
     public function catalog(string $franchiseId, bool $availableOnly = false): Collection
     {
         $products = Product::where(function ($query) use ($franchiseId) {

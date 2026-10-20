@@ -7,6 +7,7 @@ use App\Models\FranchiseUser;
 use App\Models\Order;
 use App\Models\Product;
 use App\Services\BranchRoutingService;
+use App\Services\FranchiseInventoryService;
 use App\Services\GeocodingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -316,6 +317,8 @@ trait FranchiseAdminActions
             'location_error' => null,
             'owner_admin_id' => null,
         ]);
+
+        app(FranchiseInventoryService::class)->initializeBranchMenu((string) $franchise->id);
 
         return response()->json(['data' => $franchise], 201);
     }

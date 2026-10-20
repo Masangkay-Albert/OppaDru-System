@@ -85,6 +85,8 @@ class FranchiseProvisioningService
             ]),
         ])->saveOrFail();
 
+        app(FranchiseInventoryService::class)->initializeBranchMenu((string) $franchise->id);
+
         $franchise->refresh();
         if ($franchise->latitude === null || $franchise->longitude === null) {
             throw new \RuntimeException('Franchise coordinates did not persist after provisioning.');
