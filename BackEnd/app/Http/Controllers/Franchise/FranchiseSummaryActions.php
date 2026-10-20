@@ -12,17 +12,24 @@ trait FranchiseSummaryActions
 {
     public function activeBranches()
     {
+        $branches = Franchise::query()
+            ->where('status', 'active')
+            ->where(function ($query) {
+                $query->where('is_main', true)
+                    ->orWhere(function ($franchiseLocations) {
+                        $franchiseLocations->whereNotNull('franchise_account_id')
+                            ->where(function ($mainFlag) {
+                                $mainFlag->whereNull('is_main')->orWhere('is_main', false);
+                            })
+                            ->whereHas('franchiseAccount', fn ($accountQuery) => $accountQuery->where('status', 'active'));
+                    });
+            })
+            ->orderByDesc('is_main')
+            ->orderBy('name')
+            ->get(['id', 'name', 'address', 'is_main']);
+
         return response()->json([
-            'data' => Franchise::where('status', 'active')
-                // The main store is selected by the empty option in the customer menu.
-                // Only franchise locations belong in this list.
-                ->whereNotNull('franchise_account_id')
-                ->where(function ($query) {
-                    $query->whereNull('is_main')->orWhere('is_main', false);
-                })
-                ->whereHas('franchiseAccount', fn ($accountQuery) => $accountQuery->where('status', 'active'))
-                ->orderBy('name')
-                ->get(['id', 'name', 'address']),
+            'data' => $branches,
         ]);
     }
 

@@ -4,6 +4,7 @@ export interface FranchiseBranch {
   id: string;
   name: string;
   address?: string | null;
+  is_main?: boolean;
 }
 
 const SELECTED_BRANCH_KEY = 'selected_franchise_id';

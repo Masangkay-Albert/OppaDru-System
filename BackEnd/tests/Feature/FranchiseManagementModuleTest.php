@@ -18,6 +18,54 @@ class FranchiseManagementModuleTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_main_branch_is_exposed_to_admin_and_cannot_be_deleted_or_renamed_with_slug_change(): void
+    {
+        $adminToken = $this->createAdminToken();
+        $mainBranch = Franchise::create([
+            'name' => 'Original main branch name',
+            'slug' => 'original-main-branch-slug',
+            'address' => 'Main branch address',
+            'status' => 'active',
+            'latitude' => 14.3,
+            'longitude' => 120.9,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 25,
+            'is_main' => true,
+        ]);
+        $headers = ['Authorization' => 'Bearer '.$adminToken];
+
+        $this->getJson('/api/admin/franchise-accounts', $headers)
+            ->assertOk()
+            ->assertJsonPath('main_branch.id', $mainBranch->id)
+            ->assertJsonPath('main_branch.is_main', true);
+
+        $this->putJson('/api/admin/franchises/'.$mainBranch->id, [
+            'name' => 'Renamed main branch',
+            'address' => 'Updated main branch address',
+            'latitude' => 14.3064850,
+            'longitude' => 120.9335760,
+            'status' => 'active',
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 25,
+        ], $headers)->assertOk();
+
+        $this->assertDatabaseHas('franchises', [
+            'id' => $mainBranch->id,
+            'name' => 'Renamed main branch',
+            'slug' => 'original-main-branch-slug',
+            'is_main' => true,
+        ]);
+
+        $this->deleteJson('/api/admin/franchises/'.$mainBranch->id, [], $headers)
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'The main branch cannot be deleted.');
+        $this->assertDatabaseHas('franchises', ['id' => $mainBranch->id]);
+    }
+
     public function test_admin_can_manage_franchise_account_locations_and_assigned_managers(): void
     {
         $adminToken = $this->createAdminToken();

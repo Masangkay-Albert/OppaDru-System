@@ -17,6 +17,7 @@ export interface FranchiseSummary {
   delivery_radius_km?: number | null;
   location_status?: 'geocoded' | 'manual' | 'needs_location' | null;
   location_error?: string | null;
+  is_main?: boolean;
   created_at?: string;
   owner_admin_id?: string | number | null;
   metadata?: Record<string, unknown> | null;
@@ -157,6 +158,7 @@ export interface FranchiseAdminActivity {
 
 export interface FranchiseAdminDashboard {
   accounts: FranchiseAccount[];
+  main_branch?: FranchiseSummary | null;
   recent_activity: FranchiseAdminActivity[];
 }
 
@@ -198,6 +200,7 @@ export const getFranchiseAccounts = async (): Promise<FranchiseAdminDashboard> =
   const body = await response.json().catch(() => ({}));
   return {
     accounts: Array.isArray(body?.data) ? body.data : [],
+    main_branch: body?.main_branch || null,
     recent_activity: Array.isArray(body?.recent_activity) ? body.recent_activity : [],
   };
 };

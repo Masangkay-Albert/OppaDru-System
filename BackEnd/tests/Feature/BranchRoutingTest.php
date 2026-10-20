@@ -20,6 +20,32 @@ class BranchRoutingTest extends TestCase
             ->assertJsonPath('message', 'Method not allowed.');
     }
 
+    public function test_active_branch_selector_includes_main_branch_from_database(): void
+    {
+        $mainBranch = Franchise::create([
+            'name' => 'Database Main Branch',
+            'slug' => 'database-main-branch',
+            'address' => 'Main branch address',
+            'status' => 'active',
+            'latitude' => 14.3064850,
+            'longitude' => 120.9335760,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 25,
+            'is_main' => true,
+        ]);
+
+        $response = $this->getJson('/api/franchises/active')->assertOk();
+
+        $response->assertJsonFragment([
+            'id' => $mainBranch->id,
+            'name' => 'Database Main Branch',
+            'address' => 'Main branch address',
+            'is_main' => true,
+        ]);
+    }
+
     public function test_delivery_resolver_chooses_the_nearest_cavite_or_laguna_branch(): void
     {
         $cavite = $this->branch('Cavite branch', 14.3500, 120.9500);

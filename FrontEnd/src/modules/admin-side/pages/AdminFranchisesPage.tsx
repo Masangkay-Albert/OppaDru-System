@@ -4,12 +4,13 @@ import { Building2, CheckCircle2, DollarSign, Loader2, MapPin, Phone, Plus, Sear
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { createFranchiseAccount, getFranchiseAccounts, updateFranchiseAccount } from '../../../services/franchiseAdminService';
-import type { FranchiseAccount } from '../../../services/franchiseAdminService';
+import type { FranchiseAccount, FranchiseSummary } from '../../../services/franchiseAdminService';
 import { formatCurrency } from '../../../utils/formatters';
 
 const AdminFranchisesPage: React.FC = () => {
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<FranchiseAccount[]>([]);
+  const [mainBranch, setMainBranch] = useState<FranchiseSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -24,6 +25,7 @@ const AdminFranchisesPage: React.FC = () => {
     try {
       const dashboard = await getFranchiseAccounts();
       setAccounts(dashboard.accounts);
+      setMainBranch(dashboard.main_branch || null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load franchises.');
     } finally {
@@ -44,6 +46,10 @@ const AdminFranchisesPage: React.FC = () => {
     ].some((value) => String(value || '').toLowerCase().includes(query));
     return matchesSearch && (statusFilter === 'all' || account.status === statusFilter);
   }), [accounts, search, statusFilter]);
+  const showMainBranch = Boolean(mainBranch
+    && (statusFilter === 'all' || mainBranch.status === statusFilter)
+    && [mainBranch.name, mainBranch.address, mainBranch.id]
+      .some((value) => String(value || '').toLowerCase().includes(search.trim().toLowerCase())));
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -111,10 +117,23 @@ const AdminFranchisesPage: React.FC = () => {
 
       {loading ? (
         <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm"><Loader2 className="mx-auto size-6 animate-spin text-[var(--oppa-green)]" /><p className="mt-3">Loading franchises...</p></div>
-      ) : filteredAccounts.length === 0 ? (
+      ) : filteredAccounts.length === 0 && !showMainBranch ? (
         <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-12 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm"><Building2 className="mx-auto h-12 w-12 text-[var(--oppa-text-muted)]/30" /><p className="mt-2">{accounts.length ? 'No franchises match your search.' : 'No franchises found yet.'}</p></div>
       ) : (
         <div className="space-y-3">
+          {showMainBranch && mainBranch && (
+            <article className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]"><Building2 size={27} /></div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2"><h2 className="text-base font-semibold text-[var(--oppa-text)]">{mainBranch.name}</h2><span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-800">Main</span><Status status={mainBranch.status || 'active'} /></div>
+                  <p className="mt-0.5 break-words text-xs text-[var(--oppa-text-muted)]">{mainBranch.address || 'No address'} · ID: {mainBranch.id}</p>
+                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600"><span>Latitude: {mainBranch.latitude ?? 'Not set'}</span><span>Longitude: {mainBranch.longitude ?? 'Not set'}</span><span>Delivery radius: {mainBranch.delivery_radius_km ?? 'Not set'} km</span></div>
+                </div>
+                <Link to={`/admin/franchises/${mainBranch.id}`} className="w-fit rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]">View details</Link>
+              </div>
+            </article>
+          )}
           {filteredAccounts.map((account) => (
             <article key={account.id} className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center">

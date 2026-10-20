@@ -445,7 +445,7 @@ trait FranchiseAdminActions
                 $franchise->{$flag} = $request->boolean($flag);
             }
         }
-        if ($request->filled('name')) {
+        if ($request->filled('name') && ! $franchise->is_main) {
             $franchise->slug = Str::slug($request->name);
         }
         $franchise->save();
@@ -466,6 +466,10 @@ trait FranchiseAdminActions
         }
 
         $franchise = Franchise::findOrFail($id);
+        if ($franchise->is_main) {
+            return response()->json(['message' => 'The main branch cannot be deleted.'], 409);
+        }
+
         $franchise->delete();
 
         return response()->json(['message' => 'Franchise deleted successfully']);

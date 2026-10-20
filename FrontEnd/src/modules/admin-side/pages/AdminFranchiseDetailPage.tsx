@@ -227,7 +227,10 @@ const AdminFranchiseDetailPage: React.FC = () => {
         <>
           <header className="mb-5 flex flex-col gap-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3"><span className="rounded-xl bg-[var(--oppa-green-soft)] p-3 text-[var(--oppa-green)]"><Building2 size={22} /></span><div><p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Branch details</p><h1 className="text-2xl font-semibold">{branch.name}</h1><p className="text-sm text-gray-500">{branch.id} · {branch.address || 'No address'}</p></div></div>
-            <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold capitalize ${branch.status === 'active' ? 'bg-green-100 text-green-800' : branch.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'}`}>{branch.status}</span>
+            <div className="flex w-fit items-center gap-2">
+              {branch.is_main && <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-800">Main</span>}
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${branch.status === 'active' ? 'bg-green-100 text-green-800' : branch.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'}`}>{branch.status}</span>
+            </div>
           </header>
           <div role="tablist" aria-label="Branch management sections" className="mb-5 flex gap-1 overflow-x-auto border-b border-[var(--oppa-border)] bg-white px-2">
             {tabs.map((item) => <button key={item.id} role="tab" aria-selected={tab === item.id} onClick={() => { setTab(item.id); setSearchParams(item.id === 'overview' ? {} : { tab: item.id }, { replace: true }); }} className={`whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition ${tab === item.id ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)]/50 text-[var(--oppa-green-dark)]' : 'border-transparent text-gray-600 hover:border-gray-300 hover:bg-[var(--oppa-cream)]'}`}>{item.label}</button>)}

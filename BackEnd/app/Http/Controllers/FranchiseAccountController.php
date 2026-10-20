@@ -34,6 +34,9 @@ class FranchiseAccountController extends Controller
             ->with(['locations:id,franchise_account_id,name,address,status'])
             ->orderByDesc('created_at')
             ->get();
+        $mainBranch = Franchise::query()
+            ->where('is_main', true)
+            ->first();
 
         $locationIdsByAccount = $accounts->mapWithKeys(fn (FranchiseAccount $account) => [
             $account->id => $account->locations->pluck('id'),
@@ -78,6 +81,7 @@ class FranchiseAccountController extends Controller
 
         return response()->json([
             'data' => $accounts,
+            'main_branch' => $mainBranch,
             'recent_activity' => $recentActivity,
         ]);
     }

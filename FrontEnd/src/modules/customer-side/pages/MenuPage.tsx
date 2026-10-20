@@ -11,6 +11,7 @@ import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import NotificationToast from '../components/common/ProductNotification';
 import GreetingBanner from '../components/common/GreetingBanner';
 import { FiShoppingCart, FiMenu, FiX, FiSearch } from 'react-icons/fi';
+import { LuStore } from 'react-icons/lu';
 import foodpandaLogo from '../../../assets/foodpanda.png';
 import '../../../styles/global.css';
 import { productService } from '../../../services/productService';
@@ -24,6 +25,8 @@ const MenuPage: React.FC = () => {
   const { showNotification, newFavoriteName, clearNotification } = useFavorites();
   const [products, setProducts] = useState<Product[]>([]);
   const [branches, setBranches] = useState<FranchiseBranch[]>([]);
+  const [mainBranch, setMainBranch] = useState<FranchiseBranch | null>(null);
+  const [branchesLoaded, setBranchesLoaded] = useState(false);
   const [selectedBranchId, setSelectedBranchIdState] = useState<string | null>(() => getSelectedBranchId());
   const [branchError, setBranchError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>('all');
@@ -49,11 +52,17 @@ const MenuPage: React.FC = () => {
     getActiveBranches()
       .then((activeBranches) => {
         setBranches(activeBranches);
+        const main = activeBranches.find((branch) => branch.is_main) || null;
+        setMainBranch(main);
         const savedBranchId = getSelectedBranchId();
-        if (savedBranchId && !activeBranches.some((branch) => branch.id === savedBranchId)) {
-          setSelectedBranchId(null);
-          setSelectedBranchIdState(null);
+        const selectedId = savedBranchId && activeBranches.some((branch) => branch.id === savedBranchId)
+          ? savedBranchId
+          : main?.id || null;
+        if (selectedId !== savedBranchId) {
+          setSelectedBranchId(selectedId);
         }
+        setSelectedBranchIdState(selectedId);
+        setBranchesLoaded(true);
       })
       .catch((error: unknown) => {
         setBranchError(error instanceof Error ? error.message : 'Unable to load branches.');
@@ -61,6 +70,8 @@ const MenuPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!branchesLoaded || !selectedBranchId) return;
+
     const refreshProducts = () => {
       if (document.visibilityState === 'visible') void fetchProducts();
     };
@@ -80,7 +91,7 @@ const MenuPage: React.FC = () => {
       window.removeEventListener('focus', refreshProducts);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [fetchProducts]);
+  }, [branchesLoaded, fetchProducts, selectedBranchId]);
 
   const handleBranchChange = (branchId: string) => {
     if (branchId === (selectedBranchId || '')) return;
@@ -91,6 +102,10 @@ const MenuPage: React.FC = () => {
     setSelectedBranchIdState(nextBranchId);
     setBranchError('');
   };
+
+  const activeBranch = selectedBranchId
+    ? branches.find((branch) => branch.id === selectedBranchId) || null
+    : mainBranch;
 
   const handleOpenModal = useCallback((product: Product) => {
     scrollPositionRef.current = window.scrollY;
@@ -213,7 +228,9 @@ const MenuPage: React.FC = () => {
                 <p className="mt-0.5 text-xs text-gray-500">Menu availability can vary by location.</p>
               </div>
               <span className="rounded-full bg-[#E3EFE7] px-3 py-1 text-[11px] font-semibold text-[#1C3D2E]">
-                {selectedBranchId ? 'Franchise branch' : 'Original / Main Store'}
+                {activeBranch?.is_main
+                  ? <><LuStore className="mr-1 inline-block" aria-hidden="true" />Main branch</>
+                  : 'Franchise branch'}
               </span>
             </div>
             <select
@@ -222,9 +239,8 @@ const MenuPage: React.FC = () => {
               onChange={(event) => handleBranchChange(event.target.value)}
               className="menu-branch-select w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 focus:border-[#1C3D2E] focus:outline-none focus:ring-2 focus:ring-[#1C3D2E]/10 sm:max-w-xl"
             >
-              <option value="">Original Oppa Dru (Main Store)</option>
               {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name}{branch.address ? ` — ${branch.address}` : ''}</option>
+                <option key={branch.id} value={branch.id}>{branch.name}{branch.address ? `, ${branch.address}` : ''}</option>
               ))}
             </select>
             {branchError && <p className="mt-2 text-sm text-red-600">{branchError}</p>}
