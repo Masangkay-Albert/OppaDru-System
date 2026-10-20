@@ -24,9 +24,22 @@ class FranchiseProvisioningService
             && (float) $franchise->longitude >= 116
             && (float) $franchise->longitude <= 127;
         $location = trim((string) $application->location);
-        $coordinates = $hasCoordinates
-            ? ['lat' => (float) $franchise->latitude, 'lng' => (float) $franchise->longitude, 'matchedQuery' => 'existing coordinates']
-            : ($location === '' ? null : $this->geocoding->geocodeAddress($location.', Philippines'));
+        $hasApplicationPin = is_numeric($application->proposed_latitude)
+            && is_numeric($application->proposed_longitude)
+            && app(BranchRoutingService::class)->validBranchCoordinatePair(
+                $application->proposed_latitude,
+                $application->proposed_longitude,
+            );
+        $coordinates = $hasApplicationPin
+            ? [
+                'lat' => (float) $application->proposed_latitude,
+                'lng' => (float) $application->proposed_longitude,
+                'matchedQuery' => 'administrator-confirmed map pin',
+                'isBroad' => false,
+            ]
+            : ($hasCoordinates
+                ? ['lat' => (float) $franchise->latitude, 'lng' => (float) $franchise->longitude, 'matchedQuery' => 'existing coordinates', 'isBroad' => false]
+                : ($location === '' ? null : $this->geocoding->geocodeAddress($location.', Philippines')));
         if (($coordinates['isBroad'] ?? false) === true) {
             $coordinates = null;
         }
@@ -71,10 +84,10 @@ class FranchiseProvisioningService
             'is_active' => true,
             'accepts_online_orders' => true,
             'delivery_enabled' => true,
-            'delivery_radius_km' => config('delivery.default_radius_km', 15),
+            'delivery_radius_km' => config('delivery.default_radius_km'),
             'latitude' => $coordinates['lat'],
             'longitude' => $coordinates['lng'],
-            'location_status' => $hasCoordinates && $franchise->location_status === 'manual' ? 'manual' : 'geocoded',
+            'location_status' => $hasApplicationPin || ($hasCoordinates && $franchise->location_status === 'manual') ? 'manual' : 'geocoded',
             'location_error' => null,
             'owner_admin_id' => $application->approved_by_admin_id,
             'metadata' => array_merge($franchise->metadata ?? [], [

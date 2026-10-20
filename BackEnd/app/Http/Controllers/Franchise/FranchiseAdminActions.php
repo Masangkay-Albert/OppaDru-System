@@ -283,19 +283,27 @@ trait FranchiseAdminActions
         }
         $latitude = $request->input('latitude');
         $longitude = $request->input('longitude');
+        $activeDelivery = $request->boolean('is_active', true)
+            && $request->input('status', 'active') === 'active'
+            && $request->boolean('delivery_enabled', true);
+        if ($activeDelivery && (! is_numeric($request->input('delivery_radius_km'))
+            || (float) $request->input('delivery_radius_km') <= 0
+            || (float) $request->input('delivery_radius_km') > 100)) {
+            return response()->json(['message' => 'Enter a delivery radius greater than zero and no more than 100 km before activating delivery.'], 422);
+        }
         if (! $hasLatitude) {
             $geocoded = $geocoding->geocodeAddress((string) $request->input('address', ''));
-            if (! $geocoded) {
+            if (! $geocoded || ($geocoded['isBroad'] ?? false)) {
                 return response()->json([
-                    'message' => 'We could not locate this branch address. Enter valid latitude and longitude or update the address.',
-                    'errors' => ['address' => ['Address could not be geocoded; provide manual coordinates to save this branch.']],
+                    'message' => 'The address only identifies a broad area. Pin the exact branch location or provide a specific street or landmark.',
+                    'errors' => ['address' => ['Confirm the exact branch pin before activating delivery.']],
                 ], 422);
             }
             $latitude = $geocoded['lat'];
             $longitude = $geocoded['lng'];
         }
 
-        if ($request->boolean('is_active', true) && $request->boolean('delivery_enabled', true)
+        if ($activeDelivery
             && ! app(BranchRoutingService::class)->validBranchCoordinatePair($latitude, $longitude)) {
             return response()->json(['message' => 'Valid Philippine latitude and longitude are required before enabling delivery for an active branch.'], 422);
         }
@@ -312,7 +320,7 @@ trait FranchiseAdminActions
             'is_active' => $request->boolean('is_active', true),
             'accepts_online_orders' => $request->boolean('accepts_online_orders', true),
             'delivery_enabled' => $request->boolean('delivery_enabled', true),
-            'delivery_radius_km' => $request->input('delivery_radius_km', config('delivery.default_radius_km', 15)),
+            'delivery_radius_km' => $request->input('delivery_radius_km', config('delivery.default_radius_km')),
             'location_status' => $hasLatitude ? 'manual' : 'geocoded',
             'location_error' => null,
             'owner_admin_id' => null,
@@ -360,6 +368,15 @@ trait FranchiseAdminActions
         }
 
         $willHaveDelivery = $request->has('delivery_enabled') ? $request->boolean('delivery_enabled') : (bool) $franchise->delivery_enabled;
+        $willBeActive = $request->has('is_active') ? $request->boolean('is_active') : (bool) $franchise->is_active;
+        $willHaveActiveStatus = $request->input('status', $franchise->status) === 'active';
+        $activeDelivery = $willHaveDelivery && $willBeActive && $willHaveActiveStatus;
+        $deliveryRadius = $request->has('delivery_radius_km')
+            ? $request->input('delivery_radius_km')
+            : $franchise->delivery_radius_km;
+        if ($activeDelivery && (! is_numeric($deliveryRadius) || (float) $deliveryRadius <= 0 || (float) $deliveryRadius > 100)) {
+            return response()->json(['message' => 'Enter a delivery radius greater than zero and no more than 100 km before activating delivery.'], 422);
+        }
         $latitude = $hasLatitude ? $request->input('latitude') : $franchise->latitude;
         $longitude = $hasLongitude ? $request->input('longitude') : $franchise->longitude;
         $address = $request->input('address', $franchise->address);
@@ -368,17 +385,17 @@ trait FranchiseAdminActions
         $hasExistingCoordinates = app(BranchRoutingService::class)->validBranchCoordinatePair($franchise->latitude, $franchise->longitude);
         if (! $hasLatitude && ($addressChanged || ! $hasExistingCoordinates)) {
             $geocoded = $geocoding->geocodeAddress((string) $address);
-            if (! $geocoded) {
+            if (! $geocoded || ($geocoded['isBroad'] ?? false)) {
                 return response()->json([
-                    'message' => 'We could not locate this branch address. Enter valid latitude and longitude or update the address.',
-                    'errors' => ['address' => ['Address could not be geocoded; provide manual coordinates to save this branch.']],
+                    'message' => 'The address only identifies a broad area. Pin the exact branch location or provide a specific street or landmark.',
+                    'errors' => ['address' => ['Confirm the exact branch pin before activating delivery.']],
                 ], 422);
             }
             $latitude = $geocoded['lat'];
             $longitude = $geocoded['lng'];
             $geocodedNewCoordinates = true;
         }
-        if ($willHaveDelivery && ! app(BranchRoutingService::class)->validBranchCoordinatePair($latitude, $longitude)) {
+        if ($activeDelivery && ! app(BranchRoutingService::class)->validBranchCoordinatePair($latitude, $longitude)) {
             return response()->json(['message' => 'Valid Philippine latitude and longitude are required before enabling delivery for this branch.'], 422);
         }
 

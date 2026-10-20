@@ -85,6 +85,13 @@ const AdminFranchiseDetailPage: React.FC = () => {
       let longitude = branchCoordinates.longitude ? Number(branchCoordinates.longitude) : null;
       let locationStatus = branch.location_status;
       const addressChanged = branchAddress.trim() !== (branch.address || '').trim();
+      const isActive = form.get('is_active') === 'on';
+      const isDeliveryEnabled = form.get('delivery_enabled') === 'on';
+      const deliveryRadius = form.get('delivery_radius_km');
+      if (isActive && form.get('status') === 'active' && isDeliveryEnabled
+        && (!deliveryRadius || !Number.isFinite(Number(deliveryRadius)) || Number(deliveryRadius) <= 0 || Number(deliveryRadius) > 100)) {
+        throw new Error('Enter a delivery radius greater than zero and no more than 100 km before activating delivery.');
+      }
       if (!branchCoordinatesEdited && (addressChanged || latitude === null || longitude === null) && branchAddress.trim()) {
         const result = await geocodeAddress(branchAddress.trim());
         if (!result || result.isBroad) {
@@ -96,9 +103,7 @@ const AdminFranchiseDetailPage: React.FC = () => {
       } else if (branchCoordinatesEdited) {
         locationStatus = 'manual';
       }
-      if ((latitude === null || longitude === null)
-        && form.get('is_active') === 'on'
-        && form.get('status') === 'active') {
+      if ((latitude === null || longitude === null) && isActive && form.get('status') === 'active' && isDeliveryEnabled) {
         throw new Error('Enter valid branch coordinates or pin the branch location before activating delivery.');
       }
       const updated = await updateFranchise(id, {
@@ -109,8 +114,8 @@ const AdminFranchiseDetailPage: React.FC = () => {
         status: String(form.get('status') || 'active'),
         latitude,
         longitude,
-        delivery_radius_km: form.get('delivery_radius_km') ? Number(form.get('delivery_radius_km')) : null,
-        is_active: form.get('is_active') === 'on',
+        delivery_radius_km: deliveryRadius ? Number(deliveryRadius) : null,
+        is_active: isActive,
         accepts_online_orders: form.get('accepts_online_orders') === 'on',
         delivery_enabled: form.get('delivery_enabled') === 'on',
         location_status: locationStatus,
@@ -276,15 +281,15 @@ const AdminFranchiseDetailPage: React.FC = () => {
               <Field label="Contact email" name="email" type="email" defaultValue={branch.email || ''} />
               <Field label="Phone" name="phone" defaultValue={branch.phone || ''} />
               <label className="text-sm font-medium text-gray-700">Status<select name="status" defaultValue={branch.status || 'active'} className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 font-normal"><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select></label>
-              <label className="text-sm font-medium text-gray-700 sm:col-span-2">Address<textarea name="address" value={branchAddress} onChange={(event) => setBranchAddress(event.target.value)} rows={3} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
+              <label className="text-sm font-medium text-gray-700 sm:col-span-2">Address<textarea name="address" value={branchAddress} onChange={(event) => { setBranchAddress(event.target.value); setBranchCoordinatesEdited(false); setBranchCoordinates({ latitude: '', longitude: '' }); }} rows={3} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
               <div className="sm:col-span-2 rounded-xl border border-[var(--oppa-border)] p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Branch delivery location</h3><p className="text-xs text-gray-500">Location status: {branch.location_status === 'needs_location' ? 'Needs location' : branch.location_status === 'manual' ? 'Manually set' : branch.location_status === 'geocoded' ? 'Geocoded estimate' : 'Not recorded'}</p>{branch.location_status === 'geocoded' && <p className="text-xs text-gray-500">Location is estimated from the address. Adjust the pin if needed.</p>}</div><div className="flex flex-wrap gap-2">{(!branch.latitude || !branch.longitude) && <button type="button" onClick={() => void geocodeAndSaveBranchCoordinates()} disabled={saving} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-50">Re-detect from address</button>}<button type="button" onClick={() => setShowBranchLocationPicker(true)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)]"><MapPin size={15} />Pin on map</button></div></div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="text-sm font-medium text-gray-700">Latitude<input name="latitude" type="number" min="4" max="22" step="any" required={branch.is_active !== false && branch.status === 'active'} value={branchCoordinates.latitude} onChange={(event) => { setBranchCoordinatesEdited(true); setBranchCoordinates((current) => ({ ...current, latitude: event.target.value })); }} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
-                  <label className="text-sm font-medium text-gray-700">Longitude<input name="longitude" type="number" min="116" max="127" step="any" required={branch.is_active !== false && branch.status === 'active'} value={branchCoordinates.longitude} onChange={(event) => { setBranchCoordinatesEdited(true); setBranchCoordinates((current) => ({ ...current, longitude: event.target.value })); }} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
+                  <label className="text-sm font-medium text-gray-700">Latitude<input name="latitude" type="number" min="4" max="22" step="any" required={branch.is_active !== false && branch.status === 'active' && branch.delivery_enabled !== false} value={branchCoordinates.latitude} onChange={(event) => { setBranchCoordinatesEdited(true); setBranchCoordinates((current) => ({ ...current, latitude: event.target.value })); }} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
+                  <label className="text-sm font-medium text-gray-700">Longitude<input name="longitude" type="number" min="116" max="127" step="any" required={branch.is_active !== false && branch.status === 'active' && branch.delivery_enabled !== false} value={branchCoordinates.longitude} onChange={(event) => { setBranchCoordinatesEdited(true); setBranchCoordinates((current) => ({ ...current, longitude: event.target.value })); }} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
                 </div>
               </div>
-              <Field label="Delivery radius (km)" name="delivery_radius_km" type="number" defaultValue={branch.delivery_radius_km == null ? '15' : String(branch.delivery_radius_km)} />
+              <Field label="Delivery radius (km)" name="delivery_radius_km" type="number" min={0.1} max={100} step="any" defaultValue={branch.delivery_radius_km == null ? '' : String(branch.delivery_radius_km)} />
               <div className="flex flex-wrap items-center gap-4 sm:col-span-2">
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="is_active" defaultChecked={branch.is_active !== false} />Active</label>
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="accepts_online_orders" defaultChecked={branch.accepts_online_orders !== false} />Accept online orders</label>
@@ -322,6 +327,6 @@ const AdminFranchiseDetailPage: React.FC = () => {
 const Panel: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({ title, children, className = '' }) => <section className={`rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm ${className}`}><h2 className="mb-4 text-lg font-semibold">{title}</h2>{children}</section>;
 const Metric: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-4 shadow-sm"><p className="text-sm text-gray-500">{label}</p><p className="mt-2 text-xl font-semibold">{value}</p></div>;
 const Info: React.FC<{ label: string; value?: string | null }> = ({ label, value }) => <div><dt className="text-xs uppercase tracking-wider text-gray-500">{label}</dt><dd className="mt-1 text-sm">{value || 'Not provided'}</dd></div>;
-const Field: React.FC<{ label: string; name?: string; value?: string; defaultValue?: string; onChange?: (value: string) => void; type?: string; required?: boolean; minLength?: number }> = ({ label, name, value, defaultValue, onChange, type = 'text', required, minLength }) => <label className="block text-sm font-medium text-gray-700">{label}<input name={name} type={type} value={value} defaultValue={defaultValue} onChange={onChange ? (event) => onChange(event.target.value) : undefined} required={required} minLength={minLength} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>;
+const Field: React.FC<{ label: string; name?: string; value?: string; defaultValue?: string; onChange?: (value: string) => void; type?: string; required?: boolean; minLength?: number; min?: number; max?: number; step?: string }> = ({ label, name, value, defaultValue, onChange, type = 'text', required, minLength, min, max, step }) => <label className="block text-sm font-medium text-gray-700">{label}<input name={name} type={type} value={value} defaultValue={defaultValue} onChange={onChange ? (event) => onChange(event.target.value) : undefined} required={required} minLength={minLength} min={min} max={max} step={step} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>;
 
 export default AdminFranchiseDetailPage;

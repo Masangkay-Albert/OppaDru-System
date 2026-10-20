@@ -16,6 +16,7 @@ import {
 import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 import { FranchiseSkeleton, FranchiseStatusPill } from '../../franchise-side/components/FranchisePortalUI';
 import InlineMessage from '../../shared/components/InlineMessage';
+import LocationPicker from '../../customer-side/components/common/LocationPicker';
 import '../../franchise-side/pages/FranchisePortalDesign.css';
 
 const statusTitle = franchiseStatusLabel;
@@ -488,6 +489,8 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   const [application, setApplication] = useState<FranchiseApplication | null>(null);
   const [status, setStatus] = useState('');
   const [proposedLocation, setProposedLocation] = useState('');
+  const [proposedCoordinates, setProposedCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [showProposedLocationPicker, setShowProposedLocationPicker] = useState(false);
   const [instructions, setInstructions] = useState('');
   const [interviewAt, setInterviewAt] = useState('');
   const [minimumInterviewAt, setMinimumInterviewAt] = useState(minimumManilaDateTime);
@@ -532,6 +535,11 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
           : storedStatus;
         setStatus(legacyReviewStatus);
         setProposedLocation(data.location || '');
+        setProposedCoordinates(
+          Number.isFinite(data.proposed_latitude) && Number.isFinite(data.proposed_longitude)
+            ? { lat: Number(data.proposed_latitude), lng: Number(data.proposed_longitude) }
+            : null,
+        );
         setInstructions(data.next_step_instructions || '');
         setInterviewAt(data.interview_at ? toManilaDateTimeInput(data.interview_at) : '');
         setInterviewType(data.interview_type || 'online');
@@ -598,6 +606,11 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     try {
       await reviewFranchiseApplication(id, {
         status,
+        location: proposedLocation.trim(),
+        ...(proposedCoordinates ? {
+          proposed_latitude: proposedCoordinates.lat,
+          proposed_longitude: proposedCoordinates.lng,
+        } : {}),
         next_step_instructions: instructions,
         ...(interviewAt && (status === 'for_interview' || interviewChanged) ? { interview_at: interviewAtIso } : {}),
         interview_type: interviewType,
@@ -675,6 +688,14 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     setApproving(true);
     setError('');
     try {
+      await reviewFranchiseApplication(id, {
+        status: application.status || status,
+        location: proposedLocation.trim(),
+        ...(proposedCoordinates ? {
+          proposed_latitude: proposedCoordinates.lat,
+          proposed_longitude: proposedCoordinates.lng,
+        } : {}),
+      });
       const result = await approveFranchiseApplication(id);
       setApprovalDialogOpen(false);
       formDirty.current = false;
@@ -701,6 +722,10 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       await reviewFranchiseApplication(id, {
         status: 'approved',
         location: proposedLocation.trim(),
+        ...(proposedCoordinates ? {
+          proposed_latitude: proposedCoordinates.lat,
+          proposed_longitude: proposedCoordinates.lng,
+        } : {}),
       });
       const result = await approveFranchiseApplication(id);
       formDirty.current = false;
@@ -751,7 +776,35 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                 <h2 className="mb-4 font-semibold text-[var(--oppa-text)]">Applicant and business profile</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Info label="Applicant address" value={application.applicant_address || 'Not provided'} />
-                  <Info label="Proposed location" value={application.location || 'Not provided'} />
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">
+                      Proposed branch location
+                      <textarea
+                        value={proposedLocation}
+                        onChange={(event) => {
+                          setProposedLocation(event.target.value);
+                          setProposedCoordinates(null);
+                        }}
+                        rows={2}
+                        maxLength={2000}
+                        className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]"
+                      />
+                    </label>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-[var(--oppa-text-muted)]">
+                        {proposedCoordinates
+                          ? `Confirmed map pin: ${proposedCoordinates.lat.toFixed(6)}, ${proposedCoordinates.lng.toFixed(6)}`
+                          : 'Confirm the exact branch entrance on the map if the address geocodes only to a city or town.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowProposedLocationPicker(true)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)]"
+                      >
+                        <MapPin size={14} />Pin branch location
+                      </button>
+                    </div>
+                  </div>
                   <Info label="Proposed business name" value={application.franchise_name} />
                   <Info label="Investment capacity" value={money(application.investment_capacity)} />
                   <Info label="Proposed property" value={application.property_status === 'looking' ? 'Still looking' : application.property_status === 'yes' || application.has_proposed_property ? 'Yes' : 'No'} />
@@ -779,7 +832,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                 : <InlineMessage variant="warning" message="Needs location: approval is complete, but the branch and dashboard are not provisioned until its address can be located." />)}
               {approvalNotice && <InlineMessage variant="warning" message={approvalNotice} />}
               {application.status === 'approved' && !application.franchise_id && <>
-                <label className="block text-sm font-medium">Proposed branch address<input value={proposedLocation} onChange={(event) => setProposedLocation(event.target.value)} maxLength={2000} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
+                <label className="block text-sm font-medium">Proposed branch address<input value={proposedLocation} onChange={(event) => { setProposedLocation(event.target.value); setProposedCoordinates(null); }} maxLength={2000} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
                 <button type="button" onClick={() => void saveLocationAndRetryProvisioning()} disabled={approving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500 px-4 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-60">
                   {approving ? <Loader2 size={16} className="animate-spin" /> : <MapPin size={16} />}
                   {approving ? 'Saving and retrying…' : 'Save address and retry setup'}
@@ -862,6 +915,19 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             </div>
           </section>
         </div>
+      )}
+      {showProposedLocationPicker && (
+        <LocationPicker
+          initialLat={proposedCoordinates?.lat}
+          initialLng={proposedCoordinates?.lng}
+          initialAddress={proposedLocation}
+          onClose={() => setShowProposedLocationPicker(false)}
+          onSelectLocation={(location) => {
+            setProposedLocation(location.address);
+            setProposedCoordinates({ lat: location.lat, lng: location.lng });
+            setShowProposedLocationPicker(false);
+          }}
+        />
       )}
       </div>
     </AdminLayout>

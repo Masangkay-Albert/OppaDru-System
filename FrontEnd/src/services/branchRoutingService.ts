@@ -32,7 +32,6 @@ export class BranchResolutionError extends Error {
   }
 }
 
-const recentResolutions = new Map<string, { resolvedAt: number; result: BranchResolution }>();
 const pendingResolutions = new Map<string, Promise<BranchResolution>>();
 
 const resolutionKey = (data: {
@@ -72,9 +71,6 @@ export const resolveBranch = async (data: {
 }, signal?: AbortSignal): Promise<BranchResolution> => {
   if (signal?.aborted) throw new DOMException('The request was cancelled.', 'AbortError');
   const key = resolutionKey(data);
-  const cached = recentResolutions.get(key);
-  if (cached && Date.now() - cached.resolvedAt < 10000) return cached.result;
-
   let request = pendingResolutions.get(key);
   if (!request) {
     request = (async () => {
@@ -95,13 +91,7 @@ export const resolveBranch = async (data: {
             response.status,
           );
         }
-        const result = payload.data as BranchResolution;
-        recentResolutions.set(key, { resolvedAt: Date.now(), result });
-        if (recentResolutions.size > 100) {
-          const oldestKey = recentResolutions.keys().next().value;
-          if (oldestKey) recentResolutions.delete(oldestKey);
-        }
-        return result;
+        return payload.data as BranchResolution;
       } finally {
         pendingResolutions.delete(key);
       }

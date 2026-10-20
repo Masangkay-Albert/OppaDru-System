@@ -382,6 +382,12 @@ class OrderPlacementTest extends TestCase
             'phone' => '09170000006',
             'address' => 'Central St',
             'status' => 'active',
+            'latitude' => 14.3194,
+            'longitude' => 120.9943,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 15,
         ]);
         $product = Product::create([
             'name' => 'Central Branch Chicken',
@@ -417,6 +423,7 @@ class OrderPlacementTest extends TestCase
                 ]],
                 'total' => 0,
                 'delivery_address' => 'Central St, Dasmarinas, Cavite',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'cash_on_delivery',
                 'phone' => $user->phone,
             ]);

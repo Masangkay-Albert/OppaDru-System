@@ -54,6 +54,48 @@ class BranchRoutingTest extends TestCase
         }
     }
 
+    public function test_pinned_baliwag_address_routes_to_the_bulacan_branch(): void
+    {
+        $bulacan = $this->branch('Oppa Dru Korean Fried Chicken - Bulacan', 14.9623967, 120.8970206);
+        $bulacan->delivery_radius_km = 20;
+        $bulacan->save();
+        $product = $this->product();
+        $this->addInventory($bulacan, $product);
+
+        $this->postJson('/api/branches/resolve', [
+            'address' => 'Puregold, Bagong Nayon, Baliwag, Bulacan',
+            'coordinates' => ['lat' => 14.9623967, 'lng' => 120.8970206],
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertOk()
+            ->assertJsonPath('data.branch.id', $bulacan->id)
+            ->assertJsonPath('data.branch.name', 'Oppa Dru Korean Fried Chicken - Bulacan');
+    }
+
+    public function test_bulakan_town_pin_reports_the_bulacan_branch_outside_its_radius(): void
+    {
+        config(['app.debug' => true]);
+        $bulacan = $this->branch('Oppa Dru Korean Fried Chicken - Bulacan', 14.9623967, 120.8970206);
+        $bulacan->delivery_radius_km = 15;
+        $bulacan->save();
+        $product = $this->product();
+
+        $response = $this->postJson('/api/branches/resolve', [
+            'address' => 'Bulakan, Bulacan, Central Luzon, 3017, Philippines',
+            'coordinates' => ['lat' => 14.7946733, 'lng' => 120.8792703],
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertUnprocessable()
+            ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
+            ->assertJsonPath('message', 'Nearest branch is Oppa Dru Korean Fried Chicken - Bulacan, 18.7 km away, outside its 15.0 km delivery radius.');
+
+        $diagnostic = $response->json('branch_diagnostics.0');
+        $this->assertSame($bulacan->id, $diagnostic['id']);
+        $this->assertFalse($diagnostic['eligible']);
+        $this->assertSame('outside delivery radius', $diagnostic['exclusion_reason']);
+        $this->assertEquals(18.747, $diagnostic['distance_km']);
+    }
+
     public function test_address_is_geocoded_when_checkout_does_not_send_a_pin(): void
     {
         $branch = $this->branch('Cavite branch', 14.3500, 120.9500);
@@ -134,7 +176,29 @@ class BranchRoutingTest extends TestCase
             'fulfillment_type' => 'delivery',
         ])->assertUnprocessable()
             ->assertJsonPath('code', 'ADDRESS_TOO_BROAD')
-            ->assertJsonPath('message', 'This address only identifies a province or region. Add a city or barangay, or pin your exact location on the map.');
+        ->assertJsonPath('message', 'This address only identifies a city, town, province, or region. Pin your exact delivery location on the map.');
+    }
+
+    public function test_town_level_geocoding_is_rejected_until_the_customer_pins_the_exact_location(): void
+    {
+        $product = $this->product();
+        $this->mock(GeocodingService::class)
+            ->shouldReceive('geocodeAddress')
+            ->once()
+            ->andReturn([
+                'lat' => 14.7946733,
+                'lng' => 120.8792703,
+                'matchedQuery' => 'Bulakan, Bulacan, Central Luzon, 3017, Philippines',
+                'isBroad' => true,
+            ]);
+
+        $this->postJson('/api/branches/resolve', [
+            'address' => 'Bulakan, Bulacan, Central Luzon, 3017, Philippines',
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertUnprocessable()
+            ->assertJsonPath('code', 'ADDRESS_TOO_BROAD')
+        ->assertJsonPath('message', 'This address only identifies a city, town, province, or region. Pin your exact delivery location on the map.');
     }
 
     public function test_null_branch_coordinates_are_reported_in_debug_diagnostics(): void
@@ -169,7 +233,7 @@ class BranchRoutingTest extends TestCase
             'coordinates' => ['lat' => 14.3194939, 'lng' => 120.9943268],
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
-        ])->assertNotFound()
+        ])->assertUnprocessable()
             ->assertJsonPath('code', 'BRANCHES_NOT_CONFIGURED');
     }
 
@@ -194,7 +258,7 @@ class BranchRoutingTest extends TestCase
         $this->assertFalse($branch->fresh()->delivery_enabled);
     }
 
-    public function test_customer_outside_delivery_radius_gets_specific_message(): void
+    public function test_customer_outside_delivery_radius_gets_nearest_branch_distance_and_radius(): void
     {
         $branch = $this->branch('Cavite branch', 14.3500, 120.9500);
         $branch->delivery_radius_km = 1;
@@ -206,24 +270,24 @@ class BranchRoutingTest extends TestCase
             'coordinates' => ['lat' => 14.3194939, 'lng' => 120.9943268],
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
-        ])->assertNotFound()
+        ])->assertUnprocessable()
             ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
-            ->assertJsonPath('message', 'No active branch is within its delivery radius of this location. Confirm the pin, or ask the administrator to check the branch location and delivery coverage.');
+            ->assertJsonPath('message', 'Nearest branch is Cavite branch, 5.9 km away, outside its 1.0 km delivery radius.');
     }
 
-    public function test_null_branch_radius_uses_the_fifteen_kilometer_default(): void
+    public function test_null_branch_radius_uses_the_configured_default(): void
     {
+        config(['app.debug' => true, 'delivery.default_radius_km' => 20]);
         $this->branch('Cavite branch', 14.3500, 120.9500);
         $product = $this->product();
 
         $this->postJson('/api/branches/resolve', [
             'address' => 'Dasmarinas, Cavite',
-            'coordinates' => ['lat' => 14.5, 'lng' => 120.9333],
+            'coordinates' => ['lat' => 14.4, 'lng' => 120.95],
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
-        ])->assertNotFound()
-            ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
-            ->assertJsonPath('message', 'No active branch is within its delivery radius of this location. Confirm the pin, or ask the administrator to check the branch location and delivery coverage.');
+        ])->assertOk()
+            ->assertJsonPath('data.branch_diagnostics.0.delivery_radius_km', 20);
     }
 
     public function test_branch_without_inventory_rows_returns_items_as_unavailable_without_throwing(): void

@@ -57,6 +57,8 @@ class FranchiseApplication extends Model
         'email',
         'phone',
         'location',
+        'proposed_latitude',
+        'proposed_longitude',
         'applicant_address',
         'business_experience',
         'investment_capacity',
@@ -102,6 +104,8 @@ class FranchiseApplication extends Model
     protected $casts = [
         'reviewed_at' => 'datetime',
         'investment_capacity' => 'decimal:2',
+        'proposed_latitude' => 'float',
+        'proposed_longitude' => 'float',
         'has_proposed_property' => 'boolean',
         'documents' => 'array',
         'interview_at' => 'datetime',

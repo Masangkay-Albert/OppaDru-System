@@ -45,6 +45,8 @@ export interface FranchiseApplication {
   email: string;
   phone?: string;
   location?: string;
+  proposed_latitude?: number | null;
+  proposed_longitude?: number | null;
   applicant_address?: string;
   business_experience?: string;
   investment_capacity?: string | number;
@@ -398,6 +400,8 @@ export const getFranchiseApplication = async (id: string | number): Promise<Fran
 export const reviewFranchiseApplication = async (id: string | number, data: {
   status: string;
   location?: string;
+  proposed_latitude?: number | null;
+  proposed_longitude?: number | null;
   request_document_packet?: boolean;
   admin_notes?: string;
   next_step_instructions?: string;

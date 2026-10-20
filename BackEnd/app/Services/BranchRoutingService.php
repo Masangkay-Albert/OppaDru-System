@@ -11,7 +11,6 @@ class BranchRoutingService
 {
     public const NO_BRANCH_COORDINATES_MESSAGE = 'No delivery branches have location coordinates configured yet.';
     public const NO_ELIGIBLE_DELIVERY_BRANCH_MESSAGE = 'No branch is currently accepting online deliveries.';
-    private const DEFAULT_MAX_DELIVERY_KM = 15.0;
 
     public function resolve(?array $coordinates, ?string $requestedBranchId = null, bool $pickup = false): array
     {
@@ -30,36 +29,27 @@ class BranchRoutingService
         $this->assertDeliveryCoordinates($coordinates);
 
         $allBranches = Franchise::with('franchiseAccount')->get();
-        $allBranches->each(function (Franchise $branch): void {
-            if ($branch->is_active && $branch->delivery_enabled && ! $this->validBranchCoordinates($branch)) {
-                Log::warning('Active delivery branch is excluded from routing because its coordinates are missing or invalid.', [
-                    'branch_id' => $branch->id,
-                    'branch_name' => $branch->name,
-                    'latitude' => $branch->latitude,
-                    'longitude' => $branch->longitude,
-                ]);
+        $diagnostics = collect($this->diagnostics($coordinates))->keyBy('id');
+        foreach ($diagnostics as $diagnostic) {
+            if ($diagnostic['exclusion_reason'] !== null) {
+                Log::warning('A franchise branch is excluded from delivery routing.', $diagnostic);
             }
-        });
+        }
+
         if (! $allBranches->contains(fn (Franchise $branch) => $this->validBranchCoordinates($branch))) {
-            Log::warning('Delivery branch resolution has no franchise rows with valid coordinates.');
+            Log::warning('Delivery branch resolution has no franchise rows with valid coordinates.', [
+                'customer_coordinates' => ['lat' => (float) $coordinates['lat'], 'lng' => (float) $coordinates['lng']],
+                'branches' => $diagnostics->values()->all(),
+            ]);
             throw new \InvalidArgumentException(self::NO_BRANCH_COORDINATES_MESSAGE);
         }
 
-        $branches = Franchise::query()
-            ->with('franchiseAccount')
-            ->where('is_active', true)
-            ->where('status', 'active')
-            ->where('accepts_online_orders', true)
-            ->where('delivery_enabled', true)
-            ->where(function ($query) {
-                $query->whereNull('franchise_account_id')
-                    ->orWhereHas('franchiseAccount', fn ($account) => $account->where('status', 'active'));
-            })
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude')
-            ->get()
-            ->filter(fn (Franchise $branch) => $this->validBranchCoordinates($branch));
+        $branches = $allBranches->filter(fn (Franchise $branch) => $this->hasDeliveryEligibility($branch));
         if ($branches->isEmpty()) {
+            Log::warning('Delivery branch resolution has no eligible active delivery branches.', [
+                'customer_coordinates' => ['lat' => (float) $coordinates['lat'], 'lng' => (float) $coordinates['lng']],
+                'branches' => $diagnostics->values()->all(),
+            ]);
             throw new \InvalidArgumentException(self::NO_ELIGIBLE_DELIVERY_BRANCH_MESSAGE);
         }
 
@@ -78,7 +68,7 @@ class BranchRoutingService
                 'load' => (int) ($loads[$branch->id] ?? 0),
             ]);
 
-        $branches = $evaluatedBranches
+        $withinRange = $evaluatedBranches
             ->filter(fn (array $candidate) => $candidate['distance'] <= $candidate['radius'])
             ->sort(function (array $left, array $right) {
                 if ($left['distance'] !== $right['distance']) return $left['distance'] <=> $right['distance'];
@@ -88,18 +78,21 @@ class BranchRoutingService
             })
             ->values();
 
-        $selected = $branches->first();
+        $selected = $withinRange->first();
         if (! $selected) {
+            $nearest = $evaluatedBranches->sortBy('distance')->first();
+            $nearestBranch = $nearest['branch'];
+            $nearestMessage = sprintf(
+                'Nearest branch is %s, %.1f km away, outside its %.1f km delivery radius.',
+                $nearestBranch->name,
+                $nearest['distance'],
+                $nearest['radius'],
+            );
             Log::warning('No eligible delivery branch is within range of the selected address.', [
-                'branches' => $evaluatedBranches->map(fn (array $candidate) => [
-                    'franchise_account_id' => $candidate['branch']->franchise_account_id,
-                    'branch_id' => $candidate['branch']->id,
-                    'name' => $candidate['branch']->name,
-                    'distance_km' => round($candidate['distance'], 3),
-                    'delivery_radius_km' => $candidate['radius'],
-                ])->all(),
+                'customer_coordinates' => ['lat' => (float) $coordinates['lat'], 'lng' => (float) $coordinates['lng']],
+                'branches' => $diagnostics->values()->all(),
             ]);
-            throw new \InvalidArgumentException('No branch delivers to this address.');
+            throw new \InvalidArgumentException($nearestMessage);
         }
         if (! $selected['open']) {
             throw new \InvalidArgumentException('The nearest branch is currently closed. Please try again during branch hours.');
@@ -125,6 +118,7 @@ class BranchRoutingService
             if (! $branch->delivery_enabled) $reasons[] = 'delivery disabled';
             if ($branch->franchise_account_id && $branch->franchiseAccount?->status !== 'active') $reasons[] = 'franchise account inactive';
             if (! $this->validBranchCoordinates($branch)) $reasons[] = 'missing or invalid coordinates';
+            if (! $this->validDeliveryRadius($branch)) $reasons[] = 'invalid delivery radius';
             $open = $this->isOpen($branch);
             if (! $open) $reasons[] = 'currently closed';
 
@@ -139,6 +133,7 @@ class BranchRoutingService
             return [
                 'id' => $branch->id,
                 'name' => $branch->name,
+                'franchise_account_id' => $branch->franchise_account_id,
                 'latitude' => $branch->latitude,
                 'longitude' => $branch->longitude,
                 'is_active' => $branch->is_active,
@@ -148,7 +143,7 @@ class BranchRoutingService
                 'delivery_radius_km' => $deliveryRadius,
                 'distance_km' => $distance,
                 'open' => $open,
-                'eligible' => ! array_intersect($reasons, ['inactive', 'online orders disabled', 'delivery disabled', 'franchise account inactive', 'missing or invalid coordinates', 'outside delivery radius']),
+                'eligible' => ! array_intersect($reasons, ['inactive', 'online orders disabled', 'delivery disabled', 'franchise account inactive', 'missing or invalid coordinates', 'invalid delivery radius', 'outside delivery radius', 'currently closed']),
                 'exclusion_reasons' => $reasons,
                 'exclusion_reason' => $reasons ? implode(', ', $reasons) : null,
             ];
@@ -159,10 +154,31 @@ class BranchRoutingService
     {
         $configuredRadius = $branch->delivery_radius_km;
         $radius = $configuredRadius === null
-            ? config('services.delivery.max_km', self::DEFAULT_MAX_DELIVERY_KM)
+            ? config('delivery.default_radius_km')
             : $configuredRadius;
 
         return min(100.0, max(0.0, (float) $radius));
+    }
+
+    private function hasDeliveryEligibility(Franchise $branch): bool
+    {
+        return $branch->is_active
+            && $branch->status === 'active'
+            && $branch->accepts_online_orders
+            && $branch->delivery_enabled
+            && (! $branch->franchise_account_id || $branch->franchiseAccount?->status === 'active')
+            && $this->validBranchCoordinates($branch)
+            && $this->validDeliveryRadius($branch);
+    }
+
+    private function validDeliveryRadius(Franchise $branch): bool
+    {
+        $configuredRadius = $branch->delivery_radius_km ?? config('delivery.default_radius_km');
+
+        return is_numeric($configuredRadius)
+            && is_finite((float) $configuredRadius)
+            && (float) $configuredRadius > 0
+            && (float) $configuredRadius <= 100;
     }
 
     public function validateCatalog(string $branchId, array $items): array

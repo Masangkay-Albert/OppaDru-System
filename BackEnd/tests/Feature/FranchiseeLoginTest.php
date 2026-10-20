@@ -45,6 +45,8 @@ class FranchiseeLoginTest extends TestCase
         [$applicant, $application] = $this->createApplicantApplication();
         $application->forceFill([
             'status' => 'approved_for_opening',
+            'proposed_latitude' => 10.3157,
+            'proposed_longitude' => 123.8854,
             'agreement_status' => 'signed',
             'agreement_signed_at' => now(),
             'franchise_fee_payment_status' => 'not_applicable',
@@ -238,16 +240,11 @@ class FranchiseeLoginTest extends TestCase
         ]);
     }
 
-    public function test_approval_is_preserved_when_location_cannot_be_geocoded_and_retry_provisions_once_found(): void
+    public function test_approval_is_blocked_until_an_exact_branch_pin_is_confirmed(): void
     {
         Mail::fake();
         $geocoder = $this->mock(GeocodingService::class);
-        $geocoder->shouldReceive('geocodeAddress')
-            ->twice()
-            ->andReturn(
-                null,
-                ['lat' => 14.3294, 'lng' => 120.9367, 'matchedQuery' => 'Dasmarinas, Cavite'],
-            );
+        $geocoder->shouldReceive('geocodeAddress')->once()->andReturn(null);
         [$applicant, $application] = $this->createApplicantApplication();
         $application->forceFill([
             'status' => 'location_assessment',
@@ -267,22 +264,22 @@ class FranchiseeLoginTest extends TestCase
         $headers = ['Authorization' => 'Bearer '.$adminToken];
 
         $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)
-            ->assertOk()
-            ->assertJsonPath('data.status', 'approved')
-            ->assertJsonPath('data.franchise_id', null)
-            ->assertJsonPath('provisioning_pending', true);
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'The branch location could not be precisely geocoded. Confirm the exact branch pin on the map or provide a specific street or landmark before approval.');
 
         $this->assertDatabaseCount('franchises', 0);
         $this->assertDatabaseMissing('franchise_users', ['email' => $applicant->email]);
         $this->assertDatabaseHas('franchise_applications', [
             'id' => $application->id,
-            'status' => 'approved',
+            'status' => 'location_assessment',
             'franchise_id' => null,
         ]);
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
-            'status' => 'approved',
-            'location' => 'Dasmarinas, Cavite',
+            'status' => 'location_assessment',
+            'location' => 'Exact branch pin, Dasmarinas, Cavite',
+            'proposed_latitude' => 14.3294,
+            'proposed_longitude' => 120.9367,
         ], $headers)->assertOk();
 
         $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)

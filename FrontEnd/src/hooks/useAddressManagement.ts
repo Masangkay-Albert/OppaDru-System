@@ -21,6 +21,7 @@ export interface SavedAddress {
   label?: string;
   details?: AddressDetails;
   needsPin?: boolean;
+  pinConfirmed?: boolean;
 }
 
 interface UseAddressManagementProps {
@@ -29,8 +30,16 @@ interface UseAddressManagementProps {
 }
 
 const STORAGE_KEY = 'oppa_dru_addresses';
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 const PHILIPPINES_BOUNDS = { minLat: 4, maxLat: 22, minLng: 116, maxLng: 127 };
+
+const isVagueAddress = (value: string): boolean => {
+  const parts = value.split(',').map((part) => part.trim()).filter(Boolean);
+  const locationParts = parts.filter((part) => !/^\d{4,6}$/.test(part) && !/^philippines$/i.test(part));
+  const hasSpecificDetail = /\b\d+\s+\w+|\b(street|st\.|road|rd\.|avenue|ave\.|highway|hwy|barangay|brgy|subdivision|village|building|bldg|unit|house|purok|sitio)\b/i.test(value);
+
+  return !hasSpecificDetail && locationParts.length <= 3;
+};
 
 const getCoordinates = (address: SavedAddress): { lat: number; lng: number } | undefined => {
   if (!Number.isFinite(address.lat) || !Number.isFinite(address.lng)) return undefined;
@@ -40,10 +49,12 @@ const getCoordinates = (address: SavedAddress): { lat: number; lng: number } | u
 };
 
 const normalizeSavedAddress = (address: SavedAddress): SavedAddress => {
-  const coordinates = address.needsPin ? undefined : getCoordinates(address);
+  const coordinates = address.needsPin || (!address.pinConfirmed && isVagueAddress(address.address))
+    ? undefined
+    : getCoordinates(address);
   return {
     ...address,
-    needsPin: address.needsPin === true || !coordinates,
+    needsPin: address.needsPin === true || !coordinates || (!address.pinConfirmed && isVagueAddress(address.address)),
     ...(coordinates || { lat: undefined, lng: undefined }),
   };
 };
@@ -104,6 +115,7 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
       address: location.address,
       lat: location.lat,
       lng: location.lng,
+      pinConfirmed: true,
       isDefault: savedAddresses.length === 0,
       details: editingAddress?.details || {}
     };

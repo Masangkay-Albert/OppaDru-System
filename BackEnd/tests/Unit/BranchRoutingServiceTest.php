@@ -100,7 +100,7 @@ class BranchRoutingServiceTest extends TestCase
 
     public function test_imus_and_bacoor_coordinates_select_cavite_branch(): void
     {
-        config(['services.delivery.max_km' => 20]);
+        config(['delivery.default_radius_km' => 20]);
         $cavite = $this->branch('Cavite branch', 14.3167, 120.9333);
         $this->branch('Laguna branch', 14.272967, 121.093142);
         $routing = app(BranchRoutingService::class);

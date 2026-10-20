@@ -237,7 +237,7 @@ class FranchiseAccountController extends Controller
             'is_active' => 'nullable|boolean',
             'accepts_online_orders' => 'nullable|boolean',
             'delivery_enabled' => 'nullable|boolean',
-            'delivery_radius_km' => 'nullable|numeric|min:0',
+            'delivery_radius_km' => 'nullable|numeric|gt:0|max:100',
         ]);
         if ($validator->fails()) {
             return response()->json(['message' => 'The location details are invalid.', 'errors' => $validator->errors()], 422);
@@ -254,19 +254,27 @@ class FranchiseAccountController extends Controller
 
         $latitude = $request->input('latitude');
         $longitude = $request->input('longitude');
+        $activeDelivery = $request->boolean('is_active', true)
+            && $request->input('status', 'active') === 'active'
+            && $request->boolean('delivery_enabled', false);
+        if ($activeDelivery && (! is_numeric($request->input('delivery_radius_km'))
+            || (float) $request->input('delivery_radius_km') <= 0
+            || (float) $request->input('delivery_radius_km') > 100)) {
+            return response()->json(['message' => 'Enter a delivery radius greater than zero and no more than 100 km before activating delivery.'], 422);
+        }
         if (! $hasLatitude) {
             $geocoded = $geocoding->geocodeAddress((string) $request->input('address', ''));
-            if (! $geocoded) {
+            if (! $geocoded || ($geocoded['isBroad'] ?? false)) {
                 return response()->json([
-                    'message' => 'We could not locate this branch address. Enter valid latitude and longitude or update the address.',
-                    'errors' => ['address' => ['Address could not be geocoded; provide manual coordinates to save this location.']],
+                    'message' => 'The address only identifies a broad area. Pin the exact branch location or provide a specific street or landmark.',
+                    'errors' => ['address' => ['Confirm the exact branch pin before activating delivery.']],
                 ], 422);
             }
             $latitude = $geocoded['lat'];
             $longitude = $geocoded['lng'];
         }
 
-        if ($request->boolean('is_active', true) && $request->boolean('delivery_enabled', false)
+        if ($activeDelivery
             && ! app(BranchRoutingService::class)->validBranchCoordinatePair($latitude, $longitude)) {
             return response()->json(['message' => 'Valid Philippine latitude and longitude are required before enabling delivery for an active branch.'], 422);
         }

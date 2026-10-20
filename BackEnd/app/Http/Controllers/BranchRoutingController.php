@@ -60,10 +60,22 @@ class BranchRoutingController extends Controller
                 ], 422);
             }
             if ($geocoded['isBroad'] ?? false) {
-                return response()->json([
+                $broadCoordinates = ['lat' => (float) $geocoded['lat'], 'lng' => (float) $geocoded['lng']];
+                $diagnostics = $this->routing->diagnostics($broadCoordinates);
+                Log::info('Broad address geocode requires explicit map confirmation.', [
+                    'customer_coordinates' => $broadCoordinates,
+                    'matched_query' => $geocoded['matchedQuery'] ?? null,
+                    'branches' => $diagnostics,
+                ]);
+                $response = [
                     'code' => 'ADDRESS_TOO_BROAD',
-                    'message' => 'This address only identifies a province or region. Add a city or barangay, or pin your exact location on the map.',
-                ], 422);
+                    'message' => 'This address only identifies a city, town, province, or region. Pin your exact delivery location on the map.',
+                ];
+                if (config('app.debug')) {
+                    $response['branch_diagnostics'] = $diagnostics;
+                }
+
+                return response()->json($response, 422);
             }
             $coordinates = ['lat' => $geocoded['lat'], 'lng' => $geocoded['lng']];
         }
@@ -105,19 +117,14 @@ class BranchRoutingController extends Controller
             $code = match ($message) {
                 BranchRoutingService::NO_BRANCH_COORDINATES_MESSAGE => 'BRANCHES_NOT_CONFIGURED',
                 BranchRoutingService::NO_ELIGIBLE_DELIVERY_BRANCH_MESSAGE => 'NO_ELIGIBLE_BRANCH',
-                'No branch delivers to this address.' => 'NO_BRANCH_IN_RANGE',
-                default => 'BRANCH_RESOLUTION_FAILED',
+                default => str_starts_with($message, 'Nearest branch is ')
+                    ? 'NO_BRANCH_IN_RANGE'
+                    : 'BRANCH_RESOLUTION_FAILED',
             };
-            $status = in_array($code, [
-                'BRANCHES_NOT_CONFIGURED',
-                'NO_ELIGIBLE_BRANCH',
-                'NO_BRANCH_IN_RANGE',
-            ], true) ? 404 : 422;
+            $status = 422;
             $response = [
                 'code' => $code,
-                'message' => $code === 'NO_BRANCH_IN_RANGE'
-                    ? 'No active branch is within its delivery radius of this location. Confirm the pin, or ask the administrator to check the branch location and delivery coverage.'
-                    : $message,
+                'message' => $message,
             ];
             if (config('app.debug') && isset($coordinates['lat'], $coordinates['lng'])) {
                 $response['branch_diagnostics'] = $this->routing->diagnostics($coordinates);

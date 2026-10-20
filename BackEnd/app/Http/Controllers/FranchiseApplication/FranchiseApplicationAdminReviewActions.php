@@ -72,6 +72,8 @@ trait FranchiseApplicationAdminReviewActions
         $validator = Validator::make($request->all(), [
             'status' => 'required|string|in:'.implode(',', array_diff(FranchiseApplication::STATUSES, ['active', 'withdrawn'])),
             'location' => 'sometimes|required|string|max:2000',
+            'proposed_latitude' => 'sometimes|nullable|numeric|between:4,22',
+            'proposed_longitude' => 'sometimes|nullable|numeric|between:116,127',
             'request_document_packet' => 'sometimes|boolean',
             'admin_notes' => 'nullable|string|max:5000',
             'next_step_instructions' => 'nullable|string|max:2000',
@@ -85,6 +87,12 @@ trait FranchiseApplicationAdminReviewActions
         ]);
         if ($validator->fails()) {
             return response()->json(['message' => 'Review details are invalid.', 'errors' => $validator->errors()], 422);
+        }
+        if ($request->filled('proposed_latitude') !== $request->filled('proposed_longitude')) {
+            return response()->json([
+                'message' => 'Latitude and longitude must be provided together.',
+                'errors' => ['proposed_latitude' => ['Provide both map coordinates or leave both blank.']],
+            ], 422);
         }
 
         $targetStatus = $request->input('status');
@@ -234,6 +242,16 @@ trait FranchiseApplicationAdminReviewActions
             }
             if ($request->has('location')) {
                 $application->location = trim((string) $request->input('location'));
+                if ($previousLocation !== $application->location
+                    && ! $request->filled('proposed_latitude')
+                    && ! $request->filled('proposed_longitude')) {
+                    $application->proposed_latitude = null;
+                    $application->proposed_longitude = null;
+                }
+            }
+            if ($request->filled('proposed_latitude') && $request->filled('proposed_longitude')) {
+                $application->proposed_latitude = (float) $request->input('proposed_latitude');
+                $application->proposed_longitude = (float) $request->input('proposed_longitude');
             }
             if ($request->filled('admin_notes')) {
                 $application->admin_notes = trim(implode("\n\n", array_filter([

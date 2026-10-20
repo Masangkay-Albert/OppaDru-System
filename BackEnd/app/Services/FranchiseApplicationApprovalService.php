@@ -97,23 +97,9 @@ class FranchiseApplicationApprovalService
 
             $franchise = app(FranchiseProvisioningService::class)->provisionOnApproval($application);
             if (! $franchise) {
-                $application->next_step_instructions = 'Your application is approved, but branch location setup is pending. The dashboard will become available after an administrator confirms the branch address and completes provisioning.';
-                $application->save();
-
-                if (! $wasAlreadyApproved) {
-                    FranchiseApplicationEvent::create([
-                        'application_id' => $application->id,
-                        'actor_type' => 'admin',
-                        'actor_id' => $admin?->id === null ? null : (string) $admin->id,
-                        'status' => 'approved',
-                        'title' => 'Application approved; location setup pending',
-                        'message' => 'The application is approved, but the branch location could not be resolved. The dashboard remains inactive until an administrator fixes the location and retries provisioning.',
-                        'is_internal' => false,
-                        'created_at' => now(),
-                    ]);
-                }
-
-                return $application->fresh(['franchise', 'franchiseAccount', 'franchiseApplicant', 'events']);
+                throw new FranchiseApprovalException(
+                    'The branch location could not be precisely geocoded. Confirm the exact branch pin on the map or provide a specific street or landmark before approval.',
+                );
             }
 
             if ($existingUser && $existingUser->franchise_id

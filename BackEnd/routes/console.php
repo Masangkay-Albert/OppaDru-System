@@ -22,16 +22,33 @@ Artisan::command('branches:check {lat? : Customer latitude} {lng? : Customer lon
     }
 
     $rows = app(\App\Services\BranchRoutingService::class)->diagnostics($coordinates);
+    $misconfiguredDeliveryBranches = array_filter($rows, fn (array $branch) => $branch['is_active']
+        && $branch['delivery_enabled']
+        && array_intersect($branch['exclusion_reasons'], [
+            'online orders disabled',
+            'franchise account inactive',
+            'missing or invalid coordinates',
+            'invalid delivery radius',
+        ]));
     $this->table(
-        ['ID', 'Branch', 'Latitude', 'Longitude', 'Active', 'Status', 'Online', 'Delivery', 'Radius km', 'Distance km', 'Open', 'Eligible', 'Exclusion reasons'],
+        ['ID', 'Branch', 'Franchise account', 'Latitude', 'Longitude', 'Active', 'Status', 'Online', 'Delivery', 'Radius km', 'Distance km', 'Open', 'Eligible', 'Exclusion reasons'],
         array_map(fn (array $branch) => [
-            $branch['id'], $branch['name'], $branch['latitude'] ?? 'NULL', $branch['longitude'] ?? 'NULL',
+            $branch['id'], $branch['name'], $branch['franchise_account_id'] ?? 'NULL',
+            $branch['latitude'] ?? 'NULL', $branch['longitude'] ?? 'NULL',
             $branch['is_active'] ? 'yes' : 'no', $branch['status'], $branch['accepts_online_orders'] ? 'yes' : 'no',
             $branch['delivery_enabled'] ? 'yes' : 'no', $branch['delivery_radius_km'] ?? 'unlimited',
             $branch['distance_km'] ?? 'n/a', $branch['open'] ? 'yes' : 'no', $branch['eligible'] ? 'yes' : 'no',
             implode(', ', $branch['exclusion_reasons']) ?: '—',
         ], $rows),
     );
+    foreach ($misconfiguredDeliveryBranches as $branch) {
+        $this->warn(sprintf(
+            'Active delivery branch %s (%s) needs attention: %s',
+            $branch['name'],
+            $branch['id'],
+            implode(', ', $branch['exclusion_reasons']),
+        ));
+    }
     return 0;
 })->purpose('List branch routing eligibility and optional distance from a delivery location');
 

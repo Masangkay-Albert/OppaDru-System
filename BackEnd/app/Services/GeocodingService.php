@@ -23,7 +23,7 @@ class GeocodingService
             return null;
         }
 
-        $cacheKey = 'geocode:v2:'.md5(mb_strtolower($normalized));
+        $cacheKey = 'geocode:v3:'.md5(mb_strtolower($normalized));
         $cache = null;
         try {
             $cache = Cache::store('file');
@@ -65,7 +65,8 @@ class GeocodingService
                         'lat' => $latitude,
                         'lng' => $longitude,
                         'matchedQuery' => $query,
-                        'isBroad' => $this->isBroadResult($results[0]),
+                        'isBroad' => $this->isBroadResult($results[0])
+                            || ! $this->matchesFullQuery($query, $normalized),
                     ];
                     if ($cache) {
                         try {
@@ -95,7 +96,7 @@ class GeocodingService
     {
         $address = $result['address'] ?? null;
         if (! is_array($address)) {
-            return false;
+            return true;
         }
 
         foreach ([
@@ -105,19 +106,27 @@ class GeocodingService
             'suburb',
             'quarter',
             'city_district',
-            'city',
-            'town',
-            'village',
-            'municipality',
-            'hamlet',
-            'borough',
+            'building',
+            'amenity',
+            'shop',
+            'industrial',
+            'retail',
         ] as $detail) {
             if (isset($address[$detail]) && trim((string) $address[$detail]) !== '') {
                 return false;
             }
         }
 
-        return in_array($result['type'] ?? null, ['administrative', 'county', 'state', 'province', 'region'], true)
-            || array_intersect(array_keys($address), ['county', 'state', 'state_district', 'region']) !== [];
+        return true;
+    }
+
+    private function matchesFullQuery(string $matchedQuery, string $normalizedAddress): bool
+    {
+        $normalize = static fn (string $value): string => mb_strtolower(trim((string) preg_replace('/\s+/u', ' ', $value)));
+
+        return in_array($normalize($matchedQuery), [
+            $normalize($normalizedAddress),
+            $normalize(Str::ascii($normalizedAddress)),
+        ], true);
     }
 }
