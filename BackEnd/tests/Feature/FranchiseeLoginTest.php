@@ -369,6 +369,52 @@ class FranchiseeLoginTest extends TestCase
         $this->assertDatabaseCount('franchise_users', 1);
     }
 
+    public function test_reapproving_uses_a_specific_proposed_landmark_when_geocoder_returns_its_neighborhood(): void
+    {
+        $coordinates = [
+            'lat' => 14.3261396,
+            'lng' => 120.9670336,
+            'matchedQuery' => 'Burol III, City of Dasmarinas, Cavite, Philippines',
+            'isBroad' => true,
+        ];
+        $geocoder = $this->mock(GeocodingService::class);
+        $geocoder->shouldReceive('geocodeAddress')->twice()->andReturn($coordinates);
+        [, $application] = $this->createApplicantApplication();
+        $application->forceFill([
+            'location' => 'Puregold, Burol III, City of Dasmarinas, Cavite',
+            'status' => 'location_assessment',
+            'agreement_status' => 'signed',
+            'agreement_signed_at' => now(),
+            'franchise_fee_payment_status' => 'not_applicable',
+            'required_documents' => [],
+            'requirements_reviewed_at' => now(),
+        ])->save();
+        $adminToken = 'franchise-landmark-geocode-token';
+        Admin::create([
+            'full_name' => 'Franchise Admin',
+            'email' => 'franchise-landmark-geocode@example.test',
+            'password' => Hash::make('AdminPassword123!'),
+            'api_token' => hash('sha256', $adminToken),
+        ]);
+        $headers = ['Authorization' => 'Bearer '.$adminToken];
+
+        $approval = $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)
+            ->assertOk();
+        $franchise = Franchise::findOrFail($approval->json('data.franchise.id'));
+        $franchise->forceFill([
+            'latitude' => 12.8797,
+            'longitude' => 121.7740,
+            'location_status' => 'manual',
+        ])->save();
+
+        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/approve', [], $headers)->assertOk();
+
+        $franchise->refresh();
+        $this->assertSame((float) $coordinates['lat'], (float) $franchise->latitude);
+        $this->assertSame((float) $coordinates['lng'], (float) $franchise->longitude);
+        $this->assertSame('geocoded', $franchise->location_status);
+    }
+
     public function test_final_approval_still_requires_requested_documents_to_be_verified(): void
     {
         [, $application] = $this->createApplicantApplication();

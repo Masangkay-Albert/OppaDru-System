@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Franchise;
-use App\Models\FranchiseAccount;
 use App\Models\FranchiseInventory;
 use App\Models\Product;
 use App\Services\GeocodingService;
@@ -58,14 +57,7 @@ class BranchRoutingTest extends TestCase
     public function test_dasmarinas_routes_to_the_cavite_branch_when_its_coordinates_are_correct(): void
     {
         $legacyMisnamedBranch = $this->branch('Oppa Dru Korean Fried Chicken - Laguna', 14.3294, 120.9367);
-        $cavite = $this->branch('Oppa Dru Korean Fried Chicken - Cavite', 14.3294, 120.9367);
-        $account = FranchiseAccount::create([
-            'name' => 'Cavite franchise account',
-            'email' => 'cavite-account@example.test',
-            'status' => 'active',
-        ]);
-        $cavite->franchise_account_id = $account->id;
-        $cavite->save();
+        $cavite = $this->branch('Oppa Dru Korean Fried Chicken - Cavite', 14.3261396, 120.9670336);
         $product = $this->product();
         $this->addInventory($cavite, $product);
         $this->addInventory($legacyMisnamedBranch, $product);

@@ -34,6 +34,9 @@ class FranchiseProvisioningService
         $geocodedCoordinates = $location === ''
             ? null
             : $this->geocoding->geocodeAddress($location.', Philippines');
+        $hasSpecificBroadMatch = $geocodedCoordinates
+            && ($geocodedCoordinates['isBroad'] ?? false)
+            && $this->hasSpecificLocationDetail($location, $geocodedCoordinates);
         $coordinates = $geocodedCoordinates && ! ($geocodedCoordinates['isBroad'] ?? false)
             ? $geocodedCoordinates
             : ($hasApplicationPin
@@ -43,10 +46,12 @@ class FranchiseProvisioningService
                     'matchedQuery' => 'administrator-confirmed map pin',
                     'isBroad' => false,
                 ]
-                : ($hasCoordinates
-                    ? ['lat' => (float) $franchise->latitude, 'lng' => (float) $franchise->longitude, 'matchedQuery' => 'existing coordinates', 'isBroad' => false]
-                    : $geocodedCoordinates));
-        if (($coordinates['isBroad'] ?? false) === true) {
+                : ($hasSpecificBroadMatch
+                    ? $geocodedCoordinates
+                    : ($hasCoordinates && $franchise->location_status === 'geocoded'
+                        ? ['lat' => (float) $franchise->latitude, 'lng' => (float) $franchise->longitude, 'matchedQuery' => 'existing coordinates', 'isBroad' => false]
+                        : null)));
+        if (($coordinates['isBroad'] ?? false) === true && ! $hasSpecificBroadMatch) {
             $coordinates = null;
         }
         $hasValidResult = $coordinates
@@ -93,7 +98,7 @@ class FranchiseProvisioningService
             'delivery_radius_km' => config('delivery.default_radius_km'),
             'latitude' => $coordinates['lat'],
             'longitude' => $coordinates['lng'],
-            'location_status' => $hasApplicationPin || ($hasCoordinates && $franchise->location_status === 'manual') ? 'manual' : 'geocoded',
+            'location_status' => $hasApplicationPin ? 'manual' : 'geocoded',
             'location_error' => null,
             'owner_admin_id' => $application->approved_by_admin_id,
             'metadata' => array_merge($franchise->metadata ?? [], [
@@ -131,5 +136,15 @@ class FranchiseProvisioningService
         }
 
         return $slug;
+    }
+
+    private function hasSpecificLocationDetail(string $location, array $geocodedCoordinates): bool
+    {
+        $firstLocationPart = trim(explode(',', $location)[0] ?? '');
+        $matchedQuery = trim((string) ($geocodedCoordinates['matchedQuery'] ?? ''));
+
+        return $firstLocationPart !== ''
+            && $matchedQuery !== ''
+            && mb_stripos($matchedQuery, $firstLocationPart) === false;
     }
 }
