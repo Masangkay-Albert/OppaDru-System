@@ -13,6 +13,13 @@ class BranchRoutingTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_branch_resolver_rejects_get_with_method_not_allowed(): void
+    {
+        $this->getJson('/api/branches/resolve')
+            ->assertStatus(405)
+            ->assertJsonPath('message', 'Method not allowed.');
+    }
+
     public function test_delivery_resolver_chooses_the_nearest_cavite_or_laguna_branch(): void
     {
         $cavite = $this->branch('Cavite branch', 14.3500, 120.9500);

@@ -36,12 +36,13 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   graceStartedAtByOrder,
 }) => {
   const scheduleDetails = getScheduledOrderDetails(order);
+  const isFinal = ['delivered', 'cancelled', 'completed', 'failed'].includes(String(order.status || '').toLowerCase());
   const effectiveStatus = scheduleDetails.isScheduled ? ORDER_STATUS.SCHEDULED : order.status;
-  const isScheduledOrder = scheduleDetails.isScheduled && order.status !== ORDER_STATUS.DELIVERED;
+  const isScheduledOrder = scheduleDetails.isScheduled && !isFinal;
   const displayStatus = isScheduledOrder
     ? STATUS_DISPLAY[ORDER_STATUS.SCHEDULED]
     : STATUS_DISPLAY[order.status] ?? STATUS_DISPLAY[ORDER_STATUS.PENDING];
-  const isActive = order.status !== ORDER_STATUS.DELIVERED;
+  const isActive = !isFinal;
   const statusColor = getStatusColor(isScheduledOrder ? ORDER_STATUS.SCHEDULED : effectiveStatus);
   const displayOrderNumber = order.orderNumber || order.id;
 
@@ -138,15 +139,12 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <button onClick={() => onToggleDetails(order.id)} className="order-details-button text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1">
               {isExpanded ? 'Hide Details' : 'View Details'}
             </button>
-            {isActive ? (
-              <button onClick={(e) => onTrack(order.id, e)} className="order-track-button text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1">
-                Track Order <FiChevronRight size={14} />
-              </button>
-            ) : (
-              <span className="text-xs text-emerald-500 font-medium flex items-center gap-1">
-                <FaCheck size={12} /> Completed
-              </span>
-            )}
+            {!isActive && <span className={`text-xs font-medium flex items-center gap-1 ${order.status === ORDER_STATUS.CANCELLED || order.status === ORDER_STATUS.FAILED ? 'text-red-500' : 'text-emerald-500'}`}>
+              <FaCheck size={12} /> {order.status === ORDER_STATUS.CANCELLED ? 'Cancelled' : order.status === ORDER_STATUS.FAILED ? 'Failed' : 'Completed'}
+            </span>}
+            <button onClick={(e) => onTrack(order.id, e)} className="order-track-button text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1">
+              {isActive ? 'Track Order' : 'View Tracking'} <FiChevronRight size={14} />
+            </button>
           </div>
         </div>
 

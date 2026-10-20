@@ -20,7 +20,7 @@ const MyOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { orders, refreshOrders } = useOrder();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>(ORDER_STATUS.PENDING);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({});
   const [editingOrder, setEditingOrder] = useState<any | null>(null);
@@ -68,15 +68,13 @@ const MyOrdersPage: React.FC = () => {
 
   const filteredOrders = useMemo(() => {
     return sortedOrders.filter(order => {
-      if (normalizeOrderStatus(order.status) === ORDER_STATUS.CANCELLED) return false;
-
       const scheduleDetails = getScheduledOrderDetails(order);
       const effectiveStatus = scheduleDetails.isScheduled ? ORDER_STATUS.SCHEDULED : order.status;
       const orderIdentifier = order.orderNumber || order.id;
       const matchesSearch = orderIdentifier.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesFilter = effectiveStatus === filterStatus;
+      const matchesFilter = filterStatus === 'all' || effectiveStatus === filterStatus;
       return matchesSearch && matchesFilter;
     });
   }, [sortedOrders, searchTerm, filterStatus]);
@@ -93,7 +91,7 @@ const MyOrdersPage: React.FC = () => {
 
   const handleTrackOrder = (orderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate('/tracking', { state: { orderId } });
+    navigate(`/orders/${encodeURIComponent(orderId)}/track`);
   };
 
   const toggleOrderDetails = (orderId: string) => {
@@ -190,7 +188,7 @@ const MyOrdersPage: React.FC = () => {
       const orderId = editingOrder.id;
       setEditingOrder(null);
       setEditDraft([]);
-      navigate('/tracking', { state: { orderId } });
+      navigate(`/orders/${encodeURIComponent(orderId)}/track`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to update this order.';
       window.alert(message);

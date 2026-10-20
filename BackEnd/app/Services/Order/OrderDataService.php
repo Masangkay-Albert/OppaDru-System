@@ -57,6 +57,10 @@ class OrderDataService
             'franchise' => $branch ? $branch->only(['id', 'name', 'address', 'latitude', 'longitude']) : null,
             'total' => $order->total,
             'status' => $order->status,
+            'status_history' => $order->status_history ?: [[
+                'status' => (string) $order->status,
+                'created_at' => $order->created_at?->toIso8601String(),
+            ]],
             'channel' => $order->delivery_type === 'onsite' || $order->delivery_calculation_method === 'onsite'
                 || str_starts_with(strtolower((string) $order->delivery_address), 'onsite')
                 ? 'onsite'
@@ -66,7 +70,7 @@ class OrderDataService
             'delivery_address' => $order->delivery_address,
             'delivery_coordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)
                 ? ['lat' => (float) $order->delivery_lat, 'lng' => (float) $order->delivery_lng]
-                : null,
+                : ($order->delivery_coordinates ?: null),
             'delivery_proof_image' => $proofUrl,
             'delivery_proof_image_url' => $proofUrl,
             'delivery_proof_uploaded_at' => $order->delivery_proof_uploaded_at?->toISOString(),

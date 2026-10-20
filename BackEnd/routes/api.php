@@ -109,6 +109,8 @@ Route::middleware(['employee.access:cashier'])->group(function () {
     Route::post('/employee/pos/payments/gcash', [FranchiseController::class, 'createPosPayment']);
 });
 Route::middleware(['admin.access'])->group(function () {
+    Route::get('/orders', [OrderController::class, 'index']);
+    Route::get('/orders/customers', [OrderController::class, 'getAllCustomers']);
     Route::get('/employees', [EmployeeController::class, 'index']);
     Route::post('/employees', [EmployeeController::class, 'store']);
     Route::put('/employees/{id}', [EmployeeController::class, 'update']);
@@ -134,12 +136,8 @@ Route::get('/products/category/{category}', [ProductController::class, 'getByCat
 Route::get('/products/{id}', [ProductController::class, 'show']);
 Route::get('/addon-groups', [AddonController::class, 'index']);
 
-Route::get('/orders', [OrderController::class, 'index']);
 Route::post('/orders/onsite', [OrderController::class, 'storeOnsite']);
 Route::patch('/orders/{id}/status-update', [OrderController::class, 'updateStatusOnsite']);
-Route::get('/orders/customers', [OrderController::class, 'getAllCustomers']);
-Route::middleware(['auth:api', 'verified-user'])->get('/orders/user', [OrderController::class, 'getUserOrders']);
-Route::get('/orders/{id}', [OrderController::class, 'show']);
 Route::get('/settings/pricing', [SettingController::class, 'index']);
 
 
@@ -168,6 +166,9 @@ Route::post('/payment/gcash/webhook', [PaymentController::class, 'webhook']);
 Route::get('/payment/status/{reference}', [PaymentController::class, 'getPaymentStatus']);
 
 Route::middleware(['auth:api', 'verified-user'])->group(function () {
+    Route::get('/orders/user', [OrderController::class, 'getUserOrders']);
+    Route::get('/orders/user/{id}', [OrderController::class, 'getUserOrder']);
+    Route::get('/orders/{id}', [OrderController::class, 'show']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
     Route::put('/user/profile', [AuthController::class, 'updateProfile']);

@@ -37,10 +37,7 @@ class KitchenOrderChannelTest extends TestCase
             ->assertOk()
             ->assertJsonPath('order.status', 'prepared');
 
-        $this->getJson('/api/orders')
-            ->assertOk()
-            ->assertJsonFragment(['id' => $onsiteOrder->id, 'channel' => 'onsite'])
-            ->assertJsonFragment(['id' => $onlineOrder->id, 'channel' => 'online']);
+        $this->getJson('/api/orders')->assertUnauthorized();
     }
 
     public function test_scheduled_orders_are_separated_until_their_prep_window_and_counts_update(): void

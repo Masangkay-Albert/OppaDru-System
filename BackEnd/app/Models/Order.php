@@ -46,6 +46,7 @@ class Order extends Model
         'vat',
         'service_fee_rule',
         'status',
+        'status_history',
         'payment_method',
         'phone',
         'items',
@@ -87,6 +88,7 @@ class Order extends Model
         'priority_fee' => 'decimal:2',
         'vat' => 'decimal:2',
         'items' => 'array',
+        'status_history' => 'array',
         'include_cutlery' => 'boolean',
         'scheduled_at' => 'datetime',
         'is_scheduled' => 'boolean',
@@ -142,6 +144,34 @@ class Order extends Model
             if (empty($model->order_number)) {
                 $model->order_number = 'OPPA-ORD-' . date('Ymd') . '-' . strtoupper(Str::random(8));
             }
+            if (empty($model->status_history) && ! empty($model->status)) {
+                $model->status_history = [[
+                    'status' => (string) $model->status,
+                    'created_at' => now()->toIso8601String(),
+                ]];
+            }
+        });
+        static::updating(function (self $model) {
+            if (! $model->isDirty('status')) {
+                return;
+            }
+
+            $history = is_array($model->status_history) ? $model->status_history : [];
+            $previousStatus = (string) $model->getOriginal('status');
+            $nextStatus = (string) $model->status;
+            if ($previousStatus !== '' && ! $history) {
+                $history[] = [
+                    'status' => $previousStatus,
+                    'created_at' => $model->created_at?->toIso8601String(),
+                ];
+            }
+            if ($nextStatus !== '' && ($history[count($history) - 1]['status'] ?? null) !== $nextStatus) {
+                $history[] = [
+                    'status' => $nextStatus,
+                    'created_at' => now()->toIso8601String(),
+                ];
+            }
+            $model->status_history = $history;
         });
     }
 

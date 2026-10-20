@@ -70,7 +70,6 @@ class OrderPlacementTest extends TestCase
                 'payment_method' => 'cash_on_delivery',
                 'phone' => '09171234567',
             ]);
-
         $orderResponse
             ->assertCreated()
             ->assertJsonPath('order.email', $user->email)
@@ -79,10 +78,61 @@ class OrderPlacementTest extends TestCase
             ->assertJsonPath('order.service_fee', '15.00')
             ->assertJsonPath('order.items.0.product_id', $product->id);
 
-        $this->getJson('/api/orders')
+        $this->getJson('/api/orders/user')
             ->assertOk()
             ->assertJsonPath('0.id', $orderResponse->json('order.id'))
             ->assertJsonPath('0.delivery_type', 'standard');
+    }
+
+    public function test_customer_order_tracking_is_owned_and_returns_status_history(): void
+    {
+        $owner = User::create([
+            'full_name' => 'Tracking Owner',
+            'email' => 'tracking-owner@example.com',
+            'phone' => '09170000001',
+            'password' => Hash::make('password123'),
+            'email_verified_at' => now(),
+        ]);
+        $otherCustomer = User::create([
+            'full_name' => 'Other Customer',
+            'email' => 'other-customer@example.com',
+            'phone' => '09170000002',
+            'password' => Hash::make('password123'),
+            'email_verified_at' => now(),
+        ]);
+        $ownedOrder = Order::create([
+            'user_id' => $owner->id,
+            'email' => $owner->email,
+            'total' => 100,
+            'status' => 'pending',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Santa Rosa, Laguna',
+            'phone' => $owner->phone,
+            'items' => [['product_id' => 'item-1', 'product_name' => 'Chicken', 'product_price' => 100, 'quantity' => 1]],
+        ]);
+        $otherOrder = Order::create([
+            'user_id' => $otherCustomer->id,
+            'email' => $otherCustomer->email,
+            'total' => 200,
+            'status' => 'pending',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Dasmarinas, Cavite',
+            'phone' => $otherCustomer->phone,
+            'items' => [['product_id' => 'item-2', 'product_name' => 'Chicken', 'product_price' => 200, 'quantity' => 1]],
+        ]);
+        $ownedOrder->status = 'preparing';
+        $ownedOrder->save();
+
+        $this->actingAs($owner, 'api')
+            ->getJson('/api/orders/user/'.$ownedOrder->id)
+            ->assertOk()
+            ->assertJsonPath('id', $ownedOrder->id)
+            ->assertJsonPath('status', 'preparing')
+            ->assertJsonPath('status_history.0.status', 'pending')
+            ->assertJsonPath('status_history.1.status', 'preparing');
+
+        $this->getJson('/api/orders/user/'.$otherOrder->id)->assertNotFound();
+        $this->getJson('/api/orders/'.$otherOrder->id)->assertNotFound();
     }
 
     public function test_cod_order_is_counted_only_after_delivery_and_only_once(): void
@@ -481,7 +531,8 @@ class OrderPlacementTest extends TestCase
                 ->assertJsonPath('order.franchise_account_id', $expectedBranch->franchise_account_id)
                 ->assertJsonPath('order.delivery_lat', null)
                 ->assertJsonPath('order.delivery_lng', null)
-                ->assertJsonPath('order.delivery_coordinates', null)
+                ->assertJsonPath('order.delivery_coordinates.lat', $coordinates['lat'])
+                ->assertJsonPath('order.delivery_coordinates.lng', $coordinates['lng'])
                 ->assertJsonPath('order.branch.id', $expectedBranch->id)
                 ->assertJsonPath('order.branch.name', $expectedBranch->name);
 
@@ -492,14 +543,17 @@ class OrderPlacementTest extends TestCase
                 'franchise_account_id' => $expectedBranch->franchise_account_id,
                 'delivery_lat' => null,
                 'delivery_lng' => null,
-                'delivery_coordinates' => null,
             ]);
-            $this->getJson('/api/orders/'.$orderId)
+            $this->assertSame($coordinates, Order::findOrFail($orderId)->delivery_coordinates);
+            $this->getJson('/api/orders/user/'.$orderId)
                 ->assertOk()
                 ->assertJsonPath('franchise_account_id', $expectedBranch->franchise_account_id)
                 ->assertJsonPath('branch.id', $expectedBranch->id)
                 ->assertJsonPath('branch.latitude', $expectedBranch->latitude)
-                ->assertJsonPath('branch.longitude', $expectedBranch->longitude);
+                ->assertJsonPath('branch.longitude', $expectedBranch->longitude)
+                ->assertJsonPath('delivery_coordinates.lat', $coordinates['lat'])
+                ->assertJsonPath('delivery_coordinates.lng', $coordinates['lng'])
+                ->assertJsonPath('status_history.0.status', 'pending');
         }
     }
 
@@ -896,7 +950,7 @@ class OrderPlacementTest extends TestCase
         $order = Order::findOrFail($orderResponse->json('order.id'));
         $order->update(['created_at' => now()->subMinutes(2)]);
 
-        $this->getJson('/api/orders')
+        $this->getJson('/api/orders/user')
             ->assertOk()
             ->assertJsonFragment(['id' => $order->id]);
     }

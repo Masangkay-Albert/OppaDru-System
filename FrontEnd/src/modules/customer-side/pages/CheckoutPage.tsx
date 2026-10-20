@@ -417,7 +417,7 @@ const CheckoutPage: React.FC = () => {
             onPickLocation={() => setShowDeliveryLocationPicker(true)}
             canPickLocation={Boolean(address.street.trim()) && (!deliveryCoordinates || branchError.includes("couldn't locate"))}
             isPlacingOrder={isPlacingOrder}
-            canPlaceOrder={Boolean(branchResolution && !branchError)}
+            canPlaceOrder={Boolean(branchResolution && deliveryCoordinates && !branchError)}
             />
           </div>
         </div>

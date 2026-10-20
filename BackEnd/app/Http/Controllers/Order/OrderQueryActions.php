@@ -24,19 +24,49 @@ trait OrderQueryActions
         return response()->json($this->orderDataService->formatOrders($orders));
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
-        $order = Order::with(['user', 'branch', 'orderItems'])->findOrFail($id);
+        $order = $this->customerOrders($request)
+            ->with(['user', 'branch', 'orderItems'])
+            ->findOrFail($id);
 
         return response()->json($this->orderDataService->formatOrder($order));
     }
 
     public function getUserOrders(Request $request)
     {
-        $email = $request->user()->email;
-        $orders = Order::with(['orderItems', 'branch:id,name,address,latitude,longitude'])->where('email', $email)->orderBy('created_at', 'desc')->get();
+        $orders = $this->customerOrders($request)
+            ->with(['orderItems', 'branch:id,name,address,latitude,longitude'])
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return response()->json($this->orderDataService->formatOrders($orders));
+    }
+
+    public function getUserOrder(Request $request, string $id)
+    {
+        $order = $this->customerOrders($request)
+            ->with(['orderItems', 'branch:id,name,address,latitude,longitude'])
+            ->find($id);
+
+        if (! $order) {
+            return response()->json(['message' => 'Order not found.'], 404);
+        }
+
+        return response()->json($this->orderDataService->formatOrder($order));
+    }
+
+    private function customerOrders(Request $request)
+    {
+        $user = $request->user();
+
+        return Order::query()->where(function ($query) use ($user) {
+            $query->where('user_id', $user->id)
+                ->orWhere(function ($legacyOrders) use ($user) {
+                    $legacyOrders->whereNull('user_id')
+                        ->whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)]);
+                });
+        });
     }
 
     public function getAllCustomers()

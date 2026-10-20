@@ -318,6 +318,7 @@ trait OrderPlacementActions
                     'total' => $total,
                     'delivery_type' => $request->input('delivery_type', 'standard'),
                     'delivery_address' => $request->delivery_address,
+                    'delivery_coordinates' => $request->input('delivery_coordinates'),
                     'delivery_fee' => $pricing['deliveryFee'],
                     'delivery_distance_km' => $pricing['deliveryDistanceKm'],
                     'distance_km' => $branchResolution['distance_km'],

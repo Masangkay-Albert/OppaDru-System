@@ -119,6 +119,7 @@ function App() {
                       <Route path="/customer/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
                       <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
                       <Route path="/tracking" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
+                      <Route path="/orders/:id/track" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
                       <Route path="/payment/confirm/:reference" element={<PaymentConfirmPage />} />
 
                       {/* ===== ADMIN ROUTES ===== */}

@@ -1,15 +1,13 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../contexts/Authcontext';
-import { useOrder } from '../../../contexts/OrderContext';
+import { useOrder, type Order } from '../../../contexts/OrderContext';
+import { OrderServiceError, orderService } from '../../../services/orderService';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import { ORDER_STATUS, STATUS_COLORS } from '../../../utils/constants';
-import { orderService } from '../../../services/orderService';
-import type { Order } from '../../../contexts/OrderContext';
 import { getOrderCreatedAtMs, normalizeOrderStatus } from '../../../utils/orderManagement';
-
 import RouteLayer from '../components/tracking/RouteLayer';
 import DriverMarker from '../components/tracking/DriverMarker';
 import MapLegend from '../components/tracking/MapLegend';
@@ -17,275 +15,157 @@ import ProgressBar from '../components/tracking/ProgressBar';
 import OrderDetailsCards from '../components/tracking/OrderDetailsCards';
 import { storeIcon, destinationIcon } from '../components/tracking/MapIcons';
 
-interface TrackingLocationState {
-  orderId?: string;
-}
+interface TrackingLocationState { orderId?: string }
+const FINAL_STATUSES = new Set(['delivered', 'cancelled', 'completed', 'failed']);
+const isFinalStatus = (status: string) => FINAL_STATUSES.has(normalizeOrderStatus(status));
 
-const OrderTrackingPage: React.FC = () => {
+const OrderTrackingPageContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
-  const { orders, currentOrder, getOrderById, clearOrder, fetchUserOrders } = useOrder();
-
+  const { id: routeOrderId } = useParams<{ id: string }>();
+  const { user, isLoading: authLoading } = useAuth();
+  const { orders, currentOrder, refreshOrderById } = useOrder();
   const locationState = location.state as TrackingLocationState | null;
-  const requestedOrderId = locationState?.orderId;
+  const cachedOrder = useMemo(() => {
+    const requestedId = routeOrderId || locationState?.orderId;
+    if (requestedId) return orders.find((candidate) => candidate.id === requestedId) || (currentOrder?.id === requestedId ? currentOrder : null);
+    return currentOrder || [...orders].filter((candidate) => !isFinalStatus(candidate.status)).sort((a, b) => getOrderCreatedAtMs(b) - getOrderCreatedAtMs(a))[0] || null;
+  }, [routeOrderId, locationState?.orderId, orders, currentOrder]);
+  const orderId = routeOrderId || locationState?.orderId || cachedOrder?.id || '';
+  const order = cachedOrder?.id === orderId ? cachedOrder : null;
 
+  const [isFirstFetch, setIsFirstFetch] = useState(true);
+  const [connectionError, setConnectionError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const [retryVersion, setRetryVersion] = useState(0);
+  const [cancelError, setCancelError] = useState('');
+  const [tick, setTick] = useState(Date.now());
   const [routePoints, setRoutePoints] = useState<[number, number][]>([]);
-  const [order, setOrder] = useState<Order | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [, setTick] = useState(Date.now());
-  const [graceStartedAt, setGraceStartedAt] = useState<number | null>(null);
-  const [hasAttemptedBackendFetch, setHasAttemptedBackendFetch] = useState(false);
-  
-  const [simulatedProgress, setSimulatedProgress] = useState(0); 
-  const [isSimulating, setIsSimulating] = useState(false);
-
-  const getGraceRemainingSeconds = (targetOrder: Order | null) => {
-    if (!targetOrder || normalizeOrderStatus(targetOrder.status) !== ORDER_STATUS.PENDING) return 0;
-
-    const fallbackStartedAt = getOrderCreatedAtMs(targetOrder) || Date.now();
-    const startedAt = graceStartedAt ?? fallbackStartedAt;
-    const elapsed = (Date.now() - startedAt) / 1000;
-    return Math.max(0, 20 - elapsed);
-  };
+  const [simulatedProgress, setSimulatedProgress] = useState(0);
 
   useEffect(() => {
-    const interval = window.setInterval(() => setTick(Date.now()), 1000);
-    return () => window.clearInterval(interval);
+    const timer = window.setInterval(() => setTick(Date.now()), 1000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
-    if (!order || normalizeOrderStatus(order.status) !== ORDER_STATUS.PENDING) {
-      setGraceStartedAt(null);
+    if (!orderId || !user?.id) {
+      setIsFirstFetch(false);
       return;
     }
+    let stopped = false;
+    let timeout: number | undefined;
+    let failures = 0;
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const latest = await refreshOrderById(orderId);
+        if (stopped) return;
+        failures = 0;
+        setConnectionError(false);
+        setNotFound(false);
+        setIsFirstFetch(false);
+        if (isFinalStatus(latest.status)) return;
+        timeout = window.setTimeout(poll, 6000);
+      } catch (error) {
+        if (stopped) return;
+        setIsFirstFetch(false);
+        if (error instanceof OrderServiceError && (error.status === 404 || error.status === 403)) {
+          setNotFound(true);
+          setConnectionError(false);
+          return;
+        }
+        setConnectionError(true);
+        failures += 1;
+        timeout = window.setTimeout(poll, Math.min(30000, 1000 * (2 ** Math.min(failures, 5))));
+      }
+    };
+    void poll();
+    return () => {
+      stopped = true;
+      if (timeout !== undefined) window.clearTimeout(timeout);
+    };
+  }, [orderId, user?.id, refreshOrderById, retryVersion]);
 
-    const fallbackStartedAt = getOrderCreatedAtMs(order) || Date.now();
-    setGraceStartedAt(prev => prev ?? fallbackStartedAt);
-  }, [order?.id, order?.status, orders]);
+  const branchCoordinates = order?.branchCoords;
+  const destinationCoordinates = order?.deliveryAddressCoords;
+  const hasTrackingCoordinates = Boolean(branchCoordinates && destinationCoordinates);
+  const mapCenter = branchCoordinates && destinationCoordinates
+    ? [(branchCoordinates.lat + destinationCoordinates.lat) / 2, (branchCoordinates.lng + destinationCoordinates.lng) / 2] as [number, number]
+    : [14.2, 121.0] as [number, number];
+  const status = normalizeOrderStatus(order?.status);
+  const onTheWayEntries = order?.statusHistory?.filter((entry) => normalizeOrderStatus(entry.status) === 'on_the_way') || [];
+  const onTheWayEntry = onTheWayEntries[onTheWayEntries.length - 1];
+  const isDelivered = status === 'delivered' || status === 'completed';
+  const statusColor = STATUS_COLORS[status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700';
+  const createdAt = order ? getOrderCreatedAtMs(order) : 0;
+  const cancelSeconds = status === ORDER_STATUS.PENDING && createdAt > 0
+    ? Math.max(0, 20 - ((tick - createdAt) / 1000))
+    : 0;
+  const canCancel = status === ORDER_STATUS.PENDING && cancelSeconds > 0;
 
-  useEffect(() => {
-    if (!user || !order?.id || ['delivered', 'cancelled'].includes(normalizeOrderStatus(order.status))) return;
-
-    const interval = window.setInterval(() => {
-      void fetchUserOrders(false);
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [user?.id, order?.id, order?.status, fetchUserOrders]);
+  const getBarProgress = () => {
+    switch (status) {
+      case 'pending': return 20;
+      case 'confirmed':
+      case 'preparing': return 40;
+      case 'prepared':
+      case 'ready': return 60;
+      case 'on_the_way': return 60 + simulatedProgress * 0.35;
+      case 'arriving':
+      case 'arrived': return 95;
+      case 'delivered':
+      case 'completed': return 100;
+      default: return 20;
+    }
+  };
 
   const handleRouteLoaded = useCallback((points: [number, number][]) => {
     setRoutePoints(points);
-    if (points.length > 0 && order?.status === ORDER_STATUS.ON_THE_WAY) {
-      setIsSimulating(true);
-    }
-  }, [order?.status]);
-
-  // Fetch specific order from backend if passed as requestedOrderId but not found locally
-  useEffect(() => {
-    if (!requestedOrderId) {
-      setHasAttemptedBackendFetch(true);
-      return;
-    }
-    if (getOrderById(requestedOrderId)) {
-      setHasAttemptedBackendFetch(true);
-      return; // Already in local list
-    }
-
-    const fetchSpecificOrder = async () => {
-      try {
-        const apiOrders = await orderService.getUserOrders();
-        const foundOrder = apiOrders.find(o => o.id === requestedOrderId);
-        if (foundOrder) {
-          // Map the API order to Order type
-          const productSubtotal = (foundOrder.items || []).reduce((sum: number, item: any) => {
-            const addonTotal = (item.selected_addons || []).reduce((addonSum: number, addon: any) => addonSum + Number(addon.price || 0), 0);
-            return sum + ((Number(item.product_price || 0) * Number(item.quantity || 1)) + addonTotal);
-          }, 0);
-          const derivedDeliveryFee = Number(foundOrder.delivery_fee || 0) > 0
-            ? Number(foundOrder.delivery_fee || 0)
-            : Math.max(0, Number(foundOrder.total || 0) - productSubtotal - Number(foundOrder.service_fee || 0) - Number(foundOrder.vat || 0) - Number(foundOrder.priority_fee || 0));
-
-          const orderCreatedAt = foundOrder.created_at || new Date().toISOString();
-          const graceStartedAtNumber = foundOrder.created_at ? new Date(foundOrder.created_at).getTime() : Date.now();
-
-          const mappedOrder: Order = {
-            id: foundOrder.id,
-            email: foundOrder.email,
-            items: foundOrder.items?.map((item: any) => ({
-              id: item.product_id,
-              name: item.product_name || item.product_id,
-              price: Number(item.product_price),
-              quantity: item.quantity,
-              cartItemId: `${foundOrder.id}_${item.product_id}`,
-              description: '',
-              category: '',
-              image: '',
-              is_available: true,
-              isAvailable: true,
-              selectedAddons: item.selected_addons,
-              specialInstructions: item.special_instructions,
-            })) || [],
-            total: Number(foundOrder.total),
-            address: foundOrder.delivery_address,
-            status: foundOrder.status as any,
-            paymentMethod: foundOrder.payment_method,
-            phone: foundOrder.phone,
-            orderNumber: foundOrder.order_number,
-            userId: user?.id || '',
-            timestamp: orderCreatedAt,
-            graceStartedAt: graceStartedAtNumber,
-            deliveryAddress: foundOrder.delivery_address,
-            deliveryAddressCoords: foundOrder.delivery_coordinates || undefined,
-            coords: foundOrder.delivery_coordinates || undefined,
-            branchId: foundOrder.branch_id || foundOrder.franchise_id || null,
-            branchName: (foundOrder.branch || foundOrder.franchise)?.name,
-            branchCoords: (foundOrder.branch || foundOrder.franchise)?.latitude && (foundOrder.branch || foundOrder.franchise)?.longitude ? { lat: Number((foundOrder.branch || foundOrder.franchise).latitude), lng: Number((foundOrder.branch || foundOrder.franchise).longitude) } : undefined,
-            branchAddress: (foundOrder.branch || foundOrder.franchise)?.address,
-            eta: 35,
-            deliveryType: (foundOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
-            deliveryFee: derivedDeliveryFee,
-            serviceFee: Number(foundOrder.service_fee || 0),
-            priorityFee: Number(foundOrder.priority_fee || 0),
-            vat: Number(foundOrder.vat || 0),
-            scheduledAt: foundOrder.scheduled_at || null,
-            scheduledDate: foundOrder.scheduled_date || null,
-            scheduledTime: foundOrder.scheduled_time || foundOrder.schedule_window || null,
-            scheduleDisplay: foundOrder.schedule_display || null,
-            scheduleWindow: foundOrder.schedule_window || null,
-          };
-
-          setOrder(mappedOrder);
-          if (mappedOrder.status === ORDER_STATUS.DELIVERED) {
-            setIsSimulating(false);
-            setSimulatedProgress(100);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch specific order:', error);
-      } finally {
-        setHasAttemptedBackendFetch(true);
-        setIsLoading(false);
-      }
-    };
-
-    fetchSpecificOrder();
-  }, [requestedOrderId, getOrderById, user?.id]);
+  }, []);
 
   useEffect(() => {
-    let resolvedOrder: Order | null = null;
-
-    if (requestedOrderId) {
-      resolvedOrder = getOrderById(requestedOrderId) || null;
+    if (status !== 'on_the_way' || routePoints.length === 0) return;
+    if (onTheWayEntry?.createdAt) {
+      const startedAt = new Date(onTheWayEntry.createdAt).getTime();
+      if (Number.isFinite(startedAt)) setSimulatedProgress(Math.min(95, Math.max(0, ((Date.now() - startedAt) / 1000) * (1.2 / 0.7))));
     }
+    const timer = window.setInterval(() => setSimulatedProgress((previous) => Math.min(95, previous + 1.2)), 700);
+    return () => window.clearInterval(timer);
+  }, [status, routePoints.length, onTheWayEntry?.createdAt]);
 
-    if (!resolvedOrder) {
-      resolvedOrder = currentOrder || null;
-    }
-
-    if (!resolvedOrder && orders.length > 0) {
-      const latestActiveOrder = [...orders]
-        .filter((candidate) => !['cancelled', 'delivered'].includes(String(candidate.status ?? '').trim().toLowerCase()))
-        .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())[0] || null;
-
-      resolvedOrder = latestActiveOrder;
-    }
-
-    // If we have a requestedOrderId but haven't found it yet, wait for backend fetch before redirecting
-    if (!resolvedOrder && requestedOrderId && !hasAttemptedBackendFetch) {
-      // Still waiting for backend fetch, don't redirect yet
-      return;
-    }
-
-    if (!resolvedOrder) {
-      if (user) {
-        navigate('/customer');
-      } else {
-        navigate('/login');
-      }
-      setIsLoading(false);
-      return;
-    }
-
-    setOrder(resolvedOrder);
-    setIsLoading(false);
-
-    if (resolvedOrder.status === ORDER_STATUS.DELIVERED || (resolvedOrder.status as string) === 'arrived') {
-      setIsSimulating(false);
-      setSimulatedProgress(100);
-    }
-
-  }, [requestedOrderId, currentOrder, orders, getOrderById, navigate, user, hasAttemptedBackendFetch]);
-
-  useEffect(() => {
-    if (order?.status === ORDER_STATUS.ON_THE_WAY && routePoints.length > 0 && !isSimulating && simulatedProgress < 95) {
-      setIsSimulating(true);
-    }
-  }, [order?.status, routePoints.length, isSimulating, simulatedProgress]);
-
-  useEffect(() => {
-    if (!order || order.status !== ORDER_STATUS.ON_THE_WAY || !isSimulating) return;
-
-    const interval = setInterval(() => {
-      setSimulatedProgress(prev => {
-        const newProgress = prev + 1.2;
-        if (newProgress >= 95) {
-          setIsSimulating(false);
-          return 95;
-        }
-        return newProgress;
-      });
-    }, 700);
-
-    return () => clearInterval(interval);
-  }, [order, isSimulating]);
-
-  const getBarProgress = () => {
-    if (!order) return 0;
-    switch (order.status as string) {
-      case ORDER_STATUS.PENDING: 
-        return 20; 
-      case ORDER_STATUS.PREPARING: 
-        return 40; 
-      case ORDER_STATUS.READY: 
-        return 60; 
-      case ORDER_STATUS.ON_THE_WAY: 
-        return 60 + (simulatedProgress * 0.35); 
-      case ORDER_STATUS.DELIVERED: 
-        return 100; 
-      default: 
-        return 0;
-    }
-  };
-
-  const formatDate = (date: string | Date) => {
-    if (!date) return 'N/A';
+  const handleCancelOrder = async () => {
+    if (!order || !canCancel) return;
+    setCancelError('');
     try {
-      const dateObj = typeof date === 'string' ? new Date(date) : date;
-      if (isNaN(dateObj.getTime())) return 'N/A';
-      return dateObj.toLocaleDateString('en-PH', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return 'N/A';
+      await orderService.updateOrderStatus(order.id, ORDER_STATUS.CANCELLED);
+      await refreshOrderById(order.id);
+    } catch (error) {
+      setCancelError(error instanceof Error ? error.message : 'Unable to cancel this order.');
     }
   };
 
-  const handleOrderComplete = () => {
-    clearOrder();
-    navigate('/customer/orders');
-  };
-
-  if (isLoading) {
+  if (!orderId && !authLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#2d6a4f] mx-auto" />
-          <p className="mt-4 text-gray-600">Loading your order...</p>
+      <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
+        <NavbarCustomer />
+        <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+          <h2 className="text-2xl font-bold text-gray-800">No order to track</h2>
+          <p className="mt-2 text-gray-600">Choose an order from My Orders to open its tracking page.</p>
+          <button onClick={() => navigate('/customer/orders')} className="mt-5 rounded-xl bg-[#2d6a4f] px-5 py-2 text-white">Go to My Orders</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
+        <NavbarCustomer />
+        <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+          <h2 className="text-2xl font-bold text-gray-800">Order not found</h2>
+          <p className="mt-2 text-gray-600">This order is not available in your account.</p>
+          <button onClick={() => navigate('/customer/orders')} className="mt-5 rounded-xl bg-[#2d6a4f] px-5 py-2 text-white">Back to My Orders</button>
         </div>
       </div>
     );
@@ -293,187 +173,127 @@ const OrderTrackingPage: React.FC = () => {
 
   if (!order) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc] flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">📦</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">No Order Found</h2>
-          <p className="text-gray-500 mb-4">You don't have any active orders.</p>
-          <button
-            onClick={() => navigate('/customer')}
-            className="px-6 py-2 bg-[#2d6a4f] text-white rounded-xl hover:bg-[#1b4332] transition-colors"
-          >
-            Browse Menu
-          </button>
+      <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
+        <NavbarCustomer />
+        <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+          {isFirstFetch ? <div className="mx-auto size-12 animate-spin rounded-full border-4 border-[#2d6a4f] border-t-transparent" /> : null}
+          <h2 className="mt-4 text-xl font-bold text-gray-800">{isFirstFetch ? 'Loading your order…' : "We couldn't load your order right now."}</h2>
+          {!isFirstFetch && <button onClick={() => setRetryVersion((value) => value + 1)} className="mt-4 rounded-xl bg-[#2d6a4f] px-5 py-2 text-white">Retry</button>}
+          <p className="mt-3 text-sm text-gray-600">Your order will stay available here while we reconnect.</p>
         </div>
       </div>
     );
   }
 
-  const barProgress = getBarProgress();
-  const isDelivered = order.status === ORDER_STATUS.DELIVERED || (order.status as string) === 'arrived';
-  const statusColor = isDelivered ? (STATUS_COLORS.delivered || 'bg-green-100 text-green-700') : (STATUS_COLORS[order.status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700');
-
-  const branchCoordinates = order.branchCoords;
-  const hasTrackingCoordinates = Boolean(branchCoordinates && order.deliveryAddressCoords);
-  const mapCenter = branchCoordinates && order.deliveryAddressCoords ? [
-    (branchCoordinates.lat + order.deliveryAddressCoords.lat) / 2,
-    (branchCoordinates.lng + order.deliveryAddressCoords.lng) / 2
-  ] : [0, 0];
-
-  const graceRemaining = getGraceRemainingSeconds(order);
-  const isPendingStatus = String(order.status ?? '').trim().toLowerCase() === ORDER_STATUS.PENDING;
-  const canManageGracePeriod = isPendingStatus && graceRemaining > 0;
-
-  const handleCancelOrderFromTracking = async () => {
-    if (!canManageGracePeriod) return;
-
-    try {
-      await orderService.updateOrderStatus(order.id, ORDER_STATUS.CANCELLED);
-      setGraceStartedAt(null);
-      clearOrder();
-      setOrder(null);
-      navigate('/customer/orders', { replace: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to cancel this order.';
-      console.error(message);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
       <NavbarCustomer />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center justify-between mb-6">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {connectionError && (
+          <div role="status" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+            Reconnecting… Your saved tracking details are still shown.
+            <button className="ml-2 font-semibold underline" onClick={() => setRetryVersion((value) => value + 1)}>Retry now</button>
+          </div>
+        )}
+        <div className="mb-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/customer/orders')}
-              className="flex items-center gap-2 text-gray-600 hover:text-[#2d6a4f] transition-colors group"
-            >
-              <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              <span className="text-sm font-medium hover:underline">Back to My Orders</span>
-            </button>
+            <button onClick={() => navigate('/customer/orders')} className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-[#2d6a4f]">← <span>Back to My Orders</span></button>
             <span className="text-gray-300">|</span>
-            <h1 className="text-xl font-bold text-[#2d6a4f]">Track Your Order</h1>
+            <h1 className="font-serif text-xl font-bold text-[#2d6a4f]">Track Your Order</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${statusColor}`}>
-              {isDelivered ? 'Delivered' : order.status?.charAt(0).toUpperCase() + order.status?.slice(1).replace('_', ' ') || 'Pending'}
-            </span>
-          </div>
+          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${statusColor}`}>
+            {status ? status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Pending'}
+          </span>
         </div>
 
-        <div className="mb-6">
-          {order.status === ORDER_STATUS.PENDING && (() => {
-            return (
-              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
-                {canManageGracePeriod ? (
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <span>You have {Math.ceil(graceRemaining)} seconds to cancel your order.</span>
-                    <button type="button" onClick={handleCancelOrderFromTracking} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600">Cancel Order</button>
-                  </div>
-                ) : (
-                  <span>Order can no longer be cancelled.</span>
-                )}
-              </div>
-            );
-          })()}
-          
-          <ProgressBar status={isDelivered ? ORDER_STATUS.DELIVERED : order.status} progress={barProgress} />
-        </div>
+        {status === ORDER_STATUS.PENDING && (
+          <div className="mb-3 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <span>{canCancel ? `You have ${Math.ceil(cancelSeconds)} seconds to cancel your order.` : 'Order can no longer be cancelled.'}</span>
+            {canCancel && <button onClick={handleCancelOrder} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600">Cancel Order</button>}
+          </div>
+        )}
+        {cancelError && <p role="alert" className="mb-3 text-sm text-red-700">{cancelError}</p>}
+        <div className="mb-6"><ProgressBar status={status || ORDER_STATUS.PENDING} progress={getBarProgress()} /></div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden isolate">
-              <div className="h-[400px] w-full relative z-0">
-                {!hasTrackingCoordinates && (
-                  <div className="flex h-full items-center justify-center bg-[#f8fbf8] px-6 text-center text-sm text-gray-600">
-                    Store location is not available for this order yet.
-                  </div>
-                )}
-                {hasTrackingCoordinates && (
-                <MapContainer 
-                  center={mapCenter as [number, number]}
-                  zoom={13} 
-                  style={{ height: '100%', width: '100%' }} 
-                  zoomControl={true}
-                >
-                  <TileLayer 
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' 
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
-                  />
-                  
-                  <RouteLayer 
-                    start={branchCoordinates}
-                    end={order.deliveryAddressCoords}
-                    progress={simulatedProgress} 
-                    onRouteLoaded={handleRouteLoaded} 
-                  />
-                  
-                  <DriverMarker 
-                    routePoints={routePoints} 
-                    progress={simulatedProgress}
-                  />
-                  
-                  <Marker 
-                    position={[branchCoordinates.lat, branchCoordinates.lng]}
-                    icon={storeIcon}
-                  >
-                    <Popup>
-                      <div className="text-center">
-                        <p className="font-semibold text-[#2d6a4f]">{order.branchName || 'Assigned branch'}</p>
-                        <p className="text-xs text-gray-500">Store Location</p>
-                      </div>
-                    </Popup>
-                  </Marker>
-                  
-                  {order.deliveryAddressCoords && (
-                    <Marker 
-                      position={[order.deliveryAddressCoords.lat, order.deliveryAddressCoords.lng]} 
-                      icon={destinationIcon}
-                    >
-                      <Popup>
-                        <div className="text-center">
-                          <p className="font-semibold text-[#2d6a4f]">Delivery Address</p>
-                          <p className="text-xs text-gray-500 truncate max-w-[200px]">
-                            {order.deliveryAddress || order.address}
-                          </p>
-                        </div>
-                      </Popup>
-                    </Marker>
-                  )}
-                </MapContainer>
-                )}
+            <div className="overflow-hidden rounded-2xl bg-white shadow-lg">
+              <div className="relative z-0 h-[400px] w-full">
+                {!hasTrackingCoordinates && <div className="flex h-full items-center justify-center bg-[#f8fbf8] px-6 text-center text-sm text-gray-600">Store or delivery coordinates are not available for this order.</div>}
+                {hasTrackingCoordinates && <MapContainer key={`${order.id}-${branchCoordinates!.lat}-${branchCoordinates!.lng}-${destinationCoordinates!.lat}-${destinationCoordinates!.lng}`} center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl>
+                  <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <RouteLayer start={branchCoordinates!} end={destinationCoordinates!} progress={simulatedProgress} onRouteLoaded={handleRouteLoaded} />
+                  <DriverMarker routePoints={routePoints} progress={simulatedProgress} />
+                  <Marker position={[branchCoordinates!.lat, branchCoordinates!.lng]} icon={storeIcon}><Popup><strong>{order.branchName || 'Assigned branch'}</strong><br /><span className="text-xs text-gray-500">Store location</span></Popup></Marker>
+                  <Marker position={[destinationCoordinates!.lat, destinationCoordinates!.lng]} icon={destinationIcon}><Popup><strong>Delivery Address</strong><br /><span className="text-xs text-gray-500">{order.deliveryAddress || order.address}</span></Popup></Marker>
+                </MapContainer>}
               </div>
-              
               <MapLegend />
             </div>
           </div>
-
-          <div className="lg:col-span-1">
-            <OrderDetailsCards 
-              currentOrder={{
-                ...order,
-                status: isDelivered ? ORDER_STATUS.DELIVERED : order.status
-              }} 
-              formatDate={formatDate} 
-            />
-            
-            {isDelivered && (
-              <button 
-                onClick={handleOrderComplete} 
-                className="w-full mt-4 py-3 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition shadow-md"
-              >
-                Back to My Orders
-              </button>
-            )}
+          <div>
+            <OrderDetailsCards currentOrder={{
+              ...order,
+              eta: status === 'on_the_way' ? Math.max(0, Math.ceil(35 * (1 - simulatedProgress / 100))) : order.eta,
+            }} formatDate={(value) => {
+              const date = new Date(value);
+              return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
+            }} />
+            {isDelivered && <button onClick={() => navigate('/customer/orders')} className="mt-4 w-full rounded-xl bg-[#2d6a4f] py-3 font-semibold text-white shadow-md">Back to My Orders</button>}
           </div>
         </div>
-      </div>
+
+        {order.statusHistory && order.statusHistory.length > 0 && (
+          <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm" aria-label="Order status history">
+            <h2 className="font-serif text-lg font-bold text-[#2d6a4f]">Status history</h2>
+            <ol className="mt-3 space-y-2">
+              {order.statusHistory.map((entry, index) => (
+                <li key={`${entry.status}-${entry.createdAt || index}`} className="flex items-center justify-between gap-4 border-t border-gray-100 pt-2 text-sm">
+                  <span className="capitalize text-gray-800">{entry.status.replaceAll('_', ' ')}</span>
+                  <time className="text-xs text-gray-500">{entry.createdAt ? new Date(entry.createdAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : ''}</time>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+      </main>
     </div>
   );
+};
+
+class TrackingPageErrorBoundary extends React.Component<{
+  cachedOrder: Order | null;
+  children: React.ReactNode;
+}, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    const cachedOrder = this.props.cachedOrder;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
+        <NavbarCustomer />
+        <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+          <h2 className="text-xl font-bold text-gray-800">We couldn't load your order right now.</h2>
+          {cachedOrder && <p className="mt-2 text-sm text-gray-600">Cached order {cachedOrder.orderNumber || cachedOrder.id} · {cachedOrder.status.replaceAll('_', ' ')}</p>}
+          <button onClick={() => this.setState({ hasError: false })} className="mt-4 rounded-xl bg-[#2d6a4f] px-5 py-2 text-white">Retry</button>
+        </div>
+      </div>
+    );
+  }
+}
+
+const OrderTrackingPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const { orders, currentOrder } = useOrder();
+  const cachedOrder = id
+    ? orders.find((candidate) => candidate.id === id) || (currentOrder?.id === id ? currentOrder : null)
+    : currentOrder;
+  return <TrackingPageErrorBoundary cachedOrder={cachedOrder}><OrderTrackingPageContent /></TrackingPageErrorBoundary>;
 };
 
 export default OrderTrackingPage;

@@ -30,4 +30,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request, \Throwable $e) => $request->is('api/*') || $request->expectsJson()
         );
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException $exception, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json(['message' => 'Method not allowed.'], 405);
+            }
+
+            return null;
+        });
     })->create();

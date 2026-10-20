@@ -18,9 +18,15 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ status, progress }) => {
   const getCurrentStep = () => {
     switch(status) {
       case ORDER_STATUS.PENDING: return 0;
+      case ORDER_STATUS.CONFIRMED:
       case ORDER_STATUS.PREPARING: return 1;
+      case ORDER_STATUS.PREPARED:
+      case ORDER_STATUS.READY: return 1;
       case ORDER_STATUS.ON_WAY: return 2;
-      case ORDER_STATUS.DELIVERED: return 3;
+      case ORDER_STATUS.ARRIVING:
+      case ORDER_STATUS.ARRIVED: return 2;
+      case ORDER_STATUS.DELIVERED:
+      case ORDER_STATUS.COMPLETED: return 3;
       default: return 0;
     }
   };

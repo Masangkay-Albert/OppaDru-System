@@ -42,6 +42,7 @@ export interface Order {
     franchise?: { id?: string; name?: string; latitude?: number; longitude?: number; address?: string } | null;
     total: number;
     status: string;
+    status_history?: Array<{ status: string; created_at?: string | null }>;
     payment_method: string;
     payment_status?: string;
     delivery_address: string;
@@ -65,6 +66,16 @@ export interface Order {
     scheduled_time?: string | null;
     schedule_display?: string | null;
     schedule_window?: string | null;
+}
+
+export class OrderServiceError extends Error {
+    readonly status?: number;
+
+    constructor(message: string, status?: number) {
+        super(message);
+        this.name = 'OrderServiceError';
+        this.status = status;
+    }
 }
 
 export interface UpdateOrderData {
@@ -163,11 +174,28 @@ class OrderService {
         });
 
         if (!response.ok) {
-            throw new Error(response.status === 401
+            throw new OrderServiceError(response.status === 401
                 ? 'Order history request was unauthorized (401).'
-                : 'Failed to fetch orders');
+                : 'Failed to fetch orders', response.status);
         }
 
+        return response.json();
+    }
+
+    async getUserOrder(id: string, signal?: AbortSignal): Promise<Order> {
+        const response = await fetch(`${API_URL}/orders/user/${encodeURIComponent(id)}`, {
+            headers: this.getHeaders(),
+            signal,
+        });
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new OrderServiceError(
+                response.status === 404 || response.status === 403
+                    ? 'This order could not be found in your account.'
+                    : payload.message || 'We could not load your order right now.',
+                response.status,
+            );
+        }
         return response.json();
     }
 

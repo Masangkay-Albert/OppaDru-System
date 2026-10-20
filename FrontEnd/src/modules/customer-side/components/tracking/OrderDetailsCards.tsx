@@ -126,7 +126,7 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
           </div>
           <div>
             <p className="text-sm text-gray-700">{currentOrder.deliveryAddress || currentOrder.address}</p>
-            {currentOrder.eta && currentOrder.status !== ORDER_STATUS.DELIVERED && (
+            {currentOrder.eta && !['delivered', 'completed', 'cancelled', 'failed'].includes(String(currentOrder.status)) && (
               <p className="text-xs text-[#e76f51] mt-1">ETA: {currentOrder.eta} minutes</p>
             )}
           </div>

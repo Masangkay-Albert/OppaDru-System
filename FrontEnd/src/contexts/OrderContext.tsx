@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { CartItem } from '../types/product.types';
 import type { OrderStatus } from '../utils/constants';
 import { useAuth } from './Authcontext';
@@ -13,6 +13,7 @@ export interface Order {
   total: number;
   address: string;
   status: OrderStatus;
+  statusHistory?: Array<{ status: string; createdAt?: string | null }>;
   paymentMethod: string;
   payment_status?: string;
   phone?: string;
@@ -75,6 +76,7 @@ interface OrderContextType {
   clearOrder: () => void;
   getOrderById: (orderId: string) => Order | undefined;
   fetchUserOrders: (showLoading?: boolean) => Promise<void>;
+  refreshOrderById: (orderId: string, signal?: AbortSignal) => Promise<Order>;
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
@@ -90,107 +92,186 @@ export const useOrder = () => {
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const resolvedUser = user ?? authService.getUserFromStorage();
+  const userId = resolvedUser?.id ? String(resolvedUser.id) : null;
+  const userEmail = resolvedUser?.email || '';
   const [orders, setOrders] = useState<Order[]>([]);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
-  const getOrdersKey = useCallback(() => {
-    return resolvedUser?.id ? `orders_user_${resolvedUser.id}` : 'orders_guest';
-  }, [resolvedUser]);
-  
-  const getCurrentOrderKey = useCallback(() => {
-    return resolvedUser?.id ? `currentOrder_user_${resolvedUser.id}` : 'currentOrder_guest';
-  }, [resolvedUser]);
+  const ordersRef = useRef<Order[]>([]);
+  const currentOrderRef = useRef<Order | null>(null);
+  const cacheOwnerIdRef = useRef<string | null>(null);
+  const storageKeys = useCallback(() => userId && authService.getToken() ? {
+    orders: `oppa:orders:v1:${userId}`,
+    current: `oppa:current-order:v1:${userId}`,
+    tracking: `oppa:tracking-order:v1:${userId}`,
+  } : null, [userId]);
 
-  const getTrackingOrderKey = useCallback(() => {
-    return 'active_order_tracking';
-  }, []);
+  const persistOrders = useCallback((nextOrders: Order[]) => {
+    ordersRef.current = nextOrders;
+    setOrders(nextOrders);
+    const keys = storageKeys();
+    if (keys) localStorage.setItem(keys.orders, JSON.stringify(nextOrders));
+  }, [storageKeys]);
+
+  const persistCurrentOrder = useCallback((nextOrder: Order | null) => {
+    currentOrderRef.current = nextOrder;
+    setCurrentOrder(nextOrder);
+    const keys = storageKeys();
+    if (keys && nextOrder) {
+      localStorage.setItem(keys.current, JSON.stringify(nextOrder));
+      localStorage.setItem(keys.tracking, JSON.stringify(nextOrder));
+    }
+  }, [storageKeys]);
+
+  const mapApiOrder = useCallback((apiOrder: any): Order => {
+    const productSubtotal = (apiOrder.items || []).reduce((sum: number, item: any) => {
+      const addonTotal = (item.selected_addons || []).reduce((addonSum: number, addon: any) => addonSum + Number(addon.price || 0) * Number(addon.quantity || 1), 0);
+      return sum + ((Number(item.product_price || 0) + addonTotal) * Number(item.quantity || 1));
+    }, 0);
+    const deliveryFee = Number(apiOrder.delivery_fee || 0) > 0
+      ? Number(apiOrder.delivery_fee || 0)
+      : Math.max(0, Number(apiOrder.total || 0) - productSubtotal - Number(apiOrder.service_fee || 0) - Number(apiOrder.vat || 0) - Number(apiOrder.priority_fee || 0));
+    const branch = apiOrder.branch || apiOrder.franchise || null;
+    const latitude = branch?.latitude == null ? NaN : Number(branch.latitude);
+    const longitude = branch?.longitude == null ? NaN : Number(branch.longitude);
+    const rawDeliveryCoords = apiOrder.delivery_coordinates
+      || (apiOrder.delivery_lat != null && apiOrder.delivery_lng != null
+        ? { lat: apiOrder.delivery_lat, lng: apiOrder.delivery_lng }
+        : null);
+    const deliveryLat = rawDeliveryCoords?.lat ?? rawDeliveryCoords?.latitude;
+    const deliveryLng = rawDeliveryCoords?.lng ?? rawDeliveryCoords?.longitude;
+    const deliveryCoords = deliveryLat != null && deliveryLng != null
+      && Number.isFinite(Number(deliveryLat)) && Number.isFinite(Number(deliveryLng))
+      ? { lat: Number(deliveryLat), lng: Number(deliveryLng) }
+      : undefined;
+    const createdAt = apiOrder.created_at || apiOrder.timestamp || new Date().toISOString();
+
+    return {
+      id: String(apiOrder.id),
+      email: apiOrder.email || userEmail,
+      items: apiOrder.items?.map((item: any) => ({
+        id: item.product_id,
+        name: item.product_name || item.product_id,
+        price: Number(item.product_price || 0),
+        quantity: Number(item.quantity || 1),
+        cartItemId: `${apiOrder.id}_${item.product_id}`,
+        description: '', category: '', image: '', is_available: true, isAvailable: true,
+        selectedAddons: item.selected_addons,
+        specialInstructions: item.special_instructions,
+      })) || [],
+      total: Number(apiOrder.total),
+      address: apiOrder.delivery_address || '',
+      status: apiOrder.status as OrderStatus,
+      statusHistory: Array.isArray(apiOrder.status_history) ? apiOrder.status_history.map((entry: any) => ({
+        status: String(entry.status || ''),
+        createdAt: entry.created_at || entry.createdAt || null,
+      })) : [],
+      paymentMethod: apiOrder.payment_method || '',
+      payment_status: apiOrder.payment_status,
+      phone: apiOrder.phone,
+      orderNumber: apiOrder.order_number,
+      userId: userId || undefined,
+      timestamp: createdAt,
+      graceStartedAt: new Date(createdAt).getTime(),
+      deliveryAddress: apiOrder.delivery_address,
+      deliveryAddressCoords: deliveryCoords,
+      branchId: apiOrder.branch_id || apiOrder.franchise_id || null,
+      branch: branch,
+      branchName: branch?.name,
+      branchCoords: Number.isFinite(latitude) && Number.isFinite(longitude) ? { lat: latitude, lng: longitude } : undefined,
+      branchAddress: branch?.address,
+      coords: deliveryCoords,
+      eta: Number.isFinite(Number(apiOrder.eta)) ? Number(apiOrder.eta) : 35,
+      deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
+      deliveryFee,
+      serviceFee: Number(apiOrder.service_fee || 0),
+      priorityFee: Number(apiOrder.priority_fee || 0),
+      vat: Number(apiOrder.vat || 0),
+      discountType: apiOrder.discount_type || null,
+      discountRate: Number(apiOrder.discount_rate || 0),
+      discountAmount: Number(apiOrder.discount_amount || 0),
+      discountStatus: apiOrder.discount_status || 'not_requested',
+      discountProofImage: apiOrder.discount_proof_image || null,
+      scheduledAt: apiOrder.scheduled_at || null,
+      scheduledDate: apiOrder.scheduled_date || null,
+      scheduledTime: apiOrder.scheduled_time || apiOrder.schedule_window || null,
+      scheduleDisplay: apiOrder.schedule_display || null,
+      scheduleWindow: apiOrder.schedule_window || null,
+    };
+  }, [userEmail, userId]);
+
+  const mergeOrderLists = (existing: Order[], incoming: Order[]) => {
+    const merged = new Map(existing.map((order) => [order.id, order]));
+    incoming.forEach((order) => {
+      const cached = merged.get(order.id);
+      merged.set(order.id, {
+        ...cached,
+        ...order,
+        items: order.items.length ? order.items : cached?.items || [],
+        statusHistory: order.statusHistory?.length ? order.statusHistory : cached?.statusHistory || [],
+        branch: order.branch || cached?.branch,
+        branchId: order.branchId || cached?.branchId,
+        branchName: order.branchName || cached?.branchName,
+        branchCoords: order.branchCoords || cached?.branchCoords,
+        branchAddress: order.branchAddress || cached?.branchAddress,
+        deliveryAddressCoords: order.deliveryAddressCoords || cached?.deliveryAddressCoords,
+        coords: order.coords || cached?.coords,
+      } as Order);
+    });
+    return [...merged.values()].sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+  };
+
+  const isFinalStatus = (status: unknown) => ['delivered', 'cancelled', 'completed', 'failed'].includes(String(status || '').trim().toLowerCase());
+  const latestOrder = (list: Order[]) => [...list].sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())[0] || null;
+  const latestActiveOrder = (list: Order[]) => latestOrder(list.filter((order) => !isFinalStatus(order.status)));
+
+  const loadUserCache = useCallback((): { orders: Order[]; current: Order | null } => {
+    if (!userEmail || !userId || !authService.getToken()) return { orders: [], current: null };
+    const keys = storageKeys();
+    if (!keys) return { orders: [], current: null };
+    const ownedByCurrentUser = (order: any) => order && (
+      String(order.userId || order.user_id || '') === userId
+      || String(order.email || '').toLowerCase() === userEmail.toLowerCase()
+    );
+    const readJson = <T,>(key: string): T | null => {
+      try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) as T : null; } catch { return null; }
+    };
+    const versionedOrders = readJson<Order[]>(keys.orders) || [];
+    const legacyOrders = readJson<Order[]>(`orders_user_${userId}`) || [];
+    const legacyCurrent = readJson<Order>(`currentOrder_user_${userId}`);
+    const legacyTracking = readJson<Order>('active_order_tracking');
+    const cacheOrders = mergeOrderLists(
+      versionedOrders.filter(ownedByCurrentUser),
+      legacyOrders.filter(ownedByCurrentUser),
+    );
+    [legacyCurrent, legacyTracking].forEach((order) => {
+      if (ownedByCurrentUser(order) && !cacheOrders.some((saved) => saved.id === order!.id)) cacheOrders.push(order!);
+    });
+    const savedCurrent = readJson<Order>(keys.current) || readJson<Order>(keys.tracking) || legacyCurrent || legacyTracking;
+    const current = ownedByCurrentUser(savedCurrent) ? savedCurrent! : latestActiveOrder(cacheOrders) || latestOrder(cacheOrders);
+    if (cacheOrders.length) localStorage.setItem(keys.orders, JSON.stringify(cacheOrders));
+    if (current) {
+      localStorage.setItem(keys.current, JSON.stringify(current));
+      localStorage.setItem(keys.tracking, JSON.stringify(current));
+    }
+    return { orders: cacheOrders, current };
+  }, [storageKeys, userEmail, userId]);
 
   const fetchUserOrders = useCallback(async (showLoading = true) => {
-    if (!resolvedUser) {
-      setOrders([]);
-      return;
-    }
-    if (!authService.getToken()) return;
+    if (!userId || !userEmail || !authService.getToken()) return;
 
     if (showLoading) setIsLoading(true);
     try {
       const apiOrders = await orderService.getUserOrders();
-      const mappedOrders: Order[] = apiOrders.map(apiOrder => {
-        const productSubtotal = (apiOrder.items || []).reduce((sum: number, item: any) => {
-          const addonTotal = (item.selected_addons || []).reduce((addonSum: number, addon: any) => addonSum + Number(addon.price || 0) * Number(addon.quantity || 1), 0);
-          return sum + ((Number(item.product_price || 0) + addonTotal) * Number(item.quantity || 1));
-        }, 0);
-        const derivedDeliveryFee = Number(apiOrder.delivery_fee || 0) > 0
-          ? Number(apiOrder.delivery_fee || 0)
-          : Math.max(0, Number(apiOrder.total || 0) - productSubtotal - Number(apiOrder.service_fee || 0) - Number(apiOrder.vat || 0) - Number(apiOrder.priority_fee || 0));
-
-        const orderCreatedAt = apiOrder.created_at || new Date().toISOString();
-        const graceStartedAtNumber = apiOrder.created_at ? new Date(apiOrder.created_at).getTime() : Date.now();
-
-        return {
-          id: apiOrder.id,
-          email: apiOrder.email,
-          items: apiOrder.items?.map((item: any) => ({
-            id: item.product_id,
-            name: item.product_name || item.product_id,
-            price: Number(item.product_price),
-            quantity: item.quantity,
-            cartItemId: `${apiOrder.id}_${item.product_id}`,
-            description: '',
-            category: '',
-            image: '',
-            is_available: true,
-            isAvailable: true,
-            selectedAddons: item.selected_addons,
-            specialInstructions: item.special_instructions,
-          })) || [],
-          total: Number(apiOrder.total),
-          address: apiOrder.delivery_address,
-          status: apiOrder.status as OrderStatus,
-          paymentMethod: apiOrder.payment_method,
-          payment_status: apiOrder.payment_status,
-          phone: apiOrder.phone,
-          orderNumber: apiOrder.order_number,
-          userId: resolvedUser.id,
-          timestamp: orderCreatedAt,
-          graceStartedAt: graceStartedAtNumber,
-          deliveryAddress: apiOrder.delivery_address,
-          deliveryAddressCoords: apiOrder.delivery_coordinates || undefined,
-          branchId: apiOrder.branch_id || apiOrder.franchise_id || null,
-          branchName: (apiOrder.branch || apiOrder.franchise)?.name,
-          branchCoords: (apiOrder.branch || apiOrder.franchise)?.latitude && (apiOrder.branch || apiOrder.franchise)?.longitude ? { lat: Number((apiOrder.branch || apiOrder.franchise).latitude), lng: Number((apiOrder.branch || apiOrder.franchise).longitude) } : undefined,
-          branchAddress: (apiOrder.branch || apiOrder.franchise)?.address,
-          coords: apiOrder.delivery_coordinates || undefined,
-          eta: 35,
-          deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || 'standard',
-          deliveryFee: derivedDeliveryFee,
-          serviceFee: Number(apiOrder.service_fee || 0),
-          priorityFee: Number(apiOrder.priority_fee || 0),
-          vat: Number(apiOrder.vat || 0),
-          discountType: apiOrder.discount_type || null,
-          discountRate: Number(apiOrder.discount_rate || 0),
-          discountAmount: Number(apiOrder.discount_amount || 0),
-          discountStatus: apiOrder.discount_status || 'not_requested',
-          discountProofImage: apiOrder.discount_proof_image || null,
-          scheduledAt: apiOrder.scheduled_at || null,
-          scheduledDate: apiOrder.scheduled_date || null,
-          scheduledTime: apiOrder.scheduled_time || apiOrder.schedule_window || null,
-          scheduleDisplay: apiOrder.schedule_display || null,
-          scheduleWindow: apiOrder.schedule_window || null,
-        };
-      });
-      setOrders(mappedOrders);
-      localStorage.setItem(getOrdersKey(), JSON.stringify(mappedOrders));
-      setCurrentOrder((current) => {
-        if (!current) return current;
-        const latestCurrentOrder = mappedOrders.find((order) => order.id === current.id);
-        if (!latestCurrentOrder) return current;
-        localStorage.setItem(getCurrentOrderKey(), JSON.stringify(latestCurrentOrder));
-        localStorage.setItem(getTrackingOrderKey(), JSON.stringify(latestCurrentOrder));
-        return latestCurrentOrder;
-      });
-      return;
+      if (authService.getUserFromStorage()?.id !== userId) return;
+      const mappedOrders = apiOrders.map(mapApiOrder);
+      const mergedOrders = mergeOrderLists(ordersRef.current, mappedOrders);
+      persistOrders(mergedOrders);
+      const active = latestActiveOrder(mergedOrders);
+      const selectedCurrent = active
+        || (currentOrderRef.current && mergedOrders.find((order) => order.id === currentOrderRef.current?.id))
+        || latestOrder(mergedOrders);
+      if (selectedCurrent) persistCurrentOrder(selectedCurrent);
     } catch (error) {
       if (error instanceof Error && error.message.includes('(401)')) {
         console.warn('Your customer session is no longer valid. Sign in again to refresh your order history.');
@@ -200,79 +281,36 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } finally {
       if (showLoading) setIsLoading(false);
     }
-  }, [resolvedUser, getOrdersKey, getCurrentOrderKey, getTrackingOrderKey]);
-
-  const loadOrders = useCallback(() => {
-    const fallbackTrackingOrder = (() => {
-      try {
-        const raw = localStorage.getItem(getTrackingOrderKey());
-        return raw ? JSON.parse(raw) as Order : null;
-      } catch {
-        return null;
-      }
-    })();
-
-    if (!resolvedUser) {
-      setOrders([]);
-      if (fallbackTrackingOrder && !['cancelled', 'delivered'].includes(String(fallbackTrackingOrder.status ?? '').trim().toLowerCase())) {
-        setCurrentOrder(fallbackTrackingOrder);
-      } else {
-        setCurrentOrder(null);
-      }
-      return;
-    }
-
-    const savedOrders = localStorage.getItem(getOrdersKey());
-    const savedCurrentOrder = localStorage.getItem(getCurrentOrderKey());
-
-    let parsedSavedOrders: Order[] = [];
-    if (savedOrders) {
-      try {
-        parsedSavedOrders = JSON.parse(savedOrders);
-        setOrders(parsedSavedOrders);
-      } catch {
-        setOrders([]);
-      }
-    }
-
-    if (savedCurrentOrder) {
-      try {
-        const parsedCurrentOrder = JSON.parse(savedCurrentOrder) as Order;
-        setCurrentOrder(parsedCurrentOrder);
-        localStorage.setItem(getTrackingOrderKey(), JSON.stringify(parsedCurrentOrder));
-      } catch {
-        setCurrentOrder(null);
-      }
-    } else {
-      const activeOrders = parsedSavedOrders.filter((order) =>
-        !['cancelled', 'delivered'].includes(String(order.status ?? '').trim().toLowerCase())
-      );
-
-      if (activeOrders.length > 0) {
-        const latestActiveOrder = [...activeOrders].sort((a, b) => {
-          const timeA = new Date(a.timestamp || 0).getTime();
-          const timeB = new Date(b.timestamp || 0).getTime();
-          return timeB - timeA;
-        })[0];
-
-        setCurrentOrder(latestActiveOrder);
-        localStorage.setItem(getCurrentOrderKey(), JSON.stringify(latestActiveOrder));
-        localStorage.setItem(getTrackingOrderKey(), JSON.stringify(latestActiveOrder));
-      } else if (fallbackTrackingOrder && !['cancelled', 'delivered'].includes(String(fallbackTrackingOrder.status ?? '').trim().toLowerCase())) {
-        setCurrentOrder(fallbackTrackingOrder);
-        localStorage.setItem(getCurrentOrderKey(), JSON.stringify(fallbackTrackingOrder));
-        localStorage.setItem(getTrackingOrderKey(), JSON.stringify(fallbackTrackingOrder));
-      } else {
-        setCurrentOrder(null);
-      }
-    }
-
-    fetchUserOrders();
-  }, [resolvedUser, getOrdersKey, getCurrentOrderKey, getTrackingOrderKey, fetchUserOrders]);
+  }, [userId, userEmail, mapApiOrder, persistCurrentOrder, persistOrders]);
 
   useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+    if (!userId || !authService.getToken()) {
+      cacheOwnerIdRef.current = null;
+      ordersRef.current = [];
+      currentOrderRef.current = null;
+      setOrders([]);
+      setCurrentOrder(null);
+      return;
+    }
+    const cached = loadUserCache();
+    cacheOwnerIdRef.current = userId;
+    ordersRef.current = cached.orders;
+    currentOrderRef.current = cached.current;
+    setOrders(cached.orders);
+    setCurrentOrder(cached.current);
+    void fetchUserOrders(false);
+  }, [userId, userEmail, loadUserCache, fetchUserOrders]);
+
+  const refreshOrderById = useCallback(async (orderId: string, signal?: AbortSignal): Promise<Order> => {
+    if (!userId || !authService.getToken()) throw new Error('Sign in to load this order.');
+    const apiOrder = await orderService.getUserOrder(orderId, signal);
+    if (authService.getUserFromStorage()?.id !== userId) throw new Error('The signed-in user changed.');
+    const mapped = mapApiOrder(apiOrder);
+    const nextOrders = mergeOrderLists(ordersRef.current, [mapped]);
+    persistOrders(nextOrders);
+    persistCurrentOrder(mapped);
+    return mapped;
+  }, [userId, mapApiOrder, persistOrders, persistCurrentOrder]);
 
   const placeOrder = async (
     items: CartItem[],
@@ -350,62 +388,16 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
 
       const apiOrder = await orderService.createOrder(data);
-      const productSubtotal = validItems.reduce((sum, item) => {
-        const addonTotal = (item.selectedAddons || []).reduce((addonSum, addon) => addonSum + Number(addon.price || 0), 0);
-        return sum + ((Number(item.price || 0) * Number(item.quantity || 1)) + addonTotal);
-      }, 0);
-      const derivedDeliveryFee = Number(apiOrder.delivery_fee || 0) > 0
-        ? Number(apiOrder.delivery_fee || 0)
-        : Math.max(0, Number(apiOrder.total || 0) - productSubtotal - Number(apiOrder.service_fee || 0) - Number(apiOrder.vat || 0) - Number(apiOrder.priority_fee || 0));
-
-      const createdAt = apiOrder.created_at || new Date().toISOString();
-      const now = Date.now();
+      const mappedOrder = mapApiOrder(apiOrder);
       const newOrder: Order = {
-        id: apiOrder.id,
-        email: apiOrder.email,
-        items: validItems,
-        total: Number(apiOrder.total),
-        address: apiOrder.delivery_address,
-        status: apiOrder.status as OrderStatus,
-        paymentMethod: apiOrder.payment_method,
-        payment_status: apiOrder.payment_status,
-        phone: apiOrder.phone,
-        orderNumber: apiOrder.order_number,
-        userId: activeUser.id,
-        timestamp: createdAt,
-        graceStartedAt: Number.isFinite(new Date(createdAt).getTime()) ? now : now,
-        deliveryAddress: apiOrder.delivery_address,
-        coords: deliveryAddressCoords,
-        deliveryAddressCoords,
-        branchId: apiOrder.branch_id || apiOrder.franchise_id || null,
-        branchName: (apiOrder.branch || apiOrder.franchise)?.name,
-        branchCoords: (apiOrder.branch || apiOrder.franchise)?.latitude && (apiOrder.branch || apiOrder.franchise)?.longitude ? { lat: Number((apiOrder.branch || apiOrder.franchise).latitude), lng: Number((apiOrder.branch || apiOrder.franchise).longitude) } : undefined,
-        branchAddress: (apiOrder.branch || apiOrder.franchise)?.address,
-        eta: 35,
-        deliveryType: (apiOrder.delivery_type as 'standard' | 'priority' | 'scheduled') || deliveryType,
-        deliveryFee: derivedDeliveryFee,
-        serviceFee: Number(apiOrder.service_fee || 0),
-        priorityFee: Number(apiOrder.priority_fee || 0),
-        vat: Number(apiOrder.vat || 0),
-        discountType: apiOrder.discount_type || discountType || null,
-        discountRate: Number(apiOrder.discount_rate || 0),
-        discountAmount: Number(apiOrder.discount_amount || 0),
-        discountStatus: apiOrder.discount_status || 'pending',
-        discountProofImage: apiOrder.discount_proof_image || null,
-        scheduledAt: apiOrder.scheduled_at || null,
-        scheduledDate: apiOrder.scheduled_date || null,
-        scheduledTime: apiOrder.scheduled_time || apiOrder.schedule_window || null,
-        scheduleDisplay: apiOrder.schedule_display || null,
-        scheduleWindow: apiOrder.schedule_window || null,
+        ...mappedOrder,
+        items: mappedOrder.items.length ? mappedOrder.items : validItems,
+        deliveryAddressCoords: mappedOrder.deliveryAddressCoords || deliveryAddressCoords,
+        coords: mappedOrder.deliveryAddressCoords || deliveryAddressCoords,
+        discountType: mappedOrder.discountType || discountType || null,
       };
-
-      const updatedOrders = [...orders, newOrder];
-      setOrders(updatedOrders);
-      setCurrentOrder(newOrder);
-
-      localStorage.setItem(getCurrentOrderKey(), JSON.stringify(newOrder));
-      localStorage.setItem(getTrackingOrderKey(), JSON.stringify(newOrder));
-      localStorage.setItem(getOrdersKey(), JSON.stringify(updatedOrders));
+      persistOrders(mergeOrderLists(ordersRef.current, [newOrder]));
+      persistCurrentOrder(newOrder);
 
       setIsLoading(false);
       return true;
@@ -420,39 +412,31 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       await orderService.updateOrderStatus(orderId, status);
 
-      setOrders(prev => {
-        const updated = prev.map(order =>
-          order.id === orderId ? { ...order, status } : order
-        );
-        localStorage.setItem(getOrdersKey(), JSON.stringify(updated));
-        return updated;
-      });
-
-      if (currentOrder?.id === orderId) {
-        const updatedOrder = { ...currentOrder, status };
-        setCurrentOrder(updatedOrder);
-        localStorage.setItem(getCurrentOrderKey(), JSON.stringify(updatedOrder));
-        localStorage.setItem(getTrackingOrderKey(), JSON.stringify(updatedOrder));
-      }
+      const updated = ordersRef.current.map(order => order.id === orderId ? { ...order, status } : order);
+      persistOrders(updated);
+      const updatedCurrent = currentOrderRef.current?.id === orderId
+        ? { ...currentOrderRef.current, status }
+        : currentOrderRef.current;
+      if (updatedCurrent) persistCurrentOrder(updatedCurrent);
+      void fetchUserOrders(false);
     } catch (error) {
       console.error('Failed to update order status:', error);
     }
   };
 
   const clearOrder = () => {
+    currentOrderRef.current = null;
     setCurrentOrder(null);
-    localStorage.removeItem(getCurrentOrderKey());
-    localStorage.removeItem(getTrackingOrderKey());
   };
 
-  const getOrderById = (orderId: string): Order | undefined => {
-    return orders.find(order => order.id === orderId);
-  };
+  const visibleOrders = cacheOwnerIdRef.current === userId ? orders : [];
+  const visibleCurrentOrder = cacheOwnerIdRef.current === userId ? currentOrder : null;
+  const getOrderById = (orderId: string): Order | undefined => visibleOrders.find(order => order.id === orderId);
 
   return (
     <OrderContext.Provider value={{
-      orders,
-      currentOrder,
+      orders: visibleOrders,
+      currentOrder: visibleCurrentOrder,
       isLoading,
       refreshOrders: fetchUserOrders,
       placeOrder,
@@ -460,6 +444,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       clearOrder,
       getOrderById,
       fetchUserOrders,
+      refreshOrderById,
     }}>
       {children}
     </OrderContext.Provider>

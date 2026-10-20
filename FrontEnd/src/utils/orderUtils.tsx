@@ -12,8 +12,33 @@ export const STATUS_DISPLAY: Record<string, { label: string; icon: React.ReactNo
     icon: <FaUtensils size={12} />,
     badgeClass: 'bg-blue-50 text-blue-700 border-blue-200'
   },
+  [ORDER_STATUS.CONFIRMED]: {
+    label: 'Confirmed',
+    icon: <FaUtensils size={12} />,
+    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200'
+  },
+  [ORDER_STATUS.PREPARED]: {
+    label: 'Prepared',
+    icon: <FaUtensils size={12} />,
+    badgeClass: 'bg-purple-50 text-purple-700 border-purple-200'
+  },
+  [ORDER_STATUS.READY]: {
+    label: 'Ready',
+    icon: <FaUtensils size={12} />,
+    badgeClass: 'bg-orange-50 text-orange-700 border-orange-200'
+  },
   [ORDER_STATUS.ON_WAY]: {
     label: 'On the way',
+    icon: <FaTruck size={12} />,
+    badgeClass: 'bg-purple-50 text-purple-700 border-purple-200'
+  },
+  [ORDER_STATUS.ARRIVING]: {
+    label: 'Arriving',
+    icon: <FaTruck size={12} />,
+    badgeClass: 'bg-purple-50 text-purple-700 border-purple-200'
+  },
+  [ORDER_STATUS.ARRIVED]: {
+    label: 'Arrived',
     icon: <FaTruck size={12} />,
     badgeClass: 'bg-purple-50 text-purple-700 border-purple-200'
   },
@@ -21,6 +46,21 @@ export const STATUS_DISPLAY: Record<string, { label: string; icon: React.ReactNo
     label: 'Delivered',
     icon: <FaCheckDouble size={12} />,
     badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  },
+  [ORDER_STATUS.COMPLETED]: {
+    label: 'Completed',
+    icon: <FaCheckDouble size={12} />,
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  },
+  [ORDER_STATUS.CANCELLED]: {
+    label: 'Cancelled',
+    icon: <FaCheckDouble size={12} />,
+    badgeClass: 'bg-red-50 text-red-700 border-red-200'
+  },
+  [ORDER_STATUS.FAILED]: {
+    label: 'Failed',
+    icon: <FaCheckDouble size={12} />,
+    badgeClass: 'bg-red-50 text-red-700 border-red-200'
   },
   [ORDER_STATUS.SCHEDULED]: {
     label: 'Scheduled',
@@ -30,19 +70,36 @@ export const STATUS_DISPLAY: Record<string, { label: string; icon: React.ReactNo
 };
 
 export const STATUS_OPTIONS = [
+  { value: 'all', label: 'All orders' },
   { value: ORDER_STATUS.PENDING, label: 'Pending' },
+  { value: ORDER_STATUS.CONFIRMED, label: 'Confirmed' },
+  { value: ORDER_STATUS.PREPARING, label: 'Preparing' },
+  { value: ORDER_STATUS.PREPARED, label: 'Prepared' },
+  { value: ORDER_STATUS.READY, label: 'Ready' },
   { value: ORDER_STATUS.SCHEDULED, label: 'Scheduled' },
   { value: ORDER_STATUS.ON_WAY, label: 'On the Way' },
+  { value: ORDER_STATUS.ARRIVING, label: 'Arriving' },
+  { value: ORDER_STATUS.ARRIVED, label: 'Arrived' },
   { value: ORDER_STATUS.DELIVERED, label: 'Delivered' },
+  { value: ORDER_STATUS.COMPLETED, label: 'Completed' },
+  { value: ORDER_STATUS.CANCELLED, label: 'Cancelled' },
+  { value: ORDER_STATUS.FAILED, label: 'Failed' },
 ];
 
 export const getStatusColor = (status: string) => {
   switch (status) {
     case ORDER_STATUS.PENDING: return 'border-amber-200 bg-amber-50';
     case ORDER_STATUS.PREPARING: return 'border-blue-200 bg-blue-50';
+    case ORDER_STATUS.CONFIRMED: return 'border-blue-200 bg-blue-50';
+    case ORDER_STATUS.PREPARED: return 'border-purple-200 bg-purple-50';
+    case ORDER_STATUS.READY: return 'border-orange-200 bg-orange-50';
     case ORDER_STATUS.SCHEDULED: return 'border-orange-200 bg-orange-50';
     case ORDER_STATUS.ON_WAY: return 'border-purple-200 bg-purple-50';
-    case ORDER_STATUS.DELIVERED: return 'border-emerald-200 bg-emerald-50';
+    case ORDER_STATUS.ARRIVING: return 'border-purple-200 bg-purple-50';
+    case ORDER_STATUS.DELIVERED:
+    case ORDER_STATUS.COMPLETED: return 'border-emerald-200 bg-emerald-50';
+    case ORDER_STATUS.CANCELLED:
+    case ORDER_STATUS.FAILED: return 'border-red-200 bg-red-50';
     default: return 'border-gray-200 bg-gray-50';
   }
 };
