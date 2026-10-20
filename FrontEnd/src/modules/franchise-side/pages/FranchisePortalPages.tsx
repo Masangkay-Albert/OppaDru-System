@@ -99,9 +99,9 @@ export const MenuAvailabilityPage: React.FC = () => {
         {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => void loadMenu()} className="font-semibold underline">Retry</button></div>}
 
         <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center">
-          <label className="flex h-11 w-full shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)] lg:max-w-xs lg:flex-1">
+          <label className="franchise-search-field flex h-11 w-full shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)] lg:max-w-xs lg:flex-1">
             <Search size={16} aria-hidden="true" />
-            <input aria-label="Search products" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products..." className="min-w-0 w-full bg-transparent text-sm text-[var(--oppa-text)] outline-none placeholder:text-[var(--oppa-text-muted)]" />
+            <input aria-label="Search products" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products..." className="admin-embedded-input min-w-0 w-full text-sm placeholder:text-[var(--oppa-text-muted)]" />
           </label>
           <div role="tablist" aria-label="Filter products by category" className="admin-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto py-1">
             {[{ id: 'all', name: 'All' }, ...categories.filter((entry) => entry.id !== 'all')].map((entry) => {

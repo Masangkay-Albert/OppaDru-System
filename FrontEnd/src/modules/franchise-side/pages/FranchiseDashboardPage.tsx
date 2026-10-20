@@ -169,7 +169,6 @@ const FranchiseDashboardPage: React.FC = () => {
         <section className="mt-6">
           <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4">
             <div><h2 className="text-lg font-semibold text-[var(--oppa-text)]">Recent branch orders</h2><p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">Latest activity from this branch only</p></div>
-            <button onClick={retryDashboard} className="text-sm text-[var(--oppa-green)] hover:underline">Refresh</button>
           </div>
           <DataTable
             headers={['Order ID', 'Customer', 'Type', 'Amount', 'Status', 'Date']}

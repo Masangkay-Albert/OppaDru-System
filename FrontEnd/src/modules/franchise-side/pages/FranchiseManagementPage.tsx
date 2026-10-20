@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Building2, MapPin, RefreshCw, Store } from 'lucide-react';
+import { Building2, MapPin, Store } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { PageHeader, StatusBadge } from '../../admin-side/components/AdminUI';
@@ -53,7 +53,7 @@ const FranchiseManagementPage: React.FC = () => {
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="mx-auto max-w-5xl">
-        <PageHeader title="Franchise Profile" subtitle="Franchise information and locations authorized for your manager account." actions={<button type="button" onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} disabled={loading} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-4 py-2.5 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)] disabled:opacity-50"><RefreshCw size={15} /> Refresh</button>} />
+        <PageHeader title="Franchise Profile" subtitle="Franchise information and locations authorized for your manager account." />
         {error && <div role="alert" className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}<button onClick={() => { setLoading(true); setReload((value) => value + 1); }} className="font-semibold underline">Retry</button></div>}
         {loading ? <p className="rounded-2xl border bg-white p-10 text-center text-sm text-gray-500">Loading your franchise information...</p> : data && (
           <>

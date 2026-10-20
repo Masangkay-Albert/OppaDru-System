@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BarChart3, CalendarDays, CreditCard, DollarSign, RefreshCw, ShoppingCart } from 'lucide-react';
+import { BarChart3, CalendarDays, CreditCard, DollarSign, ShoppingCart } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
@@ -104,7 +104,6 @@ const FranchiseReportsPage: React.FC = () => {
             <CalendarDays size={17} className="mb-2 hidden text-[var(--oppa-green)] sm:block" />
             <label className="grid gap-1 text-xs text-[var(--oppa-text-muted)]">From<input type="date" value={from} max={to} onChange={(event) => { setPeriod('custom'); setFrom(event.target.value); }} className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
             <label className="grid gap-1 text-xs text-[var(--oppa-text-muted)]">To<input type="date" value={to} min={from} max={TODAY} onChange={(event) => { setPeriod('custom'); setTo(event.target.value); }} className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-            <button type="button" onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} disabled={loading} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)] disabled:opacity-50"><RefreshCw size={15} /> Refresh</button>
             </div>
           </div>
         </section>

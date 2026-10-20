@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Boxes, PackageCheck, PackageX, RefreshCw, Search, TriangleAlert } from 'lucide-react';
+import { Boxes, PackageCheck, PackageX, Search, TriangleAlert } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
@@ -89,7 +89,7 @@ const FranchiseInventoryPage: React.FC = () => {
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="mx-auto max-w-[1500px]">
-        <PageHeader title="Inventory" subtitle="Manage branch stock and availability without changing the shared catalog." actions={<button type="button" onClick={() => { setError(''); setIsLoading(true); void loadInventory(); }} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><RefreshCw size={15} /> Refresh</button>} />
+        <PageHeader title="Inventory" subtitle="Manage branch stock and availability without changing the shared catalog." />
 
         {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button onClick={() => { setError(''); setIsLoading(true); void loadInventory(); }} className="font-semibold underline">Retry</button></div>}
         {message && <p role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{message}</p>}
@@ -105,7 +105,7 @@ const FranchiseInventoryPage: React.FC = () => {
           <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
             <div className="border-b border-[var(--oppa-border)] px-4 py-4 sm:px-5"><h2 className="font-semibold text-[var(--oppa-text)]">Stock and availability</h2><p className="mt-1 text-xs text-gray-500">Set a quantity to start branch-level stock tracking.</p></div>
             <div className="grid gap-3 border-b border-[var(--oppa-border)] p-4 md:grid-cols-[1fr_220px_200px]">
-              <label className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search inventory" className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-3 text-sm" /></label>
+              <label className="franchise-search-field relative flex h-11 items-center rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)]"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search inventory" className="admin-embedded-input w-full py-2.5 pl-10 pr-3 text-sm" /></label>
               <select value={category} onChange={(event) => setCategory(event.target.value)} className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"><option value="all">All categories</option>{categories.map((value) => <option key={value} value={value}>{value}</option>)}</select>
               <select value={filter} onChange={(event) => setFilter(event.target.value as InventoryFilter)} className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"><option value="all">All availability</option><option value="available">Available</option><option value="low">Low stock</option><option value="out">Out of stock</option><option value="unavailable">Unavailable</option></select>
             </div>

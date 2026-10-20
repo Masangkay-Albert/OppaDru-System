@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Edit3, RefreshCw, Save, Store } from 'lucide-react';
+import { Edit3, Save, Store } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { PageHeader } from '../../admin-side/components/AdminUI';
@@ -68,10 +68,7 @@ const FranchiseSettingsPage: React.FC = () => {
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="mx-auto max-w-5xl">
-        <PageHeader title="Settings" subtitle="Review branch information and operating details." actions={<div className="flex gap-2">
-            <button onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-border)] px-4 py-2 text-sm disabled:opacity-50"><RefreshCw size={15} /> Refresh</button>
-            {settings && !editing && <button onClick={() => setEditing(true)} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white"><Edit3 size={15} /> Edit</button>}
-          </div>} />
+        <PageHeader title="Settings" subtitle="Review branch information and operating details." actions={settings && !editing ? <button onClick={() => setEditing(true)} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-medium text-white"><Edit3 size={15} /> Edit</button> : undefined} />
         {error && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}<button onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="ml-3 font-semibold underline">Retry</button></div>}
         {loading ? <p className="p-10 text-center text-sm text-gray-500">Loading branch settings...</p> : settings && (
           <section className="admin-card p-6">

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, Globe2, RefreshCw, Search, Store, X } from 'lucide-react';
+import { Eye, Globe2, Search, Store, X } from 'lucide-react';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
@@ -151,16 +151,7 @@ const FranchiseOrdersPage: React.FC = () => {
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="mx-auto max-w-[1500px]">
-        <PageHeader title="Orders" subtitle="Track this branch’s online and onsite orders. Statuses update as authorized kitchen and delivery roles process each order." actions={
-          <button
-            type="button"
-            aria-label="Refresh orders"
-            title="Refresh orders"
-            onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }}
-            disabled={loading}
-            className="inline-flex size-10 items-center justify-center rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)] disabled:opacity-50"
-          ><RefreshCw size={16} /></button>
-        } />
+        <PageHeader title="Orders" subtitle="Track this branch’s online and onsite orders. Statuses update as authorized kitchen and delivery roles process each order." />
 
         {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="font-semibold underline">Retry</button></div>}
         {newOrdersNotice && <div role="status" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><span>{newOrdersNotice}</span><button type="button" onClick={() => setNewOrdersNotice('')} className="font-semibold underline">Dismiss</button></div>}
@@ -181,9 +172,9 @@ const FranchiseOrdersPage: React.FC = () => {
 
         <div className="mb-4 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 shadow-sm">
           <div className="flex flex-col gap-2 sm:flex-row">
-            <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]">
+            <label className="franchise-search-field flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]">
               <Search size={16} aria-hidden="true" />
-              <input aria-label="Search orders by ID, customer, or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order ID, customer, email..." className="min-w-0 w-full bg-transparent text-sm text-[var(--oppa-text)] outline-none placeholder:text-[var(--oppa-text-muted)]" />
+              <input aria-label="Search orders by ID, customer, or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order ID, customer, email..." className="admin-embedded-input min-w-0 w-full text-sm placeholder:text-[var(--oppa-text-muted)]" />
             </label>
             <select aria-label="Filter by channel" value={channel} onChange={(event) => setChannel(event.target.value as ChannelFilter)} className="h-11 min-w-36 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]"><option value="all">All channels</option><option value="online">Online</option><option value="onsite">Onsite</option></select>
             <label className="flex h-11 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]"><span className="whitespace-nowrap">Date</span><input aria-label="Filter by date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className="min-w-0 bg-transparent text-[var(--oppa-text)]" /></label>

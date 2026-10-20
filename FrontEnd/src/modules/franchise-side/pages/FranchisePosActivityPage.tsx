@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatPeso } from '../../../utils/formatters';
@@ -95,12 +94,7 @@ const FranchisePosActivityPage: React.FC = () => {
             <h1 className="mt-1 text-2xl font-semibold">Sales and POS activity</h1>
             <p className="mt-1 text-sm text-gray-500">Transactions and sales for {franchiseUser?.franchise?.name || 'your authorized location'} only.</p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => void loadActivity()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-border)] px-4 py-2 text-sm disabled:opacity-50">
-              <RefreshCw size={15} /> Refresh
-            </button>
-            {franchiseUser?.can_process_pos && <Link to="/franchise/pos" className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">Open POS</Link>}
-          </div>
+          {franchiseUser?.can_process_pos && <Link to="/franchise/pos" className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">Open POS</Link>}
         </header>
 
         {error && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
