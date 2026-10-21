@@ -218,8 +218,9 @@ class FranchiseAccessTest extends TestCase
         $imageResponse = $this->post('/api/franchise/products/upload-image', [
             'image' => UploadedFile::fake()->create('branch-product.jpg', 1, 'image/jpeg'),
         ], $northHeaders)->assertOk();
-        Storage::disk('public')->assertExists($imageResponse->json('path'));
-        $this->assertStringStartsWith('products/franchise/'.$franchiseA->id.'/', $imageResponse->json('path'));
+        $imagePath = $imageResponse->json('path');
+        $this->assertTrue(Storage::disk('public')->exists($imagePath));
+        $this->assertStringStartsWith('products/franchise/'.$franchiseA->id.'/', $imagePath);
     }
 
     public function test_franchise_user_cannot_access_another_franchise_scope(): void
