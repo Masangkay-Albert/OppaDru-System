@@ -31,6 +31,8 @@ class FranchiseInventoryService
 
     public function catalog(string $franchiseId, bool $availableOnly = false): Collection
     {
+        $this->initializeBranchMenu($franchiseId);
+
         $products = Product::where(function ($query) use ($franchiseId) {
             $query->whereNull('franchise_id')->orWhere('franchise_id', $franchiseId);
         })->orderBy('category')->orderBy('name')->get();

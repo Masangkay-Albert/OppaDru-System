@@ -334,7 +334,7 @@ class BranchRoutingTest extends TestCase
             ->assertJsonPath('data.branch_diagnostics.0.delivery_radius_km', 20);
     }
 
-    public function test_branch_without_inventory_rows_returns_items_as_unavailable_without_throwing(): void
+    public function test_branch_without_inventory_rows_initializes_available_products(): void
     {
         $branch = $this->branch('Cavite branch', 14.3500, 120.9500);
         $product = $this->product();
@@ -346,7 +346,7 @@ class BranchRoutingTest extends TestCase
             'fulfillment_type' => 'delivery',
         ])->assertOk()
             ->assertJsonPath('data.branch.id', $branch->id)
-            ->assertJsonPath('data.unavailable_items', [$product->name]);
+            ->assertJsonPath('data.unavailable_items', []);
     }
 
     private function branch(string $name, float $latitude, float $longitude): Franchise

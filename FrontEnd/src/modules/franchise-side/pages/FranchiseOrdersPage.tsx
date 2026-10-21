@@ -78,7 +78,12 @@ const FranchiseOrdersPage: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [newOrdersNotice, setNewOrdersNotice] = useState('');
   const knownOrderIds = useRef<Set<string> | null>(null);
+  const orderDetailsPanelRef = useRef<HTMLElement>(null);
   const branchName = franchiseUser?.branch?.name || franchiseUser?.franchise?.name || 'Current branch';
+
+  useEffect(() => {
+    if (selectedOrder) orderDetailsPanelRef.current?.scrollTo({ top: 0 });
+  }, [selectedOrder?.id]);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -183,7 +188,7 @@ const FranchiseOrdersPage: React.FC = () => {
               <input aria-label="Search orders by ID, customer, or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order ID, customer, email..." className="admin-embedded-input min-w-0 w-full text-sm placeholder:text-[var(--oppa-text-muted)]" />
             </label>
             <select aria-label="Filter by channel" value={channel} onChange={(event) => setChannel(event.target.value as ChannelFilter)} className="h-11 min-w-36 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]"><option value="all">All channels</option><option value="online">Online</option><option value="onsite">Onsite</option></select>
-            <label className="flex h-11 min-w-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]"><span className="whitespace-nowrap">Date</span><input aria-label="Filter by date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--oppa-text)] outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0" /></label>
+            <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]"><span className="whitespace-nowrap">Date</span><input aria-label="Filter by date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-[145px] border-0 bg-transparent p-0 text-[var(--oppa-text)] outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0" /></label>
             {hasFilters && <button type="button" onClick={clearFilters} className="h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">Clear filters</button>}
           </div>
         </div>
@@ -199,7 +204,7 @@ const FranchiseOrdersPage: React.FC = () => {
         ) : (
           <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm">
             <div className="overflow-x-auto">
-              <table className="admin-table franchise-orders-table w-full table-fixed text-left text-sm">
+              <table className="admin-table franchise-orders-table w-full min-w-[1120px] table-fixed text-left text-sm">
                 <thead><tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
                   <th className="w-[13%] px-3 py-3 font-semibold">Order ID</th>
                   <th className="w-[17%] px-3 py-3 font-semibold">Customer</th>
@@ -235,22 +240,24 @@ const FranchiseOrdersPage: React.FC = () => {
         )}
       </div>
 
-      {selectedOrder && <div className="fixed inset-0 z-50 flex justify-end bg-black/40" role="presentation" onClick={() => setSelectedOrder(null)}><section role="dialog" aria-modal="true" aria-label="Order details" onClick={(event) => event.stopPropagation()} className="h-full w-full max-w-xl overflow-y-auto bg-[var(--oppa-surface)] p-6 text-[var(--oppa-text)] shadow-xl">
-        <div className="sticky top-0 z-10 -mx-6 mb-5 flex items-start justify-between border-b border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-6 py-3"><div className="min-w-0"><p className="text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">Branch order</p><h2 className="mt-1 truncate font-mono text-xs text-[var(--oppa-text-muted)]">{selectedOrder.order_number || selectedOrder.id}</h2></div><button type="button" aria-label="Close order details" onClick={() => setSelectedOrder(null)} className="rounded-lg p-2 hover:bg-[var(--oppa-green-soft)]"><X size={18} /></button></div>
+      {selectedOrder && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-3 backdrop-blur-[2px] sm:p-6" role="presentation" onClick={() => setSelectedOrder(null)}><section ref={orderDetailsPanelRef} role="dialog" aria-modal="true" aria-label="Order details" onClick={(event) => event.stopPropagation()} className="max-h-[min(92dvh,900px)] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 text-[var(--oppa-text)] shadow-2xl sm:p-7">
+        <div className="sticky top-0 z-10 -mx-5 mb-5 flex items-center justify-between gap-4 border-b border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-5 py-3 sm:-mx-7 sm:px-7"><div className="min-w-0"><p className="text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">Branch order</p><h2 className="mt-1 truncate font-mono text-xs text-[var(--oppa-text-muted)]">{selectedOrder.order_number || selectedOrder.id}</h2></div><button type="button" aria-label="Close order details" onClick={() => setSelectedOrder(null)} className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-sm transition hover:border-red-300 hover:bg-red-50 hover:text-red-700"><X size={18} /></button></div>
         {detailLoading ? <p className="py-10 text-center text-sm text-[var(--oppa-text-muted)]">Loading order details...</p> : <>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div><p className="text-xs text-[var(--oppa-text-muted)]">Customer</p><p className="font-medium">{getCustomerName(selectedOrder)}</p>{selectedOrder.email && <p className="text-sm text-[var(--oppa-text-muted)]">{selectedOrder.email}</p>}</div>
-            <div><p className="text-xs text-[var(--oppa-text-muted)]">Channel</p><p className="font-medium capitalize">{getChannel(selectedOrder)}</p></div>
-            <div><p className="text-xs text-[var(--oppa-text-muted)]">Payment Method</p><p className="font-medium capitalize">{selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div>
-            <div><p className="text-xs text-[var(--oppa-text-muted)]">Status</p><StatusBadge status={selectedOrder.status} /></div>
-            <div><p className="text-xs text-[var(--oppa-text-muted)]">Delivery</p><p className="font-medium capitalize">{(selectedOrder.delivery_type || 'standard').replaceAll('_', ' ')}</p></div>
-            <div><p className="text-xs text-[var(--oppa-text-muted)]">Order Date</p><AdminDate value={selectedOrder.created_at} /></div>
+          <div className="rounded-2xl bg-[var(--oppa-green-soft)] p-4 sm:p-5">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
+              <div><p className="text-xs text-[var(--oppa-text-muted)]">Customer</p><p className="mt-1 font-semibold">{getCustomerName(selectedOrder)}</p>{selectedOrder.email && <p className="mt-0.5 break-all text-xs text-[var(--oppa-text-muted)]">{selectedOrder.email}</p>}</div>
+              <div><p className="text-xs text-[var(--oppa-text-muted)]">Status</p><div className="mt-1"><StatusBadge status={selectedOrder.status} /></div></div>
+              <div><p className="text-xs text-[var(--oppa-text-muted)]">Payment Method</p><p className="mt-1 font-medium capitalize">{selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div>
+              <div><p className="text-xs text-[var(--oppa-text-muted)]">Order Type</p><p className="mt-1 font-medium">{getChannel(selectedOrder) === 'onsite' ? 'Onsite' : 'Online'}</p></div>
+              <div><p className="text-xs text-[var(--oppa-text-muted)]">Delivery</p><p className="mt-1 font-medium capitalize">{(selectedOrder.delivery_type || 'standard').replaceAll('_', ' ')}</p></div>
+              <div><p className="text-xs text-[var(--oppa-text-muted)]">Order Date</p><div className="mt-1"><AdminDate value={selectedOrder.created_at} /></div></div>
+            </div>
           </div>
-          <div className="mt-4"><p className="text-xs text-[var(--oppa-text-muted)]">Delivery Address</p><p className="text-sm">{selectedOrder.delivery_address || 'Onsite / Walk-in'}</p></div>
+          <div className="mt-4 rounded-xl border border-[var(--oppa-border)] p-4"><p className="text-xs font-medium text-[var(--oppa-text-muted)]">Delivery Address</p><p className="mt-1 break-words text-sm">{selectedOrder.delivery_address || 'Onsite / Walk-in'}</p></div>
           {selectedOrder.status === 'delivered' && <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800"><p className="font-semibold">Delivered</p><p className="mt-1 text-green-700">This order has been marked delivered by the assigned driver.</p></div>}
           {(selectedOrder.delivery_proof_image || selectedOrder.status === 'delivered') && <div className="mt-4 rounded-xl border border-[var(--oppa-border)] p-4"><p className="mb-2 text-sm font-semibold">Delivery Proof</p>{selectedOrder.delivery_proof_image ? <a href={selectedOrder.delivery_proof_image} target="_blank" rel="noreferrer" className="inline-block"><img src={selectedOrder.delivery_proof_image} alt="Driver delivery proof" className="max-h-72 max-w-full rounded-lg border border-[var(--oppa-border)] object-contain" /></a> : <p className="text-sm text-[var(--oppa-text-muted)]">No delivery photo has been uploaded.</p>}{selectedOrder.delivery_proof_uploaded_at && <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">Sent <AdminDate value={selectedOrder.delivery_proof_uploaded_at} /></p>}</div>}
           {selectedOrder.phone && <div className="mt-4"><p className="text-xs text-[var(--oppa-text-muted)]">Phone</p><p className="text-sm">{selectedOrder.phone}</p></div>}
-          <div className="mt-5"><p className="mb-2 text-xs text-[var(--oppa-text-muted)]">Items</p>{detailItems.length ? <div className="space-y-2 rounded-lg bg-[var(--oppa-cream)] p-4">{detailItems.map((item, index) => {
+          <div className="mt-5"><p className="mb-2 text-sm font-semibold">Items</p>{detailItems.length ? <div className="space-y-2 rounded-xl bg-[var(--oppa-cream)] p-4">{detailItems.map((item, index) => {
             const quantity = item.quantity || 1;
             const addons = item.selected_addons || [];
             const itemTotal = (Number(item.product_price ?? item.price ?? 0) + addons.reduce((sum, addon) => sum + Number(addon.price || 0) * (addon.quantity || 1), 0)) * quantity;

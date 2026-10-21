@@ -25,6 +25,33 @@ class OrderPlacementTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_main_system_onsite_order_is_assigned_to_the_main_branch(): void
+    {
+        $mainBranch = Franchise::create([
+            'name' => 'Main System',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
+
+        $response = $this->postJson('/api/orders/onsite', [
+            'items' => [[
+                'product_name' => 'Walk-in Chicken',
+                'product_price' => 199,
+                'quantity' => 1,
+            ]],
+            'total' => 199,
+            'payment_method' => 'cash',
+        ])->assertCreated()
+            ->assertJsonPath('order.branch_id', $mainBranch->id)
+            ->assertJsonPath('order.franchise_id', $mainBranch->id);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $response->json('order.id'),
+            'branch_id' => $mainBranch->id,
+            'franchise_id' => $mainBranch->id,
+        ]);
+    }
+
     public function test_customer_can_login_and_place_an_order(): void
     {
         $user = User::create([

@@ -39,14 +39,14 @@ const STORAGE_KEYS = {
 } as const;
 
 export const setCurrentFranchiseUser = (user: FranchiseUser): void => {
-  localStorage.setItem(STORAGE_KEYS.FRANCHISE_CURRENT, JSON.stringify(user));
+  sessionStorage.setItem(STORAGE_KEYS.FRANCHISE_CURRENT, JSON.stringify(user));
 };
 
 export const getStoredFranchiseToken = (): string | null => {
-  const directToken = localStorage.getItem(STORAGE_KEYS.FRANCHISE_TOKEN);
+  const directToken = sessionStorage.getItem(STORAGE_KEYS.FRANCHISE_TOKEN);
   if (directToken) return directToken;
 
-  const current = localStorage.getItem(STORAGE_KEYS.FRANCHISE_CURRENT);
+  const current = sessionStorage.getItem(STORAGE_KEYS.FRANCHISE_CURRENT);
   if (!current) return null;
 
   try {
@@ -58,13 +58,13 @@ export const getStoredFranchiseToken = (): string | null => {
 };
 
 export const setStoredFranchiseToken = (token: string): void => {
-  localStorage.setItem(STORAGE_KEYS.FRANCHISE_TOKEN, token);
+  sessionStorage.setItem(STORAGE_KEYS.FRANCHISE_TOKEN, token);
 
-  const current = localStorage.getItem(STORAGE_KEYS.FRANCHISE_CURRENT);
+  const current = sessionStorage.getItem(STORAGE_KEYS.FRANCHISE_CURRENT);
   if (current) {
     try {
       const parsed = JSON.parse(current) as FranchiseUser & { token?: string };
-      localStorage.setItem(STORAGE_KEYS.FRANCHISE_CURRENT, JSON.stringify({ ...parsed, token }));
+      sessionStorage.setItem(STORAGE_KEYS.FRANCHISE_CURRENT, JSON.stringify({ ...parsed, token }));
     } catch {
       // ignore malformed stored franchise data
     }
@@ -72,7 +72,7 @@ export const setStoredFranchiseToken = (token: string): void => {
 };
 
 export const getCurrentFranchiseUser = (): FranchiseUser | null => {
-  const current = localStorage.getItem(STORAGE_KEYS.FRANCHISE_CURRENT);
+  const current = sessionStorage.getItem(STORAGE_KEYS.FRANCHISE_CURRENT);
   if (!current) return null;
 
   try {
@@ -99,14 +99,14 @@ export const getCurrentFranchiseUser = (): FranchiseUser | null => {
 };
 
 export const removeCurrentFranchiseUser = (): void => {
-  localStorage.removeItem(STORAGE_KEYS.FRANCHISE_CURRENT);
-  localStorage.removeItem(STORAGE_KEYS.FRANCHISE_TOKEN);
+  sessionStorage.removeItem(STORAGE_KEYS.FRANCHISE_CURRENT);
+  sessionStorage.removeItem(STORAGE_KEYS.FRANCHISE_TOKEN);
 };
 
 export const apiFranchiseLogin = async (email: string, password: string) => {
   const response = await fetch(`${API_URL}/franchise/login`, {
     method: 'POST',
-    credentials: 'include',
+    credentials: 'omit',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -128,7 +128,7 @@ export const getAuthenticatedFranchiseUser = async (): Promise<FranchiseUser | n
   if (!token) return null;
 
   const response = await fetch(`${API_URL}/franchise/me`, {
-    credentials: 'include',
+    credentials: 'omit',
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -152,7 +152,7 @@ export const apiFranchiseLogout = async (): Promise<void> => {
   const token = getStoredFranchiseToken();
   const response = await fetch(`${API_URL}/franchise/logout`, {
     method: 'POST',
-    credentials: 'include',
+    credentials: 'omit',
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -180,7 +180,7 @@ export const fetchWithFranchiseAuth = async (url: string, init: RequestInit = {}
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(url, { ...init, headers, credentials: 'include' });
+  const response = await fetch(url, { ...init, headers, credentials: 'omit' });
 
   if (response.status === 401 || response.status === 403) {
     removeCurrentFranchiseUser();

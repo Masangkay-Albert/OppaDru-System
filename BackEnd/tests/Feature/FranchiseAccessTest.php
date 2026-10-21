@@ -9,6 +9,7 @@ use App\Models\AddonGroup;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Services\FranchiseInventoryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -19,6 +20,48 @@ use Tests\TestCase;
 class FranchiseAccessTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_newly_added_products_are_initialized_for_existing_branch_catalogs(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'Cavite Main Branch',
+            'status' => 'active',
+        ]);
+        $initialProduct = Product::create([
+            'name' => 'Initial Menu Item',
+            'description' => 'Existing menu item',
+            'price' => 100,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ]);
+
+        $inventoryService = app(FranchiseInventoryService::class);
+        $inventoryService->initializeBranchMenu((string) $branch->id);
+
+        $newProduct = Product::create([
+            'name' => 'New Shared Menu Item',
+            'description' => 'Added after branch setup',
+            'price' => 150,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ]);
+
+        $catalog = $inventoryService->catalog((string) $branch->id)->keyBy('id');
+
+        $this->assertTrue($catalog->get($newProduct->id)['branch_available']);
+        $this->assertDatabaseHas('franchise_inventory', [
+            'franchise_id' => $branch->id,
+            'product_id' => $newProduct->id,
+            'is_available' => true,
+        ]);
+        $this->assertDatabaseHas('franchise_inventory', [
+            'franchise_id' => $branch->id,
+            'product_id' => $initialProduct->id,
+            'is_available' => true,
+        ]);
+    }
 
     public function test_franchise_user_can_login_and_view_shared_and_branch_products(): void
     {

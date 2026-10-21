@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Order;
 
 use App\Models\Employee;
+use App\Models\Franchise;
 use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -76,23 +77,26 @@ trait OrderOnsiteActions
         $vat = round((float) $request->input('vat', round($total * 0.12)));
 
         $cashierEmail = trim((string) ($request->input('cashier_email') ?: $request->input('email') ?: ''));
+        $token = $request->bearerToken();
+        $employee = $token
+            ? Employee::where('api_token', hash('sha256', $token))->first()
+            : null;
         if ($cashierEmail === '' || $cashierEmail === 'onsite@oppadru.ph') {
-            $token = $request->bearerToken();
-            if ($token) {
-                $hashed = hash('sha256', $token);
-                $employee = Employee::where('api_token', $hashed)->first();
-                if ($employee && ! empty($employee->email)) {
-                    $cashierEmail = $employee->email;
-                }
+            if ($employee && ! empty($employee->email)) {
+                $cashierEmail = $employee->email;
             }
         }
         if ($cashierEmail === '' || $cashierEmail === 'onsite@oppadru.ph') {
             $cashierEmail = 'cashier@oppadru.ph';
         }
 
+        $branch = $employee?->franchise ?? Franchise::where('is_main', true)->first();
         $orderItems = $this->orderDataService->buildOrderItems($request->items);
 
         $order = Order::create([
+            'franchise_id' => $branch?->id,
+            'franchise_account_id' => $branch?->franchise_account_id,
+            'branch_id' => $branch?->id,
             'email' => $cashierEmail,
             'user_id' => null,
             'total' => $total,
