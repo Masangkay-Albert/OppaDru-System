@@ -426,6 +426,8 @@ class OrderPlacementTest extends TestCase
                 'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'cash_on_delivery',
                 'phone' => $user->phone,
+                'promo_code' => 'TEST10',
+                'promo_discount' => 10,
             ]);
 
         $response->assertCreated();
@@ -433,6 +435,8 @@ class OrderPlacementTest extends TestCase
         $this->assertDatabaseHas('orders', [
             'id' => $response->json('order.id'),
             'franchise_id' => $branch->id,
+            'promo_code' => 'TEST10',
+            'promo_discount' => 10,
         ]);
         $this->assertDatabaseHas('franchise_inventory', [
             'franchise_id' => $branch->id,

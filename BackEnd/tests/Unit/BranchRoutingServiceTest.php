@@ -98,6 +98,20 @@ class BranchRoutingServiceTest extends TestCase
         $this->assertLessThanOrEqual(40, $result['distance_km']);
     }
 
+    public function test_null_branch_radius_uses_the_fifteen_kilometer_default(): void
+    {
+        config(['delivery.default_radius_km' => 15]);
+        $this->branch('Laguna branch', 14.3181, 121.1011);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('outside its 15.0 km delivery radius');
+
+        app(BranchRoutingService::class)->resolve([
+            'lat' => 14.1700,
+            'lng' => 121.2400,
+        ]);
+    }
+
     public function test_imus_and_bacoor_coordinates_select_cavite_branch(): void
     {
         config(['delivery.default_radius_km' => 20]);

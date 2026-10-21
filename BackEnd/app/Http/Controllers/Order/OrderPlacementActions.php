@@ -301,6 +301,9 @@ trait OrderPlacementActions
                 $discountAmount,
                 $discountProofData,
                 $branchResolution,
+                $promoId,
+                $promoCode,
+                $promoDiscount,
             ) {
                 $franchiseId = $request->input('franchise_id');
                 if ($franchiseId) {
