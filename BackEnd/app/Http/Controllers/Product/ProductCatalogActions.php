@@ -33,13 +33,20 @@ trait ProductCatalogActions
 
         if ($franchiseId !== null) {
             $franchise = Franchise::with('franchiseAccount')->where('id', $franchiseId)->first();
-            if (! $franchise || ! $franchise->isOperationallyActive()) {
+            if (! $franchise) {
                 return response()->json(['message' => 'The selected branch is unavailable.'], 404);
             }
 
-            return response()->json(
-                $inventoryService->catalog((string) $franchiseId, true)->values()
-            );
+            $catalog = $inventoryService->catalog((string) $franchiseId, true)->values();
+            if ($catalog->isNotEmpty()) {
+                return response()->json($catalog);
+            }
+
+            if (! $franchise->isOperationallyActive()) {
+                return response()->json(['message' => 'The selected branch is unavailable.'], 404);
+            }
+
+            return response()->json($catalog);
         }
 
         return response()->json(

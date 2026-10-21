@@ -14,14 +14,15 @@ trait FranchiseSummaryActions
     {
         $branches = Franchise::query()
             ->where('status', 'active')
+            ->where('is_active', true)
             ->where(function ($query) {
                 $query->where('is_main', true)
+                    ->orWhereNull('franchise_account_id')
                     ->orWhere(function ($franchiseLocations) {
                         $franchiseLocations->whereNotNull('franchise_account_id')
                             ->where(function ($mainFlag) {
                                 $mainFlag->whereNull('is_main')->orWhere('is_main', false);
-                            })
-                            ->whereHas('franchiseAccount', fn ($accountQuery) => $accountQuery->where('status', 'active'));
+                            });
                     });
             })
             ->orderByDesc('is_main')

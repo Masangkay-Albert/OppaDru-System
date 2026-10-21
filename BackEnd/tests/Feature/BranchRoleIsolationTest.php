@@ -18,6 +18,29 @@ class BranchRoleIsolationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_order_model_accepts_promo_and_discount_fields_for_mass_assignment(): void
+    {
+        $order = new Order([
+            'email' => 'customer@example.com',
+            'franchise_id' => 'OPPA-FR-TEST',
+            'branch_id' => 'OPPA-FR-TEST',
+            'promo_id' => 'promo-123',
+            'promo_code' => 'SAVE10',
+            'promo_discount' => 150,
+            'discount_type' => 'PWD',
+            'discount_rate' => 0.2,
+            'discount_amount' => 100,
+            'discount_proof_image_data' => 'data:image/png;base64,abc',
+            'distance_km' => 4.2,
+        ]);
+
+        $this->assertSame('promo-123', $order->promo_id);
+        $this->assertSame('SAVE10', $order->promo_code);
+        $this->assertSame(150.0, (float) $order->promo_discount);
+        $this->assertSame('data:image/png;base64,abc', $order->discount_proof_image_data);
+        $this->assertSame(4.2, (float) $order->distance_km);
+    }
+
     public function test_branch_cashier_is_limited_to_own_branch_and_pos_orders_are_attributed(): void
     {
         $branch = $this->makeBranch('Cashier Branch');
