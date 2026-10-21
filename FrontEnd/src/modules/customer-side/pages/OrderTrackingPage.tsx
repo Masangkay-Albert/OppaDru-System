@@ -243,19 +243,6 @@ const OrderTrackingPageContent: React.FC = () => {
           </div>
         </div>
 
-        {order.statusHistory && order.statusHistory.length > 0 && (
-          <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm" aria-label="Order status history">
-            <h2 className="font-serif text-lg font-bold text-[#2d6a4f]">Status history</h2>
-            <ol className="mt-3 space-y-2">
-              {order.statusHistory.map((entry, index) => (
-                <li key={`${entry.status}-${entry.createdAt || index}`} className="flex items-center justify-between gap-4 border-t border-gray-100 pt-2 text-sm">
-                  <span className="capitalize text-gray-800">{entry.status.replaceAll('_', ' ')}</span>
-                  <time className="text-xs text-gray-500">{entry.createdAt ? new Date(entry.createdAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : ''}</time>
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
       </main>
     </div>
   );

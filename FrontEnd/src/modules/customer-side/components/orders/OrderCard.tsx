@@ -139,9 +139,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <button onClick={() => onToggleDetails(order.id)} className="order-details-button text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1">
               {isExpanded ? 'Hide Details' : 'View Details'}
             </button>
-            {!isActive && <span className={`text-xs font-medium flex items-center gap-1 ${order.status === ORDER_STATUS.CANCELLED || order.status === ORDER_STATUS.FAILED ? 'text-red-500' : 'text-emerald-500'}`}>
-              <FaCheck size={12} /> {order.status === ORDER_STATUS.CANCELLED ? 'Cancelled' : order.status === ORDER_STATUS.FAILED ? 'Failed' : 'Completed'}
-            </span>}
             <button onClick={(e) => onTrack(order.id, e)} className="order-track-button text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1">
               {isActive ? 'Track Order' : 'View Tracking'} <FiChevronRight size={14} />
             </button>

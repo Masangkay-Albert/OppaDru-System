@@ -66,6 +66,61 @@ class FranchiseManagementModuleTest extends TestCase
         $this->assertDatabaseHas('franchises', ['id' => $mainBranch->id]);
     }
 
+    public function test_admin_order_list_excludes_orders_from_franchise_branches(): void
+    {
+        $adminToken = $this->createAdminToken();
+        $mainBranch = Franchise::create([
+            'name' => 'Main Branch',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
+        $franchiseBranch = Franchise::create([
+            'name' => 'Franchise Branch',
+            'status' => 'active',
+        ]);
+
+        $mainOrder = Order::create([
+            'branch_id' => $mainBranch->id,
+            'franchise_id' => $mainBranch->id,
+            'email' => 'main.customer@test',
+            'phone' => '09170000001',
+            'items' => [],
+            'total' => 100,
+            'delivery_address' => 'Main branch delivery',
+            'payment_method' => 'cash_on_delivery',
+            'status' => 'pending',
+        ]);
+        $franchiseOrder = Order::create([
+            'branch_id' => $franchiseBranch->id,
+            'franchise_id' => $franchiseBranch->id,
+            'email' => 'franchise.customer@test',
+            'phone' => '09170000002',
+            'items' => [],
+            'total' => 200,
+            'delivery_address' => 'Franchise branch delivery',
+            'payment_method' => 'cash_on_delivery',
+            'status' => 'pending',
+        ]);
+        $unassignedOrder = Order::create([
+            'email' => 'walkin.customer@test',
+            'phone' => '09170000003',
+            'items' => [],
+            'total' => 50,
+            'delivery_address' => 'Onsite - Takeout',
+            'payment_method' => 'cash',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->getJson('/api/orders', [
+            'Authorization' => 'Bearer '.$adminToken,
+        ])->assertOk();
+
+        $orderIds = collect($response->json())->pluck('id');
+        $this->assertContains($mainOrder->id, $orderIds);
+        $this->assertContains($unassignedOrder->id, $orderIds);
+        $this->assertNotContains($franchiseOrder->id, $orderIds);
+    }
+
     public function test_admin_can_manage_franchise_account_locations_and_assigned_managers(): void
     {
         $adminToken = $this->createAdminToken();

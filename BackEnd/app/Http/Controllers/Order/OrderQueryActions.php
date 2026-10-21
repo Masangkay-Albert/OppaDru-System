@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Order;
 
 use App\Models\Order;
+use App\Models\Franchise;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -10,7 +11,22 @@ trait OrderQueryActions
 {
     public function index()
     {
-        $orders = Order::select([
+        $mainBranchIds = Franchise::query()->where('is_main', true)->pluck('id');
+        $orders = Order::query()
+            ->where(function ($query) use ($mainBranchIds) {
+                $query->where(function ($unassigned) {
+                    $unassigned->whereNull('branch_id')->whereNull('franchise_id');
+                });
+
+                if ($mainBranchIds->isNotEmpty()) {
+                    $query->orWhereIn('branch_id', $mainBranchIds)
+                        ->orWhere(function ($legacyMainOrders) use ($mainBranchIds) {
+                            $legacyMainOrders->whereNull('branch_id')
+                                ->whereIn('franchise_id', $mainBranchIds);
+                        });
+                }
+            })
+            ->select([
             'id', 'order_number', 'email', 'user_id', 'branch_id', 'franchise_id', 'franchise_account_id', 'total', 'status',
             'payment_method', 'payment_status', 'delivery_address', 'delivery_lat', 'delivery_lng', 'delivery_coordinates', 'phone', 'items', 'created_at',
             'delivery_proof_image', 'delivery_proof_uploaded_at', 'delivery_confirmed_at',

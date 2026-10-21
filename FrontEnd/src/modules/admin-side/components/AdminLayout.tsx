@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   BadgeCheck, Bell, Briefcase, Car, ChevronDown, ChevronsLeft, ChevronsRight,
@@ -36,6 +36,8 @@ const navGroups = [
   { title: 'Operations', items: [{ to: '/admin/franchises', label: 'Franchises', icon: Store }, { to: '/admin/franchise-applications', label: 'Franchise Apps', icon: BadgeCheck }, { to: '/admin/delivery', label: 'Delivery', icon: Car }] },
 ];
 
+let adminSidebarScrollTop = 0;
+
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { logout, admin } = useAdminAuth();
   const navigate = useNavigate();
@@ -47,6 +49,11 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [menu, setMenu] = useState<'notifications' | 'profile' | null>(null);
   const [dark, setDark] = useState(() => getSavedTheme() === 'dark');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    if (navRef.current) navRef.current.scrollTop = adminSidebarScrollTop;
+  }, []);
 
   useEffect(() => {
     applyTheme(dark ? 'dark' : 'light');
@@ -81,7 +88,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </div>
           <button aria-label="Close navigation" onClick={() => setMobileOpen(false)} className="ml-auto rounded-lg p-2 text-white hover:bg-white/10 md:hidden"><X size={18} /></button>
         </div>
-        <nav aria-label="Admin navigation" className="flex-1 space-y-4 overflow-y-auto px-3 py-4">
+        <nav ref={navRef} aria-label="Admin navigation" onScroll={(event) => { adminSidebarScrollTop = event.currentTarget.scrollTop; }} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4">
           {navGroups.map((group) => (
             <section key={group.title}>
               <h2 className={`mb-1 px-3 text-[11px] font-bold uppercase tracking-[.14em] text-white/70 ${collapsed ? 'md:sr-only' : ''}`}>{group.title}</h2>
