@@ -250,6 +250,12 @@ trait OrderPlacementActions
 
             $existingOrder = Order::where('payment_reference', $payment->reference)->first();
             if ($existingOrder) {
+                $existingOrder->loadMissing([
+                    'branch:id,name,address,latitude,longitude',
+                    'franchise:id,name,address,latitude,longitude',
+                ]);
+                $existingOrder->setAttribute('branch_name', ($existingOrder->branch ?? $existingOrder->franchise)?->name);
+
                 return response()->json([
                     'order' => $existingOrder,
                     'message' => 'Order was already placed.',
@@ -402,7 +408,11 @@ trait OrderPlacementActions
         }
 
         $order->refresh();
-        $order->load('branch:id,name,address,latitude,longitude');
+        $order->load([
+            'branch:id,name,address,latitude,longitude',
+            'franchise:id,name,address,latitude,longitude',
+        ]);
+        $order->setAttribute('branch_name', ($order->branch ?? $order->franchise)?->name);
 
         return response()->json([
             'order' => $order,

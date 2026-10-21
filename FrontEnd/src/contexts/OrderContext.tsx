@@ -26,6 +26,7 @@ export interface Order {
   deliveryAddressCoords?: { lat: number; lng: number };
   branchId?: string | null;
   branch?: { id?: string; name?: string; latitude?: number; longitude?: number; address?: string } | null;
+  branch_name?: string | null;
   branchName?: string;
   branchCoords?: { lat: number; lng: number };
   branchAddress?: string;
@@ -122,6 +123,9 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (keys && nextOrder) {
       localStorage.setItem(keys.current, JSON.stringify(nextOrder));
       localStorage.setItem(keys.tracking, JSON.stringify(nextOrder));
+    } else if (keys) {
+      localStorage.removeItem(keys.current);
+      localStorage.removeItem(keys.tracking);
     }
   }, [storageKeys]);
 
@@ -179,7 +183,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       deliveryAddressCoords: deliveryCoords,
       branchId: apiOrder.branch_id || apiOrder.franchise_id || null,
       branch: branch,
-      branchName: branch?.name,
+      branch_name: apiOrder.branch_name || branch?.name || null,
+      branchName: apiOrder.branch_name || branch?.name,
       branchCoords: Number.isFinite(latitude) && Number.isFinite(longitude) ? { lat: latitude, lng: longitude } : undefined,
       branchAddress: branch?.address,
       coords: deliveryCoords,
@@ -267,13 +272,15 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const apiOrders = await orderService.getUserOrders();
       if (authService.getUserFromStorage()?.id !== userId) return;
       const mappedOrders = apiOrders.map(mapApiOrder);
-      const mergedOrders = mergeOrderLists(ordersRef.current, mappedOrders);
+      const apiOrderIds = new Set(mappedOrders.map((order) => order.id));
+      const cachedOrders = ordersRef.current.filter((order) => apiOrderIds.has(order.id));
+      const mergedOrders = mergeOrderLists(cachedOrders, mappedOrders);
       persistOrders(mergedOrders);
       const active = latestActiveOrder(mergedOrders);
       const selectedCurrent = active
         || (currentOrderRef.current && mergedOrders.find((order) => order.id === currentOrderRef.current?.id))
         || latestOrder(mergedOrders);
-      if (selectedCurrent) persistCurrentOrder(selectedCurrent);
+      persistCurrentOrder(selectedCurrent);
     } catch (error) {
       if (error instanceof Error && error.message.includes('(401)')) {
         console.warn('Your customer session is no longer valid. Sign in again to refresh your order history.');
@@ -296,11 +303,11 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     const cached = loadUserCache();
     cacheOwnerIdRef.current = userId;
-    ordersRef.current = cached.orders;
+    ordersRef.current = [];
     currentOrderRef.current = cached.current;
-    setOrders(cached.orders);
+    setOrders([]);
     setCurrentOrder(cached.current);
-    void fetchUserOrders(false);
+    void fetchUserOrders(true);
   }, [userId, userEmail, loadUserCache, fetchUserOrders]);
 
   const refreshOrderById = useCallback(async (orderId: string, signal?: AbortSignal): Promise<Order> => {

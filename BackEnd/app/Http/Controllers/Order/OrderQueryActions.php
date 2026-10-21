@@ -33,7 +33,12 @@ trait OrderQueryActions
             'delivery_proof_image_data', 'discount_proof_image', 'discount_proof_image_data',
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',
             'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
-        ])->with(['user:id,full_name', 'branch:id,name,address,latitude,longitude', 'orderItems'])
+        ])->with([
+            'user:id,full_name',
+            'branch:id,name,address,latitude,longitude',
+            'franchise:id,name,address,latitude,longitude',
+            'orderItems',
+        ])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -43,7 +48,7 @@ trait OrderQueryActions
     public function show(Request $request, $id)
     {
         $order = $this->customerOrders($request)
-            ->with(['user', 'branch', 'orderItems'])
+            ->with(['user', 'branch', 'franchise', 'orderItems'])
             ->findOrFail($id);
 
         return response()->json($this->orderDataService->formatOrder($order));
@@ -52,7 +57,11 @@ trait OrderQueryActions
     public function getUserOrders(Request $request)
     {
         $orders = $this->customerOrders($request)
-            ->with(['orderItems', 'branch:id,name,address,latitude,longitude'])
+            ->with([
+                'orderItems',
+                'branch:id,name,address,latitude,longitude',
+                'franchise:id,name,address,latitude,longitude',
+            ])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -62,7 +71,11 @@ trait OrderQueryActions
     public function getUserOrder(Request $request, string $id)
     {
         $order = $this->customerOrders($request)
-            ->with(['orderItems', 'branch:id,name,address,latitude,longitude'])
+            ->with([
+                'orderItems',
+                'branch:id,name,address,latitude,longitude',
+                'franchise:id,name,address,latitude,longitude',
+            ])
             ->find($id);
 
         if (! $order) {

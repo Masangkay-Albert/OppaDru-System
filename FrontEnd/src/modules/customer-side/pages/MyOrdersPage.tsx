@@ -18,7 +18,7 @@ import '../../../styles/secondary-pages.css';
 
 const MyOrdersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { orders, refreshOrders } = useOrder();
+  const { orders, refreshOrders, isLoading } = useOrder();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -287,7 +287,11 @@ const MyOrdersPage: React.FC = () => {
 
         {/* Orders List */}
         <div className="orders-list mt-5 space-y-3">
-          {filteredOrders.length === 0 ? (
+          {isLoading && filteredOrders.length === 0 ? (
+            <div role="status" className="orders-empty-state rounded-xl border border-gray-100 bg-white p-12 text-center text-sm text-gray-500 shadow-sm">
+              Loading orders...
+            </div>
+          ) : filteredOrders.length === 0 ? (
             <div className="orders-empty-state bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
               <FiPackage className="text-4xl text-[#2d6a4f]/30 mx-auto mb-3" />
               <h2 className="text-xl font-bold text-gray-800 mb-1">

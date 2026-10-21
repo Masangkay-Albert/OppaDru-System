@@ -40,6 +40,7 @@ export interface Order {
     order_number: string;
     branch_id?: string | null;
     franchise_id?: string | null;
+    branch_name?: string | null;
     branchName?: string | null;
     branch?: { id?: string; name?: string; latitude?: number; longitude?: number; address?: string } | null;
     franchise?: { id?: string; name?: string; latitude?: number; longitude?: number; address?: string } | null;

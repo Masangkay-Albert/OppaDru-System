@@ -206,7 +206,7 @@ export const getAllOrders = async (forceRefresh = false): Promise<AdminOrder[]> 
         customer_name: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
         customerName: order.customer_name || order.user?.full_name || order.customerName || order.email || 'Customer',
         branchId: order.branch_id || order.branchId || order.franchise_id || null,
-        branchName: order.franchise?.name || order.branch_name || (order.branch_id || order.franchise_id ? null : 'Main System'),
+        branchName: order.branch_name || order.branch?.name || order.franchise?.name || (order.branch_id || order.franchise_id ? null : 'Main System'),
         payment_method: paymentMethodValue,
         paymentMethod: paymentMethodValue,
         total: Number.isFinite(Number(order.total)) ? Number(order.total) : 0,

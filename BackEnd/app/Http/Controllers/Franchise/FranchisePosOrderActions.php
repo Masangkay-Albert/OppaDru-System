@@ -270,9 +270,12 @@ trait FranchisePosOrderActions
             return response()->json(['message' => $exception->getMessage()], 422);
         }
 
+        $order = $order->refresh()->load('branch:id,name');
+        $order->setAttribute('branch_name', $order->branch?->name);
+
         return response()->json([
             'success' => true,
-            'order' => $order->refresh(),
+            'order' => $order,
             'subtotal' => round($subtotal),
             'discount_amount' => $discountAmount,
             'change_due' => $paymentMethod === 'cash' ? round($cashTendered - $total, 2) : 0,

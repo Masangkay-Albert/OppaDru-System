@@ -70,6 +70,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 <span className="flex items-center gap-1">
                   <FiClock size={12} /> {formatOrderTime(order.timestamp || '')}
                 </span>
+                {(order.branchName || order.branch_name || order.branch?.name) && (
+                  <span className="font-medium text-[#2d6a4f]">{order.branchName || order.branch_name || order.branch?.name}</span>
+                )}
               </div>
             </div>
           </div>

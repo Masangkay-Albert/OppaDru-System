@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Order;
 use App\Models\Employee;
+use App\Models\Franchise;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -12,6 +13,24 @@ use Tests\TestCase;
 class KitchenOrderChannelTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_kitchen_order_list_includes_the_order_branch_name(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'Kitchen Branch',
+            'status' => 'active',
+        ]);
+        [$headers] = $this->createKitchenStaff($branch->id);
+        $order = $this->createOrder('KITCHEN-BRANCH-TEST', 'standard', 'Customer delivery address');
+        $order->update([
+            'branch_id' => $branch->id,
+            'franchise_id' => $branch->id,
+        ]);
+
+        $this->getJson('/api/kitchen/orders?tab=pending', $headers)
+            ->assertOk()
+            ->assertJsonPath('0.branch_name', 'Kitchen Branch');
+    }
 
     public function test_prepared_walk_in_orders_become_delivered_without_changing_online_orders(): void
     {
@@ -109,13 +128,14 @@ class KitchenOrderChannelTest extends TestCase
     /**
      * @return array{0: array<string, string>}
      */
-    private function createKitchenStaff(): array
+    private function createKitchenStaff(?string $franchiseId = null): array
     {
         $kitchenStaff = Employee::create([
             'fullName' => 'Main Kitchen',
             'email' => 'kitchen-'.uniqid().'@example.com',
             'password' => Hash::make('Kitchen@123'),
             'position' => 'kitchen staff',
+            'franchise_id' => $franchiseId,
         ]);
         $token = 'main-kitchen-token-'.uniqid();
         $kitchenStaff->api_token = hash('sha256', $token);

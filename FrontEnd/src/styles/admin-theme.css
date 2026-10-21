@@ -11,6 +11,24 @@
   --oppa-surface: #ffffff;
   --oppa-surface-raised: #fffefa;
   --oppa-focus: #d69e00;
+  --oppa-available-text: #176334;
+  --oppa-highlight-text: #176334;
+  --employee-container-max: 1760px;
+  --employee-kitchen: #267a43;
+  --employee-driver: #c64f37;
+  --employee-dashboard-glow: rgba(38, 122, 67, .07);
+  --product-category-rice-bg: #ffedd5;
+  --product-category-rice-text: #7c2d12;
+  --product-category-chicken-bg: #fef3c7;
+  --product-category-chicken-text: #78350f;
+  --product-category-snacks-bg: #e0f2fe;
+  --product-category-snacks-text: #075985;
+  --product-category-fruity-bg: #fae8ff;
+  --product-category-fruity-text: #701a75;
+  --product-category-noodles-bg: #ffe4e6;
+  --product-category-noodles-text: #9f1239;
+  --product-category-lemonade-bg: #ecfccb;
+  --product-category-lemonade-text: #365314;
   --promo-success-bg: #f0fdf4;
   --promo-success-border: #bbf7d0;
   --promo-success-text: #166534;
@@ -53,6 +71,23 @@
   --oppa-text-muted: #b3c1b6;
   --oppa-border: #3a4a3e;
   --oppa-green-soft: #294634;
+  --oppa-available-text: #86efac;
+  --oppa-highlight-text: #a7f3d0;
+  --employee-kitchen: #267a43;
+  --employee-driver: #c64f37;
+  --employee-dashboard-glow: rgba(78, 145, 96, .1);
+  --product-category-rice-bg: #431407;
+  --product-category-rice-text: #fed7aa;
+  --product-category-chicken-bg: #451a03;
+  --product-category-chicken-text: #fde68a;
+  --product-category-snacks-bg: #082f49;
+  --product-category-snacks-text: #bae6fd;
+  --product-category-fruity-bg: #4a044e;
+  --product-category-fruity-text: #f5d0fe;
+  --product-category-noodles-bg: #4c0519;
+  --product-category-noodles-text: #fecdd3;
+  --product-category-lemonade-bg: #1a2e05;
+  --product-category-lemonade-text: #d9f99d;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, .2);
   --shadow-hover: 0 12px 24px rgba(0, 0, 0, .3);
   --promo-success-bg: #1e3a2a;
@@ -103,6 +138,26 @@
 body {
   background: var(--oppa-cream);
   color: var(--oppa-text);
+}
+
+.employee-dashboard-background {
+  background-color: var(--oppa-cream);
+  background-image:
+    radial-gradient(ellipse at 100% 0%, var(--employee-dashboard-glow), transparent 38%),
+    linear-gradient(145deg, var(--oppa-cream), color-mix(in srgb, var(--oppa-cream) 97%, var(--oppa-green-soft)));
+}
+
+.employee-dashboard-header {
+  background-color: color-mix(in srgb, var(--oppa-surface) 86%, transparent);
+}
+
+.employee-dashboard-background :is(button, select, a) {
+  transition: all 200ms ease-out;
+}
+
+.employee-dashboard-background :is(button, select, a):focus-visible {
+  outline: 2px solid var(--oppa-green);
+  outline-offset: 2px;
 }
 
 .admin-card {
@@ -162,7 +217,7 @@ body {
 
 .products-table th,
 .products-table td {
-  height: 58px;
+  height: 64px;
   padding-right: 12px;
   padding-left: 12px;
 }
@@ -172,16 +227,20 @@ body {
 }
 
 .products-table thead th {
-  background: var(--oppa-green-soft);
+  background: color-mix(in srgb, var(--oppa-green-soft) 72%, var(--oppa-surface));
 }
 
 .products-table thead {
-  top: 68px;
+  top: 0;
   z-index: 10;
 }
 
 .products-table tbody tr {
-  transition: background-color 150ms ease;
+  transition: background-color 200ms ease-out;
+}
+
+.products-page-toolbar > header > div > p {
+  margin-top: 0.5rem;
 }
 
 @media (min-width: 768px) {

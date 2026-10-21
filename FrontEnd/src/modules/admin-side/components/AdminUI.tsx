@@ -148,9 +148,9 @@ export const AvailabilitySwitch: React.FC<{
     title={checked ? activeText : inactiveText}
     disabled={disabled}
     onClick={onChange}
-    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors duration-[160ms] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60 ${checked ? 'bg-green-600' : 'bg-[var(--oppa-border)]'}`}
+    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${checked ? 'bg-green-600' : 'bg-[var(--oppa-border)]'}`}
   >
-    <span aria-hidden="true" className={`size-5 rounded-full bg-white shadow-sm transition-transform duration-[160ms] ease-out ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+    <span aria-hidden="true" className={`size-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
   </button>
 );
 
@@ -193,7 +193,7 @@ export const RowActionsMenu: React.FC<{
     };
   }, [open]);
   return <div ref={root} className="relative inline-flex">
-    <button type="button" aria-label={`Actions for ${label}`} aria-haspopup="menu" aria-expanded={open} title="More actions" onClick={showMenu} className="inline-flex size-9 items-center justify-center rounded-lg border border-[var(--oppa-border)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-text)]"><MoreHorizontal size={18} /></button>
+    <button type="button" aria-label={`Actions for ${label}`} aria-haspopup="menu" aria-expanded={open} title="More actions" onClick={showMenu} className="inline-flex size-9 items-center justify-center rounded-full border border-[var(--oppa-border)] text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><MoreHorizontal size={18} /></button>
     {open && position && createPortal(
       <div ref={menuRef} role="menu" aria-label={`${label} actions`} style={{ top: position.top, right: position.right }} className="fixed z-[200] min-w-44 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-1 shadow-xl">
         {items.map((item) => <button key={item.label} role="menuitem" type="button" title={item.title} disabled={item.disabled} onClick={(event) => { event.stopPropagation(); setOpen(false); item.onSelect(); }} className={`block w-full rounded-lg px-3 py-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-45 ${item.destructive ? 'text-red-700 hover:bg-red-50' : 'text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]'}`}>{item.label}</button>)}

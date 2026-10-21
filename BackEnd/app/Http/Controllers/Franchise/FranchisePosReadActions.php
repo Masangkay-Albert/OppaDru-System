@@ -38,23 +38,26 @@ trait FranchisePosReadActions
             return response()->json(['message' => 'Branch cashier access required.'], 403);
         }
 
-        return response()->json([
-            'data' => Order::where('branch_id', $user->franchise_id)
+        $orders = Order::where('branch_id', $user->franchise_id)
                 ->where('cashier_employee_id', $user->id)
                 ->where('delivery_type', 'onsite')
+                ->with('branch:id,name')
                 ->orderByDesc('created_at')
                 ->limit(100)
                 ->get([
                     'id',
                     'order_number',
+                    'branch_id',
                     'total',
                     'payment_method',
                     'payment_status',
                     'payment_reference',
                     'status',
                     'created_at',
-                ]),
-        ]);
+                ]);
+        $orders->each(fn (Order $order) => $order->setAttribute('branch_name', $order->branch?->name));
+
+        return response()->json(['data' => $orders]);
     }
 
     public function franchisePosOrders(Request $request)
@@ -83,6 +86,7 @@ trait FranchisePosReadActions
             ->where('delivery_type', 'onsite')
             ->with([
                 'franchise.franchiseAccount:id,name',
+                'branch:id,name',
                 'cashier:id,fullName,email',
                 'franchiseOperator:id,full_name,email',
                 'payment:id,order_id,reference,status,paid_at',
@@ -114,6 +118,7 @@ trait FranchisePosReadActions
                 'id' => $order->id,
                 'order_number' => $order->order_number,
                 'franchise_id' => $order->franchise_id,
+                'branch_name' => $order->branch?->name ?? $order->franchise?->name,
                 'franchise' => $order->franchise?->franchiseAccount ? [
                     'id' => $order->franchise->franchiseAccount->id,
                     'name' => $order->franchise->franchiseAccount->name,

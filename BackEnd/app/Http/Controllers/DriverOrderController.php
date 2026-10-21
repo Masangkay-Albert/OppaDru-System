@@ -31,7 +31,11 @@ class DriverOrderController extends Controller
 
         $tab = $request->query('tab', 'available');
         
-        $query = Order::query()->with(['user', 'franchise:id,name,address,latitude,longitude'])
+        $query = Order::query()->with([
+            'user',
+            'branch:id,name,address,latitude,longitude',
+            'franchise:id,name,address,latitude,longitude',
+        ])
             ->where('franchise_id', $driver->franchise_id)
             ->where(function ($deliveryQuery) {
                 $deliveryQuery->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');
@@ -89,10 +93,15 @@ class DriverOrderController extends Controller
                     : null,
                 'deliveryProofImageUrl' => $this->deliveryProofUrl($order->delivery_proof_image),
                 'deliveryProofUploadedAt' => $order->delivery_proof_uploaded_at?->toISOString(),
-                'branchName' => $order->franchise?->name,
-                'branchAddress' => $order->franchise?->address,
-                'branchCoordinates' => $order->franchise?->latitude !== null && $order->franchise?->longitude !== null
-                    ? ['lat' => (float) $order->franchise->latitude, 'lng' => (float) $order->franchise->longitude]
+                'branchName' => $order->branch?->name ?? $order->franchise?->name,
+                'branch_name' => $order->branch?->name ?? $order->franchise?->name,
+                'branchAddress' => ($order->branch ?? $order->franchise)?->address,
+                'branchCoordinates' => ($order->branch ?? $order->franchise)?->latitude !== null
+                    && ($order->branch ?? $order->franchise)?->longitude !== null
+                    ? [
+                        'lat' => (float) ($order->branch ?? $order->franchise)->latitude,
+                        'lng' => (float) ($order->branch ?? $order->franchise)->longitude,
+                    ]
                     : null,
             ];
         });
@@ -134,7 +143,8 @@ class DriverOrderController extends Controller
         $targetStatus = $request->status;
         try {
             $order = \Illuminate\Support\Facades\DB::transaction(function () use ($driver, $id, $targetStatus) {
-                $order = Order::where('franchise_id', $driver->franchise_id)
+                $order = Order::with(['branch:id,name', 'franchise:id,name'])
+                    ->where('franchise_id', $driver->franchise_id)
                     ->where(function ($deliveryQuery) {
                         $deliveryQuery->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');
                     })
@@ -162,6 +172,7 @@ class DriverOrderController extends Controller
 
                 $order->status = $targetStatus;
                 $order->save();
+                $order->setAttribute('branch_name', $order->branch?->name ?? $order->franchise?->name);
 
                 return $order;
             });

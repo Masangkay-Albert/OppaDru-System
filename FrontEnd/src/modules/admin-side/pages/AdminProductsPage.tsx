@@ -12,6 +12,16 @@ const categoryOptions: Array<{ value: ProductCategory | 'all'; label: string }> 
   { value: 'all', label: 'All' },
   ...categories.filter((c) => c.id !== 'all').map((c) => ({ value: c.id, label: c.name })),
 ];
+
+const categoryBadgeStyles: Record<string, string> = {
+  'rice-meals': 'bg-[var(--product-category-rice-bg)] text-[var(--product-category-rice-text)]',
+  chicken: 'bg-[var(--product-category-chicken-bg)] text-[var(--product-category-chicken-text)]',
+  snacks: 'bg-[var(--product-category-snacks-bg)] text-[var(--product-category-snacks-text)]',
+  'fruity-soda-milk': 'bg-[var(--product-category-fruity-bg)] text-[var(--product-category-fruity-text)]',
+  noodles: 'bg-[var(--product-category-noodles-bg)] text-[var(--product-category-noodles-text)]',
+  'fresh-lemonade': 'bg-[var(--product-category-lemonade-bg)] text-[var(--product-category-lemonade-text)]',
+};
+
 type ProductFormState = {
   name: string;
   description: string;
@@ -363,12 +373,12 @@ const AdminProductsPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <div className="-mx-4 border-b border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-4 pb-3 pt-1 sm:-mx-6 sm:px-6">
+      <div className="products-page-toolbar -mx-4 border-b border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-4 pb-3 pt-3 sm:-mx-6 sm:px-6">
         <PageHeader title="Products" subtitle="Manage your menu items and availability." actions={
           <button
             type="button"
             onClick={openAddModal}
-            className="bg-oppa-gradient inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+            className="bg-oppa-gradient inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 ease-out hover:brightness-95 hover:shadow-md active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"
           >
             <PlusSquare size={16} /> Add Product
           </button>
@@ -376,15 +386,15 @@ const AdminProductsPage: React.FC = () => {
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative w-full shrink-0 lg:max-w-xs lg:flex-1">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
+          <div className="group relative w-full shrink-0 lg:max-w-xs lg:flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)] transition-colors duration-200 group-focus-within:text-[var(--oppa-green)]" />
             <input
               aria-label="Search products"
               type="text"
               value={searchTerm}
               onChange={(event) => { setSearchTerm(event.target.value); setPage(1); }}
               placeholder="Search products..."
-              className="h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] py-2 pl-9 pr-3 text-sm text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
+              className="h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] py-2 pl-9 pr-3 text-sm text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] transition-all duration-200 ease-out focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-green-500/25 focus:ring-inset"
             />
           </div>
 
@@ -392,11 +402,11 @@ const AdminProductsPage: React.FC = () => {
             <div className="relative min-w-0 flex-1">
               {categoryTabsOverflow && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-[var(--oppa-cream)] to-transparent" />}
               {categoryTabsOverflow && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[var(--oppa-cream)] to-transparent" />}
-              {categoryTabsOverflow && <button type="button" aria-label="Scroll categories left" onClick={() => scrollCategoryTabs(-1)} className="absolute left-0 top-1/2 z-20 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-sm hover:bg-[var(--oppa-green-soft)]"><ChevronLeft size={15} /></button>}
+              {categoryTabsOverflow && <button type="button" aria-label="Scroll categories left" onClick={() => scrollCategoryTabs(-1)} className="absolute left-0 top-1/2 z-20 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-sm transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><ChevronLeft size={15} /></button>}
               <div ref={categoryTabsRef} onScroll={() => {
                 const tabs = categoryTabsRef.current;
                 if (tabs) setCategoryTabsOverflow(tabs.scrollWidth > tabs.clientWidth + 1);
-              }} className="admin-scrollbar flex min-w-0 gap-2 overflow-x-auto py-1 [scrollbar-width:thin]">
+              }} className="admin-scrollbar flex min-w-0 gap-2 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2.5">
               {categoryOptions.map((option) => {
                 const count = option.value === 'all' ? products.length : products.filter((product) => product.category === option.value).length;
                 return (
@@ -405,37 +415,37 @@ const AdminProductsPage: React.FC = () => {
                 aria-pressed={activeCategory === option.value}
                 key={option.value}
                 onClick={() => { setActiveCategory(option.value); setPage(1); }}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${
                   activeCategory === option.value
                     ? 'border-green-700 bg-green-700 text-white shadow-sm'
-                    : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]'
+                    : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)] active:scale-[0.98]'
                 }`}
               >
-                {option.label}<span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${activeCategory === option.value ? 'bg-white/20 text-white' : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]'}`}>{count}</span>
+                {option.label}<span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${activeCategory === option.value ? 'bg-white/20 text-white' : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)]'}`}>{count}</span>
               </button>
                 );
               })}
             </div>
-              {categoryTabsOverflow && <button type="button" aria-label="Scroll categories right" onClick={() => scrollCategoryTabs(1)} className="absolute right-0 top-1/2 z-20 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-sm hover:bg-[var(--oppa-green-soft)]"><ChevronRight size={15} /></button>}
+              {categoryTabsOverflow && <button type="button" aria-label="Scroll categories right" onClick={() => scrollCategoryTabs(1)} className="absolute right-0 top-1/2 z-20 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-sm transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><ChevronRight size={15} /></button>}
             </div>
           </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setSelectedIds([]); setPage(1); }} className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold ${showArchived ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><Archive size={14} />{showArchived ? 'Showing archived' : `Archived (${archivedIds.length})`}</button>
+            <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setSelectedIds([]); setPage(1); }} className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${showArchived ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><Archive size={14} />{showArchived ? 'Showing archived' : `Archived (${archivedIds.length})`}</button>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
                 <label htmlFor="product-sort" className="whitespace-nowrap text-xs font-medium text-[var(--oppa-text-muted)]">Sort by</label>
-                <select id="product-sort" value={sortBy} onChange={(event) => { const value = event.target.value as typeof sortBy; setSortBy(value); setSortDirection(value === 'newest' ? 'desc' : 'asc'); setPage(1); }} className="h-9 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]">
+                <select id="product-sort" value={sortBy} onChange={(event) => { const value = event.target.value as typeof sortBy; setSortBy(value); setSortDirection(value === 'newest' ? 'desc' : 'asc'); setPage(1); }} className="h-9 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)] transition-all duration-200 ease-out hover:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
                   <option value="name">Name</option><option value="price">Price</option><option value="category">Category</option><option value="newest">Newest</option>
                 </select>
-                <button type="button" aria-label={sortDirection === 'asc' ? 'Sort ascending' : 'Sort descending'} title={sortDirection === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc')} className="inline-flex size-9 items-center justify-center rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]">
+                <button type="button" aria-label={sortDirection === 'asc' ? 'Sort ascending' : 'Sort descending'} title={sortDirection === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc')} className="inline-flex size-9 items-center justify-center rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
                   {sortDirection === 'asc' ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
                 </button>
               </div>
-              <div role="group" aria-label="Product view" className="inline-flex items-center rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-0.5">
-                <button type="button" aria-label="Table view" aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')} className={`inline-flex size-8 items-center justify-center rounded-md ${viewMode === 'table' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]' : 'text-[var(--oppa-text-muted)]'}`}><List size={16} /></button>
-                <button type="button" aria-label="Card view" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} className={`inline-flex size-8 items-center justify-center rounded-md ${viewMode === 'grid' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]' : 'text-[var(--oppa-text-muted)]'}`}><LayoutGrid size={16} /></button>
+              <div role="group" aria-label="Product view" className="inline-flex h-9 items-center rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-0.5">
+                <button type="button" aria-label="Table view" aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')} className={`inline-flex size-8 items-center justify-center rounded-md transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 ${viewMode === 'table' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><List size={16} /></button>
+                <button type="button" aria-label="Card view" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} className={`inline-flex size-8 items-center justify-center rounded-md transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 ${viewMode === 'grid' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><LayoutGrid size={16} /></button>
               </div>
             </div>
           </div>
@@ -472,7 +482,7 @@ const AdminProductsPage: React.FC = () => {
       )}
 
       {!isLoading && filteredProducts.length > 0 && <div className={`mt-4 flex items-center gap-2 text-xs text-[var(--oppa-text-muted)] ${viewMode === 'grid' ? '' : 'md:hidden'}`}>
-        <input ref={mobileSelectAllRef} type="checkbox" aria-label="Select all visible products" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? current.filter((id) => !visibleProducts.some((product) => product.id === id)) : [...new Set([...current, ...visibleProducts.map((product) => product.id)])])} className="size-4 accent-green-700" />
+        <input ref={mobileSelectAllRef} type="checkbox" aria-label="Select all visible products" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? current.filter((id) => !visibleProducts.some((product) => product.id === id)) : [...new Set([...current, ...visibleProducts.map((product) => product.id)])])} className="size-4 cursor-pointer rounded accent-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2" />
         <span>Select all on this page</span>
       </div>}
       {!isLoading && filteredProducts.length > 0 && (
@@ -480,16 +490,16 @@ const AdminProductsPage: React.FC = () => {
           {visibleProducts.map((product) => (
             <div key={product.id} className={`admin-card group p-4 transition-colors hover:border-[var(--oppa-green)]/40 ${isAvailable(product) ? '' : 'opacity-70'}`}>
               <div className="flex items-start gap-3">
-                <input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} className="mt-4 size-4 accent-green-700" />
+                <input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} className="mt-4 size-4 cursor-pointer rounded accent-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2" />
                 <ProductImage src={product.image} name={product.name} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <p className="truncate font-medium text-[var(--oppa-text)]">{product.name}</p>
-                    <button type="button" aria-label={`View details for ${product.name}`} onClick={() => setDetailsProduct(product)} className="rounded-md p-1 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]"><Eye size={16} /></button>
+                    <button type="button" aria-label={`View details for ${product.name}`} onClick={() => setDetailsProduct(product)} className="rounded-md p-1 text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><Eye size={16} /></button>
                   </div>
                   <p className="mt-0.5 line-clamp-2 text-xs text-[var(--oppa-text-muted)]">{product.description}</p>
                   <div className="mt-2 flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]">
-                    <span className={`rounded-full px-2 py-1 capitalize ${activeCategory === 'all' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]' : 'text-[var(--oppa-text-muted)]'}`}>{getCategoryLabel(product.category)}</span>
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${categoryBadgeStyles[product.category] || 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]'}`}>{getCategoryLabel(product.category)}</span>
                     <span>•</span>
                     <span className="tabular-nums ml-auto text-right font-semibold text-[var(--oppa-text)]">{formatCurrency(product.price)}</span>
                   </div>
@@ -500,8 +510,8 @@ const AdminProductsPage: React.FC = () => {
                 <div className="inline-flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]"><AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Unavailable" disabled={pendingAvailability.includes(product.id)} onChange={() => void handleToggle(product.id)} /><span>{isAvailable(product) ? 'Available' : 'Unavailable'}</span></div>
                 <div className="flex items-center gap-1">
                   {!isArchived(product) && <>
-                    <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-100 hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100">Edit</button>
-                    <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-100 hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100">Duplicate</button>
+                    <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-100 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100">Edit</button>
+                    <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-100 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100">Duplicate</button>
                   </>}
                   <RowActionsMenu label={product.name} items={actionItems(product)} />
                 </div>
@@ -512,7 +522,7 @@ const AdminProductsPage: React.FC = () => {
       )}
 
       {!isLoading && filteredProducts.length > 0 && viewMode === 'table' && (
-        <div className="admin-scrollbar mt-4 hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm md:block">
+        <div className="admin-scrollbar mt-4 hidden overflow-x-auto overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm md:block">
           <table className="admin-table products-table w-full min-w-[780px] table-fixed text-sm">
             <colgroup>
               <col style={{ width: '4%' }} /><col style={{ width: activeCategory === 'all' ? '34%' : '49%' }} />
@@ -521,7 +531,7 @@ const AdminProductsPage: React.FC = () => {
             </colgroup>
             <thead>
               <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
-                <th scope="col" className="col-center"><input ref={selectAllRef} type="checkbox" aria-label="Select all visible products" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? current.filter((id) => !visibleProducts.some((product) => product.id === id)) : [...new Set([...current, ...visibleProducts.map((product) => product.id)])])} className="size-4 accent-green-700" /></th>
+                <th scope="col" className="col-center"><input ref={selectAllRef} type="checkbox" aria-label="Select all visible products" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? current.filter((id) => !visibleProducts.some((product) => product.id === id)) : [...new Set([...current, ...visibleProducts.map((product) => product.id)])])} className="size-4 cursor-pointer rounded accent-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2" /></th>
                 <th scope="col" className="col-left">Item</th>
                 {activeCategory === 'all' && <th scope="col" className="col-left">Category</th>}
                 <th scope="col" className="col-right">Price</th>
@@ -532,23 +542,23 @@ const AdminProductsPage: React.FC = () => {
             <tbody>
               {visibleProducts.map((product) => (
                 <tr key={product.id} className={`group border-b border-[var(--oppa-border)]/70 last:border-0 transition-colors hover:bg-[var(--oppa-green-soft)]/45 ${isAvailable(product) ? '' : 'opacity-70'}`}>
-                  <td data-label="Select" className="col-center"><input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} className="size-4 accent-green-700" /></td>
+                  <td data-label="Select" className="col-center"><input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} className="size-4 cursor-pointer rounded accent-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2" /></td>
                   <td data-label="Item" className="col-left">
                     <div className="flex min-w-0 items-center gap-3">
-                      <ProductImage src={product.image} name={product.name} />
+                      <ProductImage src={product.image} name={product.name} className="rounded-xl ring-1 ring-black/5 shadow-sm" />
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-[var(--oppa-text)]">{product.name}</p>
-                        <p className="truncate text-xs text-[var(--oppa-text-muted)]">{product.description}</p>
+                        <p className="truncate font-semibold text-[var(--oppa-text)]">{product.name}</p>
+                        <p className="line-clamp-1 text-xs text-[var(--oppa-text-muted)]">{product.description}</p>
                       </div>
                     </div>
                   </td>
-                  {activeCategory === 'all' && <td data-label="Category" className="col-left"><span title={getCategoryLabel(product.category)} className="inline-block max-w-full truncate rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 align-middle text-xs font-medium capitalize text-[var(--oppa-text)]">{getCategoryLabel(product.category)}</span></td>}
+                  {activeCategory === 'all' && <td data-label="Category" className="col-left"><span title={getCategoryLabel(product.category)} className={`inline-block max-w-full truncate rounded-full px-3 py-1 align-middle text-xs font-medium capitalize ${categoryBadgeStyles[product.category] || 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]'}`}>{getCategoryLabel(product.category)}</span></td>}
                   <td data-label="Price" className="col-right tabular-nums font-semibold text-[var(--oppa-text)]">{formatCurrency(product.price)}</td>
-                  <td data-label="Availability" className="col-left"><div className="inline-flex items-center gap-2 whitespace-nowrap text-xs text-[var(--oppa-text-muted)]"><AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Unavailable" disabled={pendingAvailability.includes(product.id)} onChange={() => void handleToggle(product.id)} /><span>{isAvailable(product) ? 'Available' : 'Unavailable'}</span></div></td>
+                  <td data-label="Availability" className="col-left"><div className="inline-flex items-center gap-2 whitespace-nowrap text-xs"><AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Unavailable" disabled={pendingAvailability.includes(product.id)} onChange={() => void handleToggle(product.id)} /><span className={isAvailable(product) ? 'font-medium text-[var(--oppa-available-text)]' : 'text-[var(--oppa-text-muted)]'}>{isAvailable(product) ? 'Available' : 'Unavailable'}</span></div></td>
                   <td data-label="Actions" className="col-right"><div className="flex items-center justify-end gap-1">
                     {!isArchived(product) && <>
-                      <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-0 transition-opacity hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] group-hover:opacity-100 group-focus-within:opacity-100">Edit</button>
-                      <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-0 transition-opacity hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] group-hover:opacity-100 group-focus-within:opacity-100">Duplicate</button>
+                      <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-0 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 group-hover:opacity-100 group-focus-within:opacity-100">Edit</button>
+                      <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-0 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 group-hover:opacity-100 group-focus-within:opacity-100">Duplicate</button>
                     </>}
                     <RowActionsMenu label={product.name} items={actionItems(product)} />
                   </div></td>
@@ -563,15 +573,15 @@ const AdminProductsPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <span>Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredProducts.length)} of {filteredProducts.length}</span>
           <label className="flex items-center gap-2 text-xs">Rows
-            <select aria-label="Rows per page" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="h-9 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2 text-sm">
+            <select aria-label="Rows per page" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="h-9 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2 text-sm text-[var(--oppa-text)] transition-all duration-200 ease-out hover:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
               <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option>
             </select>
           </label>
         </div>
         <nav aria-label="Product pages" className="flex items-center gap-1">
-          <button type="button" disabled={currentPage === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 disabled:opacity-50">Prev</button>
-          {Array.from({ length: pageCount }, (_, index) => index + 1).slice(Math.max(0, Math.min(currentPage - 2, pageCount - 3)), Math.max(0, Math.min(currentPage - 2, pageCount - 3)) + 3).map((pageNumber) => <button key={pageNumber} type="button" aria-current={currentPage === pageNumber ? 'page' : undefined} onClick={() => setPage(pageNumber)} className={`size-9 rounded-lg border text-sm ${currentPage === pageNumber ? 'border-green-700 bg-green-700 text-white' : 'border-[var(--oppa-border)] hover:bg-[var(--oppa-green-soft)]'}`}>{pageNumber}</button>)}
-          <button type="button" disabled={currentPage >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 disabled:opacity-50">Next</button>
+          <button type="button" disabled={currentPage === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-[var(--oppa-text)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Prev</button>
+          {Array.from({ length: pageCount }, (_, index) => index + 1).slice(Math.max(0, Math.min(currentPage - 2, pageCount - 3)), Math.max(0, Math.min(currentPage - 2, pageCount - 3)) + 3).map((pageNumber) => <button key={pageNumber} type="button" aria-current={currentPage === pageNumber ? 'page' : undefined} onClick={() => setPage(pageNumber)} className={`size-9 rounded-lg border text-sm transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${currentPage === pageNumber ? 'border-green-700 bg-green-700 text-white shadow-sm' : 'border-[var(--oppa-border)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]'}`}>{pageNumber}</button>)}
+          <button type="button" disabled={currentPage >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-[var(--oppa-text)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Next</button>
         </nav>
       </div>}
 

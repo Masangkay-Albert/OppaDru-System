@@ -2,10 +2,16 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StaffBranchBadge from '../shared/components/StaffBranchBadge';
 import {
-  ArrowDownUp, CalendarClock, CheckCircle, ChefHat, ChevronDown, ClipboardList, Eye, Flame,
+  CalendarClock, CheckCircle, ChefHat, Eye, Flame,
 } from 'lucide-react';
 import { sortOrders } from '../../utils/dashboardOrders';
-import { OrderDateTime, StatusBadge, UserChip } from '../shared/components/DashboardPrimitives';
+import { OrderDateTime, StatusBadge } from '../shared/components/DashboardPrimitives';
+import {
+  EmployeeDashboardEmptyState,
+  EmployeeDashboardHeader,
+  EmployeeDashboardSort,
+  EmployeeDashboardTabs,
+} from '../shared/components/EmployeeDashboardUI';
 import { API_URL } from '../../services/apiConfig';
 import KitchenLayout from './components/kitchenLayout';
 import OrderDetailsModal from './components/OrderDetailsModal';
@@ -15,7 +21,7 @@ import { formatKitchenManilaDateTime, getKitchenScheduleState } from './kitchenS
 const chipBase = 'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition whitespace-nowrap';
 const chipPrimary = `${chipBase} bg-[var(--oppa-green)] text-white shadow-sm hover:bg-[#245f37] disabled:cursor-not-allowed disabled:opacity-50`;
 const chipSuccess = `${chipBase} bg-[var(--oppa-green)] text-white shadow-sm hover:bg-[#245f37]`;
-const chipDisabled = `${chipBase} bg-gray-100 text-gray-500`;
+const chipDisabled = `${chipBase} bg-[var(--oppa-green-soft)] text-[var(--oppa-text-muted)]`;
 const tabs: KitchenTab[] = ['pending', 'scheduled', 'preparing', 'history'];
 const tabLabels: Record<KitchenTab, string> = {
   pending: 'New Orders',
@@ -279,97 +285,87 @@ const KitchenDashboardPage: React.FC = () => {
 
   return (
     <KitchenLayout>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="font-serif text-3xl font-bold leading-tight tracking-tight text-[var(--oppa-text)] sm:text-4xl">Kitchen Dashboard</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <StaffBranchBadge name={branchName} id={branchId} />
-          <UserChip name={staffName} />
-        </div>
-      </div>
+      <EmployeeDashboardHeader
+        title="Kitchen Dashboard"
+        name={staffName}
+        context={<StaffBranchBadge name={branchName} id={branchId} />}
+      />
 
       {promotionNotice && (
-        <div role="status" aria-live="assertive" className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 font-semibold text-emerald-950 shadow-sm">
-          <span className="grid size-9 place-items-center rounded-full bg-emerald-100"><ChefHat size={18} /></span>
+        <div role="status" aria-live="assertive" className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 font-semibold text-emerald-950 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
+          <span className="grid size-9 place-items-center rounded-full bg-emerald-100 dark:bg-emerald-900/60"><ChefHat size={18} /></span>
           <span className="flex-1">{promotionNotice}</span>
-          <button type="button" onClick={() => setPromotionNotice(null)} aria-label="Dismiss order alert" className="rounded-lg p-2 hover:bg-emerald-100">×</button>
+          <button type="button" onClick={() => setPromotionNotice(null)} aria-label="Dismiss order alert" className="rounded-lg p-2 hover:bg-emerald-100 dark:hover:bg-emerald-900/60">×</button>
         </div>
       )}
 
-      <div className="relative z-20 mb-4 flex min-h-10 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="inline-flex min-h-10 flex-wrap gap-1 rounded-2xl border border-[var(--oppa-border)] bg-white/70 p-1 shadow-sm">
-          {tabs.map((tab) => (
-            <button key={tab} type="button" onClick={() => setActiveTab(tab)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] ${activeTab === tab ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}>
-              {tabLabels[tab]}
-              {tab === 'scheduled' && <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${activeTab === tab ? 'bg-white/20' : 'bg-violet-100 text-violet-900'}`}>{scheduledCount}</span>}
-              {tab === 'pending' && <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${activeTab === tab ? 'bg-white/20' : 'bg-emerald-100 text-emerald-900'}`}>{newCount}</span>}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="relative z-20 mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <EmployeeDashboardTabs<KitchenTab>
+          tabs={tabs.map((tab) => ({
+            id: tab,
+            label: tabLabels[tab],
+            count: tab === 'scheduled' ? scheduledCount : tab === 'pending' ? newCount : undefined,
+          }))}
+          activeTab={activeTab}
+          onChange={setActiveTab}
+        />
+        <div className="admin-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {activeTab === 'scheduled' && (
             <>
               <select aria-label="Filter scheduled orders by date" value={scheduledDateFilter}
                 onChange={(event) => setScheduledDateFilter(event.target.value as ScheduledDateFilter)}
-                className="h-10 rounded-xl border border-[var(--oppa-border)] bg-white px-3 text-sm font-medium">
+                className="h-10 shrink-0 rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm font-medium text-[var(--oppa-text)] transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
                 <option value="all">All dates</option><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="week">This Week</option><option value="custom">Custom</option>
               </select>
-              {scheduledDateFilter === 'custom' && <input aria-label="Choose scheduled date" type="date" value={customDate} onChange={(event) => setCustomDate(event.target.value)} className="h-10 rounded-xl border border-[var(--oppa-border)] bg-white px-3 text-sm" />}
+              {scheduledDateFilter === 'custom' && <input aria-label="Choose scheduled date" type="date" value={customDate} onChange={(event) => setCustomDate(event.target.value)} className="h-10 shrink-0 rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2" />}
             </>
           )}
-          <div className="flex h-10 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-white px-3 text-sm text-[var(--oppa-text-muted)] shadow-sm">
-            <ArrowDownUp size={16} className="text-[var(--oppa-green)]" /><span className="font-medium">Sort:</span>
-            <span className="relative inline-flex items-center">
-              <select aria-label="Sort orders" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as KitchenSort)}
-                className="appearance-none bg-transparent py-1 pr-5 font-semibold text-[var(--oppa-text)] outline-none">
-                <option value="desc">Latest First</option><option value="asc">Oldest First</option><option value="due">Due Soonest</option>
-              </select><ChevronDown size={14} className="pointer-events-none absolute right-0" />
-            </span>
-          </div>
+          <EmployeeDashboardSort<KitchenSort>
+            value={sortOrder}
+            onChange={setSortOrder}
+            ariaLabel="Sort orders"
+            options={[{ value: 'desc', label: 'Latest First' }, { value: 'asc', label: 'Oldest First' }, { value: 'due', label: 'Due Soonest' }]}
+          />
         </div>
       </div>
 
       {loading ? (
         <div className="p-8 text-center text-gray-500">Loading orders...</div>
       ) : sortedOrders.length === 0 ? (
-        <div className="rounded-2xl border border-[var(--oppa-border)] bg-white p-10 text-center text-sm text-[var(--oppa-text-muted)] shadow-sm">
-          <ClipboardList className="mx-auto mb-3 text-[var(--oppa-green)]/60" size={30} />
-          <p className="font-medium text-[var(--oppa-text)]">
-            {activeTab === 'pending' ? 'No new orders to prepare.' : activeTab === 'scheduled' ? 'No scheduled orders for this date.' : activeTab === 'preparing' ? 'You are not preparing any orders right now.' : 'No completed orders yet.'}
-          </p>
-          <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">Orders and schedule changes update automatically.</p>
-        </div>
+        <EmployeeDashboardEmptyState
+          title={activeTab === 'pending' ? 'No new orders to prepare.' : activeTab === 'scheduled' ? 'No scheduled orders for this date.' : activeTab === 'preparing' ? 'You are not preparing any orders right now.' : 'No completed orders yet.'}
+          description="Orders and schedule changes update automatically."
+        />
       ) : (
         <>
           <div className="space-y-5 md:hidden">
             {orderGroups.map((group) => (
               <section key={group.key} aria-label={group.label}>
-                <div className={`mb-2 flex items-center gap-2 border-b pb-2 ${group.key === 'priority' ? 'border-orange-300 text-orange-900' : 'border-[var(--oppa-border)] text-[var(--oppa-text-muted)]'}`}>
+                <div className={`mb-2 flex items-center gap-2 border-b pb-2 ${group.key === 'priority' ? 'border-orange-300 text-orange-900 dark:border-orange-900 dark:text-orange-200' : 'border-[var(--oppa-border)] text-[var(--oppa-text-muted)]'}`}>
                   {group.key === 'priority' ? <Flame size={15} /> : <span className="size-2 rounded-full bg-gray-300" />}
                   <h2 className="text-xs font-bold uppercase tracking-[0.14em]">{group.label}</h2>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${group.key === 'priority' ? 'bg-orange-100 text-orange-900' : 'bg-gray-100 text-gray-600'}`}>{group.count}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${group.key === 'priority' ? 'bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200' : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text-muted)]'}`}>{group.count}</span>
                 </div>
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(340px,1fr))]">
             {group.orders.map((order) => {
               const scheduleState = order.isScheduled && order.prepStartTime && order.scheduledFor
                 ? getKitchenScheduleState(order.prepStartTime, order.scheduledFor, now) : null;
               const mayStart = !order.isScheduled || !order.prepStartTime || new Date(order.prepStartTime).getTime() <= now;
               return (
-                <article key={order.id} className={`rounded-2xl border p-4 shadow-sm transition-shadow hover:shadow-md ${group.key === 'priority' ? 'border-orange-200 border-l-4 border-l-orange-500 bg-gradient-to-r from-orange-50 to-white' : 'border-[var(--oppa-border)] bg-white'}`}>
+                <article key={order.id} className={`rounded-2xl border p-4 shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md ${group.key === 'priority' ? 'border-orange-200 border-l-4 border-l-orange-500 bg-gradient-to-r from-orange-50 to-[var(--oppa-surface)] dark:border-orange-900 dark:from-orange-950/50' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)]'}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <StatusBadge status={order.status} />
-                      <p className="mt-2 font-mono text-xs text-gray-700">{order.order_number || order.id}</p>
+                      <p className="mt-2 font-mono text-xs text-[var(--oppa-text-muted)]">{order.order_number || order.id}</p>
+                      {(order.branch_name || order.branchName) && <p className="mt-1 truncate text-xs font-medium text-[var(--oppa-green)]">{order.branch_name || order.branchName}</p>}
                       <p className="font-medium text-[var(--oppa-text)]">{order.customerName}</p>
                       {renderBadges(order)}
                     </div>
-                    <button type="button" onClick={() => setSelectedOrder(order)} aria-label={`Details for ${order.order_number || order.id}`} className="rounded-lg border p-2 text-gray-600 hover:bg-gray-50"><Eye size={16} /></button>
+                    <button type="button" onClick={() => setSelectedOrder(order)} aria-label={`Details for ${order.order_number || order.id}`} className="rounded-lg border border-[var(--oppa-border)] p-2 text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><Eye size={16} /></button>
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">{order.isScheduled && order.scheduledFor ? `Due ${formatKitchenManilaDateTime(order.scheduledFor, { year: undefined })}` : <OrderDateTime date={order.created_at} />}</p>
+                  <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">{order.isScheduled && order.scheduledFor ? `Due ${formatKitchenManilaDateTime(order.scheduledFor, { year: undefined })}` : <OrderDateTime date={order.created_at} />}</p>
                   {scheduleState && <p className="mt-1 text-xs font-semibold text-violet-900">{scheduleState.label} · {scheduleState.detail}</p>}
-                  <div className="mt-3 border-t border-gray-100 pt-2">
+                  <div className="mt-3 border-t border-[var(--oppa-border)] pt-2">
                     {activeTab === 'pending' && <button type="button" disabled={!mayStart || busyOrderId === order.id} onClick={() => void updateOrderStatus(order.id, 'preparing', 'preparing')} className={`${chipPrimary} w-full`}><ChefHat size={14} /> Start Preparing</button>}
                     {activeTab === 'preparing' && <button type="button" onClick={() => void updateOrderStatus(order.id, 'prepared', 'history')} className={`${chipSuccess} w-full`}><CheckCircle size={14} /> Done Preparing</button>}
                     {activeTab === 'history' && <span className={`${chipDisabled} w-full`}><CheckCircle size={14} /> {order.status === 'delivered' ? 'Delivered' : order.status === 'cancelled' ? 'Cancelled' : 'Ready'}</span>}
@@ -382,21 +378,21 @@ const KitchenDashboardPage: React.FC = () => {
             ))}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm md:block">
+          <div className="hidden overflow-x-auto overflow-y-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm md:block">
             <table className="w-full min-w-[1000px] text-sm">
-              <thead><tr className="border-b bg-[#eaf3eb] text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+              <thead><tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">
                 <th className="px-4 py-3">Order ID</th><th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">{activeTab === 'scheduled' ? 'Scheduled For' : 'Date Ordered'}</th>
                 <th className="px-4 py-3">Items</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th>
               </tr></thead>
               <tbody>{orderGroups.map((group) => (
                 <React.Fragment key={group.key}>
-                  <tr className={group.key === 'priority' ? 'bg-orange-50' : 'bg-[#f8f7f2]'}>
+                  <tr className={group.key === 'priority' ? 'bg-orange-50 dark:bg-orange-950/30' : 'bg-[var(--oppa-cream)]'}>
                     <td colSpan={6} className={`border-b px-4 py-2 ${group.key === 'priority' ? 'border-orange-200' : 'border-[var(--oppa-border)]'}`}>
                       <div className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] ${group.key === 'priority' ? 'text-orange-900' : 'text-[var(--oppa-text-muted)]'}`}>
                         {group.key === 'priority' ? <Flame size={13} /> : <span className="size-2 rounded-full bg-gray-300" />}
                         {group.label}
-                        <span className={`rounded-full px-2 py-0.5 ${group.key === 'priority' ? 'bg-orange-200/70 text-orange-950' : 'bg-gray-200 text-gray-700'}`}>{group.count}</span>
+                        <span className={`rounded-full px-2 py-0.5 ${group.key === 'priority' ? 'bg-orange-200/70 text-orange-950 dark:bg-orange-950 dark:text-orange-200' : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text-muted)]'}`}>{group.count}</span>
                       </div>
                     </td>
                   </tr>
@@ -405,16 +401,16 @@ const KitchenDashboardPage: React.FC = () => {
                   ? getKitchenScheduleState(order.prepStartTime, order.scheduledFor, now) : null;
                 const mayStart = !order.isScheduled || !order.prepStartTime || new Date(order.prepStartTime).getTime() <= now;
                 return (
-                  <tr key={order.id} className={`border-b border-gray-100 last:border-0 hover:bg-emerald-50/60 ${group.key === 'priority' ? 'bg-orange-50/30' : ''}`}>
-                    <td className="px-4 py-3 align-middle"><span className="font-mono text-xs">{order.order_number || order.id}</span>{renderBadges(order)}</td>
+                  <tr key={order.id} className={`border-b border-[var(--oppa-border)]/60 transition-colors duration-200 ease-out last:border-0 hover:bg-[var(--oppa-green-soft)]/50 ${group.key === 'priority' ? 'bg-orange-50/30 dark:bg-orange-950/20' : ''}`}>
+                    <td className="px-4 py-3 align-middle"><span className="font-mono text-xs">{order.order_number || order.id}</span>{(order.branch_name || order.branchName) && <span className="mt-1 block truncate text-xs font-medium text-[var(--oppa-green)]">{order.branch_name || order.branchName}</span>}{renderBadges(order)}</td>
                     <td className="px-4 py-3 font-medium">{order.customerName || 'Customer'}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {order.isScheduled && order.scheduledFor ? <><strong className="block text-gray-800">{formatKitchenManilaDateTime(order.scheduledFor)}</strong>{scheduleState && <span className="text-xs">{scheduleState.detail}</span>}</> : <OrderDateTime date={order.created_at} />}
+                    <td className="px-4 py-3 text-[var(--oppa-text-muted)]">
+                      {order.isScheduled && order.scheduledFor ? <><strong className="block text-[var(--oppa-text)]">{formatKitchenManilaDateTime(order.scheduledFor)}</strong>{scheduleState && <span className="text-xs">{scheduleState.detail}</span>}</> : <OrderDateTime date={order.created_at} />}
                     </td>
                     <td className="px-4 py-3">{order.items?.length || 0} {(order.items?.length || 0) === 1 ? 'item' : 'items'}</td>
                     <td className="px-4 py-3"><StatusBadge status={order.status} /></td>
                     <td className="px-4 py-3"><div className="flex justify-end gap-2">
-                      <button type="button" onClick={() => setSelectedOrder(order)} className="inline-flex min-h-10 items-center gap-1 rounded-lg border px-3 text-xs font-semibold hover:bg-gray-50"><Eye size={14} /> Details</button>
+                      <button type="button" onClick={() => setSelectedOrder(order)} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-xs font-semibold text-[var(--oppa-text)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><Eye size={14} /> Details</button>
                       {activeTab === 'pending' && <button type="button" disabled={!mayStart || busyOrderId === order.id} onClick={() => void updateOrderStatus(order.id, 'preparing', 'preparing')} className={chipPrimary}><ChefHat size={14} /> Start</button>}
                       {activeTab === 'preparing' && <button type="button" onClick={() => void updateOrderStatus(order.id, 'prepared', 'history')} className={chipSuccess}><CheckCircle size={14} /> Done</button>}
                     </div></td>

@@ -43,6 +43,7 @@ class OrderPlacementTest extends TestCase
             'payment_method' => 'cash',
         ])->assertCreated()
             ->assertJsonPath('order.branch_id', $mainBranch->id)
+            ->assertJsonPath('order.branch_name', 'Main System')
             ->assertJsonPath('order.franchise_id', $mainBranch->id);
 
         $this->assertDatabaseHas('orders', [

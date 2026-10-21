@@ -146,6 +146,7 @@ trait OrderOnsiteActions
         $this->orderDataService->syncOrderItems($order, $orderItems);
 
         $order->refresh();
+        $order->setAttribute('branch_name', $branch?->name);
 
         return response()->json([
             'success' => true,

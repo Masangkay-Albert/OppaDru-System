@@ -35,7 +35,7 @@ class KitchenOrderController extends Controller
             return response()->json(['message' => 'Kitchen staff access required.'], 403);
         }
 
-        $pendingOrders = Order::with('user')
+        $pendingOrders = Order::with(['user', 'branch:id,name', 'franchise:id,name'])
             ->where('franchise_id', $employee->franchise_id)
             ->where('status', 'pending')
             ->get();
@@ -89,7 +89,7 @@ class KitchenOrderController extends Controller
 
         return response()->json([
             'message' => 'Order rescheduled successfully.',
-            'order' => $this->formatKitchenOrder($order->fresh('user')),
+            'order' => $this->formatKitchenOrder($order->fresh(['user', 'branch:id,name', 'franchise:id,name'])),
         ]);
     }
 
@@ -105,7 +105,9 @@ class KitchenOrderController extends Controller
             'start_early' => 'sometimes|boolean',
         ]);
 
-        $order = Order::where('franchise_id', $employee->franchise_id)->findOrFail($id);
+        $order = Order::with(['branch:id,name', 'franchise:id,name'])
+            ->where('franchise_id', $employee->franchise_id)
+            ->findOrFail($id);
         if ($request->input('status') === 'preparing' && $this->scheduleService->isScheduled($order)) {
             $scheduledFor = $this->scheduleService->scheduledFor($order);
             if ($scheduledFor && $this->scheduleService->prepStartTime($scheduledFor)->isFuture() && !$request->boolean('start_early')) {
@@ -122,6 +124,7 @@ class KitchenOrderController extends Controller
             ? 'delivered'
             : $request->status;
         $order->save();
+        $order->setAttribute('branch_name', $order->branch?->name ?? $order->franchise?->name);
 
         return response()->json([
             'message' => 'Order status updated successfully',
@@ -131,7 +134,9 @@ class KitchenOrderController extends Controller
 
     private function ordersForTab(?string $franchiseId, string $tab)
     {
-        $query = Order::query()->with('user')->where('franchise_id', $franchiseId);
+        $query = Order::query()
+            ->with(['user', 'branch:id,name', 'franchise:id,name'])
+            ->where('franchise_id', $franchiseId);
 
         if ($tab === 'scheduled') {
             $pending = $query->where('status', 'pending')->orderBy('created_at')->get();
@@ -201,6 +206,7 @@ class KitchenOrderController extends Controller
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
+            'branch_name' => $order->branch?->name ?? $order->franchise?->name,
             'customerName' => $customerName,
             'phone' => $order->phone,
             'channel' => $order->delivery_type === 'onsite' || $order->delivery_calculation_method === 'onsite'
