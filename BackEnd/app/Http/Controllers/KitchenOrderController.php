@@ -2,28 +2,27 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Models\Order;
 use App\Models\Employee;
+use App\Models\Franchise;
+use App\Models\Order;
 use App\Services\Order\ScheduleService;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 class KitchenOrderController extends Controller
 {
-    public function __construct(private readonly ScheduleService $scheduleService)
-    {
-    }
+    public function __construct(private readonly ScheduleService $scheduleService) {}
 
     public function index(Request $request)
     {
         $employee = $request->user();
-        if (!$employee instanceof Employee || strtolower((string) $employee->position) !== 'kitchen staff') {
+        if (! $employee instanceof Employee || strtolower((string) $employee->position) !== 'kitchen staff') {
             return response()->json(['message' => 'Kitchen staff access required.'], 403);
         }
 
         $tab = $request->query('tab', 'pending');
-        $orders = $this->ordersForTab($employee->franchise_id, $tab);
+        $orders = $this->ordersForTab($this->branchIdForEmployee($employee), $tab);
 
         return response()->json($orders->map(fn (Order $order) => $this->formatKitchenOrder($order))->values());
     }
@@ -31,12 +30,12 @@ class KitchenOrderController extends Controller
     public function counts(Request $request)
     {
         $employee = $request->user();
-        if (!$employee instanceof Employee || strtolower((string) $employee->position) !== 'kitchen staff') {
+        if (! $employee instanceof Employee || strtolower((string) $employee->position) !== 'kitchen staff') {
             return response()->json(['message' => 'Kitchen staff access required.'], 403);
         }
 
-        $pendingOrders = Order::with(['user', 'branch:id,name', 'franchise:id,name'])
-            ->where('franchise_id', $employee->franchise_id)
+        $pendingOrders = $this->ordersForBranch($this->branchIdForEmployee($employee))
+            ->with(['user', 'branch:id,name', 'franchise:id,name'])
             ->where('status', 'pending')
             ->get();
         $scheduled = $pendingOrders->filter(fn (Order $order) => $this->isInScheduledTab($order))->values();
@@ -55,22 +54,24 @@ class KitchenOrderController extends Controller
     public function reschedule(Request $request, string $id)
     {
         $employee = $request->user();
-        if (!$employee instanceof Employee || strtolower((string) $employee->position) !== 'kitchen staff') {
+        if (! $employee instanceof Employee || strtolower((string) $employee->position) !== 'kitchen staff') {
             return response()->json(['message' => 'Kitchen staff access required.'], 403);
         }
 
         $validated = $request->validate([
             'scheduled_for' => ['required', 'date', 'after:now'],
         ]);
-        $order = Order::where('franchise_id', $employee->franchise_id)
+        $branchId = $this->branchIdForEmployee($employee);
+        $order = $this->ordersForBranch($branchId)
             ->where('status', 'pending')
             ->findOrFail($id);
-        if (!$this->scheduleService->isScheduled($order)) {
+        if (! $this->scheduleService->isScheduled($order)) {
             return response()->json(['message' => 'Only scheduled orders can be rescheduled.'], 422);
         }
 
         $scheduledFor = Carbon::parse($validated['scheduled_for'], 'Asia/Manila')->timezone('Asia/Manila');
-        $hoursError = $this->scheduleService->operatingHoursError($employee->franchise, $scheduledFor);
+        $franchise = $employee->franchise ?? ($branchId ? Franchise::find($branchId) : null);
+        $hoursError = $this->scheduleService->operatingHoursError($franchise, $scheduledFor);
         if ($hoursError) {
             return response()->json(['errors' => ['scheduled_for' => [$hoursError]]], 422);
         }
@@ -96,7 +97,7 @@ class KitchenOrderController extends Controller
     public function updateStatus(Request $request, string $id)
     {
         $employee = $request->user();
-        if (!$employee instanceof Employee || strtolower((string) $employee->position) !== 'kitchen staff') {
+        if (! $employee instanceof Employee || strtolower((string) $employee->position) !== 'kitchen staff') {
             return response()->json(['message' => 'Kitchen staff access required.'], 403);
         }
 
@@ -105,12 +106,12 @@ class KitchenOrderController extends Controller
             'start_early' => 'sometimes|boolean',
         ]);
 
-        $order = Order::with(['branch:id,name', 'franchise:id,name'])
-            ->where('franchise_id', $employee->franchise_id)
+        $order = $this->ordersForBranch($this->branchIdForEmployee($employee))
+            ->with(['branch:id,name', 'franchise:id,name'])
             ->findOrFail($id);
         if ($request->input('status') === 'preparing' && $this->scheduleService->isScheduled($order)) {
             $scheduledFor = $this->scheduleService->scheduledFor($order);
-            if ($scheduledFor && $this->scheduleService->prepStartTime($scheduledFor)->isFuture() && !$request->boolean('start_early')) {
+            if ($scheduledFor && $this->scheduleService->prepStartTime($scheduledFor)->isFuture() && ! $request->boolean('start_early')) {
                 return response()->json([
                     'message' => 'Preparation for this scheduled order starts at '.$this->scheduleService->prepStartTime($scheduledFor)->format('g:i A').'.',
                 ], 422);
@@ -128,15 +129,43 @@ class KitchenOrderController extends Controller
 
         return response()->json([
             'message' => 'Order status updated successfully',
-            'order' => $order
+            'order' => $order,
         ]);
     }
 
-    private function ordersForTab(?string $franchiseId, string $tab)
+    private function branchIdForEmployee(Employee $employee): ?string
     {
-        $query = Order::query()
-            ->with(['user', 'branch:id,name', 'franchise:id,name'])
-            ->where('franchise_id', $franchiseId);
+        if ($employee->franchise_id) {
+            return (string) $employee->franchise_id;
+        }
+
+        $mainBranchId = Franchise::query()->where('is_main', true)->value('id');
+
+        return $mainBranchId !== null ? (string) $mainBranchId : null;
+    }
+
+    private function ordersForBranch(?string $branchId): Builder
+    {
+        return Order::query()
+            ->where(function (Builder $query) use ($branchId): void {
+                if ($branchId === null) {
+                    $query->whereNull('branch_id')->whereNull('franchise_id');
+
+                    return;
+                }
+
+                $query->where('branch_id', $branchId)
+                    ->orWhere(function (Builder $legacyQuery) use ($branchId): void {
+                        $legacyQuery->whereNull('branch_id')
+                            ->where('franchise_id', $branchId);
+                    });
+            });
+    }
+
+    private function ordersForTab(?string $branchId, string $tab)
+    {
+        $query = $this->ordersForBranch($branchId)
+            ->with(['user', 'branch:id,name', 'franchise:id,name']);
 
         if ($tab === 'scheduled') {
             $pending = $query->where('status', 'pending')->orderBy('created_at')->get();
@@ -162,21 +191,23 @@ class KitchenOrderController extends Controller
 
     private function isInScheduledTab(Order $order): bool
     {
-        if (!$this->scheduleService->isScheduled($order)) {
+        if (! $this->scheduleService->isScheduled($order)) {
             return false;
         }
 
         $scheduledFor = $this->scheduleService->scheduledFor($order);
+
         return $scheduledFor !== null && $this->scheduleService->prepStartTime($scheduledFor)->isFuture();
     }
 
     private function isInNewOrdersTab(Order $order): bool
     {
-        if (!$this->scheduleService->isScheduled($order)) {
+        if (! $this->scheduleService->isScheduled($order)) {
             return true;
         }
 
         $scheduledFor = $this->scheduleService->scheduledFor($order);
+
         return $scheduledFor === null || $this->scheduleService->prepStartTime($scheduledFor)->isPast();
     }
 
@@ -186,7 +217,7 @@ class KitchenOrderController extends Controller
         if ($order->user) {
             $name = trim(($order->user->first_name ?? '').' '.($order->user->last_name ?? ''));
             $customerName = $name ?: ($order->user->full_name ?? 'Customer');
-        } elseif (!empty($order->delivery_address) && preg_match('/Customer:\s*([^)|]+)/i', (string) $order->delivery_address, $matches)) {
+        } elseif (! empty($order->delivery_address) && preg_match('/Customer:\s*([^)|]+)/i', (string) $order->delivery_address, $matches)) {
             $customerName = trim($matches[1]);
         }
 

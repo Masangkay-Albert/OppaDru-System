@@ -223,7 +223,7 @@ const CheckoutPage: React.FC = () => {
         return;
       }
 
-      const success = await placeOrder(
+      const placedOrderId = await placeOrder(
         cartItems,
         0,
         fullDeliveryAddress,
@@ -246,11 +246,11 @@ const CheckoutPage: React.FC = () => {
         appliedPromo?.code || null
       );
 
-      if (success) {
+      if (placedOrderId) {
         setOrderCompleted(true);
         clearCart();
         showToast('Order placed successfully!', 'success');
-        navigate('/customer/orders', { replace: true });
+        navigate(`/orders/${encodeURIComponent(placedOrderId)}/track`, { replace: true });
       } else {
         showToast('Failed to place order. Please try again.', 'error');
       }

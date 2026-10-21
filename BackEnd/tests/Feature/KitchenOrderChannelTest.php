@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\Order;
 use App\Models\Employee;
 use App\Models\Franchise;
+use App\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -32,6 +32,41 @@ class KitchenOrderChannelTest extends TestCase
             ->assertJsonPath('0.branch_name', 'Kitchen Branch');
     }
 
+    public function test_main_system_kitchen_sees_orders_assigned_to_the_main_branch_id(): void
+    {
+        $mainBranch = Franchise::create([
+            'name' => 'Cavite Branch',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
+        $otherBranch = Franchise::create([
+            'name' => 'Other Branch',
+            'status' => 'active',
+        ]);
+        [$headers] = $this->createKitchenStaff();
+        $mainBranchOrder = $this->createOrder('MAIN-BRANCH-KITCHEN-TEST', 'standard', 'Customer delivery address');
+        $mainBranchOrder->update(['branch_id' => $mainBranch->id]);
+        $otherBranchOrder = $this->createOrder('OTHER-BRANCH-KITCHEN-TEST', 'standard', 'Customer delivery address');
+        $otherBranchOrder->update([
+            'branch_id' => $otherBranch->id,
+            'franchise_id' => $otherBranch->id,
+        ]);
+
+        $this->getJson('/api/kitchen/orders?tab=pending', $headers)
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $mainBranchOrder->id)
+            ->assertJsonPath('0.branch_name', 'Cavite Branch');
+        $this->getJson('/api/kitchen/orders/counts', $headers)
+            ->assertOk()
+            ->assertJsonPath('new_count', 1);
+        $this->patchJson('/api/kitchen/orders/'.$mainBranchOrder->id.'/status', [
+            'status' => 'preparing',
+        ], $headers)
+            ->assertOk()
+            ->assertJsonPath('order.status', 'preparing');
+    }
+
     public function test_prepared_walk_in_orders_become_delivered_without_changing_online_orders(): void
     {
         $kitchenStaff = Employee::create([
@@ -43,7 +78,7 @@ class KitchenOrderChannelTest extends TestCase
         $token = 'main-kitchen-token';
         $kitchenStaff->api_token = hash('sha256', $token);
         $kitchenStaff->save();
-        $headers = ['Authorization' => 'Bearer ' . $token];
+        $headers = ['Authorization' => 'Bearer '.$token];
 
         $onsiteOrder = $this->createOrder('ONSITE-CHANNEL-TEST', 'onsite', 'Onsite - Takeout (Customer: Walk-in Customer)');
         $onlineOrder = $this->createOrder('ONLINE-CHANNEL-TEST', 'standard', 'Customer delivery address');

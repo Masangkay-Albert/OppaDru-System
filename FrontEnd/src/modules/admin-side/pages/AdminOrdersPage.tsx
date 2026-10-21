@@ -23,7 +23,6 @@ const AdminOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [channelFilter, setChannelFilter] = useState<'all' | 'online' | 'onsite'>('all');
-  const [branchFilter, setBranchFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState<string>('');
@@ -124,7 +123,6 @@ const AdminOrdersPage: React.FC = () => {
       if (channelFilter !== 'all' && order.channel !== channelFilter) {
         return false;
       }
-      if (branchFilter !== 'all' && (order.branchId || '') !== branchFilter) return false;
 
       if (statusFilter !== 'all') {
         if (statusFilter === 'scheduled') {
@@ -151,9 +149,7 @@ const AdminOrdersPage: React.FC = () => {
       const timeB = getOrderTimestamp(b);
       return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
     });
-  }, [orders, channelFilter, branchFilter, statusFilter, dateFilter, sortOrder, searchTerm]);
-
-  const branches = useMemo(() => Array.from(new Map(orders.map((order) => [order.branchId || 'unassigned', { id: order.branchId || 'unassigned', name: order.branchName || 'Unassigned branch' }])).values()), [orders]);
+  }, [orders, channelFilter, statusFilter, dateFilter, sortOrder, searchTerm]);
 
   const statusTabs = [
     { label: 'All', value: 'all' },
@@ -164,17 +160,7 @@ const AdminOrdersPage: React.FC = () => {
   ];
   const statusCounts = (status: string) => orders.filter((order) => status === 'all' || String(order.status).toLowerCase() === status).length;
 
-  const handleClearFilters = () => {
-    setChannelFilter('all');
-    setBranchFilter('all');
-    setStatusFilter('all');
-    setDateFilter('');
-    setSortOrder('desc');
-    setSearchTerm('');
-    setCurrentPage(1);
-  };
-
-  const hasActiveFilters = channelFilter !== 'all' || branchFilter !== 'all' || dateFilter !== '' || searchTerm !== '';
+  const hasActiveFilters = channelFilter !== 'all' || dateFilter !== '' || searchTerm !== '';
   const paginatedOrders = filteredOrders.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
   const pageCount = Math.max(1, Math.ceil(filteredOrders.length / rowsPerPage));
 
@@ -277,11 +263,9 @@ const AdminOrdersPage: React.FC = () => {
         <div className="flex flex-col gap-2 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 shadow-sm sm:flex-row">
           <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={16} /><input aria-label="Search orders by ID, customer, or email" value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setCurrentPage(1); }} placeholder="Search order ID, customer, email…" className="admin-embedded-input min-w-0 w-full text-sm text-[var(--oppa-text)]" /></label>
           <select aria-label="Filter by channel" value={channelFilter} onChange={(event) => { setChannelFilter(event.target.value as 'all' | 'online' | 'onsite'); setCurrentPage(1); }} className="h-11 min-w-36 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]"><option value="all">All channels</option><option value="online">Online</option><option value="onsite">Onsite</option></select>
-          <select aria-label="Filter by branch" value={branchFilter} onChange={(event) => { setBranchFilter(event.target.value); setCurrentPage(1); }} className="h-11 min-w-44 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]"><option value="all">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
           <input aria-label="Filter by exact date" type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setCurrentPage(1); }} className="h-11 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" />
-          {hasActiveFilters && <button type="button" onClick={handleClearFilters} className="h-11 rounded-xl px-3 text-sm font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">Clear filters</button>}
         </div>
-        {(searchTerm || channelFilter !== 'all' || branchFilter !== 'all' || dateFilter) && <div className="flex flex-wrap gap-2 text-xs">{searchTerm && <span className="rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 text-[var(--oppa-green-dark)]">Search: {searchTerm}</span>}{channelFilter !== 'all' && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-900">Channel: {channelFilter}</span>}{branchFilter !== 'all' && <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-900">Branch: {branches.find((branch) => branch.id === branchFilter)?.name || branchFilter}</span>}{dateFilter && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-800">Date: {dateFilter}</span>}</div>}
+        {(searchTerm || dateFilter) && <div className="flex flex-wrap gap-2 text-xs">{searchTerm && <span className="rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 text-[var(--oppa-green-dark)]">Search: {searchTerm}</span>}{dateFilter && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-800">Date: {dateFilter}</span>}</div>}
       </div>
 
       {loading ? (
@@ -290,7 +274,7 @@ const AdminOrdersPage: React.FC = () => {
         </div>
       ) : filteredOrders.length === 0 ? (
         <div className="admin-card">
-          <EmptyState icon={<Package size={23} />} title={hasActiveFilters ? 'No orders match these filters' : 'No orders yet'} description={hasActiveFilters ? 'Try adjusting or clearing your filters.' : 'New orders will appear here as customers place them.'} action={hasActiveFilters ? <button type="button" onClick={handleClearFilters} className="mt-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Clear filters</button> : undefined} />
+          <EmptyState icon={<Package size={23} />} title={hasActiveFilters ? 'No orders match these filters' : 'No orders yet'} description={hasActiveFilters ? 'Try adjusting your filters.' : 'New orders will appear here as customers place them.'} />
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">

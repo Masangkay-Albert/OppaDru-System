@@ -74,7 +74,7 @@ interface OrderContextType {
     franchiseId?: string | null,
     promoId?: string | null,
     promoCode?: string | null,
-  ) => Promise<boolean>;
+  ) => Promise<string | null>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   clearOrder: () => void;
   getOrderById: (orderId: string) => Order | undefined;
@@ -342,10 +342,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     franchiseId?: string | null,
     promoId?: string | null,
     promoCode?: string | null,
-  ): Promise<boolean> => {
+  ): Promise<string | null> => {
     const activeUser = user ?? authService.getUserFromStorage();
     if (!activeUser) {
-      return false;
+      return null;
     }
 
     setIsLoading(true);
@@ -355,7 +355,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (validItems.length === 0) {
         setIsLoading(false);
-        return false;
+        return null;
       }
 
       const orderItems = validItems.map(item => ({
@@ -414,7 +414,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       persistCurrentOrder(newOrder);
 
       setIsLoading(false);
-      return true;
+      return newOrder.id;
     } catch (error) {
       console.error('Failed to place order:', error);
       setIsLoading(false);
