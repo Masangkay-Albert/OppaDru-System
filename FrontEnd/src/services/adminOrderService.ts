@@ -226,8 +226,7 @@ export const getAllOrders = async (forceRefresh = false): Promise<AdminOrder[]> 
       return new Date(value).getTime();
     };
 
-    const apiOrderIds = new Set(onlineOrders.map((order) => order.id));
-    return [...onlineOrders, ...getOnsiteOrders().filter((order) => !apiOrderIds.has(order.id))].sort(
+    return onlineOrders.sort(
       (a, b) => getSortTimestamp(b) - getSortTimestamp(a)
     );
     } catch {
