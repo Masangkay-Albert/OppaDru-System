@@ -78,17 +78,6 @@ const statusLabel = (promo: Promo): string => (
   promo.is_expired ? 'expired' : promo.is_active ? 'active' : 'inactive'
 );
 
-function PromoSkeleton() {
-  return (
-    <div className="space-y-3 p-4 sm:p-6" aria-label="Loading promotions" role="status">
-      {[0, 1, 2, 3].map((row) => (
-        <div key={row} className="admin-skeleton h-[76px] rounded-xl" />
-      ))}
-      <span className="sr-only">Loading promotions...</span>
-    </div>
-  );
-}
-
 interface PromoDetailsProps {
   promo: Promo;
 }
@@ -606,7 +595,7 @@ export default function AdminPromosPage() {
 
         <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-card" aria-label="Promotions">
           {loading && promos.length === 0 ? (
-            <PromoSkeleton />
+            <div role="status" aria-label="Loading promotions" aria-busy="true" className="min-h-64" />
           ) : visiblePromos.length === 0 ? (
             <div className="flex flex-col items-center px-6 py-14 text-center">
               <span className="mb-4 grid size-14 place-items-center rounded-2xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]">

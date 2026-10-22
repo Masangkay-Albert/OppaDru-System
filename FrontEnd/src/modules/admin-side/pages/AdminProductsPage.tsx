@@ -474,7 +474,7 @@ const AdminProductsPage: React.FC = () => {
       {toastMessage && <Toast key={toastMessage} message={toastMessage} onDismiss={() => setToastMessage('')} />}
       {actionError && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{actionError}</p>}
 
-      {isLoading && <div aria-label="Loading products" aria-busy="true" className="admin-card mt-4 animate-pulse space-y-3 p-5">{[0, 1, 2, 3].map((row) => <div key={row} className="admin-skeleton h-16 rounded-xl" />)}</div>}
+      {isLoading && <div role="status" aria-label="Loading products" aria-busy="true" className="mt-4 min-h-64" />}
       {!isLoading && filteredProducts.length === 0 && (
         <div className="admin-card mt-4">
           <EmptyState icon={<PackageOpen size={23} />} title={searchTerm ? 'No products match your search' : 'No products in this category'} description={searchTerm ? 'Try another product name or clear your search.' : 'Add a product to start building your menu.'} action={<button type="button" onClick={openAddModal} className="mt-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Add product</button>} />

@@ -49,12 +49,17 @@ const getCoordinates = (address: SavedAddress): { lat: number; lng: number } | u
 };
 
 const normalizeSavedAddress = (address: SavedAddress): SavedAddress => {
-  const coordinates = address.needsPin || (!address.pinConfirmed && isVagueAddress(address.address))
-    ? undefined
-    : getCoordinates(address);
+  const savedCoordinates = getCoordinates(address);
+  const hasConfirmedPin = address.pinConfirmed === true && Boolean(savedCoordinates);
+  const needsPin = !hasConfirmedPin && (
+    address.needsPin === true
+    || !savedCoordinates
+    || isVagueAddress(address.address)
+  );
+  const coordinates = needsPin ? undefined : savedCoordinates;
   return {
     ...address,
-    needsPin: address.needsPin === true || !coordinates || (!address.pinConfirmed && isVagueAddress(address.address)),
+    needsPin,
     ...(coordinates || { lat: undefined, lng: undefined }),
   };
 };
@@ -115,6 +120,7 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
       address: location.address,
       lat: location.lat,
       lng: location.lng,
+      needsPin: false,
       pinConfirmed: true,
       isDefault: savedAddresses.length === 0,
       details: editingAddress?.details || {}

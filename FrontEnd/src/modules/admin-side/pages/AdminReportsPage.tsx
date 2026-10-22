@@ -452,7 +452,7 @@ const AdminReportsPage: React.FC = () => {
       </div>
       </section>
 
-      {loading ? <div aria-label="Loading sales report" aria-busy="true" className="mb-6 grid animate-pulse gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((item) => <div key={item} className="admin-card admin-skeleton h-36" />)}</div> : <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {loading ? <div role="status" aria-label="Loading sales report" aria-busy="true" className="mb-6 min-h-36" /> : <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="admin-card admin-card--brand relative overflow-hidden p-5 text-white sm:col-span-2 xl:col-span-1">
           <div className="flex items-center justify-between"><p className="text-sm font-medium text-white/80">Total sales</p><TrendingUp size={19} /></div>
           <p className="tabular-nums mt-4 text-3xl font-bold tracking-tight sm:text-4xl">{formatCurrency(metrics.totalSales)}</p>

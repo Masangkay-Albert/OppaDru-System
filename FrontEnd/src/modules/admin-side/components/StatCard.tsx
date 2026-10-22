@@ -49,7 +49,7 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, tone = 'd
     <div className={`admin-card relative flex min-h-36 items-start justify-between overflow-hidden p-4 pb-10 sm:p-5 sm:pb-10 ${hasWarning ? 'border-red-200 bg-red-50/70' : ''}`}>
       <div className="min-w-0">
         <p className="tabular-nums text-2xl font-bold tracking-tight text-[var(--oppa-text)] sm:text-3xl">
-          {loading ? <span aria-label={`Loading ${label.toLowerCase()}`} className="inline-block h-8 w-16 animate-pulse rounded bg-[var(--oppa-border)]" /> : unavailable ? '—' : displayValue}
+          {loading ? <span aria-label={`Loading ${label.toLowerCase()}`} className="inline-block h-8 w-16" /> : unavailable ? '—' : displayValue}
         </p>
         <p className="mt-1 text-xs text-[var(--oppa-text-muted)] sm:text-sm">{label}</p>
         <div className="mt-3 flex min-h-5 items-center gap-1.5">

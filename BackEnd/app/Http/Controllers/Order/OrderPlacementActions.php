@@ -49,14 +49,16 @@ trait OrderPlacementActions
         $scheduleWindow = $request->input('schedule_window');
 
         $candidates = [];
+        if ($scheduledDate && ($scheduledTime || $scheduleWindow)) {
+            $datePart = $scheduledDate;
+            $timePart = $scheduledTime ?: $scheduleWindow;
+            if (preg_match('/\b\d{1,2}(?::\d{2})?\s*(?:AM|PM)\b/i', $timePart, $matches)) {
+                $timePart = $matches[0];
+            }
+            $candidates[] = $datePart.' '.$timePart;
+        }
         if ($scheduledAtInput) {
             $candidates[] = $scheduledAtInput;
-        }
-
-        if ($scheduledDate || $scheduledTime || $scheduleWindow) {
-            $datePart = $scheduledDate ?: Carbon::now('Asia/Manila')->format('Y-m-d');
-            $timePart = $scheduledTime ?: $scheduleWindow ?: '12:00 PM';
-            $candidates[] = $datePart.' '.$timePart;
         }
 
         $parsed = null;
@@ -77,15 +79,16 @@ trait OrderPlacementActions
             throw new \InvalidArgumentException('Scheduled delivery must be set for a future date and time.');
         }
 
+        $scheduledManila = $parsed->copy()->timezone('Asia/Manila');
         $scheduleWindowValue = $scheduleWindow
             ?: $scheduledTime
-            ?: $parsed->setTimezone('Asia/Manila')->format('g:i A');
+            ?: $scheduledManila->format('g:i A');
         $scheduleDisplayValue = $request->input('schedule_display')
-            ?: $parsed->setTimezone('Asia/Manila')->format('M j, Y • g:i A');
+            ?: $scheduledManila->format('M j, Y • g:i A');
 
         return [
-            'scheduled_at' => $parsed->setTimezone('Asia/Manila')->toDateTimeString(),
-            'scheduled_date' => $parsed->setTimezone('Asia/Manila')->format('Y-m-d'),
+            'scheduled_at' => $scheduledManila->copy()->utc()->toDateTimeString(),
+            'scheduled_date' => $scheduledManila->format('Y-m-d'),
             'scheduled_time' => $scheduledTime ?: $scheduleWindowValue,
             'schedule_display' => $scheduleDisplayValue,
             'schedule_window' => $scheduleWindowValue,
@@ -210,7 +213,7 @@ trait OrderPlacementActions
                 : null;
             $hoursError = $this->scheduleService->operatingHoursError(
                 $franchise,
-                Carbon::parse($scheduledData['scheduled_at'], 'Asia/Manila')
+                Carbon::parse($scheduledData['scheduled_at'], 'UTC')->timezone('Asia/Manila')
             );
             if ($hoursError) {
                 return response()->json(['errors' => ['scheduled_at' => [$hoursError]]], 422);

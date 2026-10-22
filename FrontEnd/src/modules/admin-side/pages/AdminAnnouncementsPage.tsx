@@ -638,18 +638,7 @@ Oppa Dru Korean Fried Chicken
 
         {/* Content Section: Cards Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="admin-card overflow-hidden animate-pulse">
-                <div className="h-40 bg-[var(--oppa-border)]/50" />
-                <div className="space-y-3 p-4">
-                  <div className="h-4 w-28 rounded bg-[var(--oppa-border)]/50" />
-                  <div className="h-5 w-3/4 rounded bg-[var(--oppa-border)]/50" />
-                  <div className="h-12 w-full rounded bg-[var(--oppa-border)]/40" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <div role="status" aria-label="Loading announcements" aria-busy="true" className="min-h-64" />
         ) : announcements.length === 0 ? (
           <div className="admin-card flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-6 py-10 text-center shadow-sm">
             <div className="mb-2 flex size-16 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] ring-8 ring-[var(--oppa-green-soft)]/30 dark:bg-[var(--oppa-green)]/20 dark:text-emerald-300 dark:ring-[var(--oppa-green)]/10">

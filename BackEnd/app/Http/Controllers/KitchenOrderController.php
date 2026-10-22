@@ -81,13 +81,13 @@ class KitchenOrderController extends Controller
         $previousSchedule = $this->scheduleService->scheduledFor($order);
         $order->update([
             'is_scheduled' => true,
-            'scheduled_for' => $scheduledFor,
-            'scheduled_at' => $scheduledFor,
+            'scheduled_for' => $scheduledFor->copy()->utc(),
+            'scheduled_at' => $scheduledFor->copy()->utc(),
             'scheduled_date' => $scheduledFor->format('Y-m-d'),
             'scheduled_time' => $scheduledFor->format('g:i A'),
             'schedule_window' => $scheduledFor->format('g:i A'),
             'schedule_display' => $scheduledFor->format('M j, Y • g:i A'),
-            'rescheduled_from' => $previousSchedule,
+            'rescheduled_from' => $previousSchedule?->copy()->utc(),
         ]);
 
         return response()->json([

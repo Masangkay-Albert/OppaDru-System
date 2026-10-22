@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, Globe2, Search, Store, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { CheckCircle2, Copy, Eye, Globe2, Search, Store, X } from 'lucide-react';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
@@ -33,6 +34,10 @@ interface BranchOrder {
   delivery_proof_image?: string | null;
   delivery_proof_uploaded_at?: string | null;
   delivery_confirmed_at?: string | null;
+  scheduled_at?: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  schedule_display?: string | null;
   items?: OrderItem[];
   order_items?: OrderItem[];
   orderItems?: OrderItem[];
@@ -75,9 +80,8 @@ const FranchiseOrdersPage: React.FC = () => {
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
   const [selectedOrder, setSelectedOrder] = useState<BranchOrder | null>(null);
+  const [copiedOrderId, setCopiedOrderId] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
-  const [newOrdersNotice, setNewOrdersNotice] = useState('');
-  const knownOrderIds = useRef<Set<string> | null>(null);
   const orderDetailsPanelRef = useRef<HTMLElement>(null);
   const branchName = franchiseUser?.branch?.name || franchiseUser?.franchise?.name || 'Current branch';
 
@@ -94,11 +98,6 @@ const FranchiseOrdersPage: React.FC = () => {
       if (!response.ok) throw new Error(payload.message || 'Could not load branch orders.');
       setError('');
       const nextOrders = Array.isArray(payload.data) ? payload.data as BranchOrder[] : [];
-      if (knownOrderIds.current) {
-        const newCount = nextOrders.filter((order) => !knownOrderIds.current?.has(order.id)).length;
-        if (newCount > 0) setNewOrdersNotice(`${newCount} new branch order${newCount === 1 ? '' : 's'} received.`);
-      }
-      knownOrderIds.current = new Set(nextOrders.map((order) => order.id));
       setOrders(nextOrders);
       setSelectedOrder((current) => {
         const updated = current && nextOrders.find((order) => order.id === current.id);
@@ -158,6 +157,29 @@ const FranchiseOrdersPage: React.FC = () => {
   };
   const hasFilters = search !== '' || status !== 'all' || channel !== 'all' || date !== '';
   const detailItems = selectedOrder ? getOrderItems(selectedOrder) : [];
+  const copyOrderId = (orderId: string) => {
+    if (!navigator.clipboard) {
+      setError('Copying order IDs is not supported by this browser.');
+      return;
+    }
+    void navigator.clipboard.writeText(orderId)
+      .then(() => setCopiedOrderId(orderId))
+      .catch((copyError: unknown) => {
+        console.error('Failed to copy order ID:', copyError);
+        setError('Could not copy order ID.');
+      });
+  };
+  const isScheduledOrder = selectedOrder && (
+    selectedOrder.status.toLowerCase() === 'scheduled'
+    || selectedOrder.delivery_type?.toLowerCase() === 'scheduled'
+    || !!selectedOrder.scheduled_at
+    || !!selectedOrder.scheduled_date
+    || !!selectedOrder.scheduled_time
+    || !!selectedOrder.schedule_display
+  );
+  const scheduledDisplay = selectedOrder?.schedule_display
+    || [selectedOrder?.scheduled_date, selectedOrder?.scheduled_time].filter(Boolean).join(' at ')
+    || selectedOrder?.scheduled_at;
 
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
@@ -165,8 +187,6 @@ const FranchiseOrdersPage: React.FC = () => {
         <PageHeader title="Orders" subtitle="Track this branch’s online and onsite orders. Statuses update as authorized kitchen and delivery roles process each order." />
 
         {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="font-semibold underline">Retry</button></div>}
-        {newOrdersNotice && <div role="status" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><span>{newOrdersNotice}</span><button type="button" onClick={() => setNewOrdersNotice('')} className="font-semibold underline">Dismiss</button></div>}
-
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <div role="tablist" aria-label="Filter orders by status" className="flex gap-2 overflow-x-auto pb-1">
             {STATUS_TABS.map((tab) => <button
@@ -240,31 +260,90 @@ const FranchiseOrdersPage: React.FC = () => {
         )}
       </div>
 
-      {selectedOrder && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-3 backdrop-blur-[2px] sm:p-6" role="presentation" onClick={() => setSelectedOrder(null)}><section ref={orderDetailsPanelRef} role="dialog" aria-modal="true" aria-label="Order details" onClick={(event) => event.stopPropagation()} className="max-h-[min(92dvh,900px)] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 text-[var(--oppa-text)] shadow-2xl sm:p-7">
-        <div className="sticky top-0 z-10 -mx-5 mb-5 flex items-center justify-between gap-4 border-b border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-5 py-3 sm:-mx-7 sm:px-7"><div className="min-w-0"><p className="text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">Branch order</p><h2 className="mt-1 truncate font-mono text-xs text-[var(--oppa-text-muted)]">{selectedOrder.order_number || selectedOrder.id}</h2></div><button type="button" aria-label="Close order details" onClick={() => setSelectedOrder(null)} className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-sm transition hover:border-red-300 hover:bg-red-50 hover:text-red-700"><X size={18} /></button></div>
-        {detailLoading ? <p className="py-10 text-center text-sm text-[var(--oppa-text-muted)]">Loading order details...</p> : <>
-          <div className="rounded-2xl bg-[var(--oppa-green-soft)] p-4 sm:p-5">
-            <div className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
-              <div><p className="text-xs text-[var(--oppa-text-muted)]">Customer</p><p className="mt-1 font-semibold">{getCustomerName(selectedOrder)}</p>{selectedOrder.email && <p className="mt-0.5 break-all text-xs text-[var(--oppa-text-muted)]">{selectedOrder.email}</p>}</div>
-              <div><p className="text-xs text-[var(--oppa-text-muted)]">Status</p><div className="mt-1"><StatusBadge status={selectedOrder.status} /></div></div>
-              <div><p className="text-xs text-[var(--oppa-text-muted)]">Payment Method</p><p className="mt-1 font-medium capitalize">{selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div>
-              <div><p className="text-xs text-[var(--oppa-text-muted)]">Order Type</p><p className="mt-1 font-medium">{getChannel(selectedOrder) === 'onsite' ? 'Onsite' : 'Online'}</p></div>
-              <div><p className="text-xs text-[var(--oppa-text-muted)]">Delivery</p><p className="mt-1 font-medium capitalize">{(selectedOrder.delivery_type || 'standard').replaceAll('_', ' ')}</p></div>
-              <div><p className="text-xs text-[var(--oppa-text-muted)]">Order Date</p><div className="mt-1"><AdminDate value={selectedOrder.created_at} /></div></div>
+      {selectedOrder && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex justify-end overflow-hidden bg-black/50" role="presentation" onClick={() => setSelectedOrder(null)}>
+          <section
+            ref={orderDetailsPanelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Order details"
+            onKeyDown={(event) => { if (event.key === 'Escape') setSelectedOrder(null); }}
+            onClick={(event) => event.stopPropagation()}
+            className="flex h-dvh w-full max-w-[450px] flex-col overflow-hidden border-l border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-2xl"
+          >
+            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--oppa-border)] px-5 py-3" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
+              <div className="min-w-0">
+                <h2 className="font-serif text-lg font-bold">Order Details</h2>
+                <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="truncate font-mono text-[10px] text-[var(--oppa-text-muted)]">{selectedOrder.order_number || selectedOrder.id}</span>
+                  <button
+                    type="button"
+                    onClick={() => copyOrderId(String(selectedOrder.order_number || selectedOrder.id))}
+                    aria-label="Copy order ID"
+                    title={copiedOrderId === String(selectedOrder.order_number || selectedOrder.id) ? 'Copied' : 'Copy order ID'}
+                    className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-[var(--oppa-text-muted)] transition hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"
+                  >
+                    <Copy size={13} aria-hidden="true" />
+                  </button>
+                  <StatusBadge status={selectedOrder.status} />
+                </div>
+              </div>
+              <button type="button" aria-label="Close order details" onClick={() => setSelectedOrder(null)} className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] transition hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]">
+                <X size={18} />
+              </button>
+            </header>
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+              {detailLoading ? <p className="py-10 text-center text-sm text-[var(--oppa-text-muted)]">Loading order details...</p> : <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm">
+                  <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Customer</p><p className="mt-1 font-medium">{getCustomerName(selectedOrder)}</p>{(selectedOrder.email || selectedOrder.user?.email) && <p className="break-all text-xs text-[var(--oppa-text-muted)]">{selectedOrder.email || selectedOrder.user?.email}</p>}</div>
+                  <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Channel</p><p className="mt-1 font-medium capitalize">{getChannel(selectedOrder)}</p></div>
+                  <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Payment Method</p><p className="mt-1 font-medium capitalize">{selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div>
+                  <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Status</p><div className="mt-1"><StatusBadge status={selectedOrder.status} /></div></div>
+                  <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Delivery</p><p className="mt-1 font-medium capitalize">{(selectedOrder.delivery_type || 'standard').replaceAll('_', ' ')}</p></div>
+                </div>
+
+                {isScheduledOrder && <div className="rounded-2xl border border-orange-200 bg-orange-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-700">Scheduled Delivery</p>
+                  <p className="mt-1 text-sm font-semibold">{scheduledDisplay || 'Schedule details unavailable'}</p>
+                </div>}
+
+                <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Order Date</p><div className="mt-1 text-sm font-medium"><AdminDate value={selectedOrder.created_at} /></div></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Delivery Address</p><p className="mt-1 break-words text-sm font-medium">{selectedOrder.delivery_address || 'Onsite / Walk-in'}</p></div>
+
+                {selectedOrder.status === 'delivered' && <div className="rounded-2xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                  <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={15} aria-hidden="true" /> Delivered</div>
+                  <p className="mt-1 text-xs text-green-700">This order has been marked delivered by the assigned driver.</p>
+                </div>}
+
+                {(selectedOrder.delivery_proof_image || selectedOrder.status === 'delivered') && <div className="rounded-2xl border border-[var(--oppa-border)] p-3">
+                  <p className="mb-2 text-xs font-semibold">Delivery Proof</p>
+                  {selectedOrder.delivery_proof_image ? <a href={selectedOrder.delivery_proof_image} target="_blank" rel="noreferrer" className="inline-block">
+                    <img src={selectedOrder.delivery_proof_image} alt="Driver delivery proof" className="max-h-60 max-w-full rounded-xl border border-[var(--oppa-border)] object-contain" />
+                  </a> : <p className="text-sm text-[var(--oppa-text-muted)]">No delivery photo has been uploaded.</p>}
+                  {selectedOrder.delivery_proof_uploaded_at && <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">Sent <AdminDate value={selectedOrder.delivery_proof_uploaded_at} /></p>}
+                </div>}
+
+                {selectedOrder.phone && <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Phone</p><p className="mt-1 text-sm font-medium">{selectedOrder.phone}</p></div>}
+
+                <div>
+                  <p className="mb-2 text-xs font-semibold">Items</p>
+                  {detailItems.length ? <div className="space-y-2 rounded-xl bg-[var(--oppa-cream)] p-3">{detailItems.map((item, index) => {
+                    const quantity = item.quantity || 1;
+                    const addons = item.selected_addons || [];
+                    const itemTotal = (Number(item.product_price ?? item.price ?? 0) + addons.reduce((sum, addon) => sum + Number(addon.price || 0) * (addon.quantity || 1), 0)) * quantity;
+                    return <div key={`${item.product_name || item.name || 'item'}-${index}`} className="flex justify-between gap-3 border-b border-[var(--oppa-border)]/30 pb-2 last:border-0">
+                      <div className="min-w-0"><p className="break-words font-medium">{item.product_name || item.name || 'Item'}</p><p className="break-words text-xs text-[var(--oppa-text-muted)]">Qty: {quantity}{addons.length > 0 && <span className="ml-2">Add-ons: {addons.map((addon) => `${addon.name || 'Add-on'}${(addon.quantity || 1) > 1 ? ` x${addon.quantity}` : ''}`).join(', ')}</span>}</p></div>
+                      <span className="shrink-0 font-semibold">{formatCurrency(itemTotal)}</span>
+                    </div>;
+                  })}<div className="flex justify-between border-t border-[var(--oppa-border)]/30 pt-2 font-bold"><span>Total</span><span>{formatCurrency(selectedOrder.total)}</span></div></div> : <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-sm text-[var(--oppa-text-muted)]">No item details provided.</p>}
+                </div>
+              </div>}
             </div>
-          </div>
-          <div className="mt-4 rounded-xl border border-[var(--oppa-border)] p-4"><p className="text-xs font-medium text-[var(--oppa-text-muted)]">Delivery Address</p><p className="mt-1 break-words text-sm">{selectedOrder.delivery_address || 'Onsite / Walk-in'}</p></div>
-          {selectedOrder.status === 'delivered' && <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800"><p className="font-semibold">Delivered</p><p className="mt-1 text-green-700">This order has been marked delivered by the assigned driver.</p></div>}
-          {(selectedOrder.delivery_proof_image || selectedOrder.status === 'delivered') && <div className="mt-4 rounded-xl border border-[var(--oppa-border)] p-4"><p className="mb-2 text-sm font-semibold">Delivery Proof</p>{selectedOrder.delivery_proof_image ? <a href={selectedOrder.delivery_proof_image} target="_blank" rel="noreferrer" className="inline-block"><img src={selectedOrder.delivery_proof_image} alt="Driver delivery proof" className="max-h-72 max-w-full rounded-lg border border-[var(--oppa-border)] object-contain" /></a> : <p className="text-sm text-[var(--oppa-text-muted)]">No delivery photo has been uploaded.</p>}{selectedOrder.delivery_proof_uploaded_at && <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">Sent <AdminDate value={selectedOrder.delivery_proof_uploaded_at} /></p>}</div>}
-          {selectedOrder.phone && <div className="mt-4"><p className="text-xs text-[var(--oppa-text-muted)]">Phone</p><p className="text-sm">{selectedOrder.phone}</p></div>}
-          <div className="mt-5"><p className="mb-2 text-sm font-semibold">Items</p>{detailItems.length ? <div className="space-y-2 rounded-xl bg-[var(--oppa-cream)] p-4">{detailItems.map((item, index) => {
-            const quantity = item.quantity || 1;
-            const addons = item.selected_addons || [];
-            const itemTotal = (Number(item.product_price ?? item.price ?? 0) + addons.reduce((sum, addon) => sum + Number(addon.price || 0) * (addon.quantity || 1), 0)) * quantity;
-            return <div key={`${item.product_name || item.name || 'item'}-${index}`} className="flex justify-between gap-4 border-b border-[var(--oppa-border)]/30 pb-2 last:border-0"><div><p className="font-medium">{item.product_name || item.name || 'Item'}</p><p className="text-xs text-[var(--oppa-text-muted)]">Qty: {quantity}{addons.length > 0 && <span className="ml-2">Add-ons: {addons.map((addon) => `${addon.name || 'Add-on'}${(addon.quantity || 1) > 1 ? ` x${addon.quantity}` : ''}`).join(', ')}</span>}</p></div><p className="font-semibold">{formatCurrency(itemTotal)}</p></div>;
-          })}<div className="flex justify-between border-t border-[var(--oppa-border)]/30 pt-2 font-bold"><span>Total</span><span>{formatCurrency(selectedOrder.total)}</span></div></div> : <p className="py-5 text-sm text-[var(--oppa-text-muted)]">No item details provided.</p>}</div>
-        </>}
-      </section></div>}
+          </section>
+        </div>,
+        document.body,
+      )}
     </main>
   );
 };

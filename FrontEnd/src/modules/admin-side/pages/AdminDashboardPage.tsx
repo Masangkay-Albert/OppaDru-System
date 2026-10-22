@@ -79,7 +79,7 @@ const DashboardCharts: React.FC<{ orders: AdminOrder[]; loading: boolean; unavai
           <div><h2 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">Sales last 7 days</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Daily order revenue</p></div>
           <div className="text-right"><p className="tabular-nums text-lg font-bold text-[var(--oppa-text)]">{formatCurrency(totalSales)} <span className="text-xs font-medium text-[var(--oppa-text-muted)]">this week</span></p><span className={`text-[11px] font-semibold ${trend >= 0 ? 'text-green-800' : 'text-red-700'}`}>{trend >= 0 ? '▲' : '▼'} {Math.abs(trend)}% vs last week</span></div>
         </div>
-        {loading ? <div aria-busy="true" className="admin-skeleton my-4 min-h-48 flex-1 animate-pulse rounded-xl" /> : unavailable ? <p className="mt-4 text-sm text-red-700">Sales data could not be loaded.</p> : <div className="relative mt-2 flex-1">
+        {loading ? <div role="status" aria-busy="true" aria-label="Loading sales chart" className="my-4 min-h-48 flex-1" /> : unavailable ? <p className="mt-4 text-sm text-red-700">Sales data could not be loaded.</p> : <div className="relative mt-2 flex-1">
           <svg role="img" aria-label="Area chart of sales in the last seven days" viewBox="0 0 600 190" className="h-full min-h-[210px] w-full overflow-visible">
             <defs><linearGradient id="sales-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#267a43" stopOpacity=".22" /><stop offset="100%" stopColor="#267a43" stopOpacity=".01" /></linearGradient></defs>
             {[40, 76, 112, 148].map((y, index) => <g key={y}><line x1="40" x2="574" y1={y} y2={y} stroke="var(--oppa-border)" strokeDasharray="4 5" /><text x="34" y={y + 3} textAnchor="end" fill="var(--oppa-text-muted)" fontSize="9">{formatCurrency(maxSales * (3 - index) / 3).replace(/\.00$/, '')}</text></g>)}
@@ -104,7 +104,7 @@ const DashboardCharts: React.FC<{ orders: AdminOrder[]; loading: boolean; unavai
       </section>
       <section className="admin-card flex min-h-[220px] flex-col p-5">
         <div><h2 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">Orders by status</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{total} total orders</p></div>
-        {loading ? <div aria-busy="true" className="admin-skeleton mt-4 h-36 animate-pulse rounded-xl" /> : unavailable ? <p className="mt-4 text-sm text-red-700">Order status data could not be loaded.</p> : <div className="mt-4 flex min-h-0 flex-1 items-center gap-4 sm:gap-6">
+        {loading ? <div role="status" aria-busy="true" aria-label="Loading order status chart" className="mt-4 h-36" /> : unavailable ? <p className="mt-4 text-sm text-red-700">Order status data could not be loaded.</p> : <div className="mt-4 flex min-h-0 flex-1 items-center gap-4 sm:gap-6">
           <div aria-label={`${total} orders by status`} role="img" className="relative size-32 shrink-0 rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
             <div className="absolute inset-[18px] flex items-center justify-center rounded-full bg-[var(--oppa-surface)] text-center"><span className="tabular-nums text-xl font-bold text-[var(--oppa-text)]">{total}<small className="block text-[10px] font-medium text-[var(--oppa-text-muted)]">Orders</small></span></div>
           </div>
@@ -232,7 +232,7 @@ const AdminDashboardPage: React.FC = () => {
         <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4">
           <div><h2 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">Recent Orders</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Latest customer activity</p></div>
         </div>
-        {sectionLoading.orders ? <div aria-label="Loading recent orders" aria-busy="true" className="admin-skeleton m-4 h-72 animate-pulse rounded-xl" /> : <DataTable className="dashboard-orders-table" columnWidths={['240px', 'calc(100% - 630px)', '120px', '140px', '130px']} columnAlignments={['left', 'left', 'right', 'left', 'right']} caption="Recent orders" headers={['Order ID', 'Customer', 'Total', 'Status', 'Date']}>
+        {sectionLoading.orders ? <div role="status" aria-label="Loading recent orders" aria-busy="true" className="h-72" /> : <DataTable className="dashboard-orders-table" columnWidths={['240px', 'calc(100% - 630px)', '120px', '140px', '130px']} columnAlignments={['left', 'left', 'right', 'left', 'right']} caption="Recent orders" headers={['Order ID', 'Customer', 'Total', 'Status', 'Date']}>
           {sectionErrors.orders ? <tr><td colSpan={5} className="p-4 text-center text-sm text-red-700">{sectionErrors.orders}</td></tr> : recentOrders.length === 0 ? <tr><td colSpan={5} className="p-2"><EmptyState title="No orders yet" description="New orders will show up here as soon as customers place them." action={<button type="button" onClick={() => navigate('/admin/orders')} className="mt-2 rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">Open orders</button>} /></td></tr> :
             recentOrders.map((order) => {
               const date = formatRelativeDate(order.created_at || order.timestamp);

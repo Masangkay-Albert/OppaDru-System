@@ -280,7 +280,7 @@ const AdminAddonsPage: React.FC = () => {
       </section>
 
       {isLoading
-        ? <div aria-busy="true" aria-label="Loading add-on groups" className="admin-card animate-pulse space-y-3 p-5">{[0, 1, 2].map((item) => <div key={item} className="admin-skeleton h-16 rounded-xl" />)}</div>
+        ? <div role="status" aria-busy="true" aria-label="Loading add-on groups" className="min-h-48" />
         : groups.length === 0
           ? <div className="admin-card"><EmptyState icon={<PackageOpen size={23} />} title="No add-on groups yet" description="Create a group to organize custom add-ons for your menu." /></div>
           : <div className="space-y-4">{groups.map((group) => {

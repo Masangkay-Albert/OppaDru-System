@@ -251,9 +251,7 @@ export const DataTable: React.FC<React.PropsWithChildren<{
         <thead><tr className="sticky top-0 border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/70 text-left text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
           {headers.map((header, index) => <th scope="col" data-column={header} key={header} className={`${alignmentClass(index)} px-4 py-3 ${header === 'Total' || header === 'Total spent' || header === 'Date' ? 'text-right' : ''}`}>{header}</th>)}
         </tr></thead>
-        <tbody>{loading
-          ? Array.from({ length: 4 }, (_, index) => <tr key={`skeleton-${index}`} aria-hidden="true"><td colSpan={headers.length} className="px-5 py-2"><div className="admin-skeleton h-10 animate-pulse rounded-lg" /></td></tr>)
-          : children}</tbody>
+        <tbody aria-busy={loading}>{loading ? <tr><td colSpan={headers.length}><span className="sr-only">Loading table</span></td></tr> : children}</tbody>
       </table>
       {!loading && !hasRows && <div className="border-t border-[var(--oppa-border)]">{emptyState || <EmptyState title="No results found" description="Try changing your search or filters." />}</div>}
     </div>

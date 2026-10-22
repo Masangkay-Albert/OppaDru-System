@@ -191,7 +191,7 @@ export default function AdminDelivery() {
       {error && <div role="alert" className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}<button aria-label="Dismiss message" onClick={() => setError('')} className="ml-3 rounded p-1 hover:bg-black/5"><X size={15} /></button></div>}
       {feedback && <Toast message={feedback} onDismiss={() => setFeedback('')} />}
 
-      {loadingPartners ? <div className="admin-card space-y-3 p-5" aria-label="Loading partners">{[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl bg-[var(--oppa-green-soft)]" />)}</div> :
+      {loadingPartners ? <div role="status" aria-busy="true" aria-label="Loading partners" className="min-h-48" /> :
         partners.length === 0 ? <div className="admin-card"><EmptyState title="No delivery partners yet" description="Add your first rider to start managing deliveries." action={<button onClick={() => setShowForm(true)} className="mt-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">Add Partner</button>} /></div> :
           filteredPartners.length === 0 ? <div className="admin-card"><EmptyState title="No partners match these filters" description="Try another search or show all statuses." action={<button onClick={() => { setQuery(''); setStatusFilter('all'); }} className="mt-2 rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)]">Clear filters</button>} /></div> :
             <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-[var(--shadow-card)]">

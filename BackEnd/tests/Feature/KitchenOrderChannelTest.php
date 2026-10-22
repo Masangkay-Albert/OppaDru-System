@@ -264,6 +264,28 @@ class KitchenOrderChannelTest extends TestCase
             ->assertJsonFragment(['id' => $promotedOrder->id]);
     }
 
+    public function test_kitchen_schedule_uses_the_selected_manila_time_for_legacy_orders(): void
+    {
+        [$headers] = $this->createKitchenStaff();
+        $scheduledDate = now('Asia/Manila')->addDay()->format('Y-m-d');
+        $scheduledOrder = $this->createOrder('SCHEDULED-MANILA-TIME-TEST', 'scheduled', 'Customer delivery address');
+        $scheduledOrder->update([
+            'is_scheduled' => true,
+            'scheduled_for' => Carbon::parse($scheduledDate.' 11:00 PM', 'Asia/Manila'),
+            'scheduled_at' => Carbon::parse($scheduledDate.' 11:00 PM', 'Asia/Manila'),
+            'scheduled_date' => $scheduledDate,
+            'scheduled_time' => '3:00 PM',
+            'schedule_window' => '3:00 PM',
+            'fulfillment_type' => 'delivery',
+        ]);
+        $expectedSchedule = Carbon::parse($scheduledDate.' 3:00 PM', 'Asia/Manila')->toIso8601String();
+
+        $this->getJson('/api/kitchen/orders?tab=scheduled', $headers)
+            ->assertOk()
+            ->assertJsonPath('0.id', $scheduledOrder->id)
+            ->assertJsonPath('0.scheduledFor', $expectedSchedule);
+    }
+
     public function test_scheduled_orders_require_early_start_confirmation_and_can_be_rescheduled_or_cancelled(): void
     {
         [$headers] = $this->createKitchenStaff();

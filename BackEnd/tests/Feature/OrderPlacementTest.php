@@ -873,6 +873,16 @@ class OrderPlacementTest extends TestCase
             'role' => 'customer',
             'email_verified_at' => now(),
         ]);
+        Franchise::create([
+            'name' => 'Scheduled Order Test Branch',
+            'status' => 'active',
+            'latitude' => 14.3194,
+            'longitude' => 120.9943,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 15,
+        ]);
 
         $product = Product::create([
             'name' => 'Original Chicken',
@@ -888,7 +898,7 @@ class OrderPlacementTest extends TestCase
             'password' => 'password123',
         ]);
 
-        $futureDate = now()->addDay()->format('Y-m-d');
+        $scheduledFor = now('Asia/Manila')->addDay()->setTime(15, 0);
         $response = $this
             ->withHeader('Authorization', 'Bearer '.$loginResponse->json('token'))
             ->postJson('/api/orders', [
@@ -901,21 +911,28 @@ class OrderPlacementTest extends TestCase
                 ]],
                 'total' => 0,
                 'delivery_address' => 'Block 2, Lot 5, Dasmarinas, Cavite',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'cash_on_delivery',
                 'delivery_type' => 'scheduled',
                 'phone' => '09176543210',
-                'scheduled_at' => now()->addDay()->setTime(14, 0)->toISOString(),
-                'scheduled_date' => $futureDate,
-                'scheduled_time' => '2:00 PM - 2:30 PM',
-                'schedule_display' => now()->addDay()->setTime(14, 0)->translatedFormat('M j, Y') . ' at 2:00 PM',
-                'schedule_window' => '2:00 PM - 2:30 PM',
+                'scheduled_at' => $scheduledFor->toISOString(),
+                'scheduled_date' => $scheduledFor->format('Y-m-d'),
+                'scheduled_time' => '3:00 PM',
+                'schedule_display' => $scheduledFor->format('M j, Y').' at 3:00 PM',
+                'schedule_window' => '3:00 PM',
             ]);
 
         $response
             ->assertCreated()
             ->assertJsonPath('order.delivery_type', 'scheduled')
-            ->assertJsonPath('order.scheduled_date', now()->addDay()->format('Y-m-d'))
-            ->assertJsonPath('order.scheduled_time', '2:00 PM - 2:30 PM');
+            ->assertJsonPath('order.scheduled_date', $scheduledFor->format('Y-m-d'))
+            ->assertJsonPath('order.scheduled_time', '3:00 PM')
+            ->assertJsonPath('order.scheduled_at', $scheduledFor->copy()->utc()->format('Y-m-d\TH:i:s.u\Z'));
+        $this->assertDatabaseHas('orders', [
+            'id' => $response->json('order.id'),
+            'scheduled_at' => $scheduledFor->copy()->utc()->format('Y-m-d H:i:s'),
+            'scheduled_for' => $scheduledFor->copy()->utc()->format('Y-m-d H:i:s'),
+        ]);
     }
 
     public function test_scheduled_orders_require_a_valid_future_datetime(): void

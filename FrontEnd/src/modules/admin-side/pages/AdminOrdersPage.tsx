@@ -270,9 +270,7 @@ const AdminOrdersPage: React.FC = () => {
       </div>
 
       {loading ? (
-        <div aria-label="Loading orders" aria-busy="true" className="admin-card animate-pulse space-y-3 p-5">
-          {[0, 1, 2, 3].map((row) => <div key={row} className="admin-skeleton h-14 rounded-xl" />)}
-        </div>
+        <div role="status" aria-label="Loading orders" aria-busy="true" className="min-h-64" />
       ) : filteredOrders.length === 0 ? (
         <div className="admin-card">
           <EmptyState icon={<Package size={23} />} title={hasActiveFilters ? 'No orders match these filters' : 'No orders yet'} description={hasActiveFilters ? 'Try adjusting your filters.' : 'New orders will appear here as customers place them.'} />

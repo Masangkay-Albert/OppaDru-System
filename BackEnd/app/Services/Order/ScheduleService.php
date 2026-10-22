@@ -19,9 +19,23 @@ class ScheduleService
 
     public function scheduledFor(Order $order): ?Carbon
     {
+        $date = $order->scheduled_date;
+        $time = $order->schedule_window ?: $order->scheduled_time;
+        if ($date && $time) {
+            if (preg_match('/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/i', (string) $time, $matches)) {
+                $time = $matches[0];
+            }
+
+            try {
+                return Carbon::parse($date.' '.$time, 'Asia/Manila');
+            } catch (\Throwable) {
+                // Fall back to the timestamp when legacy schedule fields are malformed.
+            }
+        }
+
         $value = $order->scheduled_for ?? $order->scheduled_at;
 
-        return $value ? Carbon::parse($value)->timezone('Asia/Manila') : null;
+        return $value ? Carbon::parse($value, 'UTC')->timezone('Asia/Manila') : null;
     }
 
     public function prepStartTime(CarbonInterface $scheduledFor): Carbon
