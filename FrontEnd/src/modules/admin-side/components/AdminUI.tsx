@@ -85,18 +85,20 @@ const badgeMap: Record<string, { label: string; style: string }> = {
   out_of_stock: { label: 'Out of stock', style: 'bg-red-100 text-red-800' },
   delivered: { label: 'Delivered', style: 'bg-emerald-100 text-emerald-800' },
   pending: { label: 'Pending', style: 'bg-amber-100 text-amber-900' },
-  on_the_way: { label: 'On the way', style: 'bg-sky-100 text-sky-900' },
-  on_theway: { label: 'On the way', style: 'bg-sky-100 text-sky-900' },
+  prepared: { label: 'Prepared', style: 'bg-blue-100 text-blue-900' },
   preparing: { label: 'Preparing', style: 'bg-blue-100 text-blue-900' },
-  ready: { label: 'Ready', style: 'bg-violet-100 text-violet-900' },
+  ready: { label: 'Ready', style: 'bg-blue-100 text-blue-900' },
+  on_the_way: { label: 'On the way', style: 'bg-violet-100 text-violet-900' },
+  on_theway: { label: 'On the way', style: 'bg-violet-100 text-violet-900' },
   scheduled: { label: 'Scheduled', style: 'bg-orange-100 text-orange-900' },
   cancelled: { label: 'Cancelled', style: 'bg-red-100 text-red-900' },
 };
 
 export const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const normalized = status.trim().toLowerCase().replace(/[\s-]+/g, '_');
-  const badge = badgeMap[normalized] || { label: status.replace(/[_-]+/g, ' '), style: 'bg-slate-100 text-slate-800' };
-  return <span className={`franchise-status-badge franchise-status-badge--${normalized} inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${badge.style}`}>
+  const fallbackLabel = status.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const badge = badgeMap[normalized] || { label: fallbackLabel, style: 'bg-slate-100 text-slate-800' };
+  return <span className={`admin-status-badge admin-status-badge--${normalized} franchise-status-badge franchise-status-badge--${normalized} inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${badge.style}`}>
     <span className="size-1.5 rounded-full bg-current opacity-70" aria-hidden="true" />{badge.label}
   </span>;
 };

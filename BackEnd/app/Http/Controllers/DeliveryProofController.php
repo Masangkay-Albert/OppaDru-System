@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Driver;
 use App\Models\Order;
 use App\Support\DatabaseImage;
+use App\Support\DriverOrderScope;
+use App\Support\OrderStatus;
 use Illuminate\Http\Request;
 
 class DeliveryProofController extends Controller
@@ -23,16 +25,11 @@ class DeliveryProofController extends Controller
             'proof_image' => 'required|file|image|mimes:jpeg,jpg,png,webp|max:5120',
         ]);
 
-        $order = Order::where(function ($branchQuery) use ($driver) {
-                $branchQuery->where('franchise_id', $driver->franchise_id)
-                    ->orWhere('branch_id', $driver->franchise_id);
-            })
-            ->where('driver_id', $driver->id)
-            ->where(function ($query) {
-                $query->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');
-            })
-            ->findOrFail($id);
-        if (!in_array($order->status, ['on_the_way', 'arrived', 'delivered'], true)) {
+        $query = Order::query()->where('driver_id', $driver->id);
+        DriverOrderScope::applyBranch($query, DriverOrderScope::branchId($driver));
+        DriverOrderScope::applyDeliveryEligibility($query);
+        $order = $query->findOrFail($id);
+        if (!in_array($order->status, [OrderStatus::ON_THE_WAY, OrderStatus::ARRIVED, OrderStatus::DELIVERED], true)) {
             return response()->json(['message' => 'You can only upload proof for an active delivery assigned to you.'], 403);
         }
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\Driver;
 use App\Models\Franchise;
 use App\Models\Order;
 use Carbon\Carbon;
@@ -92,6 +93,137 @@ class KitchenOrderChannelTest extends TestCase
             ->assertJsonPath('order.status', 'prepared');
 
         $this->getJson('/api/orders')->assertUnauthorized();
+    }
+
+    public function test_prepared_delivery_is_available_to_main_system_driver_and_acceptance_moves_it_to_active(): void
+    {
+        $mainBranch = Franchise::create([
+            'name' => 'Cavite Branch',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
+        [$kitchenHeaders] = $this->createKitchenStaff();
+        $order = $this->createOrder('OPPA-ORD-20261021-Y27WTJNH', 'standard', 'Mahubay City delivery address');
+        $order->update([
+            'branch_id' => $mainBranch->id,
+            'franchise_id' => $mainBranch->id,
+            'fulfillment_type' => 'delivery',
+        ]);
+        $driver = Driver::create([
+            'name' => 'Main System Driver',
+            'email' => 'main-driver@example.test',
+            'password' => Hash::make('Driver@123'),
+            'phone' => '09170000001',
+            'vehicleType' => 'Motorcycle',
+            'isActive' => true,
+        ]);
+        $driverToken = 'main-driver-token';
+        $driver->api_token = hash('sha256', $driverToken);
+        $driver->save();
+        $driverHeaders = ['Authorization' => 'Bearer '.$driverToken];
+        $otherDriver = Driver::create([
+            'name' => 'Second Main System Driver',
+            'email' => 'second-main-driver@example.test',
+            'password' => Hash::make('Driver@123'),
+            'phone' => '09170000002',
+            'vehicleType' => 'Motorcycle',
+            'isActive' => true,
+        ]);
+        $otherDriverToken = 'second-main-driver-token';
+        $otherDriver->api_token = hash('sha256', $otherDriverToken);
+        $otherDriver->save();
+
+        $this->patchJson('/api/kitchen/orders/'.$order->id.'/status', [
+            'status' => 'prepared',
+        ], $kitchenHeaders)
+            ->assertOk()
+            ->assertJsonPath('order.status', 'prepared');
+
+        $this->getJson('/api/driver/orders?tab=available', $driverHeaders)
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $order->id)
+            ->assertJsonPath('0.status', 'prepared');
+
+        $this->patchJson('/api/driver/orders/'.$order->id.'/status', [
+            'status' => 'on_the_way',
+        ], $driverHeaders)
+            ->assertOk()
+            ->assertJsonPath('order.status', 'on_the_way')
+            ->assertJsonPath('order.driver_id', $driver->id);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'on_the_way',
+            'driver_id' => $driver->id,
+        ]);
+        $this->patchJson('/api/driver/orders/'.$order->id.'/status', [
+            'status' => 'on_the_way',
+        ], ['Authorization' => 'Bearer '.$otherDriverToken])
+            ->assertStatus(409);
+        $this->getJson('/api/driver/orders?tab=available', $driverHeaders)
+            ->assertOk()
+            ->assertJsonCount(0);
+        $this->getJson('/api/driver/orders?tab=active', $driverHeaders)
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.status', 'on_the_way');
+    }
+
+    public function test_driver_queue_excludes_pickup_and_onsite_orders(): void
+    {
+        $mainBranch = Franchise::create([
+            'name' => 'Cavite Branch',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
+        $driver = Driver::create([
+            'name' => 'Main System Driver',
+            'email' => 'main-driver-queue@example.test',
+            'password' => Hash::make('Driver@123'),
+            'phone' => '09170000001',
+            'vehicleType' => 'Motorcycle',
+            'isActive' => true,
+        ]);
+        $driverToken = 'main-driver-queue-token';
+        $driver->api_token = hash('sha256', $driverToken);
+        $driver->save();
+        $headers = ['Authorization' => 'Bearer '.$driverToken];
+
+        $delivery = $this->createOrder('DELIVERY-QUEUE-TEST', 'standard', 'Delivery address');
+        $delivery->update([
+            'branch_id' => $mainBranch->id,
+            'fulfillment_type' => 'delivery',
+            'status' => 'prepared',
+        ]);
+        $pickup = $this->createOrder('PICKUP-QUEUE-TEST', 'standard', 'Pickup address');
+        $pickup->update([
+            'branch_id' => $mainBranch->id,
+            'fulfillment_type' => 'pickup',
+            'status' => 'prepared',
+        ]);
+        $onsite = $this->createOrder('ONSITE-QUEUE-TEST', 'onsite', 'Onsite - Takeout');
+        $onsite->update([
+            'branch_id' => $mainBranch->id,
+            'fulfillment_type' => 'pickup',
+            'status' => 'prepared',
+        ]);
+        $otherBranch = Franchise::create([
+            'name' => 'Other Branch',
+            'status' => 'active',
+        ]);
+        $misattributed = $this->createOrder('MISATTRIBUTED-QUEUE-TEST', 'standard', 'Other branch delivery');
+        $misattributed->update([
+            'branch_id' => $otherBranch->id,
+            'franchise_id' => $mainBranch->id,
+            'fulfillment_type' => 'delivery',
+            'status' => 'prepared',
+        ]);
+
+        $this->getJson('/api/driver/orders?tab=available', $headers)
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $delivery->id);
     }
 
     public function test_scheduled_orders_are_separated_until_their_prep_window_and_counts_update(): void

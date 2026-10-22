@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle, X, Eye, Package, CalendarDays, Copy, Search, Globe2, Store } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
@@ -397,60 +398,71 @@ const AdminOrdersPage: React.FC = () => {
         </div>
       )}
 
-      {selectedOrder && (
-        <div className="fixed inset-0 z-[60] flex justify-end bg-black/50" onClick={() => setSelectedOrder(null)}>
+      {selectedOrder && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex justify-end overflow-hidden bg-black/50" onClick={() => setSelectedOrder(null)}>
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Order details"
             onKeyDown={(event) => { if (event.key === 'Escape') setSelectedOrder(null); }}
-            className="h-full w-full max-w-2xl overflow-y-auto border-l border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-2xl sm:p-7"
+            className="flex h-dvh w-full max-w-[560px] flex-col overflow-hidden border-l border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 z-20 -mx-5 mb-5 flex items-center justify-between border-b border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-5 py-4 sm:-mx-7 sm:px-7">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-6 py-4" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
               <div className="min-w-0">
-                <h2 className="font-serif text-xl font-semibold text-[var(--oppa-text)]">Order Details</h2>
-                <p className="truncate font-mono text-xs text-[var(--oppa-text-muted)]">{selectedOrder.order_number || selectedOrder.id}</p>
+                <h2 className="text-lg font-semibold text-[var(--oppa-text)]">Order Details</h2>
+                <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+                  <p className="min-w-0 truncate font-mono text-xs text-[var(--oppa-text-muted)]">{selectedOrder.order_number || selectedOrder.id}</p>
+                  <button
+                    type="button"
+                    onClick={() => copyOrderId(String(selectedOrder.order_number || selectedOrder.id))}
+                    aria-label="Copy order ID"
+                    title={copiedOrderId === String(selectedOrder.order_number || selectedOrder.id) ? 'Copied' : 'Copy order ID'}
+                    className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] transition hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"
+                  >
+                    <Copy size={15} aria-hidden="true" />
+                  </button>
+                  <StatusBadge status={statusLabels[selectedOrder.status] || selectedOrder.status} />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedOrder(null)}
-                  aria-label="Close order details"
-                  title="Close order details"
-                  className="ml-1 inline-flex size-11 shrink-0 translate-y-1 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-white text-[var(--oppa-text)] shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
-                >
-                  <X size={20} strokeWidth={2.5} />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrder(null)}
+                aria-label="Close"
+                title="Close order details"
+                className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
+              >
+                <X size={20} strokeWidth={2.5} />
+              </button>
             </div>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-6 py-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+              <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-5">
                 <div>
-                  <p className="text-xs text-[var(--oppa-text-muted)]">Customer</p>
-                  <p className="font-medium">{selectedOrder.customerName || selectedOrder.email || 'Guest'}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Customer</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--oppa-text)]">{selectedOrder.customerName || selectedOrder.email || 'Guest'}</p>
                   {selectedOrder.email && (
-                    <p className="text-sm text-[var(--oppa-text-muted)]">{selectedOrder.email}</p>
+                    <p className="break-all text-sm text-[var(--oppa-text-muted)]">{selectedOrder.email}</p>
                   )}
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--oppa-text-muted)]">Channel</p>
-                  <p className="font-medium capitalize">{selectedOrder.channel || 'online'}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Channel</p>
+                  <p className="mt-1 text-sm font-medium capitalize text-[var(--oppa-text)]">{selectedOrder.channel || 'online'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--oppa-text-muted)]">Payment Method</p>
-                  <p className="font-medium">
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Payment Method</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--oppa-text)]">
                     {formatPaymentMethod(selectedOrder.paymentMethod || selectedOrder.payment_method)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--oppa-text-muted)]">Status</p>
-                  <StatusBadge status={statusLabels[selectedOrder.status] || selectedOrder.status} />
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Status</p>
+                  <div className="mt-1"><StatusBadge status={statusLabels[selectedOrder.status] || selectedOrder.status} /></div>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--oppa-text-muted)]">Delivery</p>
-                  <p className="font-medium capitalize">{String(selectedOrder.delivery_type || 'standard').replace('_', ' ')}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Delivery</p>
+                  <p className="mt-1 text-sm font-medium capitalize text-[var(--oppa-text)]">{String(selectedOrder.delivery_type || 'standard').replace('_', ' ')}</p>
                 </div>
               </div>
 
@@ -462,13 +474,13 @@ const AdminOrdersPage: React.FC = () => {
               )}
 
               <div>
-                <p className="text-xs text-[var(--oppa-text-muted)]">Order Date</p>
-                <AdminDate value={getOrderDate(selectedOrder)} />
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Order Date</p>
+                <div className="mt-1 text-sm font-medium text-[var(--oppa-text)]"><AdminDate value={getOrderDate(selectedOrder)} /></div>
               </div>
 
               <div>
-                <p className="text-xs text-[var(--oppa-text-muted)]">Delivery Address</p>
-                <p className="text-sm">{selectedOrder.deliveryAddress || 'Onsite / Walk-in'}</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Delivery Address</p>
+                <p className="mt-1 break-words text-sm font-medium text-[var(--oppa-text)]">{selectedOrder.deliveryAddress || 'Onsite / Walk-in'}</p>
               </div>
 
               {selectedOrder.status === 'delivered' && (
@@ -502,24 +514,24 @@ const AdminOrdersPage: React.FC = () => {
 
               {selectedOrder.phone && (
                 <div>
-                  <p className="text-xs text-[var(--oppa-text-muted)]">Phone</p>
-                  <p className="text-sm">{selectedOrder.phone}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Phone</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--oppa-text)]">{selectedOrder.phone}</p>
                 </div>
               )}
 
               <div>
-                <p className="mb-2 text-xs text-[var(--oppa-text-muted)]">Items</p>
-                <div className="space-y-2 rounded-lg bg-[var(--oppa-cream)] p-4">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Items</p>
+                <div className="space-y-2 rounded-xl bg-[var(--oppa-cream)] p-4">
                   {selectedOrder.items?.map((item, index) => {
                     const itemPrice = formatPrice(item.product_price);
                     const itemName = item.product_name || 'Item';
                     const quantity = item.quantity || 1;
                     
                     return (
-                      <div key={index} className="flex items-center justify-between border-b border-[var(--oppa-border)]/30 pb-2 last:border-0">
-                        <div>
-                          <p className="font-medium">{itemName}</p>
-                          <p className="text-xs text-[var(--oppa-text-muted)]">
+                      <div key={index} className="flex min-w-0 items-center justify-between gap-3 border-b border-[var(--oppa-border)]/30 pb-2 last:border-0">
+                        <div className="min-w-0">
+                          <p className="break-words font-medium">{itemName}</p>
+                          <p className="break-words text-xs text-[var(--oppa-text-muted)]">
                             Qty: {quantity}
                             {item.selected_addons && item.selected_addons.length > 0 && (
                               <span className="ml-2">
@@ -528,7 +540,7 @@ const AdminOrdersPage: React.FC = () => {
                             )}
                           </p>
                         </div>
-                        <p className="font-semibold">{formatCurrency(itemPrice * quantity)}</p>
+                        <p className="shrink-0 whitespace-nowrap font-semibold">{formatCurrency(itemPrice * quantity)}</p>
                       </div>
                     );
                   })}
@@ -541,6 +553,8 @@ const AdminOrdersPage: React.FC = () => {
             </div>
           </div>
         </div>
+        </div>,
+        document.body,
       )}
     </AdminLayout>
   );

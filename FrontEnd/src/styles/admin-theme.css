@@ -135,6 +135,31 @@
   border-color: var(--oppa-border) !important;
 }
 
+[data-theme='dark'] .admin-status-badge--pending {
+  background-color: #3b2e12;
+  color: #fde68a;
+}
+
+[data-theme='dark'] :is(.admin-status-badge--prepared, .admin-status-badge--preparing, .admin-status-badge--ready) {
+  background-color: #172a40;
+  color: #bfdbfe;
+}
+
+[data-theme='dark'] :is(.admin-status-badge--on_the_way, .admin-status-badge--on_theway) {
+  background-color: #30244f;
+  color: #ddd6fe;
+}
+
+[data-theme='dark'] .admin-status-badge--delivered {
+  background-color: #1e3a2a;
+  color: #bbf7d0;
+}
+
+[data-theme='dark'] .admin-status-badge--cancelled {
+  background-color: #3a2020;
+  color: #fecaca;
+}
+
 body {
   background: var(--oppa-cream);
   color: var(--oppa-text);

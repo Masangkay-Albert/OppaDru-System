@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Driver;
 use App\Models\Order;
+use App\Support\DriverOrderScope;
+use App\Support\OrderStatus;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class DriverOrderController extends Controller
 {
@@ -30,31 +33,25 @@ class DriverOrderController extends Controller
         }
 
         $tab = $request->query('tab', 'available');
+        $branchId = DriverOrderScope::branchId($driver);
         
         $query = Order::query()->with([
             'user',
             'branch:id,name,address,latitude,longitude',
             'franchise:id,name,address,latitude,longitude',
-        ])
-            ->where(function ($branchQuery) use ($driver) {
-                $branchQuery->where('franchise_id', $driver->franchise_id)
-                    ->orWhere('branch_id', $driver->franchise_id);
-            })
-            ->where(function ($deliveryQuery) {
-                $deliveryQuery->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');
-            });
+        ]);
+        DriverOrderScope::applyBranch($query, $branchId);
+        DriverOrderScope::applyDeliveryEligibility($query);
 
-        // Link the React tabs to the exact database statuses & driver ownership
         if ($tab === 'available') {
-            // Reuse the existing order statuses and treat both prepared/ready as "ready for delivery".
-            $query->whereIn('status', ['prepared', 'ready'])
+            $query->where('status', OrderStatus::PREPARED)
                   ->whereNull('driver_id');
         } elseif ($tab === 'active') {
             $query->where('driver_id', $driver->id)
-                  ->whereIn('status', ['on_the_way', 'arrived']);
+                  ->whereIn('status', [OrderStatus::ON_THE_WAY, OrderStatus::ARRIVED]);
         } else {
             $query->where('driver_id', $driver->id)
-                  ->whereIn('status', ['delivered', 'cancelled']);
+                  ->whereIn('status', [OrderStatus::DELIVERED, OrderStatus::CANCELLED]);
         }
 
         $direction = $tab === 'history' ? 'desc' : 'asc';
@@ -140,25 +137,21 @@ class DriverOrderController extends Controller
         ]);
 
         $request->validate([
-            'status' => 'required|string|in:on_the_way,arrived,delivered',
+            'status' => ['required', 'string', Rule::in(OrderStatus::DRIVER_ALLOWED_TRANSITIONS)],
         ]);
 
         $targetStatus = $request->status;
+        $branchId = DriverOrderScope::branchId($driver);
         try {
-            $order = \Illuminate\Support\Facades\DB::transaction(function () use ($driver, $id, $targetStatus) {
+            $order = \Illuminate\Support\Facades\DB::transaction(function () use ($driver, $id, $targetStatus, $branchId) {
                 $order = Order::with(['branch:id,name', 'franchise:id,name'])
-                ->where(function ($branchQuery) use ($driver) {
-                    $branchQuery->where('franchise_id', $driver->franchise_id)
-                        ->orWhere('branch_id', $driver->franchise_id);
-                    })
-                ->where(function ($deliveryQuery) {
-                    $deliveryQuery->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');
-                })
-                ->lockForUpdate()
-                ->findOrFail($id);
+                    ->lockForUpdate();
+                DriverOrderScope::applyBranch($order, $branchId);
+                DriverOrderScope::applyDeliveryEligibility($order);
+                $order = $order->findOrFail($id);
 
-                if ($targetStatus === 'on_the_way') {
-                    if (!in_array($order->status, ['prepared', 'ready'], true) || $order->driver_id) {
+                if ($targetStatus === OrderStatus::ON_THE_WAY) {
+                    if ($order->status !== OrderStatus::PREPARED || $order->driver_id) {
                         abort(response()->json(['message' => 'This delivery is no longer available to accept.'], 409));
                     }
                     $order->driver_id = $driver->id;
@@ -166,13 +159,13 @@ class DriverOrderController extends Controller
                     abort(response()->json(['message' => 'This delivery is assigned to another driver.'], 403));
                 }
 
-                if ($targetStatus === 'arrived' && $order->status !== 'on_the_way') {
+                if ($targetStatus === OrderStatus::ARRIVED && $order->status !== OrderStatus::ON_THE_WAY) {
                     abort(response()->json(['message' => 'Start the delivery before marking arrival.'], 409));
                 }
-                if ($targetStatus === 'delivered' && !in_array($order->status, ['on_the_way', 'arrived'], true)) {
+                if ($targetStatus === OrderStatus::DELIVERED && !in_array($order->status, [OrderStatus::ON_THE_WAY, OrderStatus::ARRIVED], true)) {
                     abort(response()->json(['message' => 'This delivery cannot be marked delivered from its current status.'], 409));
                 }
-                if ($targetStatus === 'delivered') {
+                if ($targetStatus === OrderStatus::DELIVERED) {
                     $order->delivery_confirmed_at = $order->delivery_confirmed_at ?? now();
                 }
 

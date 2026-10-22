@@ -340,7 +340,7 @@ class BranchRoleIsolationTest extends TestCase
             'email' => 'customer@example.test',
             'order_number' => $id,
             'total' => 250,
-            'status' => 'ready',
+            'status' => 'prepared',
             'payment_method' => 'cash_on_delivery',
             'delivery_address' => 'Delivery address',
             'phone' => '09170000002',

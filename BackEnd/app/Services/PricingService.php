@@ -86,7 +86,8 @@ class PricingService
         $subtotal = round($subtotal);
 
         $settings = $this->settings();
-        $deliveryDistanceKm = $this->distanceInKilometers($deliveryCoordinates, $originCoordinates);
+        $resolvedOriginCoordinates = $originCoordinates ?? ($deliveryCoordinates ? $this->defaultOriginCoordinates() : null);
+        $deliveryDistanceKm = $this->distanceInKilometers($deliveryCoordinates, $resolvedOriginCoordinates);
 
         if (strtolower($deliveryType) === 'onsite') {
             $deliveryFee = 0.0;
@@ -110,6 +111,14 @@ class PricingService
             'deliveryCalculationMethod' => 'base_fee_plus_distance_rate_capped',
             'serviceFeeRule' => 'clamped_percentage:' . ($settings['service_fee_rate'] * 100) . '%_min_' . $settings['service_fee_min'] . '_max_' . $settings['service_fee_max'],
         ];
+    }
+
+    private function defaultOriginCoordinates(): array
+    {
+        $latitude = (float) (SystemSetting::where('key', 'default_branch_latitude')->value('value') ?? 14.329);
+        $longitude = (float) (SystemSetting::where('key', 'default_branch_longitude')->value('value') ?? 120.936);
+
+        return ['lat' => $latitude, 'lng' => $longitude];
     }
 
     private function distanceInKilometers(?array $coordinates, ?array $originCoordinates): float

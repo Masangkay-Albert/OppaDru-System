@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\Franchise;
 use App\Models\Order;
+use App\Support\OrderStatus;
 use App\Services\Order\ScheduleService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class KitchenOrderController extends Controller
 {
@@ -102,7 +104,7 @@ class KitchenOrderController extends Controller
         }
 
         $request->validate([
-            'status' => 'required|string|in:pending,preparing,prepared,ready,completed,cancelled',
+            'status' => ['required', 'string', Rule::in(OrderStatus::KITCHEN_ALLOWED)],
             'start_early' => 'sometimes|boolean',
         ]);
 
@@ -121,8 +123,8 @@ class KitchenOrderController extends Controller
         $isOnsiteOrder = $order->delivery_type === 'onsite'
             || $order->delivery_calculation_method === 'onsite'
             || str_starts_with(strtolower((string) $order->delivery_address), 'onsite');
-        $order->status = $request->status === 'prepared' && $isOnsiteOrder
-            ? 'delivered'
+        $order->status = $request->status === OrderStatus::PREPARED && $isOnsiteOrder
+            ? OrderStatus::DELIVERED
             : $request->status;
         $order->save();
         $order->setAttribute('branch_name', $order->branch?->name ?? $order->franchise?->name);
