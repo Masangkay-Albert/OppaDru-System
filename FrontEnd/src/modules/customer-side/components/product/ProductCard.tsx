@@ -34,6 +34,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
           <img
             src={product.image}
             alt={product.name}
+            loading="lazy"
+            decoding="async"
             onError={(event) => {
               event.currentTarget.src = oppaDruLogo;
             }}
@@ -43,6 +45,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal }) => {
           <img
             src={oppaDruLogo}
             alt={product.name}
+            loading="lazy"
+            decoding="async"
             className="menu-product-image menu-product-image--placeholder w-full h-full object-cover"
           />
         )}

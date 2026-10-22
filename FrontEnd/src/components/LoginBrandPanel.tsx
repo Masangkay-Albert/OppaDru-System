@@ -1,4 +1,4 @@
-import heroSectionImg from "../assets/herosection.png";
+import heroSectionImg from "../assets/herosection.jpg";
 
 interface LoginBrandPanelProps {
   title: string;
@@ -11,9 +11,9 @@ const LoginBrandPanel: React.FC<LoginBrandPanelProps> = ({ title, description })
       src={heroSectionImg}
       alt=""
       aria-hidden="true"
-      loading="lazy"
+      loading="eager"
       decoding="async"
-      fetchPriority="low"
+      fetchPriority="high"
       className="absolute inset-0 size-full object-cover"
     />
     <div className="absolute inset-0 bg-black/50" />
