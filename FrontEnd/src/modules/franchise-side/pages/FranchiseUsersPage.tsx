@@ -16,7 +16,8 @@ interface BranchUser {
   role: string;
   status: string;
   user_type?: 'employee' | 'driver';
-  franchise_id?: string;
+  franchise_id?: string | null;
+  branch_name?: string | null;
   created_at: string | null;
 }
 
@@ -72,6 +73,8 @@ const FranchiseUsersPage: React.FC = () => {
   const managerRole = (franchiseUser?.role || '').toLowerCase();
   const canManageStaff = managerRole.includes('owner') || managerRole.includes('manager');
   const branchName = franchiseUser?.branch?.name || franchiseUser?.franchise?.name || 'Current branch';
+  const currentBranchId = String(franchiseUser?.franchise_id || '');
+  const isMainBranch = Boolean(franchiseUser?.franchise?.is_main);
 
   const addStaff = async (values: AccountCreationValues) => {
     setSaving(true);
@@ -198,7 +201,7 @@ const FranchiseUsersPage: React.FC = () => {
       {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => void loadUsers()} className="font-semibold underline">Retry</button></div>}
       <PageHeader
         title="Branch Users"
-        subtitle="Manage cashier, kitchen, and driver accounts for this branch."
+        subtitle={isMainBranch ? 'Manage Main Branch staff and view employees from other branches.' : 'Manage cashier, kitchen, and driver accounts for this branch.'}
         actions={canManageStaff ? <button type="button" onClick={() => { setSubmitError(''); setShowAdd(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><UserPlus size={16} />Add Staff</button> : undefined}
       />
       {managers.length > 0 && <section className="admin-card mb-4 overflow-hidden">
@@ -230,9 +233,9 @@ const FranchiseUsersPage: React.FC = () => {
       </div>
 
       <DataTable
-        headers={['Employee', 'Position', 'Status', 'Joined', 'Actions']}
+        headers={['Employee', 'Position', ...(isMainBranch ? ['Branch'] : []), 'Status', 'Joined', 'Actions']}
         caption="Branch staff accounts"
-        columnWidths={['38%', '20%', '14%', '16%', '12%']}
+        columnWidths={isMainBranch ? ['30%', '16%', '18%', '12%', '14%', '10%'] : ['38%', '20%', '14%', '16%', '12%']}
         loading={loading}
         emptyState={<EmptyState title={search || positionFilter !== 'all' ? 'No staff match these filters' : 'No staff yet. Add your first cashier, kitchen, or driver account.'} description={search || positionFilter !== 'all' ? 'Try another name, email, or position.' : 'Staff accounts for this branch will appear here after they are added.'} />}
       >
@@ -241,14 +244,15 @@ const FranchiseUsersPage: React.FC = () => {
           <td data-label="Position" className="px-4 py-3">
             <RoleBadge role={user.role} />
           </td>
+          {isMainBranch && <td data-label="Branch" className="px-4 py-3 text-xs text-[var(--oppa-text-muted)]">{user.branch_name || 'Branch not found'}</td>}
           <td data-label="Status" className="px-4 py-3"><StatusBadge status={user.status} /></td>
           <td data-label="Joined" className="px-4 py-3 text-[var(--oppa-text-muted)]"><AdminDate value={user.created_at} /></td>
-          <td data-label="Actions" className="px-4 py-3"><div className="flex justify-end"><RowActionsMenu label={user.name} items={[
+          <td data-label="Actions" className="px-4 py-3"><div className="flex justify-end">{currentBranchId && String(user.franchise_id || '') === currentBranchId ? <RowActionsMenu label={user.name} items={[
             ...(user.user_type === 'employee' && ['cashier', 'kitchen_staff'].includes(user.role) ? [{ label: 'Edit role', onSelect: () => { setRoleDraft(user.role); setEditingRoleUser(user); } }] : []),
             { label: user.status === 'active' ? 'Deactivate staff' : 'Activate staff', onSelect: () => void toggleStatus(user) },
             { label: 'Reset password', onSelect: () => void resetPassword(user) },
             { label: 'Remove staff', onSelect: () => void removeStaff(user), destructive: true },
-          ]} /></div></td>
+          ]} /> : <span className="text-xs text-[var(--oppa-text-muted)]">Read only</span>}</div></td>
         </tr>)}
       </DataTable>
 

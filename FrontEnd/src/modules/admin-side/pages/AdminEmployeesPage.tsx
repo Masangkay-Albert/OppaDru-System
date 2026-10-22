@@ -47,7 +47,6 @@ const AdminEmployeesPage: React.FC = () => {
   const [positionFilter, setPositionFilter] = useState('all');
   const [locationFilter, setLocationFilter] = useState('all');
   const [locations, setLocations] = useState<FranchiseSummary[]>([]);
-  const [newEmployeeLocationId, setNewEmployeeLocationId] = useState('');
   const { showToast } = useToast();
   const mainLocation = locations.find((location) => location.is_main);
   const mainLocationId = mainLocation ? String(mainLocation.id) : '';
@@ -69,8 +68,6 @@ const AdminEmployeesPage: React.FC = () => {
   useEffect(() => {
     void getFranchises().then((franchiseLocations) => {
       setLocations(franchiseLocations);
-      const main = franchiseLocations.find((location) => location.is_main);
-      if (main) setNewEmployeeLocationId((current) => current || String(main.id));
     }).catch((error: unknown) => {
       console.error('Failed to fetch franchise locations:', error);
     });
@@ -88,7 +85,6 @@ const AdminEmployeesPage: React.FC = () => {
           email: values.email,
           password: values.password,
           position: values.position || 'cashier',
-          franchise_id: newEmployeeLocationId || mainLocationId || null,
         }),
       });
       if (!response.ok) {
@@ -96,7 +92,6 @@ const AdminEmployeesPage: React.FC = () => {
         throw new Error(errorData.message || 'Unable to create the account. Please try again.');
       }
       setShowModal(false);
-      setNewEmployeeLocationId(mainLocationId);
       await refresh();
       showToast('Employee account created successfully.', 'success');
     } catch (error) {
@@ -118,7 +113,7 @@ const AdminEmployeesPage: React.FC = () => {
         throw new Error(body.message || 'Unable to update employee.');
       }
       await refresh();
-      showToast('Employee assignment updated.', 'success');
+      showToast('Employee details updated.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Unable to update employee.', 'error');
     }
@@ -164,13 +159,13 @@ const AdminEmployeesPage: React.FC = () => {
     `${employee.fullName} ${employee.email}`.toLowerCase().includes(search.trim().toLowerCase()) &&
     (positionFilter === 'all' || employee.position === positionFilter) &&
     (locationFilter === 'all' || (locationFilter === 'main'
-      ? !employee.franchise_id || employee.franchise_id === mainLocationId
+      ? employee.franchise_id === mainLocationId
       : employee.franchise_id === locationFilter))
   ), [employees, locationFilter, mainLocationId, positionFilter, search]);
 
   return (
     <AdminLayout>
-      <PageHeader title="Registered Employees" subtitle="Manage employee accounts and information." actions={<button onClick={() => { setShowModal(true); setSubmitError(''); }} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><UserPlus size={16} />Add Employee</button>} />
+      <PageHeader title="Registered Employees" subtitle="Add employees to the Main Branch. Employees in other branches are view-only here." actions={<button onClick={() => { setShowModal(true); setSubmitError(''); }} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><UserPlus size={16} />Add Employee</button>} />
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
         <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={17} aria-hidden="true" /><input aria-label="Search employees by name or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email…" className="admin-embedded-input w-full text-sm" /></label>
         <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]">Position<select aria-label="Filter employees by position" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} className="admin-embedded-input max-w-36 font-medium text-[var(--oppa-text)]"><option value="all">All positions</option>{positions.map((position) => <option key={position} value={position}>{formatPositionLabel(position)}</option>)}</select></label>
@@ -183,10 +178,10 @@ const AdminEmployeesPage: React.FC = () => {
             <tbody>{filtered.map((employee) => <tr key={employee.id} className="border-b border-[var(--oppa-border)]/70 last:border-0 hover:bg-[var(--oppa-cream)]">
               <td data-label="Employee" className="px-5 py-3"><div className="flex min-w-0 items-center gap-3"><Avatar name={employee.fullName} /><div className="min-w-0"><p className="truncate font-semibold text-[var(--oppa-text)]">{employee.fullName}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{employee.email}</p></div></div></td>
               <td data-label="Position" className="px-5 py-3"><span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${positionStyle(employee.position || '')}`}>{formatPositionLabel(employee.position || 'cashier')}</span></td>
-              <td data-label="Location" className="px-5 py-3"><span className="text-xs font-medium text-[var(--oppa-text-muted)]">{employee.franchise?.name || (employee.franchise_id ? 'Assigned location' : 'Main system (Cavite branch)')}</span></td>
-              <td data-label="Status" className="px-5 py-3"><button onClick={() => void updateEmployee(employee, { is_active: !employee.is_active })} className={`rounded-full px-2.5 py-1 text-xs font-semibold ${employee.is_active === false ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-800'}`}>{employee.is_active === false ? 'Inactive' : 'Active'}</button></td>
+              <td data-label="Location" className="px-5 py-3"><span className="text-xs font-medium text-[var(--oppa-text-muted)]">{employee.franchise?.name || (employee.franchise_id ? 'Assigned location' : 'Unassigned — review required')}</span></td>
+              <td data-label="Status" className="px-5 py-3">{employee.franchise_id === mainLocationId ? <button onClick={() => void updateEmployee(employee, { is_active: !employee.is_active })} className={`rounded-full px-2.5 py-1 text-xs font-semibold ${employee.is_active === false ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-800'}`}>{employee.is_active === false ? 'Inactive' : 'Active'}</button> : <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${employee.is_active === false ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-800'}`}>{employee.is_active === false ? 'Inactive' : 'Active'}</span>}</td>
               <td data-label="Joined" className="px-5 py-3 text-[var(--oppa-text-muted)]"><AdminDate value={employee.created_at} /></td>
-              <td data-label="Actions" className="px-5 py-3"><div className="flex justify-end"><RowActionsMenu label={employee.fullName} items={[{ label: 'View details', onSelect: () => setSelected(employee) }, { label: 'Reset password', onSelect: () => setResetTarget(employee) }, { label: 'Delete employee', destructive: true, onSelect: () => setDeleteTarget({ id: employee.id, fullName: employee.fullName }) }]} /></div></td>
+              <td data-label="Actions" className="px-5 py-3"><div className="flex justify-end">{employee.franchise_id === mainLocationId ? <RowActionsMenu label={employee.fullName} items={[{ label: 'View details', onSelect: () => setSelected(employee) }, { label: 'Reset password', onSelect: () => setResetTarget(employee) }, { label: 'Delete employee', destructive: true, onSelect: () => setDeleteTarget({ id: employee.id, fullName: employee.fullName }) }]} /> : <span className="text-xs text-[var(--oppa-text-muted)]">Read only</span>}</div></td>
             </tr>)}</tbody>
           </table>
         </div>}
@@ -199,7 +194,6 @@ const AdminEmployeesPage: React.FC = () => {
         onSubmit={handleAdd}
         isSubmitting={isLoading}
         submitError={submitError}
-        extraFields={<label className="block text-sm font-medium text-[var(--oppa-text)]">Assign location<select value={newEmployeeLocationId || mainLocationId} onChange={(event) => setNewEmployeeLocationId(event.target.value)} className="mt-1 w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2.5 text-sm">{mainLocation && <option value={mainLocationId}>Main system (Cavite branch)</option>}{otherLocations.map((location) => <option key={String(location.id)} value={String(location.id)}>{location.name}</option>)}</select></label>}
       />
       {selected && <AccountModal account={selected} onClose={() => setSelected(null)} onResetPassword={handleReset} />}
     </AdminLayout>

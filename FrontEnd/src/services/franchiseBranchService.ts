@@ -8,6 +8,7 @@ export interface FranchiseBranch {
 }
 
 const SELECTED_BRANCH_KEY = 'selected_franchise_id';
+let activeBranchesRequest: Promise<FranchiseBranch[]> | null = null;
 
 export const getSelectedBranchId = (): string | null => {
   const value = localStorage.getItem(SELECTED_BRANCH_KEY);
@@ -22,15 +23,23 @@ export const setSelectedBranchId = (branchId: string | null): void => {
   }
 };
 
-export const getActiveBranches = async (): Promise<FranchiseBranch[]> => {
-  const response = await fetch(`${API_URL}/franchises/active`, {
-    headers: { Accept: 'application/json' },
-  });
+export const getActiveBranches = (): Promise<FranchiseBranch[]> => {
+  if (!activeBranchesRequest) {
+    activeBranchesRequest = (async () => {
+      const response = await fetch(`${API_URL}/franchises/active`, {
+        headers: { Accept: 'application/json' },
+      });
 
-  if (!response.ok) {
-    throw new Error('Unable to load the available branches.');
+      if (!response.ok) {
+        throw new Error('Unable to load the available branches.');
+      }
+
+      const result = await response.json();
+      return Array.isArray(result.data) ? result.data as FranchiseBranch[] : [];
+    })().finally(() => {
+      activeBranchesRequest = null;
+    });
   }
 
-  const result = await response.json();
-  return Array.isArray(result.data) ? result.data as FranchiseBranch[] : [];
+  return activeBranchesRequest;
 };

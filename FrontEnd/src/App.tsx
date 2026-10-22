@@ -11,20 +11,20 @@ import { SettingsProvider } from "./contexts/SettingsContext";
 import ToastProvider from "./modules/customer-side/components/ToastProvider";
 import "./styles/thermal-receipt.css";
 
-// ============ CUSTOMER PAGES ============
-import LandingPage from "./modules/customer-side/pages/LandingPage";
-import LoginPage from "./modules/customer-side/pages/Loginpage";  
-import RegistrationPage from "./modules/customer-side/pages/RegistrationPage";
-import MenuPage from "./modules/customer-side/pages/MenuPage";
-import FavoritesPage from "./modules/customer-side/pages/FavoritesPage";
-import CheckoutPage from "./modules/customer-side/pages/CheckoutPage";
-import OrderTrackingPage from "./modules/customer-side/pages/OrderTrackingPage";
-import MyOrdersPage from "./modules/customer-side/pages/MyOrdersPage";
-import SettingsPage from "./modules/customer-side/pages/SettingsPage";
-
-
 // ============ ADMIN PAGES ============
 import ProtectedAdminRoute from "./modules/admin-side/components/ProtectedAdminRoute";
+
+// ============ CUSTOMER PAGES ============
+const LandingPage = lazy(() => import("./modules/customer-side/pages/LandingPage"));
+const LoginPage = lazy(() => import("./modules/customer-side/pages/Loginpage"));
+const RegistrationPage = lazy(() => import("./modules/customer-side/pages/RegistrationPage"));
+const MenuPage = lazy(() => import("./modules/customer-side/pages/MenuPage"));
+const FavoritesPage = lazy(() => import("./modules/customer-side/pages/FavoritesPage"));
+const CheckoutPage = lazy(() => import("./modules/customer-side/pages/CheckoutPage"));
+const OrderTrackingPage = lazy(() => import("./modules/customer-side/pages/OrderTrackingPage"));
+const MyOrdersPage = lazy(() => import("./modules/customer-side/pages/MyOrdersPage"));
+const SettingsPage = lazy(() => import("./modules/customer-side/pages/SettingsPage"));
+const PaymentConfirmPage = lazy(() => import("./modules/customer-side/pages/PaymentConfirmPage"));
 
 const AdminLoginPage = lazy(() => import("./modules/admin-side/pages/AdminLoginPage"));
 const AdminDashboardPage = lazy(() => import("./modules/admin-side/pages/AdminDashboardPage"));
@@ -59,33 +59,37 @@ const FranchiseReportsPage = lazy(() => import("./modules/franchise-side/pages/F
 const FranchiseUsersPage = lazy(() => import("./modules/franchise-side/pages/FranchiseUsersPage"));
 const FranchiseSettingsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseSettingsPage"));
 const FranchiseManagementPage = lazy(() => import("./modules/franchise-side/pages/FranchiseManagementPage"));
-import { AnnouncementsPage, DiscountRequestsPage, FeesPaymentsPage, FranchiseDeliveryPage, MenuAvailabilityPage, SupportResourcesPage } from "./modules/franchise-side/pages/FranchisePortalPages";
 const FranchiseApplicationPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicationPage"));
 const FranchiseOpportunitiesPage = lazy(() => import("./modules/franchise-side/pages/FranchiseOpportunitiesPage"));
 const FranchiseMyApplicationsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseMyApplicationsPage"));
 const FranchiseApplicantLoginPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicantLoginPage"));
 const FranchiseApplicantRegisterPage = lazy(() => import("./modules/franchise-side/pages/FranchiseApplicantRegisterPage"));
+const AnnouncementsPage = lazy(() => import("./modules/franchise-side/pages/FranchisePortalPages").then((module) => ({ default: module.AnnouncementsPage })));
+const DiscountRequestsPage = lazy(() => import("./modules/franchise-side/pages/FranchisePortalPages").then((module) => ({ default: module.DiscountRequestsPage })));
+const FeesPaymentsPage = lazy(() => import("./modules/franchise-side/pages/FranchisePortalPages").then((module) => ({ default: module.FeesPaymentsPage })));
+const FranchiseDeliveryPage = lazy(() => import("./modules/franchise-side/pages/FranchisePortalPages").then((module) => ({ default: module.FranchiseDeliveryPage })));
+const MenuAvailabilityPage = lazy(() => import("./modules/franchise-side/pages/FranchisePortalPages").then((module) => ({ default: module.MenuAvailabilityPage })));
+const SupportResourcesPage = lazy(() => import("./modules/franchise-side/pages/FranchisePortalPages").then((module) => ({ default: module.SupportResourcesPage })));
 import ProtectedFranchiseApplicantRoute from "./modules/franchise-side/components/ProtectedFranchiseApplicantRoute";
 const CashierTransactionsPage = lazy(() => import("./modules/employee-side/pages/CashierTransactionsPage"));
 import ProtectedFranchiseRoute from "./modules/franchise-side/components/ProtectedFranchiseRoute";
 
 // ============ DRIVER PAGES ============
-import DriverLoginPage from "./modules/driver-side/pages/DriverLoginPage";
-import DriverDashboardPage from "./modules/driver-side/pages/DriverDashboardPage";
+const DriverLoginPage = lazy(() => import("./modules/driver-side/pages/DriverLoginPage"));
+const DriverDashboardPage = lazy(() => import("./modules/driver-side/pages/DriverDashboardPage"));
 
 /// ============= Kitchen Page
-import EmployeeLoginPage from "./modules/employee-side/employeeLogin";
-import KitchenDashboardPage from "./modules/kitchen-side/kitchenDashboard";
-import PaymentConfirmPage from "./modules/customer-side/pages/PaymentConfirmPage";
+const EmployeeLoginPage = lazy(() => import("./modules/employee-side/employeeLogin"));
+const KitchenDashboardPage = lazy(() => import("./modules/kitchen-side/kitchenDashboard"));
 import ProtectedRoute from "./modules/customer-side/components/ProtectedRoute";
 
 // ============ EMPLOYEE / POS PAGES ============
 import ProtectedEmployeeRoute from "./modules/employee-side/components/ProtectedEmployeeRoute";
-import EmployeeMenuPage from "./modules/employee-side/pages/EmployeeMenuPage";
-import EmployeeCheckoutPage from "./modules/employee-side/pages/EmployeeCheckoutPage";
-import EmployeeOrdersPage from "./modules/employee-side/pages/EmployeeOrdersPage";
-import EmployeeSettingsPage from "./modules/employee-side/pages/EmployeeSettingsPage";
-import MostPopularMealsPage from "./modules/employee-side/pages/MostPopularMealsPage";
+const EmployeeMenuPage = lazy(() => import("./modules/employee-side/pages/EmployeeMenuPage"));
+const EmployeeCheckoutPage = lazy(() => import("./modules/employee-side/pages/EmployeeCheckoutPage"));
+const EmployeeOrdersPage = lazy(() => import("./modules/employee-side/pages/EmployeeOrdersPage"));
+const EmployeeSettingsPage = lazy(() => import("./modules/employee-side/pages/EmployeeSettingsPage"));
+const MostPopularMealsPage = lazy(() => import("./modules/employee-side/pages/MostPopularMealsPage"));
 
 function App() {
   return (

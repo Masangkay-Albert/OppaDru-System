@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
+import { API_URL } from './apiConfig';
 import { getProductImage } from '../data/productImages';
 import type { AddonGroup } from '../types/product.types';
 import { ensureAdminSession, getStoredAdminToken } from './adminAuthService';
@@ -25,6 +25,7 @@ class ProductService {
   private tokenKey = 'auth_token';
   private adminTokenKey = 'adminToken';
   private cacheKey = 'cached_available_products';
+  private publicProductRequests = new Map<string, Promise<Product[]>>();
 
   private getToken(): string | null { return localStorage.getItem(this.tokenKey); }
 
@@ -73,13 +74,26 @@ class ProductService {
     return products.map((p: any) => this.mapProduct(p));
   }
 
-  private async fetchPublicProducts(path: string, options: RequestInit = {}): Promise<Product[]> {
-    const response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers: this.getHeaders(),
-    });
-    if (!response.ok) throw new Error('Failed to fetch products');
-    return this.parseProducts(await response.json());
+  private fetchPublicProducts(path: string, options: RequestInit = {}): Promise<Product[]> {
+    const existingRequest = this.publicProductRequests.get(path);
+    if (existingRequest) return existingRequest;
+
+    const request = (async () => {
+      const response = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers: this.getHeaders(),
+      });
+      if (!response.ok) throw new Error('Failed to fetch products');
+      return this.parseProducts(await response.json());
+    })();
+
+    this.publicProductRequests.set(path, request);
+    void request.then(
+      () => this.publicProductRequests.delete(path),
+      () => this.publicProductRequests.delete(path),
+    );
+
+    return request;
   }
 
   private async adminRequest<T>(path: string, options: RequestInit = {}): Promise<T> {

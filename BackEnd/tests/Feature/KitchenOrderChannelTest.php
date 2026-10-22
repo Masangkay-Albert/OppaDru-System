@@ -70,7 +70,13 @@ class KitchenOrderChannelTest extends TestCase
 
     public function test_prepared_walk_in_orders_become_delivered_without_changing_online_orders(): void
     {
+        $mainBranch = Franchise::create([
+            'name' => 'Cavite Branch',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
         $kitchenStaff = Employee::create([
+            'franchise_id' => $mainBranch->id,
             'fullName' => 'Main Kitchen',
             'email' => 'kitchen@example.com',
             'password' => Hash::make('Kitchen@123'),
@@ -297,6 +303,15 @@ class KitchenOrderChannelTest extends TestCase
      */
     private function createKitchenStaff(?string $franchiseId = null): array
     {
+        $franchiseId ??= Franchise::where('is_main', true)->value('id');
+        if (! $franchiseId) {
+            $franchiseId = Franchise::create([
+                'name' => 'Cavite Branch',
+                'status' => 'active',
+                'is_main' => true,
+            ])->id;
+        }
+
         $kitchenStaff = Employee::create([
             'fullName' => 'Main Kitchen',
             'email' => 'kitchen-'.uniqid().'@example.com',
@@ -313,8 +328,12 @@ class KitchenOrderChannelTest extends TestCase
 
     private function createOrder(string $id, string $deliveryType, string $address): Order
     {
+        $mainBranchId = Franchise::where('is_main', true)->value('id');
+
         return Order::create([
             'id' => $id,
+            'branch_id' => $mainBranchId,
+            'franchise_id' => $mainBranchId,
             'email' => strtolower($id).'@example.com',
             'order_number' => $id.'-NUMBER',
             'total' => 100,

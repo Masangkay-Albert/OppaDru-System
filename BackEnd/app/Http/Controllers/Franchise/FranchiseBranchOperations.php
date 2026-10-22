@@ -85,7 +85,8 @@ trait FranchiseBranchOperations
                 'status' => $branchUser->is_active ? 'active' : 'inactive',
                 'created_at' => $branchUser->created_at,
             ]);
-        $employees = Employee::where('franchise_id', $user->franchise_id)
+        $employees = Employee::with('franchise:id,name')
+            ->when(! $user->franchise?->is_main, fn ($query) => $query->where('franchise_id', $user->franchise_id))
             ->orderByDesc('created_at')
             ->get(['id', 'franchise_id', 'fullName', 'email', 'position', 'is_active', 'created_at'])
             ->map(fn (Employee $employee) => [
@@ -97,11 +98,12 @@ trait FranchiseBranchOperations
                 'status' => $employee->is_active ? 'active' : 'inactive',
                 'user_type' => 'employee',
                 'franchise_id' => $employee->franchise_id,
+                'branch_name' => $employee->franchise?->name,
                 'created_at' => $employee->created_at,
             ]);
         $drivers = Driver::where('franchise_id', $user->franchise_id)
             ->orderByDesc('created_at')
-            ->get(['id', 'name', 'email', 'phone', 'isActive', 'created_at'])
+            ->get(['id', 'franchise_id', 'name', 'email', 'phone', 'isActive', 'created_at'])
             ->map(fn (Driver $driver) => [
                 'id' => $driver->id,
                 'name' => $driver->name,
@@ -110,6 +112,8 @@ trait FranchiseBranchOperations
                 'role' => 'driver',
                 'status' => $driver->isActive ? 'active' : 'inactive',
                 'user_type' => 'driver',
+                'franchise_id' => $driver->franchise_id,
+                'branch_name' => $driver->franchise?->name,
                 'created_at' => $driver->created_at,
             ]);
 

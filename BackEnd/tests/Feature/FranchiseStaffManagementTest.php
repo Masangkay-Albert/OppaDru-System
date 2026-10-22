@@ -15,9 +15,15 @@ class FranchiseStaffManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_can_assign_employee_location_on_creation_but_cannot_change_it_later(): void
+    public function test_main_branch_employee_creation_is_automatic_and_cannot_assign_or_transfer_staff(): void
     {
         $token = $this->createAdminToken();
+        $mainBranch = Franchise::create([
+            'name' => 'Main Branch',
+            'slug' => 'main-branch',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
         $account = FranchiseAccount::create([
             'name' => 'Pine Foods',
             'slug' => 'pine-foods',
@@ -30,18 +36,25 @@ class FranchiseStaffManagementTest extends TestCase
             'status' => 'active',
         ]);
 
-        $created = $this->postJson('/api/employees', [
+        $this->postJson('/api/employees', [
             'fullName' => 'Branch Staff',
             'email' => 'branch.staff@test',
             'password' => 'Staff@123',
             'position' => 'staff',
             'franchise_id' => $location->id,
-        ], ['Authorization' => 'Bearer ' . $token])->assertCreated();
+        ], ['Authorization' => 'Bearer ' . $token])->assertUnprocessable()
+            ->assertJsonValidationErrors('franchise_id');
 
+        $created = $this->postJson('/api/employees', [
+            'fullName' => 'Main Branch Staff',
+            'email' => 'main.staff@test',
+            'password' => 'Staff@123',
+            'position' => 'staff',
+        ], ['Authorization' => 'Bearer ' . $token])->assertCreated();
         $employeeId = $created->json('id');
         $this->assertDatabaseHas('employees', [
             'id' => $employeeId,
-            'franchise_id' => $location->id,
+            'franchise_id' => $mainBranch->id,
             'position' => 'staff',
         ]);
 
@@ -57,9 +70,27 @@ class FranchiseStaffManagementTest extends TestCase
 
         $this->assertDatabaseHas('employees', [
             'id' => $employeeId,
-            'franchise_id' => $location->id,
+            'franchise_id' => $mainBranch->id,
             'position' => 'cashier',
         ]);
+
+        $otherEmployee = Employee::create([
+            'franchise_id' => $location->id,
+            'fullName' => 'Pine Branch Staff',
+            'email' => 'pine.staff@test',
+            'password' => Hash::make('Staff@123'),
+            'position' => 'staff',
+            'is_active' => true,
+        ]);
+        $this->putJson('/api/employees/' . $otherEmployee->id, [
+            'is_active' => false,
+        ], ['Authorization' => 'Bearer ' . $token])->assertNotFound();
+        $this->deleteJson('/api/employees/' . $otherEmployee->id, [], [
+            'Authorization' => 'Bearer ' . $token,
+        ])->assertNotFound();
+        $this->putJson('/api/employees/' . $otherEmployee->id . '/reset-password', [
+            'password' => 'NewStaff@123',
+        ], ['Authorization' => 'Bearer ' . $token])->assertNotFound();
     }
 
     public function test_franchise_manager_can_create_and_manage_only_employees_at_assigned_location(): void
@@ -144,6 +175,83 @@ class FranchiseStaffManagementTest extends TestCase
             'id' => $created->json('data.id'),
             'franchise_id' => $location->id,
             'position' => 'cashier',
+        ]);
+    }
+
+    public function test_main_franchise_user_can_view_all_employees_but_manage_only_main_branch_staff(): void
+    {
+        $mainBranch = Franchise::create([
+            'name' => 'Main Branch',
+            'slug' => 'main-branch',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
+        $otherBranch = Franchise::create([
+            'name' => 'Other Branch',
+            'slug' => 'other-branch',
+            'status' => 'active',
+        ]);
+        $mainUser = FranchiseUser::create([
+            'franchise_id' => $mainBranch->id,
+            'full_name' => 'Main Owner',
+            'email' => 'main.owner@test',
+            'password' => Hash::make('Owner@123'),
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+        $mainEmployee = Employee::create([
+            'franchise_id' => $mainBranch->id,
+            'fullName' => 'Main Staff',
+            'email' => 'main.employee@test',
+            'password' => Hash::make('Staff@123'),
+            'position' => 'cashier',
+            'is_active' => true,
+        ]);
+        $otherEmployee = Employee::create([
+            'franchise_id' => $otherBranch->id,
+            'fullName' => 'Other Staff',
+            'email' => 'other.employee@test',
+            'password' => Hash::make('Staff@123'),
+            'position' => 'cashier',
+            'is_active' => true,
+        ]);
+        $login = $this->postJson('/api/franchise/login', [
+            'email' => $mainUser->email,
+            'password' => 'Owner@123',
+        ])->assertOk();
+        $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
+
+        $this->getJson('/api/franchise/users', $headers)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $mainEmployee->id, 'branch_name' => $mainBranch->name])
+            ->assertJsonFragment(['id' => $otherEmployee->id, 'branch_name' => $otherBranch->name]);
+
+        $this->postJson('/api/franchise/users', [
+            'name' => 'New Main Staff',
+            'email' => 'new.main.employee@test',
+            'password' => 'NewStaff@123',
+            'role' => 'cashier',
+            'franchise_id' => $otherBranch->id,
+        ], $headers)->assertForbidden();
+        $created = $this->postJson('/api/franchise/users', [
+            'name' => 'New Main Staff',
+            'email' => 'new.main.employee@test',
+            'password' => 'NewStaff@123',
+            'role' => 'cashier',
+        ], $headers)->assertCreated();
+        $this->assertDatabaseHas('employees', [
+            'id' => $created->json('data.id'),
+            'franchise_id' => $mainBranch->id,
+        ]);
+
+        $this->patchJson('/api/franchise/users/employee/' . $otherEmployee->id, [
+            'is_active' => false,
+        ], $headers)->assertNotFound();
+        $this->deleteJson('/api/franchise/users/employee/' . $otherEmployee->id, [], $headers)
+            ->assertNotFound();
+        $this->assertDatabaseHas('employees', [
+            'id' => $otherEmployee->id,
+            'is_active' => true,
         ]);
     }
 

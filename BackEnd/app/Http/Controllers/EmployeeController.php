@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\Franchise;
 use Illuminate\Http\Request;
 
 class EmployeeController extends Controller
@@ -24,14 +25,20 @@ class EmployeeController extends Controller
             'email'    => 'required|string|email|max:255|unique:employees,email',
             'password' => 'required|string|min:6',
             'position' => 'required|in:cashier,kitchen staff,staff',
-            'franchise_id' => 'nullable|string|exists:franchises,id',
+            'franchise_id' => 'prohibited',
         ]);
+
+        $mainBranch = Franchise::where('is_main', true)->first();
+        if (! $mainBranch) {
+            return response()->json(['message' => 'The main branch is not configured.'], 409);
+        }
 
         $validated['email'] = strtolower(trim($validated['email']));
         if ($this->emailUsedByOtherStaff($validated['email'])) {
             return response()->json(['message' => 'This email address is already assigned to another staff account.'], 422);
         }
 
+        $validated['franchise_id'] = $mainBranch->id;
         $employee = Employee::create($validated);
 
         return response()->json($employee->load(['franchise.franchiseAccount']), 201);
@@ -39,7 +46,12 @@ class EmployeeController extends Controller
 
     public function update(Request $request, string $id)
     {
-        $employee = Employee::findOrFail($id);
+        $mainBranchId = Franchise::where('is_main', true)->value('id');
+        if (! $mainBranchId) {
+            return response()->json(['message' => 'The main branch is not configured.'], 409);
+        }
+
+        $employee = Employee::where('franchise_id', $mainBranchId)->findOrFail($id);
         $validated = $request->validate([
             'fullName' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:employees,email,' . $employee->id . ',id',
@@ -71,7 +83,12 @@ class EmployeeController extends Controller
     // Delete an employee
     public function destroy($id)
     {
-        $employee = Employee::findOrFail($id);
+        $mainBranchId = Franchise::where('is_main', true)->value('id');
+        if (! $mainBranchId) {
+            return response()->json(['message' => 'The main branch is not configured.'], 409);
+        }
+
+        $employee = Employee::where('franchise_id', $mainBranchId)->findOrFail($id);
         $employee->delete();
 
         return response()->json(['message' => 'Employee deleted successfully']);
@@ -84,7 +101,12 @@ class EmployeeController extends Controller
             'password' => 'required|string|min:6'
         ]);
 
-        $employee = Employee::findOrFail($id);
+        $mainBranchId = Franchise::where('is_main', true)->value('id');
+        if (! $mainBranchId) {
+            return response()->json(['message' => 'The main branch is not configured.'], 409);
+        }
+
+        $employee = Employee::where('franchise_id', $mainBranchId)->findOrFail($id);
         $employee->api_token = null;
         $employee->update([
             'password' => $request->password

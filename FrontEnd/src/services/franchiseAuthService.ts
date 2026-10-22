@@ -29,6 +29,7 @@ export interface FranchiseUser {
     status?: string;
     delivery_enabled?: boolean;
     fees_enabled?: boolean;
+    is_main?: boolean;
   };
   token?: string;
 }

@@ -70,13 +70,12 @@ const MenuPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!branchesLoaded || !selectedBranchId) return;
+    if (!branchesLoaded) return;
 
     const refreshProducts = () => {
       if (document.visibilityState === 'visible') void fetchProducts();
     };
     const initialFetchId = window.setTimeout(() => void fetchProducts(), 0);
-    const intervalId = window.setInterval(refreshProducts, 15000);
     const handleProductsUpdated = () => refreshProducts();
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') void fetchProducts();
@@ -86,7 +85,6 @@ const MenuPage: React.FC = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       window.clearTimeout(initialFetchId);
-      window.clearInterval(intervalId);
       window.removeEventListener('products-updated', handleProductsUpdated);
       window.removeEventListener('focus', refreshProducts);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -239,6 +237,11 @@ const MenuPage: React.FC = () => {
               onChange={(event) => handleBranchChange(event.target.value)}
               className="menu-branch-select w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 focus:border-[#1C3D2E] focus:outline-none focus:ring-2 focus:ring-[#1C3D2E]/10 sm:max-w-xl"
             >
+              {branches.length === 0 && (
+                <option value="" disabled>
+                  {branchesLoaded ? 'No active branches available' : 'Loading branches...'}
+                </option>
+              )}
               {branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>{branch.name}{branch.address ? `, ${branch.address}` : ''}</option>
               ))}
