@@ -103,7 +103,18 @@ function App() {
                   <FranchiseApplicantAuthProvider>
                   <BrowserRouter>
                     <ToastProvider>
-                    <Suspense fallback={<div className="min-h-screen bg-[var(--oppa-cream)] p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading page...</div>}>
+                    <Suspense fallback={<div role="status" aria-live="polite" className="min-h-screen bg-[var(--oppa-cream)] p-5 sm:p-8">
+                      <span className="sr-only">Loading page</span>
+                      <div className="mx-auto max-w-7xl animate-pulse space-y-5">
+                        <div className="h-8 w-48 rounded-lg bg-[var(--oppa-border)]" />
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                          <div className="h-32 rounded-2xl bg-[var(--oppa-border)]" />
+                          <div className="h-32 rounded-2xl bg-[var(--oppa-border)]" />
+                          <div className="h-32 rounded-2xl bg-[var(--oppa-border)]" />
+                        </div>
+                        <div className="h-64 rounded-2xl bg-[var(--oppa-border)]" />
+                      </div>
+                    </div>}>
                     <Routes>
                       {/* ===== PUBLIC ROUTES ===== */}
                       <Route path="/" element={<LandingPage />} />

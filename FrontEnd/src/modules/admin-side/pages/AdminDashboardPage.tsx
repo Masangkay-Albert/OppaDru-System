@@ -167,7 +167,7 @@ const AdminDashboardPage: React.FC = () => {
     };
 
     await Promise.all([
-      loadSection('orders', () => getAllOrders(true), (result) => setOrders(result)),
+      loadSection('orders', getAllOrders, (result) => setOrders(result)),
       loadSection('customers', getAllCustomers, (result) => setTotalUsers(result.length)),
       loadSection('products', getAllProducts, (result) => {
         setTotalProducts(result.length);

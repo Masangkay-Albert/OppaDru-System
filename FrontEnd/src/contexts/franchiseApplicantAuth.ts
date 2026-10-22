@@ -4,7 +4,6 @@ import type { FranchiseApplicant } from '../services/franchiseApplicantAuthServi
 export interface FranchiseApplicantAuthContextValue {
   applicant: FranchiseApplicant | null;
   isLoading: boolean;
-  authError: string;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }

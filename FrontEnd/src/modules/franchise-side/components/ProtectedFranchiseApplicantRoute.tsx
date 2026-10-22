@@ -4,7 +4,7 @@ import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantA
 import { getMyFranchiseApplications } from '../../../services/franchiseApplicationService';
 
 const ProtectedFranchiseApplicantRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { applicant, isLoading, authError } = useFranchiseApplicantAuth();
+  const { applicant, isLoading } = useFranchiseApplicantAuth();
   const location = useLocation();
   const [checkingApplication, setCheckingApplication] = useState(location.pathname === '/franchise/apply');
   const [hasOpenApplication, setHasOpenApplication] = useState(false);
@@ -43,10 +43,6 @@ const ProtectedFranchiseApplicantRoute: React.FC<{ children: React.ReactNode }> 
 
   if (isLoading) {
     return <div className="flex min-h-screen items-center justify-center text-sm text-[var(--oppa-text-muted)]">Loading...</div>;
-  }
-
-  if (authError) {
-    return <div className="flex min-h-screen items-center justify-center bg-[var(--oppa-cream)] p-5"><div role="alert" className="max-w-md rounded-2xl border border-red-200 bg-white p-6 text-center text-sm text-red-700"><p>{authError}</p><button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-lg bg-[var(--oppa-green)] px-4 py-2 font-semibold text-white">Try again</button></div></div>;
   }
 
   if (location.pathname === '/franchise/apply' && checkingApplication) {

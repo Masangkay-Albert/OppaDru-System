@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { authService } from '../services/authService';
 import type { User, RegisterData } from '../services/authService';
 
@@ -22,28 +22,16 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const initializeUser = useCallback(async () => {
+  const [user, setUser] = useState<User | null>(() => {
     try {
       const currentUser = authService.getUserFromStorage();
-      if (currentUser && authService.getToken()) {
-        setUser(currentUser);
-      } else {
-        authService.clearAuth();
-        setUser(null);
-      }
+      return currentUser && authService.getToken() ? currentUser : null;
     } catch {
-      setUser(null);
-    } finally {
-      setIsLoading(false);
+      authService.clearAuth();
+      return null;
     }
-  }, []);
-
-  useEffect(() => {
-    initializeUser();
-  }, [initializeUser]);
+  });
+  const [isLoading, setIsLoading] = useState(false);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);

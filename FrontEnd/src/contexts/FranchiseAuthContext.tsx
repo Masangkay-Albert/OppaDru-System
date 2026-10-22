@@ -20,23 +20,30 @@ export const useFranchiseAuth = () => {
 };
 
 export const FranchiseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [franchiseUser, setFranchiseUser] = useState<FranchiseUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [franchiseUser, setFranchiseUser] = useState<FranchiseUser | null>(() => {
+    if (franchiseAuthService.getStoredFranchiseToken()) return franchiseAuthService.getCurrentFranchiseUser();
+    franchiseAuthService.removeCurrentFranchiseUser();
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
+    const token = franchiseAuthService.getStoredFranchiseToken();
+    if (!token) return;
+
     franchiseAuthService.getAuthenticatedFranchiseUser()
       .then((user) => {
-        if (active) {
+        if (!active) return;
+        if (franchiseAuthService.getStoredFranchiseToken() !== token) {
+          setFranchiseUser(null);
+        } else if (user) {
           setFranchiseUser(user);
-          if (user) franchiseAuthService.setCurrentFranchiseUser(user);
+          franchiseAuthService.setCurrentFranchiseUser(user);
         }
       })
-      .catch(() => {
-        if (active) setFranchiseUser(null);
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
+      .catch((error: unknown) => {
+        if (active) console.error('Unable to verify the cached franchise session.', error);
       });
     return () => { active = false; };
   }, []);

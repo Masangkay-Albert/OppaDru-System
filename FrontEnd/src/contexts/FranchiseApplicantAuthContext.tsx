@@ -6,23 +6,29 @@ import {
 import { FranchiseApplicantAuthContext } from './franchiseApplicantAuth';
 
 export const FranchiseApplicantAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [applicant, setApplicant] = useState<FranchiseApplicant | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [authError, setAuthError] = useState('');
+  const [applicant, setApplicant] = useState<FranchiseApplicant | null>(() => {
+    if (franchiseApplicantAuthService.getToken()) return franchiseApplicantAuthService.getApplicant();
+    franchiseApplicantAuthService.clearAuth();
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
+    const token = franchiseApplicantAuthService.getToken();
+    if (!token) return;
+
     franchiseApplicantAuthService.getAuthenticatedApplicant()
       .then((verifiedApplicant) => {
-        if (active) setApplicant(verifiedApplicant);
-      })
-      .catch((error: unknown) => {
-        if (active) {
-          setAuthError(error instanceof Error ? error.message : 'Unable to verify your applicant sign-in.');
+        if (!active) return;
+        if (franchiseApplicantAuthService.getToken() !== token) {
+          setApplicant(null);
+        } else if (verifiedApplicant) {
+          setApplicant(verifiedApplicant);
         }
       })
-      .finally(() => {
-        if (active) setIsLoading(false);
+      .catch((error: unknown) => {
+        if (active) console.error('Unable to verify the cached applicant session.', error);
       });
     return () => {
       active = false;
@@ -31,7 +37,6 @@ export const FranchiseApplicantAuthProvider: React.FC<{ children: React.ReactNod
 
   const login = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
-    setAuthError('');
     try {
       setApplicant(await franchiseApplicantAuthService.login(email, password));
     } finally {
@@ -44,12 +49,11 @@ export const FranchiseApplicantAuthProvider: React.FC<{ children: React.ReactNod
       await franchiseApplicantAuthService.logout();
     } finally {
       setApplicant(null);
-      setAuthError('');
     }
   };
 
   return (
-    <FranchiseApplicantAuthContext.Provider value={{ applicant, isLoading, authError, login, logout }}>
+    <FranchiseApplicantAuthContext.Provider value={{ applicant, isLoading, login, logout }}>
       {children}
     </FranchiseApplicantAuthContext.Provider>
   );

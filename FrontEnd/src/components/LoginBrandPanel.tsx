@@ -11,6 +11,9 @@ const LoginBrandPanel: React.FC<LoginBrandPanelProps> = ({ title, description })
       src={heroSectionImg}
       alt=""
       aria-hidden="true"
+      loading="lazy"
+      decoding="async"
+      fetchPriority="low"
       className="absolute inset-0 size-full object-cover"
     />
     <div className="absolute inset-0 bg-black/50" />

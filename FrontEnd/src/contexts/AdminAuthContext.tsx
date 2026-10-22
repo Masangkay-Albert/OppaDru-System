@@ -1,5 +1,5 @@
 // src/contexts/AdminAuthContext.tsx
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import * as adminAuthService from '../services/adminAuthService';
 import type { AdminUser } from '../services/adminAuthService';
 
@@ -21,22 +21,12 @@ export const useAdminAuth = () => {
 };
 
 export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const initializeAdmin = useCallback(() => {
-    if (adminAuthService.getStoredAdminToken()) {
-      setAdmin(adminAuthService.getCurrentAdmin());
-    } else {
-      adminAuthService.removeCurrentAdmin();
-      setAdmin(null);
-    }
-    setIsLoading(false);
-  }, []);
-
-  useEffect(() => {
-    initializeAdmin();
-  }, [initializeAdmin]);
+  const [admin, setAdmin] = useState<AdminUser | null>(() => {
+    if (adminAuthService.getStoredAdminToken()) return adminAuthService.getCurrentAdmin();
+    adminAuthService.removeCurrentAdmin();
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState(false);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
