@@ -6,54 +6,49 @@ import { getMyFranchiseApplications } from '../../../services/franchiseApplicati
 const ProtectedFranchiseApplicantRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { applicant, isLoading } = useFranchiseApplicantAuth();
   const location = useLocation();
-  const [checkingApplication, setCheckingApplication] = useState(location.pathname === '/franchise/apply');
-  const [hasOpenApplication, setHasOpenApplication] = useState(false);
-  const [applicationCheckError, setApplicationCheckError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
+  const [applicationCheck, setApplicationCheck] = useState<{
+    locationKey: string;
+    hasOpenApplication: boolean;
+    error?: string;
+  } | null>(null);
+  const isApplyRoute = location.pathname === '/franchise/apply';
+  const hasCurrentCheck = applicationCheck?.locationKey === location.key;
+  const checkingApplication = isApplyRoute && !!applicant?.email_verified_at && !hasCurrentCheck;
 
   useEffect(() => {
-    if (!applicant?.email_verified_at || location.pathname !== '/franchise/apply') {
-      setCheckingApplication(false);
-      setHasOpenApplication(false);
-      setApplicationCheckError('');
-      return;
-    }
+    if (!applicant?.email_verified_at || !isApplyRoute) return;
 
     let active = true;
-    setCheckingApplication(true);
-    setApplicationCheckError('');
     getMyFranchiseApplications()
       .then((applications) => {
         if (active) {
-          setHasOpenApplication(applications.some((application) => !['rejected', 'withdrawn'].includes(application.status)));
+          setApplicationCheck({
+            locationKey: location.key,
+            hasOpenApplication: applications.some((application) => !['rejected', 'withdrawn'].includes(application.status)),
+          });
         }
       })
       .catch((error: unknown) => {
         if (active) {
-          setApplicationCheckError(error instanceof Error ? error.message : 'Unable to check your existing franchise applications.');
+          setApplicationCheck({
+            locationKey: location.key,
+            hasOpenApplication: false,
+            error: error instanceof Error ? error.message : 'Unable to check your existing franchise applications.',
+          });
         }
       })
-      .finally(() => {
-        if (active) setCheckingApplication(false);
-      });
 
     return () => {
       active = false;
     };
-  }, [applicant, location.pathname]);
+  }, [applicant, isApplyRoute, location.key, retryCount]);
 
   if (isLoading) {
     return <div className="flex min-h-screen items-center justify-center text-sm text-[var(--oppa-text-muted)]">Loading...</div>;
   }
 
-  if (location.pathname === '/franchise/apply' && checkingApplication) {
-    return <div className="flex min-h-screen items-center justify-center text-sm text-[var(--oppa-text-muted)]">Checking your existing applications…</div>;
-  }
-
-  if (applicationCheckError) {
-    return <div className="flex min-h-screen items-center justify-center bg-[var(--oppa-cream)] p-5"><div role="alert" className="max-w-md rounded-2xl border border-red-200 bg-white p-6 text-center text-sm text-red-700"><p>{applicationCheckError}</p><button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-lg bg-[var(--oppa-green)] px-4 py-2 font-semibold text-white">Try again</button></div></div>;
-  }
-
-  if (location.pathname === '/franchise/apply' && hasOpenApplication) {
+  if (isApplyRoute && hasCurrentCheck && applicationCheck?.hasOpenApplication) {
     return <Navigate to="/franchise/my-applications" replace />;
   }
 
@@ -62,7 +57,24 @@ const ProtectedFranchiseApplicantRoute: React.FC<{ children: React.ReactNode }> 
     return <Navigate to={`/franchise/applicant-login?returnTo=${encodeURIComponent(returnTo)}`} replace state={{ from: location }} />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {isApplyRoute && checkingApplication && (
+        <p role="status" aria-live="polite" className="mx-auto max-w-7xl px-5 pt-3 text-xs text-[var(--oppa-text-muted)]">
+          Checking your existing applications…
+        </p>
+      )}
+      {isApplyRoute && hasCurrentCheck && applicationCheck?.error && (
+        <div role="alert" className="mx-auto mt-3 flex max-w-7xl flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>We couldn’t verify existing applications. The server will prevent duplicate submissions.</span>
+          <button type="button" onClick={() => setRetryCount((count) => count + 1)} className="font-semibold underline">
+            Try again
+          </button>
+        </div>
+      )}
+      {children}
+    </>
+  );
 };
 
 export default ProtectedFranchiseApplicantRoute;
