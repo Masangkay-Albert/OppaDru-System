@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Employee;
+use App\Models\Franchise;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -13,18 +15,23 @@ class PopularMealsController extends Controller
 {
     public function getMostPopularThisMonth(Request $request)
     {
-        $franchiseId = $request->query('franchise_id');
+        $employee = $request->user();
+        $branchScoped = $employee instanceof Employee;
+        $franchiseId = $branchScoped
+            ? ($employee->franchise_id ?? Franchise::query()->where('is_main', true)->value('id'))
+            : $request->query('franchise_id');
         $limit = min(50, max(1, (int) $request->query('limit', 10)));
-        $cacheKey = 'popular_meals_' . ($franchiseId ?: 'all') . '_' . now()->format('Y_m') . '_lim_' . $limit;
+        $scopeKey = $branchScoped ? ($franchiseId ?: 'main-unassigned') : ($franchiseId ?: 'all');
+        $cacheKey = 'popular_meals_'.$scopeKey.'_'.now()->format('Y_m').'_lim_'.$limit;
 
-        $data = Cache::remember($cacheKey, 300, function () use ($franchiseId, $limit) {
-            return $this->computePopularMeals($franchiseId, $limit);
+        $data = Cache::remember($cacheKey, 300, function () use ($franchiseId, $limit, $branchScoped) {
+            return $this->computePopularMeals($franchiseId, $limit, $branchScoped);
         });
 
         return response()->json($data);
     }
 
-    private function computePopularMeals(?string $franchiseId, int $limit): array
+    private function computePopularMeals(?string $franchiseId, int $limit, bool $branchScoped = false): array
     {
         $startOfMonth = now()->startOfMonth();
         $endOfMonth = now()->endOfMonth();
@@ -33,25 +40,15 @@ class PopularMealsController extends Controller
         $orderQuery = Order::countedAsRevenue()
             ->whereBetween('created_at', [$startOfMonth, $endOfMonth]);
 
-        if ($franchiseId) {
-            $orderQuery->where(function ($q) use ($franchiseId) {
-                $q->where('branch_id', $franchiseId)
-                    ->orWhere('franchise_id', $franchiseId);
-            });
-        }
+        $this->applyBranchScope($orderQuery, $franchiseId, $branchScoped);
 
         $totalRevenueOrders = (clone $orderQuery)->count();
 
         $itemAggregates = OrderItem::query()
-            ->whereHas('order', function ($query) use ($startOfMonth, $endOfMonth, $franchiseId) {
+            ->whereHas('order', function ($query) use ($startOfMonth, $endOfMonth, $franchiseId, $branchScoped) {
                 $query->countedAsRevenue()
                     ->whereBetween('created_at', [$startOfMonth, $endOfMonth]);
-                if ($franchiseId) {
-                    $query->where(function ($q) use ($franchiseId) {
-                        $q->where('branch_id', $franchiseId)
-                            ->orWhere('franchise_id', $franchiseId);
-                    });
-                }
+                $this->applyBranchScope($query, $franchiseId, $branchScoped);
             })
             ->select('product_id', 'product_name', DB::raw('SUM(quantity) as total_quantity'), DB::raw('SUM(quantity * product_price) as total_revenue'))
             ->groupBy('product_id', 'product_name')
@@ -65,15 +62,10 @@ class PopularMealsController extends Controller
 
         if ($itemAggregates->isNotEmpty()) {
             $totalQuantityAll = (int) OrderItem::query()
-                ->whereHas('order', function ($query) use ($startOfMonth, $endOfMonth, $franchiseId) {
+                ->whereHas('order', function ($query) use ($startOfMonth, $endOfMonth, $franchiseId, $branchScoped) {
                     $query->countedAsRevenue()
                         ->whereBetween('created_at', [$startOfMonth, $endOfMonth]);
-                    if ($franchiseId) {
-                        $query->where(function ($q) use ($franchiseId) {
-                            $q->where('branch_id', $franchiseId)
-                                ->orWhere('franchise_id', $franchiseId);
-                        });
-                    }
+                    $this->applyBranchScope($query, $franchiseId, $branchScoped);
                 })
                 ->sum('quantity');
 
@@ -92,7 +84,9 @@ class PopularMealsController extends Controller
 
             foreach ($orders as $order) {
                 $items = is_array($order->items) ? $order->items : json_decode($order->items ?: '[]', true);
-                if (!is_array($items)) continue;
+                if (! is_array($items)) {
+                    continue;
+                }
 
                 foreach ($items as $item) {
                     $pId = (string) ($item['product_id'] ?? $item['id'] ?? '');
@@ -101,7 +95,7 @@ class PopularMealsController extends Controller
                     $price = (float) ($item['product_price'] ?? $item['price'] ?? 0);
 
                     $key = $pId ?: $pName;
-                    if (!isset($grouped[$key])) {
+                    if (! isset($grouped[$key])) {
                         $grouped[$key] = [
                             'product_id' => $pId,
                             'name' => $pName,
@@ -127,7 +121,7 @@ class PopularMealsController extends Controller
             ? rtrim(request()->root(), '/')
             : rtrim(config('app.url'), '/');
 
-        $topQuantity = !empty($meals) ? (int) $meals[0]['quantity_sold'] : 0;
+        $topQuantity = ! empty($meals) ? (int) $meals[0]['quantity_sold'] : 0;
         $rankedList = [];
 
         foreach ($meals as $index => $meal) {
@@ -137,11 +131,11 @@ class PopularMealsController extends Controller
             $sharePercentage = $totalQuantityAll > 0 ? round(($qty / $totalQuantityAll) * 100, 1) : 0;
 
             $imageUrl = null;
-            if ($product && !empty($product->image)) {
+            if ($product && ! empty($product->image)) {
                 if (str_starts_with($product->image, 'http://') || str_starts_with($product->image, 'https://') || str_starts_with($product->image, 'data:image')) {
                     $imageUrl = $product->image;
                 } else {
-                    $imageUrl = $baseUrl . '/storage/' . ltrim($product->image, '/');
+                    $imageUrl = $baseUrl.'/storage/'.ltrim($product->image, '/');
                 }
             }
 
@@ -169,5 +163,25 @@ class PopularMealsController extends Controller
             'top_meals' => $rankedList,
         ];
     }
-}
 
+    private function applyBranchScope($query, ?string $franchiseId, bool $branchScoped): void
+    {
+        if (! $branchScoped && $franchiseId === null) {
+            return;
+        }
+
+        $query->where(function ($branchQuery) use ($franchiseId): void {
+            if ($franchiseId === null) {
+                $branchQuery->whereNull('branch_id')->whereNull('franchise_id');
+
+                return;
+            }
+
+            $branchQuery->where('branch_id', $franchiseId)
+                ->orWhere(function ($legacyQuery) use ($franchiseId): void {
+                    $legacyQuery->whereNull('branch_id')
+                        ->where('franchise_id', $franchiseId);
+                });
+        });
+    }
+}

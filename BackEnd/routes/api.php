@@ -55,7 +55,6 @@ Route::get('/settings/pricing', [SettingController::class, 'index']);
 Route::get('/promos', [PromoController::class, 'index']);
 Route::post('/promos/validate', [PromoController::class, 'validatePromo']);
 Route::get('/reports/popular-meals', [PopularMealsController::class, 'getMostPopularThisMonth']);
-Route::get('/cashier/popular-meals', [PopularMealsController::class, 'getMostPopularThisMonth']);
 Route::get('/announcements', [AnnouncementController::class, 'publicList']);
 Route::get('/franchise-opportunities', [FranchiseApplicationController::class, 'opportunities']);
 Route::get('/geo/provinces', [FranchiseApplicationController::class, 'provinces']);
@@ -117,6 +116,7 @@ Route::middleware(['employee.access:cashier'])->group(function () {
     Route::get('/employee/pos/addon-groups', [AddonController::class, 'index']);
     Route::post('/employee/pos/orders', [FranchiseController::class, 'storePosOrder']);
     Route::post('/employee/pos/payments/gcash', [FranchiseController::class, 'createPosPayment']);
+    Route::get('/cashier/popular-meals', [PopularMealsController::class, 'getMostPopularThisMonth']);
 });
 Route::middleware(['admin.access'])->group(function () {
     Route::get('/orders', [OrderController::class, 'index']);

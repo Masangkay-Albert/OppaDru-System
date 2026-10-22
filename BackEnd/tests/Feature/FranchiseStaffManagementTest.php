@@ -15,7 +15,7 @@ class FranchiseStaffManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_can_assign_employee_roles_to_main_system_or_a_franchise_location(): void
+    public function test_admin_can_assign_employee_location_on_creation_but_cannot_change_it_later(): void
     {
         $token = $this->createAdminToken();
         $account = FranchiseAccount::create([
@@ -52,12 +52,12 @@ class FranchiseStaffManagementTest extends TestCase
 
         $this->putJson('/api/employees/' . $employeeId, [
             'franchise_id' => null,
-        ], ['Authorization' => 'Bearer ' . $token])->assertOk()
-            ->assertJsonPath('franchise_id', null);
+        ], ['Authorization' => 'Bearer ' . $token])->assertUnprocessable()
+            ->assertJsonValidationErrors('franchise_id');
 
         $this->assertDatabaseHas('employees', [
             'id' => $employeeId,
-            'franchise_id' => null,
+            'franchise_id' => $location->id,
             'position' => 'cashier',
         ]);
     }

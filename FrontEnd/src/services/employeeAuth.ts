@@ -2,6 +2,23 @@ import { API_URL } from './apiConfig';
 
 export const fetchWithEmployeeAuth = async (url: string, init: RequestInit = {}): Promise<Response> => {
   const token = localStorage.getItem('employee_token');
+  const redirectToLogin = () => {
+    localStorage.removeItem('employee_auth');
+    localStorage.removeItem('employee_token');
+    const loginPath = window.location.pathname.startsWith('/kitchen')
+      ? '/kitchen/login'
+      : window.location.pathname.startsWith('/cashier')
+        ? '/cashier/login'
+        : '/employee/login';
+    if (window.location.pathname !== loginPath) window.location.assign(loginPath);
+  };
+  if (!token) {
+    redirectToLogin();
+    return new Response(JSON.stringify({ message: 'Your session expired. Please sign in again.' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   const headers = new Headers(init.headers || {});
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
   if (!headers.has('Content-Type') && !(init.body instanceof FormData)) {
@@ -11,8 +28,7 @@ export const fetchWithEmployeeAuth = async (url: string, init: RequestInit = {})
 
   const response = await fetch(url, { ...init, headers });
   if (response.status === 401) {
-    localStorage.removeItem('employee_auth');
-    localStorage.removeItem('employee_token');
+    redirectToLogin();
   }
   return response;
 };

@@ -7,7 +7,7 @@ import { employeeAuth } from "../../../../services/employeeAuth";
 const NavbarEmployee: React.FC = () => {
   const navigate = useNavigate();
   const [showDropdown, setShowDropdown] = useState(false);
-  const [employee] = useState<{ full_name?: string; fullName?: string; email?: string; position?: string; franchise?: { name?: string } | null } | null>(() => {
+  const [employee] = useState<{ full_name?: string; fullName?: string; email?: string; position?: string; franchise_id?: string | null; franchise?: { name?: string } | null } | null>(() => {
     try {
       const raw = localStorage.getItem("employee_auth");
       return raw ? JSON.parse(raw) : null;
@@ -19,6 +19,7 @@ const NavbarEmployee: React.FC = () => {
   const employeeName = employee?.fullName || employee?.full_name || "Cashier Staff";
   const employeeEmail = employee?.email || "staff@oppadru.com";
   const employeePosition = employee?.position ? employee.position.toUpperCase() : "REGISTER / POS";
+  const popularMealsPath = employee?.franchise_id ? "/cashier/popular" : "/employee/popular";
 
   const getInitials = (name: string) => {
     if (!name) return "ST";
@@ -67,7 +68,7 @@ const NavbarEmployee: React.FC = () => {
             </button>
 
             <button
-              onClick={() => navigate("/employee/popular")}
+              onClick={() => navigate(popularMealsPath)}
               className="relative flex items-center gap-1 sm:gap-2 text-[var(--oppa-cream)] font-sans font-medium hover:text-white transition-colors duration-200"
               title="Most Popular Meal This Month"
             >

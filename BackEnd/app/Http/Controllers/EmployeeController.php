@@ -44,7 +44,7 @@ class EmployeeController extends Controller
             'fullName' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:employees,email,' . $employee->id . ',id',
             'position' => 'sometimes|required|in:cashier,kitchen staff,staff',
-            'franchise_id' => 'sometimes|nullable|string|exists:franchises,id',
+            'franchise_id' => 'missing',
             'is_active' => 'sometimes|boolean',
         ]);
 

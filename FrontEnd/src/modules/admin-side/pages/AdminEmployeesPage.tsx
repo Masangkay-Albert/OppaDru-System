@@ -106,7 +106,7 @@ const AdminEmployeesPage: React.FC = () => {
     }
   };
 
-  const updateEmployee = async (employee: EmployeeAccount, values: { position?: string; franchise_id?: string | null; is_active?: boolean }) => {
+  const updateEmployee = async (employee: EmployeeAccount, values: { position?: string; is_active?: boolean }) => {
     try {
       const response = await fetchWithAdminAuth(`${API_URL}/employees/${employee.id}`, {
         method: 'PUT',
@@ -183,7 +183,7 @@ const AdminEmployeesPage: React.FC = () => {
             <tbody>{filtered.map((employee) => <tr key={employee.id} className="border-b border-[var(--oppa-border)]/70 last:border-0 hover:bg-[var(--oppa-cream)]">
               <td data-label="Employee" className="px-5 py-3"><div className="flex min-w-0 items-center gap-3"><Avatar name={employee.fullName} /><div className="min-w-0"><p className="truncate font-semibold text-[var(--oppa-text)]">{employee.fullName}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{employee.email}</p></div></div></td>
               <td data-label="Position" className="px-5 py-3"><span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${positionStyle(employee.position || '')}`}>{formatPositionLabel(employee.position || 'cashier')}</span></td>
-              <td data-label="Location" className="px-5 py-3"><select aria-label={`Assign ${employee.fullName} to a location`} value={employee.franchise_id || mainLocationId} onChange={(event) => void updateEmployee(employee, { franchise_id: event.target.value || null })} className="max-w-48 rounded-lg border border-[var(--oppa-border)] bg-white px-2 py-1.5 text-xs">{mainLocation && <option value={mainLocationId}>Main system (Cavite branch)</option>}{otherLocations.map((location) => <option key={String(location.id)} value={String(location.id)}>{location.name}</option>)}</select></td>
+              <td data-label="Location" className="px-5 py-3"><span className="text-xs font-medium text-[var(--oppa-text-muted)]">{employee.franchise?.name || (employee.franchise_id ? 'Assigned location' : 'Main system (Cavite branch)')}</span></td>
               <td data-label="Status" className="px-5 py-3"><button onClick={() => void updateEmployee(employee, { is_active: !employee.is_active })} className={`rounded-full px-2.5 py-1 text-xs font-semibold ${employee.is_active === false ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-800'}`}>{employee.is_active === false ? 'Inactive' : 'Active'}</button></td>
               <td data-label="Joined" className="px-5 py-3 text-[var(--oppa-text-muted)]"><AdminDate value={employee.created_at} /></td>
               <td data-label="Actions" className="px-5 py-3"><div className="flex justify-end"><RowActionsMenu label={employee.fullName} items={[{ label: 'View details', onSelect: () => setSelected(employee) }, { label: 'Reset password', onSelect: () => setResetTarget(employee) }, { label: 'Delete employee', destructive: true, onSelect: () => setDeleteTarget({ id: employee.id, fullName: employee.fullName }) }]} /></div></td>

@@ -186,7 +186,7 @@ function App() {
 
                       {/* Cashier routes matching employeeLogin.tsx redirect */}
                       <Route path="/cashier" element={<ProtectedEmployeeRoute><EmployeeMenuPage /></ProtectedEmployeeRoute>} />
-                      <Route path="/cashier/popular" element={<ProtectedEmployeeRoute><MostPopularMealsPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/popular" element={<ProtectedEmployeeRoute portal="branch-cashier"><MostPopularMealsPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/pos" element={<ProtectedEmployeeRoute portal="branch-cashier"><FranchisePOSPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/transactions" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierTransactionsPage view="transactions" /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/branch-orders" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierTransactionsPage view="orders" /></ProtectedEmployeeRoute>} />

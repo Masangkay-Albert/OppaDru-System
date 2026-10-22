@@ -11,7 +11,7 @@ import {
 import { FaCrown, FaMedal } from 'react-icons/fa';
 import NavbarEmployee from '../components/navigation/NavbarEmployee';
 import { formatPeso } from '../../../utils/formatters';
-import { API_URL } from '../../../services/apiConfig';
+import { fetchWithEmployeeAuth } from '../../../services/employeeAuth';
 
 interface PopularMeal {
   rank: number;
@@ -44,17 +44,13 @@ const MostPopularMealsPage: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchPopularMeals = useCallback(async (showSpin = false) => {
-    if (showSpin) setIsRefreshing(true);
-    setError('');
+    if (showSpin) {
+      setIsRefreshing(true);
+      setError('');
+    }
 
     try {
-      const employeeToken = localStorage.getItem('employee_token') || localStorage.getItem('adminToken');
-      const response = await fetch(`${API_URL}/cashier/popular-meals?limit=10`, {
-        headers: {
-          'Accept': 'application/json',
-          ...(employeeToken ? { 'Authorization': `Bearer ${employeeToken}` } : {}),
-        },
-      });
+      const response = await fetchWithEmployeeAuth('/cashier/popular-meals?limit=10');
 
       if (!response.ok) {
         throw new Error('Could not load popular meals for this month.');
@@ -62,8 +58,8 @@ const MostPopularMealsPage: React.FC = () => {
 
       const json = await response.json();
       setData(json);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load popular meals.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load popular meals.');
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -71,7 +67,7 @@ const MostPopularMealsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchPopularMeals();
+    void Promise.resolve().then(() => fetchPopularMeals());
   }, [fetchPopularMeals]);
 
   const topMeals = data?.top_meals || [];
@@ -331,4 +327,3 @@ const MostPopularMealsPage: React.FC = () => {
 };
 
 export default MostPopularMealsPage;
-
