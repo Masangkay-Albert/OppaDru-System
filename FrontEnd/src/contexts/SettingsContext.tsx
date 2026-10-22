@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
 import { useAuth } from './Authcontext';
 
 export interface Address {
@@ -61,6 +61,7 @@ interface SettingsContextType {
   discountInfo: DiscountInfo;
   pricing: PricingSettings;
   isLoading: boolean;
+  refreshPricing: () => Promise<void>;
   addAddress: (address: Omit<Address, 'id'>) => void;
   updateAddress: (id: string, address: Partial<Address>) => void;
   deleteAddress: (id: string) => void;
@@ -137,11 +138,13 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [pricing, setPricing] = useState<PricingSettings>(defaultPricing);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/settings/pricing`)
-      .then(response => response.json())
-      .then(data => { if (data.settings) setPricing(prev => ({ ...prev, ...data.settings })); })
-      .catch(() => setPricing(defaultPricing));
+  const refreshPricing = useCallback(async () => {
+    const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/settings/pricing`);
+    if (!response.ok) {
+      throw new Error(`Failed to load pricing settings (${response.status}).`);
+    }
+    const data = await response.json();
+    if (data.settings) setPricing(previous => ({ ...previous, ...data.settings }));
   }, []);
 
   useEffect(() => {
@@ -158,37 +161,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const savedDiscount = localStorage.getItem(`discount_${user.id}`);
       const restoredDiscount = savedDiscount ? JSON.parse(savedDiscount) : defaultDiscountInfo;
       setDiscountInfo({ ...defaultDiscountInfo, ...restoredDiscount });
-
-      const token = localStorage.getItem('auth_token');
-      if (token) {
-        fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/discount/applications/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
-          .then((response) => response.ok ? response.json() : null)
-          .then((data) => {
-            const latest = Array.isArray(data?.data) ? data.data[0] : null;
-            if (!latest) {
-              setDiscountInfo({ ...defaultDiscountInfo, fullName: user.full_name || '' });
-              return;
-            }
-
-            const nextType = latest.discount_type === 'PWD' ? 'PWD' : 'Senior Citizen';
-            const isApproved = latest.status === 'approved';
-            setDiscountInfo((prev) => ({
-              ...prev,
-              isPWD: isApproved && nextType === 'PWD',
-              isSenior: isApproved && nextType === 'Senior Citizen',
-              idNumber: latest.id_number || prev.idNumber,
-              fullName: user.full_name || latest.full_name || prev.fullName,
-              expiryDate: latest.expiry_date || prev.expiryDate,
-              rejectionReason: latest.rejection_reason || '',
-              status: latest.status || prev.status,
-            }));
-          })
-          .catch(() => undefined);
-      }
     }
     setIsLoading(false);
   }, [user?.id, user?.full_name]);
@@ -398,6 +370,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         discountInfo,
         pricing,
         isLoading,
+        refreshPricing,
         addAddress,
         updateAddress,
         deleteAddress,

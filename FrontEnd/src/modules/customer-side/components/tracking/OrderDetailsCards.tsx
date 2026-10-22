@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ORDER_STATUS } from '../../../../utils/constants';
 import type { Order } from '../../../../contexts/OrderContext';
 import type { CartItem, Addon } from '../../../../types/product.types';
@@ -11,7 +11,13 @@ interface OrderDetailsCardsProps {
 }
 
 const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, formatDate }) => {
-  const { pricing } = useSettings();
+  const { pricing, refreshPricing } = useSettings();
+
+  useEffect(() => {
+    void refreshPricing().catch((error: unknown) => {
+      console.error('Unable to load pricing settings for order details.', error);
+    });
+  }, [refreshPricing]);
   const subtotal = currentOrder.items?.reduce((sum: number, item: CartItem) => {
     const addonsTotal = item.selectedAddons?.reduce((s: number, a: Addon) => s + Number(a.price || 0), 0) || 0;
     return sum + (item.price * item.quantity) + addonsTotal;

@@ -5,14 +5,14 @@ import AdminLayout from '../components/AdminLayout';
 import StatCard from '../components/StatCard';
 import { Avatar, DataTable, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
 import { getAllOrders, isRevenueOrder, type AdminOrder, getAllCustomers } from '../../../services/adminOrderService';
-import { getAllAccounts, apiGetAdminCount } from '../../../services/adminAuthService';
+import { apiGetAdminCount } from '../../../services/adminAuthService';
 import { getAllProducts } from '../../../services/adminProductService';
 import { formatCurrency } from '../../../utils/formatters';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 
 const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 
-const DashboardCharts: React.FC<{ orders: AdminOrder[]; loading: boolean }> = ({ orders, loading }) => {
+const DashboardCharts: React.FC<{ orders: AdminOrder[]; loading: boolean; unavailable: boolean }> = ({ orders, loading, unavailable }) => {
   const [hoveredDay, setHoveredDay] = useState<number | null>(null);
   const [hoveredStatus, setHoveredStatus] = useState<string | null>(null);
   const data = useMemo(() => {
@@ -79,7 +79,7 @@ const DashboardCharts: React.FC<{ orders: AdminOrder[]; loading: boolean }> = ({
           <div><h2 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">Sales last 7 days</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Daily order revenue</p></div>
           <div className="text-right"><p className="tabular-nums text-lg font-bold text-[var(--oppa-text)]">{formatCurrency(totalSales)} <span className="text-xs font-medium text-[var(--oppa-text-muted)]">this week</span></p><span className={`text-[11px] font-semibold ${trend >= 0 ? 'text-green-800' : 'text-red-700'}`}>{trend >= 0 ? '▲' : '▼'} {Math.abs(trend)}% vs last week</span></div>
         </div>
-        {loading ? <div aria-busy="true" className="admin-skeleton my-4 min-h-48 flex-1 animate-pulse rounded-xl" /> : <div className="relative mt-2 flex-1">
+        {loading ? <div aria-busy="true" className="admin-skeleton my-4 min-h-48 flex-1 animate-pulse rounded-xl" /> : unavailable ? <p className="mt-4 text-sm text-red-700">Sales data could not be loaded.</p> : <div className="relative mt-2 flex-1">
           <svg role="img" aria-label="Area chart of sales in the last seven days" viewBox="0 0 600 190" className="h-full min-h-[210px] w-full overflow-visible">
             <defs><linearGradient id="sales-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#267a43" stopOpacity=".22" /><stop offset="100%" stopColor="#267a43" stopOpacity=".01" /></linearGradient></defs>
             {[40, 76, 112, 148].map((y, index) => <g key={y}><line x1="40" x2="574" y1={y} y2={y} stroke="var(--oppa-border)" strokeDasharray="4 5" /><text x="34" y={y + 3} textAnchor="end" fill="var(--oppa-text-muted)" fontSize="9">{formatCurrency(maxSales * (3 - index) / 3).replace(/\.00$/, '')}</text></g>)}
@@ -104,7 +104,7 @@ const DashboardCharts: React.FC<{ orders: AdminOrder[]; loading: boolean }> = ({
       </section>
       <section className="admin-card flex min-h-[220px] flex-col p-5">
         <div><h2 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">Orders by status</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{total} total orders</p></div>
-        {loading ? <div aria-busy="true" className="admin-skeleton mt-4 h-36 animate-pulse rounded-xl" /> : <div className="mt-4 flex min-h-0 flex-1 items-center gap-4 sm:gap-6">
+        {loading ? <div aria-busy="true" className="admin-skeleton mt-4 h-36 animate-pulse rounded-xl" /> : unavailable ? <p className="mt-4 text-sm text-red-700">Order status data could not be loaded.</p> : <div className="mt-4 flex min-h-0 flex-1 items-center gap-4 sm:gap-6">
           <div aria-label={`${total} orders by status`} role="img" className="relative size-32 shrink-0 rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
             <div className="absolute inset-[18px] flex items-center justify-center rounded-full bg-[var(--oppa-surface)] text-center"><span className="tabular-nums text-xl font-bold text-[var(--oppa-text)]">{total}<small className="block text-[10px] font-medium text-[var(--oppa-text-muted)]">Orders</small></span></div>
           </div>
@@ -138,35 +138,43 @@ const AdminDashboardPage: React.FC = () => {
   const [totalProducts, setTotalProducts] = useState(0);
   const [outOfStock, setOutOfStock] = useState(0);
   const [totalAdmins, setTotalAdmins] = useState(0);
-  const [dashboardLoading, setDashboardLoading] = useState(true);
+  type DashboardSection = 'orders' | 'customers' | 'products' | 'admins';
+  const [sectionLoading, setSectionLoading] = useState<Record<DashboardSection, boolean>>({
+    orders: true,
+    customers: true,
+    products: true,
+    admins: true,
+  });
+  const [sectionErrors, setSectionErrors] = useState<Partial<Record<DashboardSection, string>>>({});
   const [notice, setNotice] = useState('');
 
   const loadDashboard = useCallback(async () => {
-    setDashboardLoading(true);
-    try {
-      const [ordersResult, customersResult, productsResult, adminCountResult] = await Promise.all([
-        getAllOrders(true).catch(() => [] as AdminOrder[]),
-        getAllCustomers().catch(() => {
-          const accounts = getAllAccounts();
-          return Array.isArray(accounts) ? accounts : [];
-        }),
-        getAllProducts().catch(() => []),
-        apiGetAdminCount().catch(() => 0),
-      ]);
-      const allOrders = Array.isArray(ordersResult) ? ordersResult : [];
-      const users = Array.isArray(customersResult) ? customersResult : [];
-      const products = Array.isArray(productsResult) ? productsResult : [];
-      setOrders(allOrders);
-      setTotalUsers(users.length);
-      setTotalProducts(products.length);
-      setOutOfStock(products.filter((product) => !(product.isAvailable ?? product.is_available)).length);
-      setTotalAdmins(typeof adminCountResult === 'number' ? adminCountResult : 0);
-    } catch (error) {
-      console.error('Failed to refresh dashboard:', error);
-      setNotice('Dashboard data could not be refreshed.');
-    } finally {
-      setDashboardLoading(false);
-    }
+    const loadSection = async <T,>(
+      section: DashboardSection,
+      load: () => Promise<T>,
+      onSuccess: (result: T) => void,
+    ) => {
+      setSectionLoading((current) => ({ ...current, [section]: true }));
+      setSectionErrors((current) => ({ ...current, [section]: undefined }));
+      try {
+        onSuccess(await load());
+      } catch (error) {
+        console.error(`Failed to load dashboard ${section}.`, error);
+        setSectionErrors((current) => ({ ...current, [section]: 'Unable to load this section.' }));
+      } finally {
+        setSectionLoading((current) => ({ ...current, [section]: false }));
+      }
+    };
+
+    await Promise.all([
+      loadSection('orders', () => getAllOrders(true), (result) => setOrders(result)),
+      loadSection('customers', getAllCustomers, (result) => setTotalUsers(result.length)),
+      loadSection('products', getAllProducts, (result) => {
+        setTotalProducts(result.length);
+        setOutOfStock(result.filter((product) => !(product.isAvailable ?? product.is_available)).length);
+      }),
+      loadSection('admins', apiGetAdminCount, setTotalAdmins),
+    ]);
   }, []);
 
   useEffect(() => {
@@ -212,20 +220,20 @@ const AdminDashboardPage: React.FC = () => {
     <AdminLayout>
       {notice && <Toast message={notice} tone="error" onDismiss={() => setNotice('')} />}
       <PageHeader title={`Welcome back, ${admin?.fullName || 'Admin'}`} subtitle="Here’s what’s happening today." />
-      {dashboardLoading ? <div aria-label="Loading dashboard statistics" aria-busy="true" className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">{[0, 1, 2, 3, 4].map((item) => <div key={item} className="admin-card admin-skeleton h-36 animate-pulse" />)}</div> : <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <StatCard label="Total Orders" value={orders.length} icon={ShoppingBag} accent="green" trend={ordersTrend.trend} trendDirection={ordersTrend.direction} sparkline={ordersTrend.sparkline} context="Orders to date" />
-        <StatCard label="Total Users" value={totalUsers} icon={Users} accent="amber" context="Registered customers" />
-        <StatCard label="Total Products" value={totalProducts} icon={Package} accent="green" context="Menu items" />
-        <StatCard label="Total Admins" value={totalAdmins} icon={Users} accent="amber" context="Admin accounts" />
-        <StatCard label="Out of Stock" value={outOfStock} icon={AlertTriangle} tone="warning" accent="red" context={outOfStock > 0 ? `${outOfStock} item${outOfStock === 1 ? '' : 's'} need attention` : 'All items available'} />
-      </div>}
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <StatCard label="Total Orders" value={orders.length} icon={ShoppingBag} accent="green" trend={ordersTrend.trend} trendDirection={ordersTrend.direction} sparkline={ordersTrend.sparkline} context={sectionErrors.orders || 'Orders to date'} loading={sectionLoading.orders} unavailable={!!sectionErrors.orders} />
+        <StatCard label="Total Users" value={totalUsers} icon={Users} accent="amber" context={sectionErrors.customers || 'Registered customers'} loading={sectionLoading.customers} unavailable={!!sectionErrors.customers} />
+        <StatCard label="Total Products" value={totalProducts} icon={Package} accent="green" context={sectionErrors.products || 'Menu items'} loading={sectionLoading.products} unavailable={!!sectionErrors.products} />
+        <StatCard label="Total Admins" value={totalAdmins} icon={Users} accent="amber" context={sectionErrors.admins || 'Admin accounts'} loading={sectionLoading.admins} unavailable={!!sectionErrors.admins} />
+        <StatCard label="Out of Stock" value={outOfStock} icon={AlertTriangle} tone="warning" accent="red" context={sectionErrors.products || (outOfStock > 0 ? `${outOfStock} item${outOfStock === 1 ? '' : 's'} need attention` : 'All items available')} loading={sectionLoading.products} unavailable={!!sectionErrors.products} />
+      </div>
       <div className="mb-6 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.8fr)_minmax(320px,1fr)]">
       <section className="admin-card overflow-hidden">
         <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4">
           <div><h2 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">Recent Orders</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Latest customer activity</p></div>
         </div>
-        {dashboardLoading ? <div aria-label="Loading recent orders" aria-busy="true" className="admin-skeleton m-4 h-72 animate-pulse rounded-xl" /> : <DataTable className="dashboard-orders-table" columnWidths={['240px', 'calc(100% - 630px)', '120px', '140px', '130px']} columnAlignments={['left', 'left', 'right', 'left', 'right']} caption="Recent orders" headers={['Order ID', 'Customer', 'Total', 'Status', 'Date']}>
-          {recentOrders.length === 0 ? <tr><td colSpan={5} className="p-2"><EmptyState title="No orders yet" description="New orders will show up here as soon as customers place them." action={<button type="button" onClick={() => navigate('/admin/orders')} className="mt-2 rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">Open orders</button>} /></td></tr> :
+        {sectionLoading.orders ? <div aria-label="Loading recent orders" aria-busy="true" className="admin-skeleton m-4 h-72 animate-pulse rounded-xl" /> : <DataTable className="dashboard-orders-table" columnWidths={['240px', 'calc(100% - 630px)', '120px', '140px', '130px']} columnAlignments={['left', 'left', 'right', 'left', 'right']} caption="Recent orders" headers={['Order ID', 'Customer', 'Total', 'Status', 'Date']}>
+          {sectionErrors.orders ? <tr><td colSpan={5} className="p-4 text-center text-sm text-red-700">{sectionErrors.orders}</td></tr> : recentOrders.length === 0 ? <tr><td colSpan={5} className="p-2"><EmptyState title="No orders yet" description="New orders will show up here as soon as customers place them." action={<button type="button" onClick={() => navigate('/admin/orders')} className="mt-2 rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">Open orders</button>} /></td></tr> :
             recentOrders.map((order) => {
               const date = formatRelativeDate(order.created_at || order.timestamp);
               const fullOrderId = String(order.order_number || order.id || '');
@@ -241,7 +249,7 @@ const AdminDashboardPage: React.FC = () => {
         </DataTable>}
         <footer className="flex justify-end border-t border-[var(--oppa-border)] px-4 py-3"><button type="button" onClick={() => navigate('/admin/orders')} className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">View All <ArrowRight size={15} /></button></footer>
       </section>
-      <DashboardCharts orders={orders} loading={dashboardLoading} />
+      <DashboardCharts orders={orders} loading={sectionLoading.orders} unavailable={!!sectionErrors.orders} />
       </div>
     </AdminLayout>
   );

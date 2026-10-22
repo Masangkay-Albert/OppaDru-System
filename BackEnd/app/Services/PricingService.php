@@ -9,6 +9,17 @@ use App\Models\SystemSetting;
 
 class PricingService
 {
+    private const SETTINGS_KEYS = [
+        'delivery_base_fee',
+        'delivery_base_distance_km',
+        'delivery_per_km_rate',
+        'delivery_free_subtotal',
+        'delivery_max_fee',
+        'service_fee_rate',
+        'service_fee_min',
+        'service_fee_max',
+    ];
+
     public function calculatePosDiscount(float $subtotal, bool $discountEligible): array
     {
         $roundedSubtotal = max(0, round($subtotal));
@@ -32,15 +43,20 @@ class PricingService
 
     public function settings(): array
     {
+        $storedSettings = SystemSetting::query()
+            ->whereIn('key', self::SETTINGS_KEYS)
+            ->pluck('value', 'key')
+            ->all();
+
         return [
-            'delivery_base_fee' => $this->setting('delivery_base_fee', 49),
-            'delivery_base_distance_km' => $this->setting('delivery_base_distance_km', 3),
-            'delivery_per_km_rate' => $this->setting('delivery_per_km_rate', 10),
-            'delivery_free_subtotal' => $this->setting('delivery_free_subtotal', 999),
-            'delivery_max_fee' => $this->setting('delivery_max_fee', 150),
-            'service_fee_rate' => $this->setting('service_fee_rate', 0.03, 4),
-            'service_fee_min' => $this->setting('service_fee_min', 15),
-            'service_fee_max' => $this->setting('service_fee_max', 80),
+            'delivery_base_fee' => $this->setting($storedSettings, 'delivery_base_fee', 49),
+            'delivery_base_distance_km' => $this->setting($storedSettings, 'delivery_base_distance_km', 3),
+            'delivery_per_km_rate' => $this->setting($storedSettings, 'delivery_per_km_rate', 10),
+            'delivery_free_subtotal' => $this->setting($storedSettings, 'delivery_free_subtotal', 999),
+            'delivery_max_fee' => $this->setting($storedSettings, 'delivery_max_fee', 150),
+            'service_fee_rate' => $this->setting($storedSettings, 'service_fee_rate', 0.03, 4),
+            'service_fee_min' => $this->setting($storedSettings, 'service_fee_min', 15),
+            'service_fee_max' => $this->setting($storedSettings, 'service_fee_max', 80),
             'vat_rate' => 0.12,
         ];
     }
@@ -137,8 +153,8 @@ class PricingService
         return round($earthRadiusKm * 2 * atan2(sqrt($a), sqrt(1 - $a)), 3);
     }
 
-    private function setting(string $key, float $default, int $decimals = 2): float
+    private function setting(array $settings, string $key, float $default, int $decimals = 2): float
     {
-        return round((float) (SystemSetting::where('key', $key)->value('value') ?? $default), $decimals);
+        return round((float) ($settings[$key] ?? $default), $decimals);
     }
 }

@@ -260,22 +260,21 @@ export const getAllCustomers = async (): Promise<any[]> => {
   if (customersCache && customersCache.expiresAt > Date.now()) return customersCache.promise;
 
   const request = (async () => {
-   try {
     const response = await fetchWithAdminAuth(`${API_URL}/orders/customers`);
 
     if (!response.ok) {
-      throw new Error('Failed to fetch customers');
+      throw new Error(`Failed to fetch customers (${response.status}).`);
     }
 
     const result = await response.json();
     return Array.isArray(result?.data) ? result.data : [];
-   } catch {
-    return [];
-   }
   })();
 
   customersCache = { expiresAt: Date.now() + CACHE_TTL, promise: request };
-  return request;
+  return request.catch((error: unknown) => {
+    if (customersCache?.promise === request) customersCache = null;
+    throw error;
+  });
 };
 
 export interface OnsiteOrderData {

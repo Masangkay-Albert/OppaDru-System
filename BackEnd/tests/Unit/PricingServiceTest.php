@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\Product;
 use App\Models\Addon;
 use App\Models\AddonGroup;
+use App\Models\SystemSetting;
 use App\Services\PricingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -12,6 +13,34 @@ use Tests\TestCase;
 class PricingServiceTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_settings_load_all_values_in_one_query_and_use_defaults_for_missing_values(): void
+    {
+        SystemSetting::create(['key' => 'delivery_base_fee', 'value' => '75.00']);
+        $queries = 0;
+        \DB::listen(function ($query) use (&$queries) {
+            if (str_contains(strtolower($query->sql), 'system_settings')) {
+                $queries++;
+            }
+        });
+
+        $settings = app(PricingService::class)->settings();
+
+        $this->assertSame(75.0, $settings['delivery_base_fee']);
+        $this->assertSame(3.0, $settings['delivery_base_distance_km']);
+        $this->assertSame(1, $queries);
+    }
+
+    public function test_settings_reflect_database_updates_on_the_next_read(): void
+    {
+        SystemSetting::create(['key' => 'delivery_base_fee', 'value' => '75.00']);
+        $service = app(PricingService::class);
+        $this->assertSame(75.0, $service->settings()['delivery_base_fee']);
+
+        SystemSetting::where('key', 'delivery_base_fee')->update(['value' => '80.00']);
+
+        $this->assertSame(80.0, $service->settings()['delivery_base_fee']);
+    }
 
     public function test_onsite_pos_senior_discount_applies_twenty_percent_to_vat_exempt_base(): void
     {

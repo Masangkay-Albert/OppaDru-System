@@ -238,7 +238,7 @@ export const apiGetAdmins = async (): Promise<StoredAccount[] | null> => {
 
 export const apiGetAdminCount = async (): Promise<number> => {
   const res = await fetchWithAdminAuth(`${API_URL}/admin/count`);
-  if (!res.ok) return 0;
+  if (!res.ok) throw new Error(`Failed to fetch admin count (${res.status}).`);
   const body = await res.json();
   return body.count || 0;
 };
