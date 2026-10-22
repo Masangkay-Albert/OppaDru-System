@@ -93,6 +93,34 @@ class FranchiseStaffManagementTest extends TestCase
         ], ['Authorization' => 'Bearer ' . $token])->assertNotFound();
     }
 
+    public function test_cavite_branch_is_configured_as_the_main_branch(): void
+    {
+        $previousMain = Franchise::create([
+            'name' => 'Old Main Branch',
+            'slug' => 'old-main-branch',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
+        $caviteBranch = Franchise::create([
+            'name' => 'Cavite branch',
+            'slug' => 'cavite-branch',
+            'address' => 'Dasmariñas, Cavite',
+            'status' => 'active',
+        ]);
+
+        $this->seed(\Database\Seeders\MainBranchSeeder::class);
+        $this->seed(\Database\Seeders\MainBranchSeeder::class);
+
+        $this->assertDatabaseHas('franchises', [
+            'id' => $caviteBranch->id,
+            'is_main' => true,
+        ]);
+        $this->assertDatabaseHas('franchises', [
+            'id' => $previousMain->id,
+            'is_main' => false,
+        ]);
+    }
+
     public function test_franchise_manager_can_create_and_manage_only_employees_at_assigned_location(): void
     {
         $account = FranchiseAccount::create([
