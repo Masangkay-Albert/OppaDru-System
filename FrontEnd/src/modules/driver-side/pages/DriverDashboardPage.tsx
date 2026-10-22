@@ -4,9 +4,11 @@ import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Truck, MapPin, CheckCircle, Phone, Clock, Eye, X, ImagePlus, Flame } from 'lucide-react';
 import DriverLayout from '../components/DriverLayout';
+import StaffBranchBadge from '../../shared/components/StaffBranchBadge';
 import RouteLayer from '../../customer-side/components/tracking/RouteLayer';
 import { destinationIcon, storeIcon } from '../../customer-side/components/tracking/MapIcons';
 import { OrderDateTime, StatusBadge } from '../../shared/components/DashboardPrimitives';
+import { getDriverBranchDisplay, type DriverAuthData } from '../../../services/driverAuth';
 import {
   EmployeeDashboardEmptyState,
   EmployeeDashboardHeader,
@@ -67,6 +69,13 @@ const DriverDashboardPage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [driverName, setDriverName] = useState<string>("Driver");
   const [driverId, setDriverId] = useState<string>("");
+  const branch = (() => {
+    try {
+      return getDriverBranchDisplay(JSON.parse(localStorage.getItem('driver_auth') || 'null') as DriverAuthData | null);
+    } catch {
+      return getDriverBranchDisplay(null);
+    }
+  })();
   
   const [selectedOrder, setSelectedOrder] = useState<DriverOrder | null>(null);
   const getDisplayOrderNumber = (order: DriverOrder) => order.order_number || order.id;
@@ -85,7 +94,7 @@ const DriverDashboardPage: React.FC = () => {
     }
 
     try {
-      const driver = JSON.parse(authData);
+      const driver = JSON.parse(authData) as DriverAuthData;
       if (driver && driver.name) {
         setDriverName(driver.name);
       }
@@ -232,6 +241,7 @@ const DriverDashboardPage: React.FC = () => {
         title="Delivery Dashboard"
         name={driverName}
         subtitle="Manage available orders and track your active deliveries."
+        context={<StaffBranchBadge name={branch.name} id={branch.id} />}
       />
 
       {/* Tabs and Sort Controls */}

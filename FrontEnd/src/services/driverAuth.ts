@@ -2,6 +2,26 @@ import { API_URL } from './apiConfig';
 
 const API_BASE_URL = API_URL;
 
+export interface DriverAuthData {
+  id?: string;
+  name?: string;
+  franchise_id?: string | null;
+  franchise?: {
+    id?: string;
+    name?: string;
+  } | null;
+}
+
+const defaultDriverBranch = {
+  name: 'Cavite Branch',
+  id: 'OPPA-FR-SM5KDJPM',
+};
+
+export const getDriverBranchDisplay = (driver: DriverAuthData | null) => ({
+  name: driver?.franchise?.name || defaultDriverBranch.name,
+  id: driver?.franchise?.id || driver?.franchise_id || defaultDriverBranch.id,
+});
+
 export const driverAuth = {
   login: async (email: string, password: string): Promise<{ success: boolean; message?: string }> => {
     try {

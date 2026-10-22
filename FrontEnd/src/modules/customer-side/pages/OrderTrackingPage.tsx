@@ -97,6 +97,7 @@ const OrderTrackingPageContent: React.FC = () => {
   const onTheWayEntries = order?.statusHistory?.filter((entry) => normalizeOrderStatus(entry.status) === 'on_the_way') || [];
   const onTheWayEntry = onTheWayEntries[onTheWayEntries.length - 1];
   const isDelivered = status === 'delivered' || status === 'completed';
+  const routeProgress = isDelivered ? 100 : simulatedProgress;
   const statusColor = STATUS_COLORS[status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700';
   const createdAt = order ? getOrderCreatedAtMs(order) : 0;
   const cancelSeconds = status === ORDER_STATUS.PENDING && createdAt > 0
@@ -222,8 +223,8 @@ const OrderTrackingPageContent: React.FC = () => {
                 {!hasTrackingCoordinates && <div className="flex h-full items-center justify-center bg-[#f8fbf8] px-6 text-center text-sm text-gray-600">Store or delivery coordinates are not available for this order.</div>}
                 {hasTrackingCoordinates && <MapContainer key={`${order.id}-${branchCoordinates!.lat}-${branchCoordinates!.lng}-${destinationCoordinates!.lat}-${destinationCoordinates!.lng}`} center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl>
                   <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  <RouteLayer start={branchCoordinates!} end={destinationCoordinates!} progress={simulatedProgress} onRouteLoaded={handleRouteLoaded} />
-                  <DriverMarker routePoints={routePoints} progress={simulatedProgress} />
+                  <RouteLayer start={branchCoordinates!} end={destinationCoordinates!} progress={routeProgress} onRouteLoaded={handleRouteLoaded} />
+                  <DriverMarker routePoints={routePoints} progress={routeProgress} />
                   <Marker position={[branchCoordinates!.lat, branchCoordinates!.lng]} icon={storeIcon}><Popup><strong>{order.branchName || 'Assigned branch'}</strong><br /><span className="text-xs text-gray-500">Store location</span></Popup></Marker>
                   <Marker position={[destinationCoordinates!.lat, destinationCoordinates!.lng]} icon={destinationIcon}><Popup><strong>Delivery Address</strong><br /><span className="text-xs text-gray-500">{order.deliveryAddress || order.address}</span></Popup></Marker>
                 </MapContainer>}
