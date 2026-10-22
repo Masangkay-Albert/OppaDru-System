@@ -63,6 +63,16 @@ class OrderPlacementTest extends TestCase
             'role' => 'customer',
             'email_verified_at' => now(),
         ]);
+        Franchise::create([
+            'name' => 'Order Test Branch',
+            'status' => 'active',
+            'latitude' => 14.3194,
+            'longitude' => 120.9943,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 15,
+        ]);
 
         $product = Product::create([
             'name' => 'Soy Garlic Chicken',
@@ -95,6 +105,7 @@ class OrderPlacementTest extends TestCase
                 ],
                 'total' => 0,
                 'delivery_address' => 'Block 1, Lot 2, Dasmarinas, Cavite',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'cash_on_delivery',
                 'phone' => '09171234567',
             ]);
@@ -110,6 +121,65 @@ class OrderPlacementTest extends TestCase
             ->assertOk()
             ->assertJsonPath('0.id', $orderResponse->json('order.id'))
             ->assertJsonPath('0.delivery_type', 'standard');
+    }
+
+    public function test_customer_order_history_uses_the_authenticated_account(): void
+    {
+        $user = User::create([
+            'full_name' => 'Authenticated Customer',
+            'email' => 'authenticated@example.com',
+            'phone' => '09171234567',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        Franchise::create([
+            'name' => 'Order History Test Branch',
+            'status' => 'active',
+            'latitude' => 14.3194,
+            'longitude' => 120.9943,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 15,
+        ]);
+
+        $product = Product::create([
+            'name' => 'Authenticated Chicken',
+            'description' => 'Test chicken',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ]);
+
+        $response = $this->actingAs($user, 'api')
+            ->postJson('/api/orders', [
+                'email' => 'different@example.com',
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'total' => 0,
+                'delivery_address' => 'Authenticated customer address',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
+                'payment_method' => 'cash_on_delivery',
+                'phone' => '09171234567',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('order.email', $user->email);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $response->json('order.id'),
+            'user_id' => $user->id,
+            'email' => $user->email,
+        ]);
+
+        $this->getJson('/api/orders/user')
+            ->assertOk()
+            ->assertJsonPath('0.id', $response->json('order.id'));
     }
 
     public function test_customer_order_tracking_is_owned_and_returns_status_history(): void

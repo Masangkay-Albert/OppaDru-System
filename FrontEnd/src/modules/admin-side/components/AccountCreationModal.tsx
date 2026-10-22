@@ -144,7 +144,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
   const loadingLabel = mode === 'admin' ? 'Creating Admin...' : isBranchStaff ? 'Adding Staff...' : 'Creating Employee...';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4 backdrop-blur-[1px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#173826]/20 p-4 backdrop-blur-[2px]">
       <button
         type="button"
         aria-label="Close modal"
@@ -263,7 +263,18 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
           {isBranchStaff && form.position === 'driver' && (
             <div>
               <label htmlFor="account-vehicle-type" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">Vehicle type</label>
-              <input id="account-vehicle-type" name="vehicle_type" value={form.vehicle_type || ''} onChange={(event) => updateField('vehicle_type', event.target.value)} placeholder="e.g. Motorcycle" className={fieldClass.replace('pl-10', 'pl-3')} aria-invalid={Boolean(errors.vehicle_type)} />
+              <select
+                id="account-vehicle-type"
+                name="vehicle_type"
+                value={form.vehicle_type || ''}
+                onChange={(event) => updateField('vehicle_type', event.target.value)}
+                className={fieldClass.replace('pl-10', 'pl-3')}
+                aria-invalid={Boolean(errors.vehicle_type)}
+              >
+                <option value="" disabled>Select vehicle type</option>
+                <option value="motorcycle">Motor</option>
+                <option value="bike">Bike</option>
+              </select>
               {errors.vehicle_type && <p className={errorClass}>{errors.vehicle_type}</p>}
             </div>
           )}

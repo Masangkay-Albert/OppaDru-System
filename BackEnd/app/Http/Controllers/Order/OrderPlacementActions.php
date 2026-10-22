@@ -7,7 +7,6 @@ use App\Models\DiscountVerificationRequest;
 use App\Models\Franchise;
 use App\Models\Order;
 use App\Models\Payment;
-use App\Models\User;
 use App\Services\PricingService;
 use App\Support\DatabaseImage;
 use Carbon\Carbon;
@@ -268,8 +267,9 @@ trait OrderPlacementActions
 
         $orderItems = $this->orderDataService->buildOrderItems($request->items);
 
-        $user = User::where('email', $request->email)->first();
-        $userId = $user ? $user->id : null;
+        $user = $request->user();
+        $userId = $user->id;
+        $userEmail = $user->email;
 
         $promoCode = $request->input('promo_code');
         $promoDiscount = (float) $request->input('promo_discount', $request->input('voucher_discount', 0));
@@ -296,6 +296,7 @@ trait OrderPlacementActions
         try {
             $order = DB::transaction(function () use (
                 $request,
+                $userEmail,
                 $scheduledData,
                 $pricing,
                 $total,
@@ -333,7 +334,7 @@ trait OrderPlacementActions
                     'franchise_id' => $branchResolution['branch']->id,
                     'franchise_account_id' => $branchResolution['branch']->franchise_account_id,
                     'branch_id' => $branchResolution['branch']->id,
-                    'email' => $request->email,
+                    'email' => $userEmail,
                     'user_id' => $userId,
                     'total' => $total,
                     'delivery_type' => $request->input('delivery_type', 'standard'),

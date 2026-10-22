@@ -279,20 +279,21 @@ const AdminOrdersPage: React.FC = () => {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
-          <table className="admin-table w-full table-fixed text-left text-sm">
+          <div className="overflow-x-auto">
+          <table className="admin-table w-full min-w-full table-fixed text-left text-sm md:min-w-[1100px]">
             <thead>
               <tr className="sticky top-0 border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
-                <th className="w-[14%] min-w-52 px-3 py-3 font-semibold">Order ID</th>
-                <th className="w-[16%] px-3 py-3 font-semibold">Customer</th>
-                <th className="w-[9%] px-3 py-3 font-semibold">Channel</th>
-                <th className="w-[14%] px-3 py-3 font-semibold">Branch</th>
-                <th className="w-[16%] px-3 py-3 font-semibold">Items</th>
-                <th className="w-[13%] px-7 py-3 text-right font-semibold"><span className="mr-5 inline-block">Total</span></th>
-                <th className="w-[14%] px-7 py-3 font-semibold"><span className="ml-5 inline-block">Status</span></th>
-                <th className="w-[11%] px-3 py-3 font-semibold">
+                <th className="w-[13%] px-3 py-3 font-semibold">Order ID</th>
+                <th className="w-[15%] px-3 py-3 font-semibold">Customer</th>
+                <th className="w-[8%] px-3 py-3 font-semibold">Channel</th>
+                <th className="w-[12%] px-3 py-3 font-semibold">Branch</th>
+                <th className="w-[17%] px-3 py-3 font-semibold">Items</th>
+                <th className="w-[8%] px-3 py-3 text-right font-semibold">Total</th>
+                <th className="w-[11%] px-3 py-3 font-semibold">Status</th>
+                <th className="w-[9%] px-3 py-3 font-semibold">
                   <button type="button" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')} className="inline-flex items-center gap-1 font-semibold hover:text-[var(--oppa-green-dark)]" aria-label={`Sort date ${sortOrder === 'desc' ? 'oldest first' : 'newest first'}`}>Date <span aria-hidden="true">{sortOrder === 'desc' ? '↓' : '↑'}</span></button>
                 </th>
-                <th className="w-[7%] px-2 py-3 text-right font-semibold">View</th>
+                <th className="w-[7%] min-w-[88px] px-2 py-3 text-right font-semibold">View</th>
               </tr>
             </thead>
             <tbody>
@@ -313,8 +314,8 @@ const AdminOrdersPage: React.FC = () => {
                     onKeyDown={(event) => { if (event.key === 'Enter' && event.target === event.currentTarget) setSelectedOrder(order); }}
                     className="group cursor-pointer border-b border-[var(--oppa-border)]/60 last:border-0 transition hover:bg-[var(--oppa-cream)]/50"
                   >
-                    <td data-label="Order ID" className="min-w-52 whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-[var(--oppa-text)]" title={orderId}>
-                      <span>{orderId}</span>
+                    <td data-label="Order ID" className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-[var(--oppa-text)]" title={orderId}>
+                      <span className="inline-block max-w-full truncate align-bottom">{orderId}</span>
                       <button type="button" aria-label={`Copy order ID ${orderId}`} title={copiedOrderId === orderId ? 'Copied' : 'Copy order ID'} onClick={(event) => { event.stopPropagation(); copyOrderId(orderId); }} className="ml-1 inline-flex rounded-md p-1 text-[var(--oppa-text-muted)] opacity-0 transition-opacity hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-green-dark)] group-hover:opacity-100 focus-visible:opacity-100"><Copy size={13} /></button>
                     </td>
                     <td data-label="Customer" className="px-3 py-2.5 min-w-0">
@@ -325,7 +326,8 @@ const AdminOrdersPage: React.FC = () => {
                         </p>
                         {order.email && order.customerName && (
                           <p className="truncate text-[11px] text-[var(--oppa-text-muted)]">{order.email}</p>
-                        )}</div>
+                        )}
+                        </div>
                       </div>
                     </td>
                     <td data-label="Channel" className="px-3 py-2.5">
@@ -389,6 +391,7 @@ const AdminOrdersPage: React.FC = () => {
               })}
             </tbody>
           </table>
+          </div>
           <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--oppa-border)] px-4 py-3 text-xs text-[var(--oppa-text-muted)]">
             <span>Showing <strong className="tabular-nums text-[var(--oppa-text)]">{filteredOrders.length ? (currentPage - 1) * rowsPerPage + 1 : 0}-{Math.min(currentPage * rowsPerPage, filteredOrders.length)}</strong> of <strong className="tabular-nums text-[var(--oppa-text)]">{filteredOrders.length}</strong></span>
             <div className="flex items-center gap-2"><label htmlFor="orders-page-size">Rows</label><select id="orders-page-size" value={rowsPerPage} onChange={(event) => { setRowsPerPage(Number(event.target.value)); setCurrentPage(1); }} className="h-8 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2"><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select>

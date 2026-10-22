@@ -204,17 +204,17 @@ const FranchiseOrdersPage: React.FC = () => {
         ) : (
           <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm">
             <div className="overflow-x-auto">
-              <table className="admin-table franchise-orders-table w-full min-w-[1120px] table-fixed text-left text-sm">
+              <table className="admin-table franchise-orders-table w-full min-w-[1100px] table-fixed text-left text-sm">
                 <thead><tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
-                  <th className="w-[13%] px-3 py-3 font-semibold">Order ID</th>
-                  <th className="w-[17%] px-3 py-3 font-semibold">Customer</th>
+                  <th className="w-[12%] px-3 py-3 font-semibold">Order ID</th>
+                  <th className="w-[16%] px-3 py-3 font-semibold">Customer</th>
                   <th className="w-[8%] px-3 py-3 font-semibold">Channel</th>
-                  <th className="w-[13%] px-3 py-3 font-semibold">Branch</th>
-                  <th className="w-[17%] px-3 py-3 font-semibold">Items</th>
-                  <th className="w-[9%] px-3 py-3 text-right font-semibold">Total</th>
+                  <th className="w-[12%] px-3 py-3 font-semibold">Branch</th>
+                  <th className="w-[16%] px-3 py-3 font-semibold">Items</th>
+                  <th className="w-[8%] px-3 py-3 text-right font-semibold">Total</th>
                   <th className="w-[10%] px-3 py-3 font-semibold">Status</th>
                   <th className="w-[9%] px-3 py-3 font-semibold">Date</th>
-                  <th className="w-[4%] px-2 py-3 text-right font-semibold">View</th>
+                  <th className="w-[9%] min-w-[96px] px-2 py-3 text-right font-semibold">View</th>
                 </tr></thead>
                 <tbody>
                   {filteredOrders.map((order) => {
