@@ -1,69 +1,57 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        DB::unprepared(<<<'SQL'
-create table if not exists product_addon_groups (
-    product_id varchar(100) not null,
-    addon_group_id bigint not null,
-    created_at timestamp null,
-    updated_at timestamp null,
-    primary key (product_id, addon_group_id),
-    constraint product_addon_groups_product_id_foreign
-        foreign key (product_id) references products(id),
-    constraint product_addon_groups_addon_group_id_foreign
-        foreign key (addon_group_id) references addon_groups(id)
-);
+        if (! Schema::hasTable('product_addon_groups')) {
+            Schema::create('product_addon_groups', function (Blueprint $table) {
+                $table->string('product_id', 100);
+                $table->foreignId('addon_group_id')->constrained('addon_groups');
+                $table->timestamps();
+                $table->primary(['product_id', 'addon_group_id']);
+                $table->foreign('product_id')->references('id')->on('products');
+            });
+        }
 
-create table if not exists order_items (
-    id integer primary key autoincrement,
-    order_id varchar(100) not null,
-    product_id varchar(100) null,
-    product_name text not null,
-    product_price numeric(10,2) not null,
-    quantity integer not null,
-    special_instructions text null,
-    created_at timestamp null,
-    updated_at timestamp null,
-    constraint order_items_order_id_foreign
-        foreign key (order_id) references orders(id),
-    constraint order_items_product_id_foreign
-        foreign key (product_id) references products(id)
-);
+        if (! Schema::hasTable('order_items')) {
+            Schema::create('order_items', function (Blueprint $table) {
+                $table->id();
+                $table->string('order_id', 100);
+                $table->string('product_id', 100)->nullable();
+                $table->text('product_name');
+                $table->decimal('product_price', 10, 2);
+                $table->unsignedInteger('quantity');
+                $table->text('special_instructions')->nullable();
+                $table->timestamps();
+                $table->foreign('order_id')->references('id')->on('orders');
+                $table->foreign('product_id')->references('id')->on('products');
+                $table->index('order_id');
+            });
+        }
 
-create index if not exists order_items_order_id_index
-    on order_items(order_id);
-
-create table if not exists order_item_addons (
-    id integer primary key autoincrement,
-    order_item_id bigint not null,
-    addon_id bigint null,
-    addon_name text not null,
-    unit_price numeric(10,2) not null,
-    quantity integer not null default 1,
-    created_at timestamp null,
-    updated_at timestamp null,
-    constraint order_item_addons_order_item_id_foreign
-        foreign key (order_item_id) references order_items(id),
-    constraint order_item_addons_addon_id_foreign
-        foreign key (addon_id) references addons(id) on delete set null
-);
-
-create index if not exists order_item_addons_order_item_id_index
-    on order_item_addons(order_item_id);
-SQL
-        );
+        if (! Schema::hasTable('order_item_addons')) {
+            Schema::create('order_item_addons', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('order_item_id')->constrained('order_items');
+                $table->foreignId('addon_id')->nullable()->constrained('addons')->nullOnDelete();
+                $table->text('addon_name');
+                $table->decimal('unit_price', 10, 2);
+                $table->unsignedInteger('quantity')->default(1);
+                $table->timestamps();
+                $table->index('order_item_id');
+            });
+        }
     }
 
     public function down(): void
     {
-        DB::statement('drop table if exists order_item_addons');
-        DB::statement('drop table if exists order_items');
-        DB::statement('drop table if exists product_addon_groups');
+        Schema::dropIfExists('order_item_addons');
+        Schema::dropIfExists('order_items');
+        Schema::dropIfExists('product_addon_groups');
     }
 };
