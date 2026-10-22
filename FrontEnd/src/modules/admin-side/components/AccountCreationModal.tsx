@@ -253,7 +253,6 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                 >
                   <option value="cashier">Cashier</option>
                   <option value={isBranchStaff ? 'kitchen_staff' : 'kitchen staff'}>Kitchen Staff</option>
-                  {!isBranchStaff && <option value="staff">Staff</option>}
                   {isBranchStaff && <option value="driver">Driver</option>}
                 </select>
               </div>

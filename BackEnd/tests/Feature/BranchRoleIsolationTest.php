@@ -203,6 +203,36 @@ class BranchRoleIsolationTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_driver_can_see_branch_id_orders_in_available_tab(): void
+    {
+        $branch = $this->makeBranch('Branch ID Driver Branch');
+        $driver = $this->makeDriver($branch, 'branch-id-driver@branch.test');
+        $token = $this->tokenDriver($driver);
+
+        $order = Order::create([
+            'id' => 'BRANCH-ID-ORDER',
+            'branch_id' => $branch->id,
+            'franchise_id' => null,
+            'email' => 'customer@example.test',
+            'order_number' => 'BRANCH-ID-ORDER',
+            'total' => 250,
+            'status' => 'prepared',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Delivery address',
+            'phone' => '09170000003',
+            'items' => [['product_name' => 'Meal', 'product_price' => 250, 'quantity' => 1]],
+            'delivery_type' => 'standard',
+            'delivery_calculation_method' => 'base_fee_plus_distance_rate_capped',
+        ]);
+
+        $response = $this->getJson('/api/driver/orders?tab=available', [
+            'Authorization' => 'Bearer ' . $token,
+        ]);
+
+        $response->assertOk();
+        $this->assertContains($order->id, collect($response->json())->pluck('id')->all());
+    }
+
     public function test_staff_admin_apis_reject_requests_without_admin_token(): void
     {
         $this->getJson('/api/employees')->assertUnauthorized();

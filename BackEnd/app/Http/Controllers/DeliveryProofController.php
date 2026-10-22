@@ -23,7 +23,10 @@ class DeliveryProofController extends Controller
             'proof_image' => 'required|file|image|mimes:jpeg,jpg,png,webp|max:5120',
         ]);
 
-        $order = Order::where('franchise_id', $driver->franchise_id)
+        $order = Order::where(function ($branchQuery) use ($driver) {
+                $branchQuery->where('franchise_id', $driver->franchise_id)
+                    ->orWhere('branch_id', $driver->franchise_id);
+            })
             ->where('driver_id', $driver->id)
             ->where(function ($query) {
                 $query->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');

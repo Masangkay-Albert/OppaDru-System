@@ -36,7 +36,10 @@ class DriverOrderController extends Controller
             'branch:id,name,address,latitude,longitude',
             'franchise:id,name,address,latitude,longitude',
         ])
-            ->where('franchise_id', $driver->franchise_id)
+            ->where(function ($branchQuery) use ($driver) {
+                $branchQuery->where('franchise_id', $driver->franchise_id)
+                    ->orWhere('branch_id', $driver->franchise_id);
+            })
             ->where(function ($deliveryQuery) {
                 $deliveryQuery->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');
             });
@@ -144,12 +147,15 @@ class DriverOrderController extends Controller
         try {
             $order = \Illuminate\Support\Facades\DB::transaction(function () use ($driver, $id, $targetStatus) {
                 $order = Order::with(['branch:id,name', 'franchise:id,name'])
-                    ->where('franchise_id', $driver->franchise_id)
-                    ->where(function ($deliveryQuery) {
-                        $deliveryQuery->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');
+                ->where(function ($branchQuery) use ($driver) {
+                    $branchQuery->where('franchise_id', $driver->franchise_id)
+                        ->orWhere('branch_id', $driver->franchise_id);
                     })
-                    ->lockForUpdate()
-                    ->findOrFail($id);
+                ->where(function ($deliveryQuery) {
+                    $deliveryQuery->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'onsite');
+                })
+                ->lockForUpdate()
+                ->findOrFail($id);
 
                 if ($targetStatus === 'on_the_way') {
                     if (!in_array($order->status, ['prepared', 'ready'], true) || $order->driver_id) {
