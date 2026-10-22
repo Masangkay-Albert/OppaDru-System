@@ -80,6 +80,42 @@ class BranchRoutingTest extends TestCase
         }
     }
 
+    public function test_seeded_cavite_main_branch_resolves_a_pinned_paliparan_address(): void
+    {
+        $this->seed(\Database\Seeders\MainBranchSeeder::class);
+        $branch = Franchise::where('is_main', true)->firstOrFail();
+        $product = $this->product();
+        $this->addInventory($branch, $product);
+        $this->mock(GeocodingService::class)
+            ->shouldReceive('geocodeAddress')
+            ->once()
+            ->with('Paliparan 3, Dasmariñas, Cavite, Philippines')
+            ->andReturn([
+                'lat' => 14.3441,
+                'lng' => 120.9740,
+                'matchedQuery' => 'Paliparan 3, Dasmariñas, Cavite, Philippines',
+                'isBroad' => false,
+            ]);
+
+        $this->postJson('/api/branches/resolve', [
+            'address' => 'Paliparan 3, Dasmariñas, Cavite, Philippines',
+            'coordinates' => ['lat' => 14.3441, 'lng' => 120.9740],
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertOk()
+            ->assertJsonPath('data.branch.id', $branch->id)
+            ->assertJsonPath('data.branch.name', 'Cavite Branch')
+            ->assertJsonPath('data.unavailable_items', []);
+
+        $this->postJson('/api/branches/resolve', [
+            'address' => 'Paliparan 3, Dasmariñas, Cavite, Philippines',
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertOk()
+            ->assertJsonPath('data.branch.id', $branch->id)
+            ->assertJsonPath('data.branch.name', 'Cavite Branch');
+    }
+
     public function test_dasmarinas_routes_to_the_cavite_branch_when_its_coordinates_are_correct(): void
     {
         $legacyMisnamedBranch = $this->branch('Oppa Dru Korean Fried Chicken - Laguna', 14.3294, 120.9367);

@@ -31,6 +31,11 @@ class MainBranchSeeder extends Seeder
                 'address' => '37 Malihan St. Barangay Zone 1, Dasmariñas, Cavite, Philippines',
                 'status' => 'active',
                 'is_active' => true,
+                'latitude' => 14.3286124,
+                'longitude' => 120.9355294,
+                'accepts_online_orders' => true,
+                'delivery_enabled' => true,
+                'delivery_radius_km' => 15,
                 'is_main' => false,
             ]);
             $branch->save();

@@ -87,10 +87,15 @@ export default function AdminDelivery() {
         setFormError(errorData.message || 'Failed to add partner. Please check the details and retry.');
         return;
       }
+      const createdPartner: DeliveryPartner = await res.json();
+      setPartners((current) => [
+        createdPartner,
+        ...current.filter((partner) => partner.id !== createdPartner.id),
+      ]);
       setForm({ name: '', email: '', password: '', phone: '', vehicleType: '' });
       setShowForm(false);
       setFeedback(`${displayName(cleanedName)} added as a delivery partner.`);
-      await refresh();
+      void refresh();
     } catch (requestError) {
       console.error('Add driver error:', requestError);
       setFormError('The partner could not be added. Check your connection and retry.');

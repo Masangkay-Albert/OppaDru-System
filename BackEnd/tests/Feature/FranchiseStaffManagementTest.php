@@ -114,6 +114,10 @@ class FranchiseStaffManagementTest extends TestCase
         $this->assertDatabaseHas('franchises', [
             'id' => $caviteBranch->id,
             'is_main' => true,
+            'latitude' => 14.3286124,
+            'longitude' => 120.9355294,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
         ]);
         $this->assertDatabaseHas('franchises', [
             'id' => $previousMain->id,
