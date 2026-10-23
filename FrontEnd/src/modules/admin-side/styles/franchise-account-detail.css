@@ -1,0 +1,163 @@
+.franchise-account-page {
+  --detail-radius: 16px;
+  --detail-shadow: 0 2px 8px rgb(30 50 35 / 7%), 0 1px 2px rgb(30 50 35 / 5%);
+  color: var(--oppa-text, #1e2b22);
+}
+
+.franchise-account-page :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid rgb(24 122 68 / 38%);
+  outline-offset: 2px;
+}
+
+.franchise-account-hero {
+  background-image: radial-gradient(circle at 94% 10%, rgb(31 126 69 / 5%) 0 2px, transparent 2.5px);
+  background-size: 15px 15px;
+}
+
+.franchise-account-heading,
+.franchise-report-card h3 {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.franchise-account-card,
+.franchise-report-card {
+  min-width: 0;
+  border: 1px solid var(--oppa-border, #e8e1d5);
+  border-radius: var(--detail-radius);
+  background: var(--oppa-surface, #fff);
+  box-shadow: var(--detail-shadow);
+  padding: 18px;
+}
+
+.franchise-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.franchise-kpi-card {
+  display: flex;
+  min-width: 0;
+  min-height: 104px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--oppa-border, #e8e1d5);
+  border-radius: 15px;
+  background: var(--oppa-surface, #fff);
+  box-shadow: var(--detail-shadow);
+  padding: 14px;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.franchise-kpi-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgb(30 50 35 / 11%); }
+.franchise-kpi-icon { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 50%; }
+.franchise-kpi-icon.tone-green { color: #17683b; background: #e2f3e8; }
+.franchise-kpi-icon.tone-gold { color: #80520c; background: #fff0c8; }
+.franchise-kpi-icon.tone-blue { color: #145e89; background: #e0f1fb; }
+.franchise-kpi-icon.tone-orange { color: #9a4e18; background: #fff0e2; }
+
+.franchise-trend {
+  margin-left: auto;
+  align-self: flex-start;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 4px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.franchise-trend-up { color: #17683b; background: #e2f3e8; }
+.franchise-trend-down { color: #a32626; background: #fde8e8; }
+.franchise-trend-neutral { color: #626c64; background: #f1f2ef; }
+
+.franchise-report-toolbar {
+  position: sticky;
+  top: 64px;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--oppa-border, #e8e1d5);
+  border-radius: 16px;
+  background: var(--oppa-surface, #fff);
+  box-shadow: var(--detail-shadow);
+  padding: 14px 16px;
+}
+
+.franchise-report-controls,
+.franchise-date-chips { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.franchise-date-chips { overflow-x: auto; max-width: 100%; border-radius: 12px; background: var(--oppa-cream, #faf7f0); padding: 4px; }
+.franchise-date-chip,
+.franchise-report-select,
+.franchise-action-button,
+.franchise-secondary-button {
+  min-height: 42px;
+  border: 1px solid var(--oppa-border, #e8e1d5);
+  border-radius: 10px;
+  background: var(--oppa-surface, #fff);
+  color: var(--oppa-text, #1e2b22);
+  padding: 8px 11px;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+.franchise-date-chip { border-color: transparent; background: transparent; }
+.franchise-date-chip.active { background: var(--oppa-green, #187a44); color: #fff; }
+.franchise-date-chip:hover:not(.active),
+.franchise-secondary-button:hover { background: var(--oppa-cream, #faf7f0); }
+.franchise-report-select { max-width: 190px; }
+.franchise-action-button,
+.franchise-secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 650; }
+.franchise-action-button { border-color: var(--oppa-green, #187a44); background: var(--oppa-green, #187a44); color: #fff; }
+.franchise-action-button:hover:not(:disabled) { background: var(--oppa-green-dark, #145f37); }
+.franchise-action-button:disabled { cursor: not-allowed; opacity: .55; }
+.franchise-report-summary-card { display: flex; min-height: 108px; flex-direction: column; align-items: flex-start; gap: 7px; background: var(--oppa-cream, #faf7f0); box-shadow: none; }
+.franchise-report-summary-card > p { color: var(--oppa-text-muted, #677168); font-size: 12px; }
+.franchise-report-summary-card > strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+
+.franchise-account-nav {
+  position: sticky;
+  top: 58px;
+  z-index: 15;
+  display: flex;
+  overflow-x: auto;
+  gap: 5px;
+  border-bottom: 1px solid var(--oppa-border, #e8e1d5);
+  background: var(--oppa-cream, #faf7f0);
+  padding: 5px 0;
+}
+.franchise-account-nav a { min-height: 42px; display: inline-flex; flex: 0 0 auto; align-items: center; border-radius: 10px; padding: 0 14px; color: var(--oppa-text-muted); font-size: 13px; font-weight: 650; }
+.franchise-account-nav a:hover { background: var(--oppa-green-soft); color: var(--oppa-green-dark); }
+.franchise-soft-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+.franchise-soft-table th { border-bottom: 1px solid var(--oppa-border); padding: 10px 8px; color: var(--oppa-text-muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.franchise-soft-table td { border-bottom: 1px solid var(--oppa-border); padding: 12px 8px; vertical-align: middle; }
+.franchise-soft-table tbody tr:hover { background: var(--oppa-cream); }
+.franchise-mobile-row { display: none; }
+
+@media (max-width: 1150px) {
+  .franchise-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .franchise-report-controls { width: 100%; overflow-x: auto; padding-bottom: 2px; }
+}
+@media (max-width: 700px) {
+  .franchise-account-card, .franchise-report-card { padding: 15px; }
+  .franchise-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .franchise-kpi-card { min-height: 96px; flex-wrap: wrap; gap: 8px; padding: 11px; }
+  .franchise-kpi-icon { width: 34px; height: 34px; flex-basis: 34px; }
+  .franchise-kpi-card .franchise-trend { margin-left: 0; }
+  .franchise-report-toolbar { top: 56px; padding: 12px; }
+  .franchise-report-controls { flex-wrap: nowrap; align-items: center; }
+  .franchise-date-chips { max-width: 100%; }
+  .franchise-report-select { max-width: 150px; }
+  .franchise-account-nav { top: 51px; }
+  .franchise-soft-table-wrap { display: none; }
+  .franchise-mobile-row { display: grid; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .franchise-account-page *, .franchise-account-page *::before, .franchise-account-page *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+@media print {
+  .franchise-account-page .franchise-report-toolbar, .franchise-account-page .franchise-account-nav, .franchise-account-page .franchise-action-button, .franchise-account-page .franchise-secondary-button { display: none !important; }
+  .franchise-account-page .franchise-report-card, .franchise-account-page .franchise-account-card { break-inside: avoid; box-shadow: none; }
+}

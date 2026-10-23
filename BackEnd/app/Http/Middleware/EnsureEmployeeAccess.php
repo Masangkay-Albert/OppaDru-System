@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Employee;
+use App\Models\EmployeeAuthSession;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -15,7 +16,8 @@ class EnsureEmployeeAccess
             return response()->json(['message' => 'Unauthenticated employee.'], 401);
         }
 
-        $employee = Employee::where('api_token', hash('sha256', $token))->first();
+        $employee = EmployeeAuthSession::employeeForToken($token)
+            ?? Employee::with('franchise')->where('api_token', hash('sha256', $token))->first();
         if (!$employee) {
             return response()->json(['message' => 'Invalid employee token.'], 401);
         }

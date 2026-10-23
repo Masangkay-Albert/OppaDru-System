@@ -96,6 +96,40 @@ class BranchRoleIsolationTest extends TestCase
         $this->assertNotSame($product->id, $otherProduct->id);
     }
 
+    public function test_employee_logins_keep_independent_branch_sessions(): void
+    {
+        $branch = $this->makeBranch('Independent Session Branch');
+        $cashier = $this->makeEmployee($branch, 'cashier', 'independent.session@branch.test');
+
+        $firstToken = $this->postJson('/api/employee/login', [
+            'email' => $cashier->email,
+            'password' => 'Staff@123',
+        ])->assertOk()->json('token');
+        $secondToken = $this->postJson('/api/employee/login', [
+            'email' => $cashier->email,
+            'password' => 'Staff@123',
+        ])->assertOk()->json('token');
+
+        $this->assertNotSame($firstToken, $secondToken);
+        $this->getJson('/api/employee/pos/products', [
+            'Authorization' => 'Bearer '.$firstToken,
+        ])->assertOk();
+        $this->getJson('/api/employee/pos/products', [
+            'Authorization' => 'Bearer '.$secondToken,
+        ])->assertOk();
+
+        $this->postJson('/api/employee/logout', [], [
+            'Authorization' => 'Bearer '.$secondToken,
+        ])->assertOk();
+
+        $this->getJson('/api/employee/pos/products', [
+            'Authorization' => 'Bearer '.$firstToken,
+        ])->assertOk();
+        $this->getJson('/api/employee/pos/products', [
+            'Authorization' => 'Bearer '.$secondToken,
+        ])->assertUnauthorized();
+    }
+
     public function test_employee_pos_calculates_senior_discount_from_db_price_and_exempts_vat(): void
     {
         $branch = $this->makeBranch('Senior Discount Branch');

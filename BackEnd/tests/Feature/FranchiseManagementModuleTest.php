@@ -9,6 +9,7 @@ use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -200,7 +201,8 @@ class FranchiseManagementModuleTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.account.id', $accountId)
             ->assertJsonPath('data.locations.0.id', $locationId)
-            ->assertJsonPath('data.managers.0.email', 'manager@northstar.test');
+            ->assertJsonPath('data.managers.0.email', 'manager@northstar.test')
+            ->assertJsonMissingPath('data.performance.locations.0.inventory_items');
 
         $this->getJson('/api/admin/franchise-accounts', [
             'Authorization' => 'Bearer '.$adminToken,
@@ -209,6 +211,71 @@ class FranchiseManagementModuleTest extends TestCase
             ->assertJsonPath('data.0.total_sales', 120)
             ->assertJsonPath('recent_activity.0.franchise_account_id', $accountId)
             ->assertJsonPath('recent_activity.0.location_name', 'Northstar Downtown');
+    }
+
+    public function test_franchise_account_report_uses_existing_revenue_rule_and_omits_inventory(): void
+    {
+        $adminToken = $this->createAdminToken();
+        $account = FranchiseAccount::create(['name' => 'Report Foods', 'status' => 'active']);
+        $location = Franchise::create([
+            'franchise_account_id' => $account->id,
+            'name' => 'Report Downtown',
+            'status' => 'active',
+        ]);
+        $product = Product::create([
+            'name' => 'Report Chicken',
+            'description' => 'Report test product',
+            'price' => 150,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ]);
+        $paid = Order::create([
+            'franchise_id' => $location->id,
+            'email' => 'paid@report.test',
+            'phone' => '09170000001',
+            'items' => [],
+            'total' => 200,
+            'delivery_address' => 'Report address',
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+            'status' => 'completed',
+        ]);
+        OrderItem::create([
+            'order_id' => $paid->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'product_price' => 150,
+            'quantity' => 2,
+        ]);
+        Order::create([
+            'franchise_id' => $location->id,
+            'email' => 'cancelled@report.test',
+            'phone' => '09170000002',
+            'items' => [],
+            'total' => 75,
+            'delivery_address' => 'Report address',
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+            'status' => 'cancelled',
+        ]);
+
+        $from = now('Asia/Manila')->startOfMonth()->toDateString();
+        $to = now('Asia/Manila')->endOfMonth()->toDateString();
+        $headers = ['Authorization' => 'Bearer '.$adminToken];
+        $this->getJson("/api/admin/franchise-accounts/{$account->id}/report?from={$from}&to={$to}", $headers)
+            ->assertOk()
+            ->assertJsonPath('data.summary.total_orders', 2)
+            ->assertJsonPath('data.summary.total_sales', 200)
+            ->assertJsonPath('data.summary.completed_orders', 1)
+            ->assertJsonPath('data.summary.cancelled_orders', 1)
+            ->assertJsonPath('data.top_products.0.units_sold', 2)
+            ->assertJsonPath('data.sales_by_location.0.location_id', $location->id)
+            ->assertJsonMissingPath('data.inventory')
+            ->assertJsonMissingPath('data.inventory_records');
+
+        $this->getJson("/api/admin/franchise-accounts/{$account->id}/report", [])
+            ->assertUnauthorized();
     }
 
     public function test_franchise_manager_sees_only_their_assigned_franchise_and_deactivated_account_is_unavailable(): void

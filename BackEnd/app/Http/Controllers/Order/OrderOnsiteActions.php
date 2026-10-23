@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Order;
 
 use App\Models\Employee;
+use App\Models\EmployeeAuthSession;
 use App\Models\Franchise;
 use App\Models\Order;
 use Illuminate\Http\Request;
@@ -79,7 +80,8 @@ trait OrderOnsiteActions
         $cashierEmail = trim((string) ($request->input('cashier_email') ?: $request->input('email') ?: ''));
         $token = $request->bearerToken();
         $employee = $token
-            ? Employee::where('api_token', hash('sha256', $token))->first()
+            ? EmployeeAuthSession::employeeForToken($token)
+                ?? Employee::where('api_token', hash('sha256', $token))->first()
             : null;
         if ($cashierEmail === '' || $cashierEmail === 'onsite@oppadru.ph') {
             if ($employee && ! empty($employee->email)) {

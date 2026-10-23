@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\EmployeeAuthSession;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -36,8 +37,10 @@ class EmployeeAuthController extends Controller
         }
     
         $token = Str::random(60);
-        $employee->api_token = hash('sha256', $token);
-        $employee->save();
+        EmployeeAuthSession::create([
+            'employee_id' => $employee->id,
+            'token_hash' => hash('sha256', $token),
+        ]);
 
         $safe = $employee->makeHidden(['password', 'api_token']);
 
@@ -54,6 +57,7 @@ class EmployeeAuthController extends Controller
     {
         $token = $request->bearerToken();
         if ($token) {
+            EmployeeAuthSession::where('token_hash', hash('sha256', $token))->delete();
             $employee = Employee::where('api_token', hash('sha256', $token))->first();
             if ($employee) {
                 $employee->api_token = null;
