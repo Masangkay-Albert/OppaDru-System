@@ -54,6 +54,10 @@ class BranchRoleIsolationTest extends TestCase
         ])->assertOk();
         $token = $login->json('token');
 
+        $this->getJson('/api/employee/pos/top-products?period=month&limit=5', [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertOk()->assertExactJson([]);
+
         $this->getJson('/api/employee/pos/products', ['Authorization' => 'Bearer ' . $token])
             ->assertOk()
             ->assertJsonFragment(['name' => 'Branch Meal'])
@@ -61,17 +65,28 @@ class BranchRoleIsolationTest extends TestCase
 
         $response = $this->postJson('/api/employee/pos/orders', [
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'customer_name' => 'Sean',
+            'phone' => '',
             'payment_method' => 'cash',
             'cash_tendered' => 200,
-            'dining_option' => 'takeout',
+            'dining_option' => 'dine_in',
+            'table_number' => '12',
         ], ['Authorization' => 'Bearer ' . $token])->assertCreated();
 
+        $this->assertSame('OPPA-ORD-', substr($response->json('order.orderNumber'), 0, 9));
+        $this->assertSame('', $response->json('order.phone'));
+        $this->assertSame('Table 12', substr($response->json('order.delivery_address'), -8));
+        $this->assertSame(80.0, (float) $response->json('order.total'));
+        $this->assertSame(8.57, (float) $response->json('order.vat'));
         $this->assertDatabaseHas('orders', [
             'id' => $response->json('order.id'),
             'franchise_id' => $branch->id,
             'branch_id' => $branch->id,
             'cashier_employee_id' => $cashier->id,
         ]);
+        $this->getJson('/api/employee/pos/top-products?period=month&limit=5', [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertOk()->assertJsonPath('0.qtySold', 1);
         $this->getJson('/api/employee/pos/orders', ['Authorization' => 'Bearer ' . $token])
             ->assertOk()
             ->assertJsonPath('data.0.id', $response->json('order.id'));
@@ -79,6 +94,49 @@ class BranchRoleIsolationTest extends TestCase
             'Authorization' => 'Bearer ' . $token,
         ])->assertForbidden();
         $this->assertNotSame($product->id, $otherProduct->id);
+    }
+
+    public function test_employee_pos_calculates_senior_discount_from_db_price_and_exempts_vat(): void
+    {
+        $branch = $this->makeBranch('Senior Discount Branch');
+        $cashier = $this->makeEmployee($branch, 'cashier', 'senior.discount@branch.test');
+        $product = $this->makeProduct($branch, 'Senior Discount Meal');
+        $product->update(['price' => 1120]);
+        $login = $this->postJson('/api/employee/login', [
+            'email' => $cashier->email,
+            'password' => 'Staff@123',
+        ])->assertOk();
+
+        $response = $this->postJson('/api/employee/pos/orders', [
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'payment_method' => 'cash',
+            'cash_tendered' => 900,
+            'dining_option' => 'takeout',
+            'discount_type' => 'Senior Citizen',
+            'discount_id_number' => 'SC-12345',
+            'total' => 1,
+            'vat' => 99,
+        ], ['Authorization' => 'Bearer '.$login->json('token')])->assertCreated();
+
+        $this->assertSame(800.0, (float) $response->json('order.total'));
+        $this->assertSame(200.0, (float) $response->json('order.discount_amount'));
+        $this->assertSame(0.0, (float) $response->json('order.vat'));
+    }
+
+    public function test_employee_pos_rejects_invalid_order_payload_with_clear_bad_request(): void
+    {
+        $branch = $this->makeBranch('Invalid POS Payload Branch');
+        $cashier = $this->makeEmployee($branch, 'cashier', 'invalid.pos@branch.test');
+        $token = $this->tokenEmployee($cashier);
+
+        $this->postJson('/api/employee/pos/orders', [
+            'items' => [],
+            'dining_option' => 'Dine-in',
+            'payment_method' => 'Cash',
+        ], ['Authorization' => 'Bearer '.$token])
+            ->assertBadRequest()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Please check the POS order details.');
     }
 
     public function test_manager_without_pos_permission_cannot_process_orders_and_branch_staff_creation_is_scoped(): void

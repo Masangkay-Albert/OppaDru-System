@@ -30,6 +30,28 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request, \Throwable $e) => $request->is('api/*') || $request->expectsJson()
         );
+        $exceptions->render(function (\Throwable $exception, Request $request) {
+            if (! $request->is('api/employee/pos/*')) {
+                return null;
+            }
+
+            \Illuminate\Support\Facades\Log::error('Employee POS request failed.', [
+                'path' => $request->path(),
+                'exception' => $exception,
+            ]);
+
+            $status = $exception instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                ? $exception->getStatusCode()
+                : 500;
+            $message = $status >= 500
+                ? 'Unable to complete the POS request. Please try again.'
+                : $exception->getMessage();
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+            ], $status);
+        });
         $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException $exception, Request $request) {
             if ($request->is('api/*')) {
                 return response()->json(['message' => 'Method not allowed.'], 405);

@@ -30,6 +30,17 @@ interface BranchProduct extends Product {
   best_seller?: boolean;
 }
 
+interface TopProduct {
+  productId: string;
+  name: string;
+  image: string | null;
+  category: string | null;
+  price: number;
+  qtySold: number;
+  revenue: number;
+  rank: number;
+}
+
 interface PosOrder {
   id?: string;
   order_number: string;
@@ -101,6 +112,9 @@ const FranchisePOSPage: React.FC = () => {
   const fetchPosAuth = useCallback((url: string, init?: RequestInit) =>
     cashierMode ? fetchWithEmployeeAuth(url, init) : fetchWithFranchiseAuth(url, init), [cashierMode]);
   const [products, setProducts] = useState<BranchProduct[]>([]);
+  const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
+  const [isLoadingTopProducts, setIsLoadingTopProducts] = useState(true);
+  const [topProductsError, setTopProductsError] = useState('');
   const [cart, setCart] = useState<Record<string, PosCartLine>>(() => {
     try {
       const saved = localStorage.getItem(cartStorageKey);
@@ -164,6 +178,26 @@ const FranchisePOSPage: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [completedOrder, setCompletedOrder] = useState<PosOrder | null>(null);
+
+  const loadTopProducts = useCallback(async () => {
+    if (!cashierMode) return;
+    try {
+      const response = await fetchPosAuth(`${API_URL}/employee/pos/top-products?period=month&limit=5`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Could not load this month’s top products.');
+      setTopProducts(Array.isArray(payload) ? payload as TopProduct[] : []);
+      setTopProductsError('');
+    } catch (loadError) {
+      setTopProductsError(loadError instanceof Error ? loadError.message : 'Could not load this month’s top products.');
+    } finally {
+      setIsLoadingTopProducts(false);
+    }
+  }, [cashierMode, fetchPosAuth]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadTopProducts(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadTopProducts]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedSearch(search.trim().toLowerCase()), 250);
@@ -270,6 +304,7 @@ const FranchisePOSPage: React.FC = () => {
   const total = discountType ? Math.max(0, vatExemptBase - discountAmount) : subtotal;
   const tenderedAmount = Number(cashTendered || 0);
   const changeDue = Math.max(0, Math.round((tenderedAmount - total) * 100) / 100);
+  const topProductIds = useMemo(() => new Set(topProducts.map((product) => product.productId)), [topProducts]);
   const quantityForProduct = (productId: string) =>
     lines.filter((line) => line.product.id === productId).reduce((quantity, line) => quantity + line.quantity, 0);
   const filteredProducts = useMemo(
@@ -277,11 +312,13 @@ const FranchisePOSPage: React.FC = () => {
       const matchesSearch = `${product.name} ${product.category} ${product.description || ''}`.toLowerCase().includes(debouncedSearch);
       const matchesCategory = activeCategory === 'all' || product.category.toLowerCase() === activeCategory;
       const matchesFavorite = !showFavoritesOnly || favoriteIds.includes(product.id);
-      const matchesBestSeller = !showBestSellersOnly || Boolean(product.is_best_seller || product.best_seller);
+      const matchesBestSeller = !showBestSellersOnly || (cashierMode
+        ? topProductIds.has(product.id)
+        : Boolean(product.is_best_seller || product.best_seller));
       const matchesAvailability = !showAvailableOnly || isBranchProductAvailable(product);
       return matchesSearch && matchesCategory && matchesFavorite && matchesBestSeller && matchesAvailability;
     }),
-    [products, debouncedSearch, activeCategory, favoriteIds, showFavoritesOnly, showBestSellersOnly, showAvailableOnly],
+    [products, debouncedSearch, activeCategory, favoriteIds, showFavoritesOnly, showBestSellersOnly, showAvailableOnly, cashierMode, topProductIds],
   );
   const categories = useMemo(() => [...new Set(products.map((product) => product.category).filter(Boolean))], [products]);
   const categoryCount = (category: string) => category === 'all'
@@ -302,10 +339,7 @@ const FranchisePOSPage: React.FC = () => {
     hour: 'numeric',
     minute: '2-digit',
   });
-  const quickCashAmounts = [50, 100, 500, 1000, 1500]
-    .map((denomination) => Math.ceil(total / denomination) * denomination)
-    .filter((amount, index, amounts) => amount > total && amounts.indexOf(amount) === index)
-    .slice(0, 4);
+  const quickCashAmounts = [100, 200, 500, 1000];
   const phoneDigits = phone.replace(/\D/g, '');
   const phoneIsValid = !phoneDigits || /^09\d{9}$/.test(phoneDigits);
   const paymentIsValid = paymentMethod === 'cash'
@@ -418,7 +452,7 @@ const FranchisePOSPage: React.FC = () => {
     setPaymentConfirmed(false);
     setConfiguringProduct(null);
     setError('');
-    setSuccess('');
+    setSuccess(`${configuringProduct.name} added to order.`);
     setCompletedOrder(null);
   };
 
@@ -567,8 +601,9 @@ const FranchisePOSPage: React.FC = () => {
           discount_type: discountType || undefined,
           discount_id_number: discountType ? discountIdNumber.trim() : undefined,
           discount_cardholder_name: discountType ? discountCardholderName.trim() : undefined,
+          table_number: diningOption === 'dine_in' ? tableNumber.trim() || undefined : undefined,
           include_cutlery: includeCutlery,
-          notes: [diningOption === 'dine_in' && tableNumber.trim() ? `Table ${tableNumber.trim()}` : '', customerNotes.trim()].filter(Boolean).join('; ') || undefined,
+          notes: customerNotes.trim() || undefined,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -589,6 +624,7 @@ const FranchisePOSPage: React.FC = () => {
         sessionStorage.removeItem(pendingPaymentStorageKey(paymentReference));
       }
       setCart({});
+      void loadTopProducts();
       setPaymentReference('');
       setPaymentCheckoutUrl('');
       setPaymentConfirmed(false);
@@ -632,7 +668,7 @@ const FranchisePOSPage: React.FC = () => {
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between bg-[var(--oppa-green)] px-4 text-white shadow-md sm:px-6">
         <Link to={cashierMode ? '/cashier/pos' : '/franchise/pos'} className="flex min-w-0 items-center gap-3">
           <img src={oppaDruLogo} alt="" className="size-9 rounded-full border border-white/30 object-cover" />
-          <span className="min-w-0"><strong className="block truncate font-serif text-sm sm:text-base">Oppa Dru Korean Fried Chicken</strong><small className="block truncate text-[9px] font-semibold uppercase tracking-wide text-white/75">Onsite POS Register · {cashierMode ? 'Cashier' : 'Branch Manager'} · {branchName}</small></span>
+          <span className="min-w-0"><strong className="block truncate font-serif text-sm sm:text-base"><span className="sm:hidden">Oppa Dru</span><span className="hidden sm:inline">Oppa Dru Korean Fried Chicken</span></strong><small className="hidden truncate text-[9px] font-semibold uppercase tracking-wide text-white/75 sm:block">Onsite POS Register · {cashierMode ? 'Cashier' : 'Branch Manager'} · {branchName}</small></span>
         </Link>
         <nav className="flex shrink-0 items-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
           {cashierMode ? (
@@ -648,8 +684,8 @@ const FranchisePOSPage: React.FC = () => {
         </nav>
       </header>
 
-      {error && <div role="alert" className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:mx-6">{error}</div>}
-      {success && <div role="status" className="mx-4 mt-3 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800 sm:mx-6">{success}</div>}
+      {error && <div role="alert" aria-live="assertive" className={`${cashierMode ? 'fixed right-4 top-16 z-50 flex max-w-[calc(100vw-2rem)] items-start gap-3 shadow-lg' : 'mx-4 mt-3 sm:mx-6'} rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700`}><span className="flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss error" className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-red-100"><X size={16} /></button></div>}
+      {success && <div role="status" aria-live="polite" className={`${cashierMode ? 'fixed right-4 top-16 z-50 flex max-w-[calc(100vw-2rem)] items-start gap-3 shadow-lg' : 'mx-4 mt-3 sm:mx-6'} rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800`}><span className="flex-1">{success}</span><button type="button" onClick={() => setSuccess('')} aria-label="Dismiss notification" className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-green-100"><X size={16} /></button></div>}
 
       <div className="grid min-h-[calc(100vh-56px)] grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_320px]">
         <aside className="hidden border-r border-gray-100 bg-[var(--oppa-surface)] p-5 lg:block">
@@ -679,6 +715,39 @@ const FranchisePOSPage: React.FC = () => {
               <nav aria-label="Product categories" className="sticky top-14 z-30 -mx-4 mb-4 flex gap-2 overflow-x-auto border-y border-gray-100 bg-[var(--oppa-cream)]/95 px-4 py-2 backdrop-blur lg:hidden">
                 {[{ id: 'all', label: 'All' }, ...categories.map((category) => ({ id: category.toLowerCase(), label: category.replaceAll('-', ' ') }))].map(({ id, label }) => <button key={id} type="button" onClick={() => { setActiveCategory(id); setShowFavoritesOnly(false); }} aria-pressed={activeCategory === id && !showFavoritesOnly} className={`min-h-11 shrink-0 rounded-full border px-3 text-xs font-semibold capitalize ${activeCategory === id && !showFavoritesOnly ? 'border-[#2d6a4f] bg-[#2d6a4f] text-white' : 'border-gray-200 bg-white text-gray-700'}`}>{label} <span className="opacity-75">({categoryCount(id)})</span></button>)}
               </nav>
+              {cashierMode && <section aria-labelledby="top-sellers-title" className="mb-5 rounded-2xl border border-[#e4ded0] bg-white p-4 shadow-sm sm:p-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div><h2 id="top-sellers-title" className="font-serif text-lg font-bold text-[#1c3d2e]">Top Sellers This Month</h2><p className="mt-0.5 text-xs text-gray-600">Most ordered at this branch</p></div>
+                  <span aria-hidden="true" className="text-xl">★</span>
+                </div>
+                {isLoadingTopProducts ? <div className="flex gap-3 overflow-hidden" aria-label="Loading top sellers">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-40 min-w-40 animate-pulse rounded-xl bg-gray-100 sm:min-w-48"><div className="h-24 rounded-t-xl bg-gray-200" /><div className="space-y-2 p-3"><div className="h-3 w-4/5 rounded bg-gray-200" /><div className="h-3 w-2/5 rounded bg-gray-200" /></div></div>)}</div>
+                  : topProductsError ? <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><span>{topProductsError}</span><button type="button" onClick={() => { setIsLoadingTopProducts(true); void loadTopProducts(); }} className="min-h-11 rounded-lg border border-amber-700 px-3 font-semibold">Retry</button></div>
+                    : topProducts.length === 0 ? <p role="status" className="rounded-xl bg-[#fbf8f1] px-4 py-5 text-center text-sm text-gray-600">No sales yet this month</p>
+                      : <div className="flex snap-x gap-3 overflow-x-auto pb-1">
+                        {topProducts.map((topProduct) => {
+                          const menuProduct = products.find((product) => product.id === topProduct.productId);
+                          const rankColor = topProduct.rank === 1
+                            ? 'bg-amber-400 text-amber-950'
+                            : topProduct.rank === 2
+                              ? 'bg-slate-300 text-slate-800'
+                              : topProduct.rank === 3
+                                ? 'bg-orange-300 text-orange-950'
+                                : 'bg-[#e3efe7] text-[#1c3d2e]';
+                          return <article key={topProduct.productId} className="relative w-40 shrink-0 snap-start overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:w-48">
+                            <span className={`absolute left-2 top-2 z-10 flex size-8 items-center justify-center rounded-full text-xs font-extrabold shadow ${rankColor}`}>#{topProduct.rank}</span>
+                            <div className="relative h-24 bg-gradient-to-br from-emerald-100 via-amber-50 to-lime-100">
+                              {topProduct.image && <img src={getProductImage(topProduct.image)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} />}
+                              {!topProduct.image && <Store size={28} aria-hidden="true" className="absolute inset-0 m-auto text-emerald-900/50" />}
+                            </div>
+                            <div className="p-3">
+                              <h3 className="line-clamp-2 min-h-10 text-sm font-bold text-gray-900">{topProduct.name}</h3>
+                              <p className="mt-1 text-xs text-gray-600">{topProduct.qtySold} sold · <strong className="text-gray-800">{formatPeso(Number(topProduct.price || menuProduct?.price || 0))}</strong></p>
+                              <button type="button" disabled={!menuProduct || !isBranchProductAvailable(menuProduct)} aria-label={`Add ${topProduct.name} to order`} onClick={() => { if (menuProduct) void openProduct(menuProduct); }} className="mt-2 flex min-h-10 w-full items-center justify-center gap-1 rounded-lg bg-[#2d6a4f] text-sm font-bold text-white transition-transform duration-150 hover:bg-[#1b4d3e] active:scale-95 disabled:bg-gray-300"><Plus size={16} /> Add</button>
+                            </div>
+                          </article>;
+                        })}
+                      </div>}
+              </section>}
               <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Product filters">
                 {[
                   { id: 'all', label: 'All', active: !showFavoritesOnly && !showBestSellersOnly && !showAvailableOnly },
@@ -696,25 +765,28 @@ const FranchisePOSPage: React.FC = () => {
                 <input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search menu items for customer order..." aria-label="Search menu items" className="min-h-12 w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-12 text-sm shadow-sm focus:border-[#1c3d2e] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
                 {search ? <button type="button" onClick={() => { setSearch(''); searchRef.current?.focus(); }} aria-label="Clear search" className="absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"><X size={17} /></button> : <span className="absolute right-3 top-1/2 hidden -translate-y-1/2 text-xs text-gray-400 sm:block">/</span>}
               </label>
-              {isLoading ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Loading products">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-72 animate-pulse rounded-2xl border border-gray-200 bg-white"><div className="h-40 rounded-t-2xl bg-gray-200" /><div className="space-y-3 p-4"><div className="h-4 w-2/3 rounded bg-gray-200" /><div className="h-3 w-full rounded bg-gray-100" /><div className="h-10 rounded-xl bg-gray-100" /></div></div>)}</div> : filteredProducts.length === 0 ? <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center" role="status"><Search className="mx-auto mb-3 text-gray-400" size={28} /><h2 className="font-serif text-lg font-semibold text-gray-800">{debouncedSearch ? 'No results found' : 'No products match this filter'}</h2><p className="mt-1 text-sm text-gray-600">{showFavoritesOnly ? 'Favorite items will appear here.' : 'Try another search or choose a different category.'}</p>{debouncedSearch && <button type="button" onClick={() => setSearch('')} className="mt-4 min-h-11 rounded-xl bg-[#2d6a4f] px-4 text-sm font-semibold text-white">Clear search</button>}</div> : (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {isLoading ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4" aria-label="Loading products">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-white"><div className="h-32 rounded-t-2xl bg-gray-200" /><div className="space-y-3 p-3"><div className="h-4 w-2/3 rounded bg-gray-200" /><div className="h-3 w-full rounded bg-gray-100" /><div className="h-10 rounded-xl bg-gray-100" /></div></div>)}</div> : filteredProducts.length === 0 ? <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center" role="status"><Search className="mx-auto mb-3 text-gray-400" size={28} /><h2 className="font-serif text-lg font-semibold text-gray-800">{debouncedSearch ? 'No results found' : 'No products match this filter'}</h2><p className="mt-1 text-sm text-gray-600">{showFavoritesOnly ? 'Favorite items will appear here.' : 'Try another search or choose a different category.'}</p>{debouncedSearch && <button type="button" onClick={() => setSearch('')} className="mt-4 min-h-11 rounded-xl bg-[#2d6a4f] px-4 text-sm font-semibold text-white">Clear search</button>}</div> : (
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
                   {filteredProducts.map((product) => {
                     const inCartQuantity = quantityForProduct(product.id);
                     const available = isBranchProductAvailable(product);
                     const favorite = favoriteIds.includes(product.id);
+                    const bestSeller = cashierMode
+                      ? topProductIds.has(product.id)
+                      : Boolean(product.is_best_seller || product.best_seller);
                     return <article key={product.id} className={`overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition duration-150 ${available ? 'hover:-translate-y-0.5 hover:shadow-lg' : 'opacity-65'}`}>
-                      <div className="relative h-40 overflow-hidden bg-gradient-to-br from-emerald-100 via-amber-50 to-lime-100 sm:h-44">
+                      <div className="relative h-28 overflow-hidden bg-gradient-to-br from-emerald-100 via-amber-50 to-lime-100 sm:h-36">
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-emerald-900/65"><Store size={36} /><span className="mt-2 text-xs font-semibold capitalize">{product.category.replaceAll('-', ' ')}</span></div>
                         {product.image && <img src={product.image} alt={product.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} />}
-                        <span className="absolute bottom-3 right-3 rounded-full bg-[#17643b] px-3 py-2 text-sm font-bold text-white shadow tabular-nums">{formatPeso(Number(product.price))}</span>
+                        <span className="absolute bottom-2 right-2 rounded-full bg-[#17643b] px-2.5 py-1.5 text-xs font-bold text-white shadow tabular-nums sm:bottom-3 sm:right-3 sm:px-3 sm:py-2 sm:text-sm">{formatPeso(Number(product.price))}</span>
                         <button type="button" aria-label={`${favorite ? 'Remove' : 'Add'} ${product.name} ${favorite ? 'from' : 'to'} favorites`} aria-pressed={favorite} onClick={() => setFavoriteIds((current) => current.includes(product.id) ? current.filter((id) => id !== product.id) : [...current, product.id])} className={`absolute right-3 top-3 flex size-11 items-center justify-center rounded-full bg-white/95 text-gray-600 shadow transition-transform duration-150 hover:scale-105 hover:text-red-600 ${favorite ? 'text-red-600' : ''}`}><Heart size={19} fill={favorite ? 'currentColor' : 'none'} /></button>
-                        {product.is_best_seller || product.best_seller ? <span className="absolute left-3 top-3 rounded-full bg-amber-500 px-2.5 py-1 text-xs font-bold text-white shadow">Best seller</span> : null}
+                        {bestSeller ? <span className="absolute left-2 top-2 rounded-full bg-amber-500 px-2 py-1 text-[10px] font-bold text-white shadow sm:left-3 sm:top-3 sm:px-2.5 sm:text-xs">Best seller</span> : null}
                         {!available && <span className="absolute bottom-3 left-3 rounded-full bg-gray-800/90 px-2.5 py-1 text-xs font-bold text-white">{product.branch_stock_tracked && product.branch_stock === 0 ? 'Sold out' : 'Unavailable'}</span>}
                         {available && isBranchProductLowStock(product) && <span className="absolute left-3 top-3 rounded-full bg-orange-600 px-2.5 py-1 text-xs font-bold text-white shadow">Low stock</span>}
                       </div>
-                      <div className="flex min-h-36 flex-col p-4">
-                        <h2 className="font-serif text-base font-bold text-gray-900">{product.name}</h2>
-                        <p className="mt-1 line-clamp-2 min-h-10 flex-1 text-[13px] leading-5 text-gray-600">{product.description || 'Freshly prepared at this branch.'}</p>
+                      <div className="flex min-h-36 flex-col p-3 sm:p-4">
+                        <h2 className="line-clamp-2 min-h-10 font-serif text-sm font-bold text-gray-900 sm:text-base">{product.name}</h2>
+                        <p className="mt-1 line-clamp-2 min-h-9 flex-1 text-xs leading-4 text-gray-600 sm:text-[13px] sm:leading-5">{product.description || 'Freshly prepared at this branch.'}</p>
                         {inCartQuantity > 0 && <span className="mt-2 w-fit rounded-full bg-[#e3efe7] px-2.5 py-1 text-xs font-semibold text-[#1c3d2e]">In order ×{inCartQuantity}</span>}
                         {product.branch_stock_tracked && <p className="mt-1 text-xs text-gray-600">{product.branch_stock} in branch stock</p>}
                         {inCartQuantity ? <div className="mt-3 flex items-center justify-end gap-2">
@@ -817,7 +889,7 @@ const FranchisePOSPage: React.FC = () => {
             </div>
           </div>
           {!showOrderDrawer && <div className="flex flex-1 items-center gap-2 px-3 py-2 xl:hidden">
-            {stage === 'menu' ? <button type="button" onClick={() => setShowOrderDrawer(true)} className="min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-sm font-bold text-white"><span className="flex items-center justify-between"><span>View Order · {itemCount} item{itemCount === 1 ? '' : 's'}</span><span className="tabular-nums">{formatPeso(total)}</span></span></button> : <button type="button" disabled={chargeDisabled} onClick={() => void submitOrder()} className="min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-base font-bold text-white disabled:bg-gray-300">{isSubmitting ? 'Processing…' : `Charge ${formatPeso(total)}`}</button>}
+            {stage === 'menu' ? <button type="button" onClick={() => setShowOrderDrawer(true)} className="min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-sm font-bold text-white"><span className="flex items-center justify-between"><span>View Order ({itemCount})</span><span className="tabular-nums">{formatPeso(total)}</span></span></button> : <button type="button" disabled={chargeDisabled} onClick={() => void submitOrder()} className="min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-base font-bold text-white disabled:bg-gray-300">{isSubmitting ? 'Processing…' : `Charge ${formatPeso(total)}`}</button>}
           </div>}
         </aside>
         {removedLine && <div role="status" aria-live="polite" className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-xl bg-gray-900 px-4 py-3 text-sm text-white shadow-xl xl:bottom-5">Item removed <button type="button" onClick={undoRemove} className="font-bold underline underline-offset-2">Undo</button></div>}

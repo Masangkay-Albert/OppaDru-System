@@ -25,9 +25,13 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
 }) => {
   const navigate = useNavigate();
   const subtotal = calculateSubtotal(cartItems);
-  const calculatedDiscount = discountAmount > 0 ? discountAmount : subtotal * (discountRate || 0);
-  const netBeforeTax = Math.max(0, subtotal - calculatedDiscount - promoDiscount);
-  const vat = Math.round(netBeforeTax * 0.12 * 100) / 100;
+  const hasStatutoryDiscount = discountRate > 0;
+  const vatExemptBase = Math.round(subtotal / 1.12);
+  const calculatedDiscount = discountAmount > 0
+    ? discountAmount
+    : Math.round(vatExemptBase * (discountRate || 0));
+  const netBeforeTax = Math.max(0, (hasStatutoryDiscount ? vatExemptBase - calculatedDiscount : subtotal) - promoDiscount);
+  const vat = hasStatutoryDiscount ? 0 : Math.round(netBeforeTax * 12 / 112 * 100) / 100;
   const finalTotal = netBeforeTax;
   const hasItems = cartItems.length > 0;
 

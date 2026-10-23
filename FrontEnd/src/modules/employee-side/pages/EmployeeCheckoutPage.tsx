@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiShoppingCart } from 'react-icons/fi';
 import { useCart } from '../../../contexts/CartContext';
@@ -29,6 +29,7 @@ const EmployeeCheckoutPage: React.FC = () => {
   const [discountType, setDiscountType] = useState<'PWD' | 'Senior Citizen' | null>(null);
   const [discountIdNumber, setDiscountIdNumber] = useState('');
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const submitLockRef = useRef(false);
   const [completedOrder, setCompletedOrder] = useState<AdminOrder | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
@@ -44,9 +45,10 @@ const EmployeeCheckoutPage: React.FC = () => {
 
   const subtotal = calculateSubtotal(cartItems);
   const discountRate = discountType ? 0.20 : 0;
-  const discountAmount = subtotal * discountRate;
-  const netTotal = Math.max(0, subtotal - discountAmount - promoDiscount);
-  const vat = Math.round(netTotal * 0.12 * 100) / 100;
+  const vatExemptBase = Math.round(subtotal / 1.12);
+  const discountAmount = discountType ? Math.round(vatExemptBase * discountRate) : 0;
+  const netTotal = Math.max(0, (discountType ? vatExemptBase - discountAmount : subtotal) - promoDiscount);
+  const vat = discountType ? 0 : Math.round((subtotal - promoDiscount) * 12 / 112 * 100) / 100;
   const finalTotal = netTotal;
 
   const handleApplyPromo = async () => {
@@ -83,6 +85,8 @@ const EmployeeCheckoutPage: React.FC = () => {
   };
 
   const executeOrderPlacement = async (confirmedReference?: string) => {
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setIsPlacingOrder(true);
     const activeRef = (confirmedReference || paymentReference).trim();
 
@@ -113,9 +117,10 @@ const EmployeeCheckoutPage: React.FC = () => {
       setShowReceiptModal(true);
       clearCart();
       showToast('Onsite order completed successfully!', 'success');
-    } catch {
-      showToast('Failed to process onsite order. Please try again.', 'error');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to process onsite order.', 'error');
     } finally {
+      submitLockRef.current = false;
       setIsPlacingOrder(false);
     }
   };
@@ -126,7 +131,7 @@ const EmployeeCheckoutPage: React.FC = () => {
       return;
     }
 
-    if (paymentMethod === 'cash' && cashTendered > 0 && cashTendered < finalTotal) {
+    if (paymentMethod === 'cash' && cashTendered < finalTotal) {
       showToast('Cash tendered is less than total amount due.', 'error');
       return;
     }

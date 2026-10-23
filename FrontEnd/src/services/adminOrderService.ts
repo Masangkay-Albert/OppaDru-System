@@ -313,6 +313,22 @@ export interface OnsiteOrderData {
   vat?: number;
 }
 
+interface PosOnsiteOrderResponse {
+  id: string;
+  orderNumber?: string;
+  order_number?: string;
+  email?: string;
+  user_id?: string | null;
+  total: number | string;
+  vat?: number | string | null;
+  discount_amount?: number | string | null;
+  status?: Order['status'];
+  created_at?: string;
+  payment_reference?: string;
+  promo_code?: string | null;
+  promo_discount?: number | string | null;
+}
+
 export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder> => {
   const getCashierEmail = (): string => {
     try {
@@ -331,22 +347,12 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
 
   const cashierEmail = data.cashierEmail || data.email || getCashierEmail();
 
-  const calculatedTotal = data.total !== undefined
-    ? data.total
-    : data.items.reduce((sum, i) => {
-        const addonsTotal = (i.selectedAddons || (i as any).selected_addons || []).reduce((aSum: number, a: any) => aSum + Number(a.price || 0), 0);
-        return sum + (Number(i.price || (i as any).product_price || 0) * Number(i.quantity || 1)) + addonsTotal;
-      }, 0);
-
   const itemsPayload = data.items.map((i) => ({
     product_id: i.id || (i as any).product_id || '',
-    product_name: i.name || (i as any).product_name || 'Item',
-    product_price: Number(i.price || (i as any).product_price || 0),
     quantity: Number(i.quantity || 1),
+    selected_size: i.selectedSize || (i as any).selected_size || undefined,
     selected_addons: (i.selectedAddons || (i as any).selected_addons || []).map((a: any) => ({
       id: a.id,
-      name: a.name,
-      price: Number(a.price || 0),
       quantity: Number(a.quantity || 1),
     })),
     special_instructions: i.specialInstructions || (i as any).special_instructions || undefined,
@@ -354,31 +360,25 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
 
   const payload = {
     customer_name: data.customerName?.trim() || 'Walk-in Customer',
-    phone: data.phone || '09000000000',
-    email: cashierEmail,
-    cashier_email: cashierEmail,
+    phone: data.phone?.trim() || undefined,
     dining_option: data.diningOption || 'takeout',
-    notes: data.notes || '',
+    notes: data.notes?.trim() || undefined,
     payment_method: data.paymentMethod || 'cash',
-    payment_reference: data.paymentReference || (data.paymentMethod === 'cash' ? `CASH-${Date.now().toString().slice(-6)}` : undefined),
+    payment_reference: data.paymentMethod === 'gcash' ? data.paymentReference : undefined,
+    terminal_reference: data.paymentMethod === 'credit_card' ? data.paymentReference : undefined,
     cash_tendered: data.cashTendered,
-    change_due: data.changeDue,
     discount_type: data.discountType || null,
-    discount_rate: data.discountRate || 0,
-    discount_amount: data.discountAmount || 0,
     discount_id_number: data.discountIdNumber,
-    promo_id: data.promoId || null,
-    promo_code: data.promoCode || null,
-    promo_discount: data.promoDiscount || 0,
+    promo_id: data.promoId || undefined,
+    promo_code: data.promoCode || undefined,
     items: itemsPayload,
-    total: calculatedTotal,
-    vat: data.vat || Math.round(calculatedTotal * 0.12 * 100) / 100,
   };
 
-  let backendOrder: any = null;
+  let backendOrder: PosOnsiteOrderResponse | undefined;
+  let serverChangeDue: number;
   try {
-    const employeeToken = localStorage.getItem('employee_token') || localStorage.getItem('adminToken');
-    const response = await fetch(`${API_URL}/orders/onsite`, {
+    const employeeToken = localStorage.getItem('employee_token');
+    const response = await fetch(`${API_URL}/employee/pos/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -389,17 +389,28 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
     });
 
     if (response.ok) {
-      const result = await response.json();
+      const result = await response.json() as {
+        order?: PosOnsiteOrderResponse;
+        change_due?: number | string;
+      };
       backendOrder = result.order;
+      serverChangeDue = Number(result.change_due || 0);
     } else {
-      console.warn('Backend order creation returned status', response.status);
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.message || `POS order request failed (${response.status}).`);
     }
   } catch (err) {
-    console.warn('Could not reach backend API for onsite order, falling back to local store', err);
+    if (err instanceof Error) throw err;
+    throw new Error('Could not reach the POS order service.', { cause: err });
   }
 
-  const orderId = backendOrder?.id || `WI-${Date.now()}`;
-  const orderNumber = backendOrder?.order_number || `WI-${Date.now().toString().slice(-6)}`;
+  if (!backendOrder?.id || !(backendOrder.orderNumber || backendOrder.order_number)) {
+    throw new Error('The POS order service returned an incomplete response.');
+  }
+
+  const calculatedTotal = Number(backendOrder.total);
+  const orderId = backendOrder.id;
+  const orderNumber = backendOrder.orderNumber ?? backendOrder.order_number ?? '';
   const diningLabel = data.diningOption === 'dine_in' ? 'Dine In' : 'Takeout';
   const deliveryAddress = `Onsite - ${diningLabel} (Customer: ${data.customerName?.trim() || 'Walk-in Customer'})`;
 
@@ -430,10 +441,10 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
       return item;
     }),
     total: calculatedTotal,
-    vat: data.vat || Math.round(calculatedTotal * 0.12 * 100) / 100,
+    vat: Number(backendOrder.vat || 0),
     discountType: data.discountType || null,
     discountRate: data.discountRate || 0,
-    discountAmount: data.discountAmount || 0,
+    discountAmount: Number(backendOrder.discount_amount || 0),
     address: deliveryAddress,
     coords: { lat: 0, lng: 0 },
     status: backendOrder?.status || 'pending',
@@ -449,11 +460,11 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
     diningOption: data.diningOption || 'takeout',
     notes: data.notes || '',
     cashTendered: data.cashTendered,
-    changeDue: data.changeDue,
-    payment_reference: data.paymentReference,
-    paymentReference: data.paymentReference,
-    promo_code: data.promoCode,
-    promo_discount: data.promoDiscount,
+    changeDue: serverChangeDue,
+    payment_reference: backendOrder.payment_reference || data.paymentReference,
+    paymentReference: backendOrder.payment_reference || data.paymentReference,
+    promo_code: backendOrder.promo_code || data.promoCode,
+    promo_discount: Number(backendOrder.promo_discount || 0),
     served: false,
   };
 

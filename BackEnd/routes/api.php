@@ -113,6 +113,7 @@ Route::post('/employee/logout', [EmployeeAuthController::class, 'logout']);
 Route::middleware(['employee.access:cashier'])->group(function () {
     Route::get('/employee/pos/products', [FranchiseController::class, 'employeePosProducts']);
     Route::get('/employee/pos/orders', [FranchiseController::class, 'employeePosOrders']);
+    Route::get('/employee/pos/top-products', [FranchiseController::class, 'employeePosTopProducts']);
     Route::get('/employee/pos/addon-groups', [AddonController::class, 'index']);
     Route::post('/employee/pos/orders', [FranchiseController::class, 'storePosOrder']);
     Route::post('/employee/pos/payments/gcash', [FranchiseController::class, 'createPosPayment']);

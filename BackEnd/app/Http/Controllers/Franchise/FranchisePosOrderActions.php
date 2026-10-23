@@ -7,11 +7,13 @@ use App\Models\Employee;
 use App\Models\FranchiseUser;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\Promo;
 use App\Models\Product;
 use App\Services\FranchiseInventoryService;
 use App\Services\Order\OrderDataService;
 use App\Services\PricingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -26,9 +28,11 @@ trait FranchisePosOrderActions
         }
         $cashierEmployeeId = $user instanceof Employee ? $user->id : null;
         $franchiseUserId = $user instanceof FranchiseUser ? $user->id : null;
+        $employeePosRequest = $request->is('api/employee/pos/orders');
 
         $validator = Validator::make($request->all(), [
             'items' => 'required|array|min:1',
+            'items.*' => 'required|array',
             'items.*.product_id' => 'required|string|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1|max:99',
             'items.*.selected_addons' => 'nullable|array',
@@ -37,6 +41,7 @@ trait FranchisePosOrderActions
             'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'customer_name' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:50',
+            'table_number' => 'nullable|string|max:30',
             'dining_option' => 'required|string|in:dine_in,takeout',
             'payment_method' => 'required|string|in:cash,gcash,credit_card',
             'payment_reference' => 'required_if:payment_method,gcash|nullable|string|max:100',
@@ -45,14 +50,17 @@ trait FranchisePosOrderActions
             'discount_type' => 'nullable|string|in:PWD,Senior Citizen',
             'discount_id_number' => 'required_with:discount_type|nullable|string|max:100',
             'discount_cardholder_name' => 'nullable|string|max:255',
+            'promo_id' => 'nullable|string|exists:promos,id',
+            'promo_code' => 'nullable|string|max:50',
             'notes' => 'nullable|string|max:500',
             'include_cutlery' => 'nullable|boolean',
         ]);
         if ($validator->fails()) {
             return response()->json([
+                'success' => false,
                 'message' => 'Please check the POS order details.',
                 'errors' => $validator->errors(),
-            ], 422);
+            ], $employeePosRequest ? 400 : 422);
         }
 
         $productIds = collect($request->input('items'))->pluck('product_id')->unique();
@@ -74,6 +82,7 @@ trait FranchisePosOrderActions
             return [
                 'product_id' => $product->id,
                 'product_name' => $product->name,
+                'category' => $product->category,
                 'product_price' => (float) $product->price,
                 'quantity' => (int) $item['quantity'],
                 'selected_addons' => $item['selected_addons'] ?? [],
@@ -148,7 +157,36 @@ trait FranchisePosOrderActions
         $discountRate = $discountType ? 0.20 : 0;
         $posTotals = app(PricingService::class)->calculatePosDiscount($subtotal, (bool) $discountType);
         $discountAmount = $posTotals['discountAmount'];
-        $total = $posTotals['total'];
+        $promo = null;
+        $promoDiscount = 0.0;
+        if ($request->filled('promo_id') || $request->filled('promo_code')) {
+            $promoQuery = Promo::active();
+            $promo = $promoQuery
+                ->where(function ($query) use ($request) {
+                    if ($request->filled('promo_id')) {
+                        $query->where('id', $request->input('promo_id'));
+                    }
+                    if ($request->filled('promo_code')) {
+                        $method = $request->filled('promo_id') ? 'orWhere' : 'where';
+                        $query->{$method}('code', strtoupper(trim((string) $request->input('promo_code'))));
+                    }
+                })
+                ->first();
+            if (! $promo) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The selected promo is no longer available.',
+                ], $employeePosRequest ? 400 : 422);
+            }
+            $promoDiscount = $promo->calculateDiscount($subtotal, $items);
+            if ($promoDiscount <= 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The selected promo does not apply to this order.',
+                ], $employeePosRequest ? 400 : 422);
+            }
+        }
+        $total = max(0, round($posTotals['total'] - $promoDiscount));
         $paymentMethod = $request->input('payment_method');
         $cashTendered = (float) $request->input('cash_tendered', 0);
 
@@ -176,6 +214,9 @@ trait FranchisePosOrderActions
         $diningLabel = $request->input('dining_option') === 'dine_in' ? 'Dine In' : 'Takeout';
         $customerName = trim((string) $request->input('customer_name', 'Walk-in Customer')) ?: 'Walk-in Customer';
         $deliveryAddress = "Onsite - {$diningLabel} (Customer: {$customerName})";
+        if ($request->filled('table_number') && $request->input('dining_option') === 'dine_in') {
+            $deliveryAddress .= ' | Table '.trim((string) $request->input('table_number'));
+        }
         if ($request->filled('notes')) {
             $deliveryAddress .= ' | Notes: '.trim((string) $request->input('notes'));
         }
@@ -202,11 +243,21 @@ trait FranchisePosOrderActions
                 $discountType,
                 $discountRate,
                 $discountAmount,
+                $subtotal,
+                $promo,
+                $promoDiscount,
                 $gatewayPayment,
                 $cashierEmployeeId,
                 $franchiseUserId
             ) {
                 $inventoryService->consume((string) $user->franchise_id, $items);
+                if ($promo) {
+                    $promo = Promo::whereKey($promo->id)->lockForUpdate()->first();
+                    if (! $promo || ! $promo->isValidForSubtotal($subtotal)) {
+                        throw new \InvalidArgumentException('The selected promo is no longer available.');
+                    }
+                    $promo->increment('times_used');
+                }
                 if ($gatewayPayment) {
                     $gatewayPayment = Payment::whereKey($gatewayPayment->id)->lockForUpdate()->first();
                     if (! $gatewayPayment || $gatewayPayment->status !== 'paid' || $gatewayPayment->order_id !== null
@@ -243,12 +294,15 @@ trait FranchisePosOrderActions
                                 ? $gatewayPayment->reference
                                 : $request->input('terminal_reference')
                         ),
-                    'phone' => $request->input('phone', ''),
+                    'phone' => trim((string) $request->input('phone', '')),
                     'items' => $orderItems,
-                    'vat' => $discountType ? 0 : round($total * 0.12),
+                    'vat' => $discountType ? 0 : round($total * 12 / 112, 2),
                     'discount_type' => $discountType,
                     'discount_rate' => $discountType ? $discountRate : null,
                     'discount_amount' => $discountType ? $discountAmount : null,
+                    'promo_id' => $promo?->id,
+                    'promo_code' => $promo?->code,
+                    'promo_discount' => $promoDiscount > 0 ? $promoDiscount : null,
                     'discount_status' => $discountType ? 'approved' : 'not_requested',
                     'discount_proof_image' => $discountType
                         ? 'Verified ID: '
@@ -267,17 +321,30 @@ trait FranchisePosOrderActions
                 return $order;
             });
         } catch (\InvalidArgumentException $exception) {
-            return response()->json(['message' => $exception->getMessage()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], $employeePosRequest ? 400 : 422);
         }
 
         $order = $order->refresh()->load('branch:id,name');
         $order->setAttribute('branch_name', $order->branch?->name);
+        if ($employeePosRequest) {
+            $cacheKey = 'employee_pos_top_products_'.$user->franchise_id.'_month_5_'.now('Asia/Manila')->format('Y_m');
+            Cache::forget($cacheKey);
+        }
+        $orderResponse = $order;
+        if ($employeePosRequest) {
+            $orderResponse = $order->toArray();
+            $orderResponse['orderNumber'] = $order->order_number;
+        }
 
         return response()->json([
             'success' => true,
-            'order' => $order,
+            'order' => $orderResponse,
             'subtotal' => round($subtotal),
             'discount_amount' => $discountAmount,
+            'promo_discount' => $promoDiscount,
             'change_due' => $paymentMethod === 'cash' ? round($cashTendered - $total, 2) : 0,
             'message' => 'Franchise POS order placed successfully.',
         ], 201);

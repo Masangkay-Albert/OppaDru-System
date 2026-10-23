@@ -7,6 +7,8 @@ use App\Models\FranchiseUser;
 use App\Models\Order;
 use App\Services\FranchiseInventoryService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 trait FranchisePosReadActions
@@ -58,6 +60,92 @@ trait FranchisePosReadActions
         $orders->each(fn (Order $order) => $order->setAttribute('branch_name', $order->branch?->name));
 
         return response()->json(['data' => $orders]);
+    }
+
+    public function employeePosTopProducts(Request $request)
+    {
+        $user = $request->user();
+        if (
+            ! $user instanceof Employee
+            || ! $user->franchise_id
+            || strtolower((string) $user->position) !== 'cashier'
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Branch cashier access required.',
+            ], 403);
+        }
+
+        $validator = Validator::make($request->query(), [
+            'period' => 'nullable|string|in:month',
+            'limit' => 'nullable|integer|min:1|max:20',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The top products filters are invalid.',
+                'errors' => $validator->errors(),
+            ], 400);
+        }
+
+        $period = $request->query('period', 'month');
+        $limit = (int) $request->query('limit', 5);
+        $month = now('Asia/Manila')->format('Y_m');
+        $cacheKey = "employee_pos_top_products_{$user->franchise_id}_{$period}_{$limit}_{$month}";
+
+        $products = Cache::remember($cacheKey, now()->addSeconds(60), function () use ($user, $limit) {
+            $monthStart = now('Asia/Manila')->startOfMonth()->utc();
+            $monthEnd = now('Asia/Manila')->endOfMonth()->utc();
+
+            return DB::table('order_items')
+                ->join('orders', 'orders.id', '=', 'order_items.order_id')
+                ->leftJoin('products', 'products.id', '=', 'order_items.product_id')
+                ->where(function ($query) use ($user) {
+                    $query->where('orders.branch_id', $user->franchise_id)
+                        ->orWhere(function ($legacyQuery) use ($user) {
+                            $legacyQuery->whereNull('orders.branch_id')
+                                ->where('orders.franchise_id', $user->franchise_id);
+                        });
+                })
+                ->whereBetween('orders.created_at', [$monthStart, $monthEnd])
+                ->where('orders.payment_status', 'paid')
+                ->whereNotIn('orders.status', ['cancelled', 'voided', 'failed'])
+                ->select([
+                    'order_items.product_id',
+                    'products.name',
+                    'products.image',
+                    'products.category',
+                    'products.price',
+                ])
+                ->selectRaw('COALESCE(products.name, order_items.product_name) as product_display_name')
+                ->selectRaw('SUM(order_items.quantity) as qty_sold')
+                ->selectRaw('SUM(order_items.quantity * order_items.product_price) as revenue')
+                ->groupBy(
+                    'order_items.product_id',
+                    'order_items.product_name',
+                    'products.name',
+                    'products.image',
+                    'products.category',
+                    'products.price'
+                )
+                ->orderByDesc('qty_sold')
+                ->limit($limit)
+                ->get()
+                ->values()
+                ->map(fn ($item, int $index) => [
+                    'productId' => $item->product_id,
+                    'name' => $item->product_display_name,
+                    'image' => $item->image,
+                    'category' => $item->category,
+                    'price' => (float) ($item->price ?? 0),
+                    'qtySold' => (int) $item->qty_sold,
+                    'revenue' => round((float) $item->revenue, 2),
+                    'rank' => $index + 1,
+                ])
+                ->all();
+        });
+
+        return response()->json($products);
     }
 
     public function franchisePosOrders(Request $request)
