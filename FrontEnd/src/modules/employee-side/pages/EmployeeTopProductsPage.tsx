@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Heart, Plus, Trophy, UserRound } from 'lucide-react';
+import { ArrowLeft, ClipboardList, Heart, Plus, Trophy, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 import { API_URL } from '../../../services/apiConfig';
@@ -8,8 +8,6 @@ import { getEmployeePosBrowserSessionId, loadEmployeePosDraft } from '../../../s
 import { getProductImage } from '../../../data/productImages';
 import { formatPeso } from '../../../utils/formatters';
 import '../../../styles/cashier-pos.css';
-
-type TopProductPeriod = 'month' | 'last_month';
 
 interface TopProduct {
   productId: string;
@@ -28,13 +26,21 @@ interface CartLine {
   selectedAddons?: Array<{ price?: number; quantity?: number }>;
 }
 
-const periodOptions: Array<{ value: TopProductPeriod; label: string }> = [
-  { value: 'month', label: 'This Month' },
-  { value: 'last_month', label: 'Last Month' },
-];
+const getManilaMonth = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value || '';
+  const month = parts.find((part) => part.type === 'month')?.value || '';
+  return `${year}-${month}`;
+};
 
-const periodLabel = (period: TopProductPeriod) =>
-  periodOptions.find((option) => option.value === period)?.label || 'This Month';
+const getPreviousMonth = (month: string) => {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return new Date(Date.UTC(year, monthNumber - 2, 1)).toISOString().slice(0, 7);
+};
 
 const readEmployee = () => {
   try {
@@ -52,7 +58,7 @@ const readEmployee = () => {
 const EmployeeTopProductsPage: React.FC = () => {
   const [employee] = useState(() => readEmployee());
   const [browserSessionId] = useState(() => getEmployeePosBrowserSessionId());
-  const [period, setPeriod] = useState<TopProductPeriod>('month');
+  const [selectedMonth, setSelectedMonth] = useState(() => getManilaMonth());
   const [products, setProducts] = useState<TopProduct[]>([]);
   const [monthProducts, setMonthProducts] = useState<TopProduct[]>([]);
   const [lastMonthProducts, setLastMonthProducts] = useState<TopProduct[]>([]);
@@ -63,27 +69,26 @@ const EmployeeTopProductsPage: React.FC = () => {
   const [draftError, setDraftError] = useState('');
   const registerPath = '/cashier/pos';
 
-  const loadProducts = useCallback(async (requestedPeriod: TopProductPeriod, signal?: AbortSignal) => {
+  const loadProducts = useCallback(async (month: string, signal?: AbortSignal) => {
     setIsLoading(true);
     setError('');
     try {
-      const query = (value: TopProductPeriod) => `${API_URL}/employee/pos/top-products?period=${value}&limit=100`;
-      const requestedPeriods = [...new Set<TopProductPeriod>([requestedPeriod, 'month', 'last_month'])];
-      const dataByPeriod = new Map<TopProductPeriod, TopProduct[]>();
-      await Promise.all(requestedPeriods.map(async (requested) => {
-        const response = await fetchWithEmployeeAuth(query(requested), { signal });
+      const previousMonth = getPreviousMonth(month);
+      const query = (value: string) => `${API_URL}/employee/pos/top-products?month=${value}&limit=100`;
+      const dataByMonth = new Map<string, TopProduct[]>();
+      await Promise.all([month, previousMonth].map(async (requestedMonth) => {
+        const response = await fetchWithEmployeeAuth(query(requestedMonth), { signal });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
           throw new Error(payload.message || 'Could not load top products.');
         }
         const payload = await response.json() as TopProduct[];
-        dataByPeriod.set(requested, Array.isArray(payload) ? payload : []);
+        dataByMonth.set(requestedMonth, Array.isArray(payload) ? payload : []);
       }));
-      const selectedData = dataByPeriod.get(requestedPeriod) || [];
-      const monthData = dataByPeriod.get('month') || [];
-      const lastMonthData = dataByPeriod.get('last_month') || [];
+      const selectedData = dataByMonth.get(month) || [];
+      const lastMonthData = dataByMonth.get(previousMonth) || [];
       setProducts(selectedData);
-      setMonthProducts(monthData);
+      setMonthProducts(selectedData);
       setLastMonthProducts(lastMonthData);
       setActiveCategory('all');
     } catch (loadError) {
@@ -96,12 +101,12 @@ const EmployeeTopProductsPage: React.FC = () => {
 
   useEffect(() => {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => void loadProducts(period, controller.signal), 0);
+    const timeout = window.setTimeout(() => void loadProducts(selectedMonth, controller.signal), 0);
     return () => {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [loadProducts, period]);
+  }, [loadProducts, selectedMonth]);
 
   useEffect(() => {
     let active = true;
@@ -154,21 +159,14 @@ const EmployeeTopProductsPage: React.FC = () => {
   const podiumProducts = [products[1], products[0], products[2]].filter(Boolean);
   const rankedProducts = visibleProducts.filter((product) => product.rank > 3 && product.rank <= 10);
   const topQuantity = products[0]?.qtySold || 1;
-  const manilaDateParts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: 'numeric',
-  }).formatToParts(new Date());
-  const manilaYear = Number(manilaDateParts.find((part) => part.type === 'year')?.value);
-  const manilaMonth = Number(manilaDateParts.find((part) => part.type === 'month')?.value);
-  const monthBase = new Date(Date.UTC(manilaYear, manilaMonth - (period === 'last_month' ? 2 : 1), 1));
+  const [selectedYear, selectedMonthNumber] = selectedMonth.split('-').map(Number);
+  const monthBase = new Date(Date.UTC(selectedYear, selectedMonthNumber - 1, 1));
   const monthLabel = new Intl.DateTimeFormat('en-PH', {
     month: 'long',
     year: 'numeric',
     timeZone: 'Asia/Manila',
   }).format(monthBase);
-  const title = period === 'month' ? 'Top Products of the Month'
-    : 'Top Products of Last Month';
+  const title = `Top Products for ${monthLabel}`;
 
   return (
     <div className="cashier-workspace min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)]">
@@ -193,20 +191,20 @@ const EmployeeTopProductsPage: React.FC = () => {
       <main className="mx-auto max-w-[1500px] space-y-6 px-4 py-6 pb-28 sm:px-6 lg:px-8">
         <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
+            <Link to={registerPath} className="mb-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#d9e6dc] bg-white px-3 text-sm font-semibold text-[#216b49] shadow-sm hover:bg-[#edf5ef]"><ArrowLeft size={16} /> Back to Register</Link>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b77b16]">Branch performance</p>
             <h1 className="mt-1 text-2xl font-bold text-[#1c3d2e] sm:text-3xl">{title}</h1>
             <p className="mt-1 text-sm text-gray-600">{monthLabel} · Onsite orders at this branch</p>
           </div>
-          <div className="cashier-segmented flex w-full gap-1 overflow-x-auto rounded-xl p-1 sm:w-auto" role="group" aria-label="Top products period">
-            {periodOptions.map((option) => (
-              <button key={option.value} type="button" aria-pressed={period === option.value} onClick={() => setPeriod(option.value)} className="min-h-11 shrink-0 rounded-lg px-3 text-xs font-semibold transition-colors sm:px-4 sm:text-sm">
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <label className="flex min-h-11 items-center gap-3 rounded-xl border border-[#e7dfd2] bg-white px-3 text-sm font-semibold text-[#1c3d2e] shadow-sm">
+            <span>Choose month</span>
+            <input type="month" value={selectedMonth} max={getManilaMonth()} onChange={(event) => {
+              if (event.target.value) setSelectedMonth(event.target.value);
+            }} aria-label="Choose month for top products" className="min-h-10 rounded-lg border border-gray-200 bg-white px-2 text-sm" />
+          </label>
         </section>
 
-        {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => void loadProducts(period)} className="min-h-11 rounded-lg border border-red-300 bg-white px-4 font-semibold">Retry</button></div>}
+        {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => void loadProducts(selectedMonth)} className="min-h-11 rounded-lg border border-red-300 bg-white px-4 font-semibold">Retry</button></div>}
 
         {isLoading ? (
           <div className="space-y-6" aria-label="Loading top products">
@@ -217,7 +215,7 @@ const EmployeeTopProductsPage: React.FC = () => {
         ) : error ? null : products.length === 0 ? (
           <section className="cashier-surface flex min-h-72 flex-col items-center justify-center rounded-2xl p-8 text-center">
             <Trophy size={34} className="text-[#b77b16]" aria-hidden="true" />
-            <h2 className="mt-3 font-serif text-xl font-bold text-[#1c3d2e]">No onsite sales yet {period === 'month' ? 'this month' : 'last month'}</h2>
+            <h2 className="mt-3 font-serif text-xl font-bold text-[#1c3d2e]">No onsite sales for {monthLabel}</h2>
             <p className="mt-1 text-sm text-gray-600">Top products will appear here as completed orders come in.</p>
             <Link to={registerPath} className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-[#216b49] px-5 font-semibold text-white">Back to Register</Link>
           </section>
@@ -227,12 +225,12 @@ const EmployeeTopProductsPage: React.FC = () => {
               <article className="cashier-surface rounded-2xl p-4 sm:p-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Units Sold</p><p className="mt-2 text-2xl font-extrabold tabular-nums text-[#1c3d2e]">{totalUnits.toLocaleString()}</p><p className="mt-1 text-xs text-gray-500">For the selected period</p></article>
               <article className="cashier-surface rounded-2xl p-4 sm:p-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Revenue</p><p className="mt-2 text-2xl font-extrabold tabular-nums text-[#1c3d2e]">{formatPeso(totalRevenue)}</p><p className="mt-1 text-xs text-gray-500">For the selected period</p></article>
               <article className="cashier-surface rounded-2xl p-4 sm:p-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Best Category</p><p className="mt-2 truncate text-2xl font-extrabold capitalize text-[#1c3d2e]">{bestCategory.replaceAll('-', ' ')}</p><p className="mt-1 text-xs text-gray-500">By units sold</p></article>
-              <article className="cashier-surface rounded-2xl p-4 sm:p-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">% vs last month</p><p className={`mt-2 text-2xl font-extrabold tabular-nums ${monthChange >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{monthChange > 0 && lastMonthRevenue === 0 ? 'New' : `${monthChange > 0 ? '+' : ''}${monthChange}%`}</p><p className="mt-1 text-xs text-gray-500">Revenue · this month</p></article>
+              <article className="cashier-surface rounded-2xl p-4 sm:p-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">% vs previous month</p><p className={`mt-2 text-2xl font-extrabold tabular-nums ${monthChange >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{monthChange > 0 && lastMonthRevenue === 0 ? 'New' : `${monthChange > 0 ? '+' : ''}${monthChange}%`}</p><p className="mt-1 text-xs text-gray-500">Onsite revenue · selected month</p></article>
             </section>
 
             <section className="cashier-surface rounded-2xl p-4 sm:p-6">
               <div className="mb-5 flex items-center justify-between gap-3">
-                <div><h2 className="font-serif text-xl font-bold text-[#1c3d2e]">Top 3 Products</h2><p className="mt-1 text-sm text-gray-600">The branch podium for {periodLabel(period).toLowerCase()}</p></div>
+                <div><h2 className="font-serif text-xl font-bold text-[#1c3d2e]">Top 3 Products</h2><p className="mt-1 text-sm text-gray-600">Onsite product sales for {monthLabel}</p></div>
                 <Trophy className="text-[#b77b16]" size={22} aria-hidden="true" />
               </div>
               <div className="grid grid-cols-3 items-end gap-2 sm:gap-5">

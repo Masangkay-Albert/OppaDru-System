@@ -717,6 +717,11 @@ const FranchisePOSPage: React.FC = () => {
         includeCutlery,
       });
       setSuccess(`Order ${result.order.order_number} completed. Change due: ${formatPeso(Number(result.change_due || 0))}.`);
+      if (cashierMode && typeof BroadcastChannel !== 'undefined') {
+        const orderUpdates = new BroadcastChannel('cashier-pos-orders');
+        orderUpdates.postMessage({ type: 'order-created' });
+        orderUpdates.close();
+      }
       if (paymentReference) {
         sessionStorage.removeItem(pendingPaymentStorageKey(paymentReference));
       }

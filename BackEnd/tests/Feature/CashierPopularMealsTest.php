@@ -44,6 +44,7 @@ class CashierPopularMealsTest extends TestCase
         foreach (['month', 'last_month'] as $period) {
             Cache::forget('employee_pos_top_products_'.$branch->id.'_'.$period.'_5_'.now('Asia/Manila')->format('Y_m_d'));
         }
+        Cache::forget('employee_pos_top_products_'.$branch->id.'_'.now('Asia/Manila')->format('Y_m').'_5');
 
         $this->getJson('/api/employee/pos/top-products?period=month&limit=5', $headers)
             ->assertOk()
@@ -60,6 +61,48 @@ class CashierPopularMealsTest extends TestCase
             ->assertExactJson([]);
 
         $this->getJson('/api/employee/pos/top-products?period=week', $headers)
+            ->assertBadRequest()
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_employee_pos_top_products_can_be_filtered_by_calendar_month(): void
+    {
+        $branch = Franchise::create(['name' => 'Monthly Top Products Branch', 'status' => 'active']);
+        $employee = Employee::create([
+            'franchise_id' => $branch->id,
+            'fullName' => 'Monthly Top Products Cashier',
+            'email' => 'monthly.top.products@example.test',
+            'password' => Hash::make('Cashier@123'),
+            'position' => 'cashier',
+            'is_active' => true,
+        ]);
+        $token = 'monthly-top-products-token';
+        $employee->api_token = hash('sha256', $token);
+        $employee->save();
+        $headers = ['Authorization' => 'Bearer '.$token];
+        $januaryProduct = $this->makeProduct($branch, 'January Chicken', 200);
+        $decemberProduct = $this->makeProduct($branch, 'December Chicken', 300);
+
+        $this->createProductSale($branch, $januaryProduct, 2, 'completed', 'onsite', '2026-01-31 15:59:59');
+        $this->createProductSale($branch, $decemberProduct, 4, 'completed', 'onsite', '2025-12-31 15:59:59');
+        Cache::forget('employee_pos_top_products_'.$branch->id.'_2026_01_100');
+        Cache::forget('employee_pos_top_products_'.$branch->id.'_2025_12_100');
+
+        $this->getJson('/api/employee/pos/top-products?month=2026-01&limit=100', $headers)
+            ->assertOk()
+            ->assertJsonPath('0.productId', $januaryProduct->id)
+            ->assertJsonPath('0.qtySold', 2)
+            ->assertJsonPath('0.revenue', 400)
+            ->assertJsonCount(1);
+
+        $this->getJson('/api/employee/pos/top-products?month=2025-12&limit=100', $headers)
+            ->assertOk()
+            ->assertJsonPath('0.productId', $decemberProduct->id)
+            ->assertJsonPath('0.qtySold', 4)
+            ->assertJsonPath('0.revenue', 1200)
+            ->assertJsonCount(1);
+
+        $this->getJson('/api/employee/pos/top-products?month=2026-13', $headers)
             ->assertBadRequest()
             ->assertJsonPath('success', false);
     }
@@ -102,6 +145,39 @@ class CashierPopularMealsTest extends TestCase
             ->assertJsonPath('top_meals.0.quantity_sold', 3);
 
         $this->assertNotNull($branchOrder->fresh());
+    }
+
+    public function test_employee_pos_orders_include_order_item_details_for_cashier_drawer(): void
+    {
+        $branch = Franchise::create(['name' => 'Cashier Orders Branch', 'status' => 'active']);
+        $employee = Employee::create([
+            'franchise_id' => $branch->id,
+            'fullName' => 'Orders Cashier',
+            'email' => 'orders.cashier@example.test',
+            'password' => Hash::make('Cashier@123'),
+            'position' => 'cashier',
+            'is_active' => true,
+        ]);
+        $token = 'cashier-orders-token';
+        $employee->api_token = hash('sha256', $token);
+        $employee->save();
+        $product = $this->makeProduct($branch, 'Drawer Chicken', 250);
+        $order = $this->createProductSale($branch, $product, 2);
+        $order->update([
+            'cashier_employee_id' => $employee->id,
+            'delivery_address' => 'Onsite - Dine In (Customer: Sean) | Table 4',
+            'cash_tendered' => 600,
+            'change_due' => 100,
+        ]);
+
+        $this->getJson('/api/employee/pos/orders', ['Authorization' => 'Bearer '.$token])
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $order->id)
+            ->assertJsonPath('data.0.delivery_type', 'onsite')
+            ->assertJsonPath('data.0.cash_tendered', '600.00')
+            ->assertJsonPath('data.0.change_due', '100.00')
+            ->assertJsonPath('data.0.order_items.0.product_name', 'Drawer Chicken')
+            ->assertJsonPath('data.0.order_items.0.quantity', 2);
     }
 
     private function createSale(Franchise $branch, string $productName, int $quantity): Order
@@ -147,10 +223,11 @@ class CashierPopularMealsTest extends TestCase
         Product $product,
         int $quantity,
         string $status = 'completed',
-        string $deliveryType = 'onsite'
+        string $deliveryType = 'onsite',
+        ?string $createdAt = null
     ): Order
     {
-        $order = Order::create([
+        $orderData = [
             'franchise_id' => $branch->id,
             'branch_id' => $branch->id,
             'email' => 'cashier@example.test',
@@ -162,7 +239,12 @@ class CashierPopularMealsTest extends TestCase
             'payment_method' => 'cash',
             'payment_status' => 'paid',
             'items' => [],
-        ]);
+        ];
+        if ($createdAt !== null) {
+            $orderData['created_at'] = $createdAt;
+            $orderData['updated_at'] = $createdAt;
+        }
+        $order = Order::create($orderData);
         OrderItem::create([
             'order_id' => $order->id,
             'product_id' => $product->id,

@@ -23,6 +23,927 @@
   overflow-x: clip;
 }
 
+.cashier-orders-workspace {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 1px 1px, rgb(31 107 69 / 4%) 1px, transparent 0) 0 0 / 18px 18px,
+    linear-gradient(135deg, #fbf8f1 0%, #f6f1e7 100%);
+}
+
+.cashier-orders-sidebar {
+  position: fixed;
+  z-index: 30;
+  inset: 0 auto 0 0;
+  display: none;
+  width: 248px;
+  flex-direction: column;
+  border-right: 1px solid rgb(255 255 255 / 12%);
+  background: linear-gradient(180deg, #1f6b45, #18573a);
+  padding: 20px 14px 16px;
+  color: #fff;
+  transition: width 180ms ease;
+}
+
+.cashier-orders-sidebar.is-collapsed {
+  width: 72px;
+  align-items: center;
+  padding-right: 10px;
+  padding-left: 10px;
+}
+
+.cashier-orders-brand {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 11px;
+  padding: 0 6px 18px;
+  color: #fff;
+}
+
+.cashier-orders-brand strong,
+.cashier-orders-brand small {
+  display: block;
+  white-space: nowrap;
+}
+
+.cashier-orders-brand strong {
+  font-family: Georgia, serif;
+  font-size: 15px;
+}
+
+.cashier-orders-brand small {
+  margin-top: 3px;
+  color: rgb(255 255 255 / 72%);
+  font-size: 10px;
+}
+
+.cashier-sidebar-toggle {
+  display: flex;
+  min-height: 42px;
+  width: 100%;
+  align-items: center;
+  gap: 11px;
+  border-top: 1px solid rgb(255 255 255 / 14%);
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+  padding: 0 9px;
+  color: rgb(255 255 255 / 80%);
+  font-size: 12px;
+  text-align: left;
+}
+
+.is-collapsed .cashier-sidebar-toggle {
+  justify-content: center;
+  padding: 0;
+}
+
+.cashier-orders-nav {
+  display: grid;
+  gap: 6px;
+  padding-top: 18px;
+}
+
+.cashier-orders-nav-link {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 13px;
+  border-radius: 12px;
+  padding: 0 12px;
+  color: rgb(255 255 255 / 83%);
+  font-size: 13px;
+  font-weight: 650;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.cashier-orders-nav-link:hover,
+.cashier-orders-nav-link.active {
+  background: rgb(255 255 255 / 15%);
+  color: #fff;
+}
+
+.cashier-orders-nav-link.active {
+  box-shadow: inset 3px 0 #f2c55d;
+}
+
+.is-collapsed .cashier-orders-nav-link {
+  width: 48px;
+  justify-content: center;
+  padding: 0;
+}
+
+.cashier-orders-profile {
+  display: flex;
+  min-height: 60px;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  border-top: 1px solid rgb(255 255 255 / 14%);
+  padding: 12px 5px 0;
+  font-size: 12px;
+}
+
+.cashier-orders-profile small {
+  color: rgb(255 255 255 / 72%);
+  font-size: 10px;
+}
+
+.cashier-orders-avatar {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 17%);
+}
+
+.cashier-orders-main {
+  min-height: 100vh;
+  margin-left: 248px;
+}
+
+.cashier-orders-sidebar.is-collapsed ~ .cashier-orders-main {
+  margin-left: 72px;
+}
+
+.cashier-orders-content {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px clamp(16px, 2.4vw, 40px) 36px;
+}
+
+.cashier-orders-heading {
+  display: flex;
+  min-height: 156px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-radius: 18px;
+  padding: 22px 26px;
+  background:
+    radial-gradient(circle at 1px 1px, rgb(31 107 69 / 5%) 1px, transparent 0) 0 0 / 16px 16px,
+    linear-gradient(115deg, #fff, #fbf8f1);
+}
+
+.cashier-orders-back {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #d9e6dc;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0 15px;
+  color: #216b49;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cashier-orders-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.cashier-orders-stat {
+  display: flex;
+  min-width: 0;
+  min-height: 116px;
+  align-items: flex-start;
+  gap: 13px;
+  border-radius: 16px;
+  padding: 17px;
+}
+
+.cashier-orders-stat-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  border-radius: 12px;
+  background: #e3efe7;
+  color: #216b49;
+}
+
+.cashier-orders-stat p {
+  color: #66736a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cashier-orders-stat strong {
+  display: block;
+  margin-top: 5px;
+  color: #1c3d2e;
+  font-size: clamp(17px, 1.2vw, 23px);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.cashier-orders-stat strong small,
+.cashier-orders-stat small {
+  color: #78847b;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.cashier-payment-bar {
+  display: block;
+  height: 7px;
+  overflow: hidden;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: #e9e7e0;
+}
+
+.cashier-payment-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #216b49, #d6a33f);
+}
+
+.cashier-orders-filters {
+  position: sticky;
+  z-index: 10;
+  top: 10px;
+  display: grid;
+  gap: 11px;
+  border-radius: 16px;
+  padding: 14px;
+  background: rgb(255 255 255 / 92%);
+  backdrop-filter: blur(14px);
+}
+
+.cashier-orders-search {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #e5e1d8;
+  border-radius: 11px;
+  padding: 0 12px;
+  color: #68766d;
+}
+
+.cashier-orders-search:focus-within {
+  border-color: #216b49;
+  box-shadow: 0 0 0 3px rgb(33 107 73 / 14%);
+}
+
+.cashier-orders-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #1d3025;
+  font-size: 13px;
+}
+
+.cashier-orders-search button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.cashier-orders-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.cashier-orders-chips {
+  display: flex;
+  max-width: 100%;
+  flex: 1 1 500px;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.cashier-orders-chips button,
+.cashier-orders-statuses button {
+  display: inline-flex;
+  min-height: 38px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e5e1d8;
+  border-radius: 999px;
+  background: #fff;
+  padding: 0 11px;
+  color: #536157;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.cashier-orders-chips button[aria-pressed="true"],
+.cashier-orders-statuses button[aria-pressed="true"] {
+  border-color: #216b49;
+  background: #e3efe7;
+  color: #194d34;
+}
+
+.cashier-orders-select {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e5e1d8;
+  border-radius: 10px;
+  padding: 0 9px;
+  color: #59665d;
+}
+
+.cashier-orders-select select {
+  max-width: 145px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #34453a;
+  font-size: 11px;
+}
+
+.cashier-orders-statuses {
+  gap: 7px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+}
+
+.cashier-orders-statuses button span {
+  display: grid;
+  min-width: 19px;
+  height: 19px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgb(31 107 69 / 8%);
+  font-size: 10px;
+}
+
+.cashier-orders-statuses .cashier-orders-clear {
+  margin-left: auto;
+  border-color: transparent;
+  background: transparent;
+  color: #a74331;
+  text-decoration: underline;
+}
+
+.cashier-orders-table-shell {
+  display: flex;
+  min-height: 320px;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.cashier-orders-table-scroll {
+  max-height: min(62vh, 760px);
+  overflow: auto;
+}
+
+.cashier-orders-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font-size: 13px;
+}
+
+.cashier-orders-table th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  background: #edf5ef;
+  padding: 14px 16px;
+  color: #647269;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cashier-orders-table td {
+  border-top: 1px solid #f0ede6;
+  padding: 14px 16px;
+  color: #25372b;
+}
+
+.cashier-orders-table tbody tr {
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.cashier-orders-table tbody tr:hover,
+.cashier-orders-table tbody tr:focus-visible {
+  background: #fbfaf6;
+  outline: none;
+}
+
+.cashier-orders-row-actions {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cashier-orders-row-menu {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 5px);
+  right: 0;
+  min-width: 150px;
+  border: 1px solid #e7e1d6;
+  border-radius: 10px;
+  background: #fff;
+  padding: 5px;
+  box-shadow: 0 8px 22px rgb(31 47 36 / 14%);
+}
+
+.cashier-orders-row-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  border-radius: 7px;
+  padding: 0 9px;
+  color: #34453a;
+  font-size: 12px;
+  text-align: left;
+}
+
+.cashier-orders-row-menu button:hover {
+  background: #edf5ef;
+}
+
+.cashier-order-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.cashier-order-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.cashier-orders-pagination {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  border-top: 1px solid #efebe2;
+  padding: 8px 16px;
+  color: #657269;
+  font-size: 11px;
+}
+
+.cashier-orders-pagination label,
+.cashier-orders-pagination div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.cashier-orders-pagination select {
+  min-height: 32px;
+  border: 1px solid #e5e1d8;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 6px;
+}
+
+.cashier-orders-pagination button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e5e1d8;
+  border-radius: 8px;
+  background: #fff;
+  color: #216b49;
+  font-size: 20px;
+}
+
+.cashier-orders-pagination button:disabled {
+  cursor: not-allowed;
+  color: #b7bcb8;
+}
+
+.cashier-orders-insights {
+  display: none;
+  align-content: start;
+  gap: 14px;
+  padding: 24px 22px 24px 0;
+}
+
+.cashier-orders-insights section {
+  box-shadow: var(--cashier-shadow);
+}
+
+.cashier-orders-insights small {
+  display: block;
+  color: #738076;
+  font-size: 10px;
+}
+
+.cashier-orders-insights strong {
+  display: block;
+  margin-top: 3px;
+  color: #1c3d2e;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cashier-orders-mobile-nav {
+  position: fixed;
+  z-index: 35;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid #e7e1d6;
+  background: rgb(255 255 255 / 96%);
+  padding: 5px 6px max(6px, env(safe-area-inset-bottom));
+  box-shadow: 0 -5px 18px rgb(31 47 36 / 8%);
+  backdrop-filter: blur(14px);
+}
+
+.cashier-orders-mobile-nav a {
+  display: flex;
+  min-height: 51px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 10px;
+  color: #647269;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cashier-orders-mobile-nav a.active {
+  background: #e3efe7;
+  color: #1f6b45;
+}
+
+.cashier-order-drawer-backdrop {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(18 32 24 / 46%);
+}
+
+.cashier-order-drawer {
+  display: flex;
+  width: min(440px, 100%);
+  height: 100%;
+  flex-direction: column;
+  background: #fff;
+  box-shadow: -12px 0 40px rgb(0 0 0 / 18%);
+  animation: cashier-drawer-in 180ms ease-out both;
+}
+
+.cashier-order-drawer > header {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #ece8df;
+  padding: 14px 20px;
+}
+
+.cashier-order-drawer > header button {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 10px;
+}
+
+.cashier-order-drawer-body {
+  display: grid;
+  flex: 1;
+  align-content: start;
+  gap: 18px;
+  overflow-y: auto;
+  padding: 18px 20px 24px;
+}
+
+.cashier-order-drawer > footer {
+  display: flex;
+  gap: 10px;
+  border-top: 1px solid #ece8df;
+  padding: 14px 20px;
+}
+
+.cashier-order-drawer :focus-visible,
+.cashier-orders-workspace :focus-visible {
+  outline: 3px solid #d6a33f;
+  outline-offset: 2px;
+}
+
+@keyframes cashier-drawer-in {
+  from { opacity: 0.7; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (min-width: 1024px) {
+  .cashier-orders-sidebar {
+    display: flex;
+  }
+
+  .cashier-orders-sidebar.is-collapsed ~ .cashier-orders-main {
+    margin-left: 72px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .cashier-orders-sidebar {
+    display: flex;
+  }
+}
+
+@media (min-width: 1440px) {
+  .cashier-orders-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 330px;
+  }
+
+  .cashier-orders-insights {
+    display: grid;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .cashier-orders-sidebar {
+    width: 72px;
+    align-items: center;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .cashier-orders-sidebar .cashier-orders-brand span,
+  .cashier-orders-sidebar .cashier-sidebar-toggle span,
+  .cashier-orders-sidebar .cashier-orders-nav-link span,
+  .cashier-orders-sidebar .cashier-orders-profile > span:not(.cashier-orders-avatar) {
+    display: none;
+  }
+
+  .cashier-orders-sidebar .cashier-orders-brand {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .cashier-orders-sidebar .cashier-sidebar-toggle {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .cashier-orders-sidebar .cashier-orders-nav-link {
+    width: 48px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .cashier-orders-sidebar .cashier-orders-profile {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .cashier-orders-main,
+  .cashier-orders-sidebar.is-collapsed ~ .cashier-orders-main {
+    margin-left: 72px;
+  }
+
+  .cashier-orders-mobile-nav {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .cashier-orders-sidebar {
+    display: none;
+  }
+
+  .cashier-orders-main,
+  .cashier-orders-sidebar.is-collapsed ~ .cashier-orders-main {
+    margin-left: 0;
+  }
+
+  .cashier-orders-content {
+    gap: 13px;
+    padding: 14px 12px 82px;
+  }
+
+  .cashier-orders-heading {
+    min-height: 0;
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .cashier-orders-heading > div {
+    flex: 1;
+  }
+
+  .cashier-orders-heading h1 {
+    font-size: 24px;
+  }
+
+  .cashier-orders-back {
+    width: 42px;
+    min-width: 42px;
+    overflow: hidden;
+    gap: 0;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .cashier-orders-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .cashier-orders-stat {
+    min-height: 100px;
+    gap: 9px;
+    padding: 12px;
+  }
+
+  .cashier-orders-stat-icon {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+  }
+
+  .cashier-orders-stat strong {
+    font-size: 16px;
+  }
+
+  .cashier-orders-filters {
+    top: 6px;
+    padding: 10px;
+  }
+
+  .cashier-orders-filter-row {
+    gap: 6px;
+  }
+
+  .cashier-orders-chips {
+    flex-basis: 100%;
+  }
+
+  .cashier-orders-statuses {
+    flex-basis: 100%;
+  }
+
+  .cashier-orders-table-scroll {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .cashier-orders-table,
+  .cashier-orders-table tbody,
+  .cashier-orders-table tr,
+  .cashier-orders-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .cashier-orders-table thead {
+    display: none;
+  }
+
+  .cashier-orders-table tbody {
+    display: grid;
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .cashier-orders-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    border: 1px solid #ece8df;
+    border-radius: 13px;
+    background: #fff;
+    padding: 12px;
+    box-shadow: 0 2px 6px rgb(31 47 36 / 5%);
+  }
+
+  .cashier-orders-table td {
+    border: 0;
+    padding: 0;
+  }
+
+  .cashier-orders-table td:nth-child(1) {
+    grid-column: 1 / -1;
+  }
+
+  .cashier-orders-table td:nth-child(2),
+  .cashier-orders-table td:nth-child(4),
+  .cashier-orders-table td:nth-child(5),
+  .cashier-orders-table td:nth-child(6) {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .cashier-orders-table td:nth-child(3) {
+    grid-column: 2;
+    grid-row: 2;
+    text-align: right;
+  }
+
+  .cashier-orders-table td:nth-child(4) {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .cashier-orders-table td:nth-child(5) {
+    grid-column: 2;
+    grid-row: 3;
+    justify-content: flex-end;
+  }
+
+  .cashier-orders-table td:nth-child(6) {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  .cashier-orders-table td:nth-child(7) {
+    display: none;
+  }
+
+  .cashier-orders-pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 12px;
+    padding: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cashier-order-drawer,
+  .cashier-orders-workspace * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .cashier-order-drawer-backdrop,
+  .cashier-order-drawer-backdrop * {
+    visibility: visible !important;
+  }
+
+  .cashier-order-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+  }
+
+  .cashier-order-drawer {
+    width: 100%;
+    height: 100%;
+    box-shadow: none;
+  }
+
+  .cashier-order-drawer > footer {
+    display: none;
+  }
+}
+
 .cashier-header {
   background: linear-gradient(112deg, #1f6b45 0%, #287d50 58%, #1d6844 100%);
   border-bottom: 1px solid rgb(255 255 255 / 18%);

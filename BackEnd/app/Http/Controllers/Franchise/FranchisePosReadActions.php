@@ -7,6 +7,7 @@ use App\Models\FranchiseUser;
 use App\Models\Order;
 use App\Services\EmployeePosDraftService;
 use App\Services\FranchiseInventoryService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -158,7 +159,7 @@ trait FranchisePosReadActions
         $orders = Order::where('branch_id', $user->franchise_id)
                 ->where('cashier_employee_id', $user->id)
                 ->where('delivery_type', 'onsite')
-                ->with('branch:id,name')
+                ->with(['branch:id,name', 'orderItems.addons'])
                 ->orderByDesc('created_at')
                 ->limit(100)
                 ->get([
@@ -166,10 +167,21 @@ trait FranchisePosReadActions
                     'order_number',
                     'branch_id',
                     'total',
+                    'cash_tendered',
+                    'change_due',
+                    'delivery_type',
+                    'delivery_address',
                     'payment_method',
                     'payment_status',
                     'payment_reference',
                     'status',
+                    'status_history',
+                    'items',
+                    'discount_type',
+                    'discount_amount',
+                    'vat',
+                    'special_instructions',
+                    'include_cutlery',
                     'created_at',
                 ]);
         $orders->each(fn (Order $order) => $order->setAttribute('branch_name', $order->branch?->name));
@@ -193,6 +205,7 @@ trait FranchisePosReadActions
 
         $validator = Validator::make($request->query(), [
             'period' => 'nullable|string|in:month,last_month',
+            'month' => ['nullable', 'date_format:Y-m'],
             'limit' => 'nullable|integer|min:1|max:100',
         ]);
         if ($validator->fails()) {
@@ -203,15 +216,18 @@ trait FranchisePosReadActions
             ], 400);
         }
 
-        $period = $request->query('period', 'month');
         $limit = (int) $request->query('limit', 5);
         $manilaNow = now('Asia/Manila');
-        $cacheKey = "employee_pos_top_products_{$user->franchise_id}_{$period}_{$limit}_".$manilaNow->format('Y_m_d');
-
-        $periodStart = $manilaNow->copy()->startOfMonth();
-        if ($period === 'last_month') {
-            $periodStart->subMonthNoOverflow()->startOfMonth();
+        $selectedMonth = $request->query('month')
+            ? Carbon::createFromFormat('!Y-m', $request->query('month'), 'Asia/Manila')
+            : $manilaNow->copy()->startOfMonth();
+        if (! $request->query('month') && $request->query('period') === 'last_month') {
+            $selectedMonth->subMonthNoOverflow()->startOfMonth();
         }
+        $selectedMonth->startOfMonth();
+        $cacheKey = "employee_pos_top_products_{$user->franchise_id}_{$selectedMonth->format('Y_m')}_{$limit}";
+
+        $periodStart = $selectedMonth;
         $periodEnd = $periodStart->copy()->endOfMonth();
         $rangeStart = $periodStart->copy()->utc();
         $rangeEnd = $periodEnd->copy()->utc();

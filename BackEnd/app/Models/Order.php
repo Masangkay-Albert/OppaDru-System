@@ -29,6 +29,8 @@ class Order extends Model
         'include_cutlery',
         'order_number',
         'total',
+        'cash_tendered',
+        'change_due',
         'delivery_fee',
         'delivery_distance_km',
         'distance_km',
@@ -79,6 +81,8 @@ class Order extends Model
 
     protected $casts = [
         'total' => 'decimal:2',
+        'cash_tendered' => 'decimal:2',
+        'change_due' => 'decimal:2',
         'delivery_fee' => 'decimal:2',
         'delivery_distance_km' => 'decimal:3',
         'distance_km' => 'decimal:3',

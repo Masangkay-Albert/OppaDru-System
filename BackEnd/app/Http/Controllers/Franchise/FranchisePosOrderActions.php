@@ -247,6 +247,7 @@ trait FranchisePosOrderActions
                 $promo,
                 $promoDiscount,
                 $gatewayPayment,
+                $cashTendered,
                 $cashierEmployeeId,
                 $franchiseUserId
             ) {
@@ -277,6 +278,8 @@ trait FranchisePosOrderActions
                     'include_cutlery' => $request->boolean('include_cutlery'),
                     'email' => $user->email,
                     'total' => $total,
+                    'cash_tendered' => $paymentMethod === 'cash' ? round($cashTendered, 2) : null,
+                    'change_due' => $paymentMethod === 'cash' ? round($cashTendered - $total, 2) : null,
                     'delivery_type' => 'onsite',
                     'delivery_address' => $deliveryAddress,
                     'delivery_fee' => 0,
@@ -330,11 +333,9 @@ trait FranchisePosOrderActions
         $order = $order->refresh()->load('branch:id,name');
         $order->setAttribute('branch_name', $order->branch?->name);
         if ($employeePosRequest) {
-            $cacheDate = now('Asia/Manila')->format('Y_m_d');
-            foreach (['month', 'last_month'] as $period) {
-                foreach ([5, 100] as $limit) {
-                    Cache::forget("employee_pos_top_products_{$user->franchise_id}_{$period}_{$limit}_{$cacheDate}");
-                }
+            $currentMonth = now('Asia/Manila')->format('Y_m');
+            foreach ([5, 100] as $limit) {
+                Cache::forget("employee_pos_top_products_{$user->franchise_id}_{$currentMonth}_{$limit}");
             }
         }
         $orderResponse = $order;
