@@ -60,7 +60,10 @@ class FacebookService
                 ];
             }
 
-            $error = $response->json('error.message') ?? 'Invalid token or page ID';
+            $error = $this->facebookErrorMessage(
+                (string) ($response->json('error.message') ?? 'Invalid token or page ID'),
+                $response->json('error.code'),
+            );
             return [
                 'configured' => true,
                 'connected' => false,
@@ -143,10 +146,13 @@ class FacebookService
                 ];
             }
 
-            $errorMessage = $response->json('error.message') ?? 'Facebook API rejected post request.';
+            $errorMessage = $this->facebookErrorMessage(
+                (string) ($response->json('error.message') ?? 'Facebook API rejected post request.'),
+                $response->json('error.code'),
+            );
             Log::error('Facebook publish failed', ['response' => $response->json()]);
             if (str_contains(strtolower($errorMessage), 'publish_actions')) {
-                $errorMessage .= ' The publish_actions permission is deprecated. Generate a new Page Access Token with pages_manage_posts and pages_read_engagement, without requesting publish_actions.';
+                $errorMessage .= ' The publish_actions permission is deprecated. Generate a new Page Access Token with pages_show_list, pages_manage_posts, and pages_read_engagement, without requesting publish_actions.';
             }
 
             return [
@@ -163,5 +169,14 @@ class FacebookService
     {
         Log::error('Facebook publish failed', ['message' => $message]);
         return ['success' => false, 'message' => $message];
+    }
+
+    private function facebookErrorMessage(string $message, mixed $errorCode): string
+    {
+        if ((int) $errorCode === 190) {
+            return 'The Facebook access token is expired or has been revoked (OAuth error 190). Re-authorize the Facebook Page, generate a new Page Access Token with pages_show_list, pages_manage_posts, and pages_read_engagement, then update FACEBOOK_PAGE_ACCESS_TOKEN in the backend environment and redeploy.';
+        }
+
+        return $message;
     }
 }

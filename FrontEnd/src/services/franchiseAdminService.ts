@@ -266,7 +266,22 @@ export const getFranchiseAccountReport = (id: string, filters: { from: string; t
 export const getFranchiseAccountDetailedReport = (id: string, filters: { from: string; to: string; locationId?: string }): Promise<FranchiseAccountDetailedReport> => {
   const query = new URLSearchParams({ from: filters.from, to: filters.to });
   if (filters.locationId) query.set('locationId', filters.locationId);
-  return franchiseAdminRequest<FranchiseAccountDetailedReport>(`${API_URL}/admin/franchise-accounts/${id}/detailed-report?${query}`);
+  return franchiseAdminRequest<FranchiseAccountDetailedReport>(`${API_URL}/admin/franchise-accounts/${id}/detailed-report?${query}`)
+    .then((report) => {
+      const arrayFields = [
+        'sales_series', 'statuses', 'payment_mix', 'order_types', 'previous_order_types',
+        'peak_hours', 'orders_by_weekday', 'top_products', 'categories', 'top_addons',
+        'sales_by_location', 'staff_performance', 'franchise_user_performance',
+        'driver_performance', 'recent_orders',
+      ] as const;
+      const safeReport = { ...report };
+      for (const field of arrayFields) {
+        if (!Array.isArray(safeReport[field])) {
+          Object.assign(safeReport, { [field]: [] });
+        }
+      }
+      return safeReport;
+    });
 };
 
 export const getFranchiseAccounts = async (): Promise<FranchiseAdminDashboard> => {
@@ -296,7 +311,23 @@ export const getFranchiseAccountOverview = async (id: string): Promise<Franchise
   if (!response.ok) {
     throw new Error(body?.message || 'Unable to load franchise details');
   }
-  return body?.data as FranchiseAccountOverview;
+  const data = body?.data && typeof body.data === 'object' ? body.data : {};
+  const performance = data.performance && typeof data.performance === 'object' ? data.performance : {};
+  return {
+    ...data,
+    locations: Array.isArray(data.locations) ? data.locations : [],
+    managers: Array.isArray(data.managers) ? data.managers : [],
+    staff: Array.isArray(data.staff) ? data.staff : [],
+    performance: {
+      total_locations: Number(performance.total_locations) || 0,
+      total_managers: Number(performance.total_managers) || 0,
+      total_staff: Number(performance.total_staff) || 0,
+      total_orders: Number(performance.total_orders) || 0,
+      total_sales: Number(performance.total_sales) || 0,
+      average_order_value: Number(performance.average_order_value) || 0,
+      locations: Array.isArray(performance.locations) ? performance.locations : [],
+    },
+  } as FranchiseAccountOverview;
 };
 
 export const updateFranchiseAccount = (id: string, data: Partial<Pick<FranchiseAccount, 'name' | 'email' | 'phone' | 'address' | 'status'>>) =>

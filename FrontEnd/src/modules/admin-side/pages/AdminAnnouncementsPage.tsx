@@ -338,6 +338,10 @@ const AdminAnnouncementsPage: React.FC = () => {
             `Announcement saved, but Facebook publishing failed: ${result.facebookPublish.message || 'Check the Facebook connection.'}`,
             'error'
           );
+          if ((result.facebookPublish.message || '').includes('OAuth error 190')) {
+            setFbStatus(await announcementService.getFacebookStatus());
+            setIsFbSettingsOpen(true);
+          }
         } else if (submissionData.status === 'scheduled') {
           showToast('Announcement scheduled successfully!');
         } else if (submissionData.status === 'draft') {
@@ -436,6 +440,10 @@ Oppa Dru Korean Fried Chicken
         }
       } else {
         showToast(res.message || 'Failed to post to Facebook.', 'error');
+        if ((res.message || '').includes('OAuth error 190')) {
+          setFbStatus(await announcementService.getFacebookStatus());
+          setIsFbSettingsOpen(true);
+        }
       }
     } catch {
       showToast('Error connecting to Facebook API.', 'error');
@@ -1536,13 +1544,18 @@ Oppa Dru Korean Fried Chicken
                     <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
                       {fbStatus?.error || fbStatus?.message || 'Set the Page Access Token in the backend environment to enable posting.'}
                     </p>
+                    {(fbStatus?.error || '').includes('OAuth error 190') && (
+                      <p className="mt-2 text-[11px] font-semibold text-amber-900 dark:text-amber-200">
+                        This cannot be fixed by rechecking. Re-authorize the Page, replace the backend Page token, and redeploy the backend.
+                      </p>
+                    )}
                   </div>
                 )}
 
                 <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] p-3 text-xs text-[var(--oppa-text-muted)]">
                   <p>Page ID: {fbStatus?.page_id || '1356325764233154'}</p>
                   <p className="mt-2">
-                    Configure <code>FACEBOOK_PAGE_ACCESS_TOKEN</code> in the backend environment. The token stays server-side and needs <code>pages_manage_posts</code> and <code>pages_read_engagement</code> permissions. After setting it, reload this page and verify the connection.
+                    Configure <code>FACEBOOK_PAGE_ACCESS_TOKEN</code> in the backend environment. Use a Page Access Token for this Page—not a temporary Graph API user token—with <code>pages_show_list</code>, <code>pages_manage_posts</code>, and <code>pages_read_engagement</code>. Replace it after the Facebook user session is revoked, then redeploy and recheck.
                   </p>
                 </div>
 

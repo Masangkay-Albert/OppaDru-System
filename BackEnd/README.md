@@ -70,7 +70,9 @@ FACEBOOK_PAGE_ACCESS_TOKEN=your-page-access-token
 FACEBOOK_API_VERSION=v26.0
 ```
 
-Generate a Page Access Token for the correct Page with `pages_manage_posts` and `pages_read_engagement`. When using Graph API Explorer, do not request `publish_actions` (it is deprecated); use `GET /me/accounts?fields=id,name,access_token` to get the Page's token and confirm its ID. Keep the token private and set it only in the backend environment, never in frontend code or a committed `.env` file. After updating Render variables, redeploy the backend. The admin page's Facebook connection status should show the Page name when the configuration is valid. Announcements are saved even when Facebook publishing is not configured; enable Facebook publishing again after setting the variables and redeploying.
+Generate a Page Access Token for the correct Page with `pages_show_list`, `pages_manage_posts`, and `pages_read_engagement`. `pages_show_list` is needed to list the Pages and retrieve a Page token. When using Graph API Explorer, do not request `publish_actions` (it is deprecated); use `GET /me/accounts?fields=id,name,access_token` to get the Page's token and confirm its ID. Keep the token private and set it only in the backend environment, never in frontend code or a committed `.env` file. After updating Render variables, redeploy the backend. The admin page's Facebook connection status should show the Page name when the configuration is valid. Announcements are saved even when Facebook publishing is not configured; enable Facebook publishing again after setting the variables and redeploying.
+
+If publishing reports OAuth error `190` or says the session is invalid because the user logged out, Facebook has revoked the configured token. Re-authorize the account that manages the Page, generate a fresh Page Access Token for the same Page with the required permissions, replace `FACEBOOK_PAGE_ACCESS_TOKEN` in the backend host, and redeploy/restart the backend. Rechecking status alone cannot restore a revoked token; do not put a user token or Page token in frontend code.
 
 ## Franchise ordering and POS
 

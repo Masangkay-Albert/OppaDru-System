@@ -106,4 +106,45 @@ class FacebookServiceTest extends TestCase
         $this->assertStringContainsString('Generate a new Page Access Token', $result['message']);
         $this->assertStringContainsString('without requesting publish_actions', $result['message']);
     }
+
+    public function test_it_explains_how_to_reconnect_after_facebook_invalidates_the_token(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'error' => [
+                    'message' => 'Error validating access token: The session is invalid because the user logged out.',
+                    'type' => 'OAuthException',
+                    'code' => 190,
+                ],
+            ], 400),
+        ]);
+
+        $result = (new FacebookService('page-123', 'expired-token'))->publish('Announcement text');
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('expired or has been revoked (OAuth error 190)', $result['message']);
+        $this->assertStringContainsString('generate a new Page Access Token', $result['message']);
+        $this->assertStringContainsString('redeploy', $result['message']);
+    }
+
+    public function test_facebook_status_explains_when_the_page_token_has_been_revoked(): void
+    {
+        config([
+            'services.facebook.page_id' => 'page-123',
+            'services.facebook.page_access_token' => 'expired-token',
+        ]);
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'error' => [
+                    'message' => 'The session is invalid because the user logged out.',
+                    'code' => 190,
+                ],
+            ], 400),
+        ]);
+
+        $status = (new FacebookService())->getStatus();
+
+        $this->assertFalse($status['connected']);
+        $this->assertStringContainsString('generate a new Page Access Token', $status['error']);
+    }
 }
