@@ -189,6 +189,7 @@ const FranchisePOSPage: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [completedOrder, setCompletedOrder] = useState<PosOrder | null>(null);
+  const canEditOrder = !cashierMode || draftReady || Boolean(draftError);
 
   useEffect(() => {
     if (!cashierMode) return;
@@ -475,7 +476,7 @@ const FranchisePOSPage: React.FC = () => {
   };
 
   const openProduct = useCallback(async (product: BranchProduct) => {
-    if (cashierMode && !draftReady) return;
+    if (cashierMode && !draftReady && !draftError) return;
     setConfiguringProduct(product);
     setAddonGroups([]);
     setSelectedAddons([]);
@@ -494,13 +495,13 @@ const FranchisePOSPage: React.FC = () => {
     } finally {
       setIsLoadingAddons(false);
     }
-  }, [cashierMode, draftReady, fetchPosAuth]);
+  }, [cashierMode, draftError, draftReady, fetchPosAuth]);
 
   useEffect(() => {
     const productId = searchParams.get('add_product');
     const showOrder = searchParams.has('view_order');
     const showFavorites = searchParams.get('filter') === 'favorites';
-    if (cashierMode && !draftReady) return;
+    if (cashierMode && !draftReady && !draftError) return;
     if (productId && isLoading) return;
     if (!productId && !showOrder && !showFavorites) return;
     const timeout = window.setTimeout(() => {
@@ -517,7 +518,7 @@ const FranchisePOSPage: React.FC = () => {
       setSearchParams(nextParams, { replace: true });
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [cashierMode, draftReady, isLoading, openProduct, products, searchParams, setSearchParams]);
+  }, [cashierMode, draftError, draftReady, isLoading, openProduct, products, searchParams, setSearchParams]);
 
   const addConfiguredProduct = () => {
     if (!configuringProduct) return;
@@ -853,7 +854,8 @@ const FranchisePOSPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
                   {filteredProducts.map((product) => {
                     const inCartQuantity = quantityForProduct(product.id);
-                    const available = isBranchProductAvailable(product) && (!cashierMode || draftReady);
+                    const available = isBranchProductAvailable(product);
+                    const canAdd = available && canEditOrder;
                     const favorite = favoriteIds.includes(product.id);
                     const bestSeller = cashierMode
                       ? topProductIds.has(product.id)
@@ -876,8 +878,8 @@ const FranchisePOSPage: React.FC = () => {
                         {inCartQuantity ? <div className="mt-2 flex items-center justify-between gap-2">
                           <button type="button" aria-label={`Remove one ${product.name}`} onClick={() => adjustProductQuantity(product, -1)} className="flex size-11 items-center justify-center rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50"><Minus size={17} /></button>
                           <span className="min-w-8 text-center text-base font-bold tabular-nums">{inCartQuantity}</span>
-                          <button type="button" disabled={!available} aria-label={`Add one ${product.name}`} onClick={() => adjustProductQuantity(product, 1)} className="flex size-11 items-center justify-center rounded-xl bg-[#2d6a4f] text-white hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:bg-gray-300"><Plus size={17} /></button>
-                        </div> : <button type="button" disabled={!available} onClick={() => void openProduct(product)} className="mt-3 min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-sm font-bold text-white transition-colors hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600">{available ? 'Add' : 'Sold out'}</button>}
+                          <button type="button" disabled={!canAdd} aria-label={`Add one ${product.name}`} onClick={() => adjustProductQuantity(product, 1)} className="flex size-11 items-center justify-center rounded-xl bg-[#2d6a4f] text-white hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:bg-gray-300"><Plus size={17} /></button>
+                        </div> : <button type="button" disabled={!canAdd} onClick={() => void openProduct(product)} className="mt-3 min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-sm font-bold text-white transition-colors hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600">{available ? canEditOrder ? 'Add' : 'Loading saved order…' : 'Sold out'}</button>}
                       </div>
                     </article>;
                   })}
