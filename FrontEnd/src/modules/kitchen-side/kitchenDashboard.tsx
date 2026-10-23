@@ -64,8 +64,8 @@ const KitchenDashboardPage: React.FC = () => {
   const promotionNoticeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const authData = localStorage.getItem('employee_auth');
-    const token = localStorage.getItem('employee_token');
+    const authData = sessionStorage.getItem('employee_auth');
+    const token = sessionStorage.getItem('employee_token');
     if (!token || !authData) {
       navigate('/staff/login', { replace: true });
       return;
@@ -93,7 +93,7 @@ const KitchenDashboardPage: React.FC = () => {
     const requestedMutationVersion = mutationVersionRef.current;
     if (showLoading) setLoading(true);
     try {
-      const token = localStorage.getItem('employee_token');
+      const token = sessionStorage.getItem('employee_token');
       const headers = { Authorization: `Bearer ${token || ''}`, Accept: 'application/json' };
       const [response, countsResponse] = await Promise.all([
         fetch(`${API_URL}/kitchen/orders?tab=${requestedTab}`, { headers }),
@@ -168,7 +168,7 @@ const KitchenDashboardPage: React.FC = () => {
   ) => {
     setBusyOrderId(orderId);
     try {
-      const token = localStorage.getItem('employee_token');
+      const token = sessionStorage.getItem('employee_token');
       const response = await fetch(`${API_URL}/kitchen/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
@@ -198,7 +198,7 @@ const KitchenDashboardPage: React.FC = () => {
   const rescheduleOrder = async (order: KitchenOrder, scheduledFor: string) => {
     setBusyOrderId(order.id);
     try {
-      const token = localStorage.getItem('employee_token');
+      const token = sessionStorage.getItem('employee_token');
       const response = await fetch(`${API_URL}/kitchen/orders/${order.id}/schedule`, {
         method: 'PATCH',
         headers: {

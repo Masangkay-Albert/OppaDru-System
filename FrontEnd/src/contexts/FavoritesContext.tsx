@@ -36,7 +36,7 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const getActiveUserId = (): string | null => {
     if (user?.id) return user.id;
     try {
-      const raw = localStorage.getItem('employee_auth');
+      const raw = sessionStorage.getItem('employee_auth');
       if (raw) {
         const emp = JSON.parse(raw);
         return emp?.id ? `emp_${emp.id}` : null;

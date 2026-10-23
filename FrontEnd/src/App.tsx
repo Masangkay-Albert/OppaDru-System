@@ -90,6 +90,7 @@ const EmployeeCheckoutPage = lazy(() => import("./modules/employee-side/pages/Em
 const EmployeeOrdersPage = lazy(() => import("./modules/employee-side/pages/EmployeeOrdersPage"));
 const EmployeeSettingsPage = lazy(() => import("./modules/employee-side/pages/EmployeeSettingsPage"));
 const MostPopularMealsPage = lazy(() => import("./modules/employee-side/pages/MostPopularMealsPage"));
+const EmployeeTopProductsPage = lazy(() => import("./modules/employee-side/pages/EmployeeTopProductsPage"));
 
 function App() {
   return (
@@ -194,6 +195,8 @@ function App() {
                       <Route path="/cashier" element={<ProtectedEmployeeRoute><EmployeeMenuPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/popular" element={<ProtectedEmployeeRoute portal="branch-cashier"><MostPopularMealsPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/pos" element={<ProtectedEmployeeRoute portal="branch-cashier"><FranchisePOSPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/top-products" element={<ProtectedEmployeeRoute portal="branch-cashier"><EmployeeTopProductsPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/employee/pos/top-products" element={<ProtectedEmployeeRoute portal="branch-cashier"><EmployeeTopProductsPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/transactions" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierTransactionsPage view="transactions" /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/branch-orders" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierTransactionsPage view="orders" /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/checkout" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />

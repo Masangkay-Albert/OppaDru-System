@@ -34,7 +34,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const isEmployeeContext = /\/(employee|cashier|kitchen|staff)\b/.test(currentPath);
 
     try {
-      const rawEmployee = localStorage.getItem('employee_auth');
+      const rawEmployee = sessionStorage.getItem('employee_auth');
       if (rawEmployee && isEmployeeContext) {
         const emp = JSON.parse(rawEmployee);
         if (emp?.id) return `cart_employee_${emp.id}`;
@@ -46,7 +46,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const rawEmployee = localStorage.getItem('employee_auth');
+      const rawEmployee = sessionStorage.getItem('employee_auth');
       if (rawEmployee) {
         const emp = JSON.parse(rawEmployee);
         if (emp?.id) return `cart_employee_${emp.id}`;

@@ -6,7 +6,7 @@ const ProfileSection: React.FC = () => {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('employee_auth');
+      const raw = sessionStorage.getItem('employee_auth');
       if (raw) {
         setEmployee(JSON.parse(raw));
       }
@@ -93,4 +93,3 @@ const ProfileSection: React.FC = () => {
 };
 
 export default ProfileSection;
-

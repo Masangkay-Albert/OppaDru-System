@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, ArrowLeft, Check, CheckCircle2, ClipboardList, CreditCard, Heart, Minus, Plus, Search, ShoppingBag, Smartphone, Store, Trash2, UserRound, X } from 'lucide-react';
+import { Activity, ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, CreditCard, Drumstick, Heart, Minus, Plus, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, Trophy, UserRound, Utensils, X } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
@@ -10,6 +10,8 @@ import type { Addon, AddonGroup, ProductSize } from '../../../types/product.type
 import type { Product } from '../../../services/productService';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { formatPeso } from '../../../utils/formatters';
+import { getEmployeePosBrowserSessionId, loadEmployeePosDraft, saveEmployeePosDraft } from '../../../services/employeePosDraft';
+import '../../../styles/cashier-pos.css';
 
 interface PosCartLine {
   key: string;
@@ -86,7 +88,7 @@ const FranchisePOSPage: React.FC = () => {
   const location = useLocation();
   const employeeData = (() => {
     try {
-      return JSON.parse(localStorage.getItem('employee_auth') || 'null') as {
+      return JSON.parse(sessionStorage.getItem('employee_auth') || 'null') as {
         id?: string;
         fullName?: string;
         franchise_id?: string | null;
@@ -109,13 +111,20 @@ const FranchisePOSPage: React.FC = () => {
   }, [branchName]);
   const favoriteStorageKey = `branch_pos_favorites_${cashierMode ? employeeData?.id || employeeData?.franchise_id : franchiseUser?.id || 'manager'}`;
   const cartStorageKey = `branch_pos_cart_${cashierMode ? employeeData?.id || employeeData?.franchise_id : franchiseUser?.id || 'manager'}`;
+  const [browserSessionId] = useState(() => cashierMode ? getEmployeePosBrowserSessionId() : '');
   const fetchPosAuth = useCallback((url: string, init?: RequestInit) =>
     cashierMode ? fetchWithEmployeeAuth(url, init) : fetchWithFranchiseAuth(url, init), [cashierMode]);
   const [products, setProducts] = useState<BranchProduct[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
-  const [isLoadingTopProducts, setIsLoadingTopProducts] = useState(true);
-  const [topProductsError, setTopProductsError] = useState('');
+  const [ordersToday, setOrdersToday] = useState(0);
+  const [salesToday, setSalesToday] = useState(0);
+  const [draftReady, setDraftReady] = useState(!cashierMode);
+  const [draftError, setDraftError] = useState('');
+  const [draftAttempt, setDraftAttempt] = useState(0);
+  const [draftSaveAttempt, setDraftSaveAttempt] = useState(0);
+  const draftSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [cart, setCart] = useState<Record<string, PosCartLine>>(() => {
+    if (cashierMode) return {};
     try {
       const saved = localStorage.getItem(cartStorageKey);
       return saved ? JSON.parse(saved) as Record<string, PosCartLine> : {};
@@ -141,6 +150,7 @@ const FranchisePOSPage: React.FC = () => {
   const [removedLine, setRemovedLine] = useState<PosCartLine | null>(null);
   const [cashierClock, setCashierClock] = useState(() => new Date());
   const [favoriteIds, setFavoriteIds] = useState<string[]>(() => {
+    if (cashierMode) return [];
     try {
       const parsed: unknown = JSON.parse(localStorage.getItem(favoriteStorageKey) || '[]');
       return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
@@ -150,6 +160,7 @@ const FranchisePOSPage: React.FC = () => {
   });
   const [stage, setStage] = useState<'menu' | 'checkout'>('menu');
   const [includeCutlery, setIncludeCutlery] = useState(() => {
+    if (cashierMode) return false;
     try {
       return localStorage.getItem(`branch_pos_cutlery_${favoriteStorageKey}`) === 'true';
     } catch {
@@ -166,7 +177,7 @@ const FranchisePOSPage: React.FC = () => {
   const [paymentCheckoutUrl, setPaymentCheckoutUrl] = useState('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [isStartingPayment, setIsStartingPayment] = useState(false);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [cashTendered, setCashTendered] = useState('');
   const [terminalReference, setTerminalReference] = useState('');
   const [discountType, setDiscountType] = useState<'' | 'PWD' | 'Senior Citizen'>('');
@@ -179,6 +190,28 @@ const FranchisePOSPage: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [completedOrder, setCompletedOrder] = useState<PosOrder | null>(null);
 
+  useEffect(() => {
+    if (!cashierMode) return;
+    let active = true;
+    const timeout = window.setTimeout(() => {
+      void loadEmployeePosDraft(browserSessionId).then((draft) => {
+        if (!active) return;
+        setCart((draft.cart || {}) as Record<string, PosCartLine>);
+        setFavoriteIds(Array.isArray(draft.favorite_ids) ? draft.favorite_ids : []);
+        setIncludeCutlery(Boolean(draft.include_cutlery));
+        setDraftError('');
+        setDraftReady(true);
+      }).catch((loadError: unknown) => {
+        if (!active) return;
+        setDraftError(loadError instanceof Error ? loadError.message : 'Could not load the saved cashier order.');
+      });
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [browserSessionId, cashierMode, draftAttempt]);
+
   const loadTopProducts = useCallback(async () => {
     if (!cashierMode) return;
     try {
@@ -186,11 +219,27 @@ const FranchisePOSPage: React.FC = () => {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Could not load this month’s top products.');
       setTopProducts(Array.isArray(payload) ? payload as TopProduct[] : []);
-      setTopProductsError('');
     } catch (loadError) {
-      setTopProductsError(loadError instanceof Error ? loadError.message : 'Could not load this month’s top products.');
-    } finally {
-      setIsLoadingTopProducts(false);
+      setError(loadError instanceof Error ? loadError.message : 'Could not load this month’s top products.');
+    }
+  }, [cashierMode, fetchPosAuth]);
+
+  const loadDailySales = useCallback(async () => {
+    if (!cashierMode) return;
+    try {
+      const response = await fetchPosAuth(`${API_URL}/employee/pos/orders`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Could not load today’s register totals.');
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+      const todaysOrders = (Array.isArray(payload.data) ? payload.data : []).filter((order: { created_at?: string; status?: string; payment_status?: string }) => {
+        if (!order.created_at || order.payment_status?.toLowerCase() !== 'paid'
+          || ['cancelled', 'voided', 'failed'].includes((order.status || '').toLowerCase())) return false;
+        return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date(order.created_at)) === today;
+      });
+      setOrdersToday(todaysOrders.length);
+      setSalesToday(todaysOrders.reduce((sum: number, order: { total?: number }) => sum + Number(order.total || 0), 0));
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Could not load today’s register totals.');
     }
   }, [cashierMode, fetchPosAuth]);
 
@@ -198,6 +247,11 @@ const FranchisePOSPage: React.FC = () => {
     const timeout = window.setTimeout(() => void loadTopProducts(), 0);
     return () => window.clearTimeout(timeout);
   }, [loadTopProducts]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadDailySales(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadDailySales]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedSearch(search.trim().toLowerCase()), 250);
@@ -217,8 +271,25 @@ const FranchisePOSPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (cashierMode) {
+      if (!draftReady) return;
+      const timeout = window.setTimeout(() => {
+        const draft = {
+          cart: cart as Record<string, unknown>,
+          favorite_ids: favoriteIds,
+          include_cutlery: includeCutlery,
+        };
+        draftSaveQueueRef.current = draftSaveQueueRef.current
+          .then(() => saveEmployeePosDraft(browserSessionId, draft))
+          .then(() => setDraftError(''))
+          .catch((saveError: unknown) => {
+            setDraftError(saveError instanceof Error ? saveError.message : 'Could not save the cashier order.');
+          });
+      }, 350);
+      return () => window.clearTimeout(timeout);
+    }
     localStorage.setItem(cartStorageKey, JSON.stringify(cart));
-  }, [cart, cartStorageKey]);
+  }, [browserSessionId, cart, cashierMode, cartStorageKey, draftReady, draftSaveAttempt, favoriteIds, includeCutlery]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setCashierClock(new Date()), 60_000);
@@ -289,12 +360,14 @@ const FranchisePOSPage: React.FC = () => {
   }, [cashierMode, fetchPosAuth]);
 
   useEffect(() => {
+    if (cashierMode) return;
     localStorage.setItem(favoriteStorageKey, JSON.stringify(favoriteIds));
-  }, [favoriteIds, favoriteStorageKey]);
+  }, [cashierMode, favoriteIds, favoriteStorageKey]);
 
   useEffect(() => {
+    if (cashierMode) return;
     localStorage.setItem(`branch_pos_cutlery_${favoriteStorageKey}`, String(includeCutlery));
-  }, [favoriteStorageKey, includeCutlery]);
+  }, [cashierMode, favoriteStorageKey, includeCutlery]);
 
   const lines = Object.values(cart);
   const itemCount = lines.reduce((count, line) => count + line.quantity, 0);
@@ -330,12 +403,8 @@ const FranchisePOSPage: React.FC = () => {
     hourCycle: 'h23',
   }).format(cashierClock));
   const greeting = greetingTime < 12 ? 'Morning' : greetingTime < 18 ? 'Afternoon' : 'Evening';
-  const manilaDateTime = cashierClock.toLocaleString('en-PH', {
+  const manilaTime = cashierClock.toLocaleTimeString('en-PH', {
     timeZone: 'Asia/Manila',
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -405,7 +474,8 @@ const FranchisePOSPage: React.FC = () => {
     setRemovedLine(null);
   };
 
-  const openProduct = async (product: BranchProduct) => {
+  const openProduct = useCallback(async (product: BranchProduct) => {
+    if (cashierMode && !draftReady) return;
     setConfiguringProduct(product);
     setAddonGroups([]);
     setSelectedAddons([]);
@@ -424,7 +494,30 @@ const FranchisePOSPage: React.FC = () => {
     } finally {
       setIsLoadingAddons(false);
     }
-  };
+  }, [cashierMode, draftReady, fetchPosAuth]);
+
+  useEffect(() => {
+    const productId = searchParams.get('add_product');
+    const showOrder = searchParams.has('view_order');
+    const showFavorites = searchParams.get('filter') === 'favorites';
+    if (cashierMode && !draftReady) return;
+    if (productId && isLoading) return;
+    if (!productId && !showOrder && !showFavorites) return;
+    const timeout = window.setTimeout(() => {
+      if (productId) {
+        const product = products.find((candidate) => candidate.id === productId);
+        if (product) void openProduct(product);
+      }
+      if (showOrder) setShowOrderDrawer(true);
+      if (showFavorites) setShowFavoritesOnly(true);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('add_product');
+      nextParams.delete('view_order');
+      nextParams.delete('filter');
+      setSearchParams(nextParams, { replace: true });
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [cashierMode, draftReady, isLoading, openProduct, products, searchParams, setSearchParams]);
 
   const addConfiguredProduct = () => {
     if (!configuringProduct) return;
@@ -624,7 +717,20 @@ const FranchisePOSPage: React.FC = () => {
         sessionStorage.removeItem(pendingPaymentStorageKey(paymentReference));
       }
       setCart({});
+      if (cashierMode) {
+        draftSaveQueueRef.current = draftSaveQueueRef.current
+          .then(() => saveEmployeePosDraft(browserSessionId, {
+            cart: {},
+            favorite_ids: favoriteIds,
+            include_cutlery: includeCutlery,
+          }))
+          .then(() => setDraftError(''))
+          .catch((saveError: unknown) => {
+            setDraftError(saveError instanceof Error ? saveError.message : 'Could not clear the saved cashier order.');
+          });
+      }
       void loadTopProducts();
+      void loadDailySales();
       setPaymentReference('');
       setPaymentCheckoutUrl('');
       setPaymentConfirmed(false);
@@ -664,35 +770,40 @@ const FranchisePOSPage: React.FC = () => {
   }, [completedOrder, configuringProduct, showOrderDrawer]);
 
   return (
-    <div className="admin-page-enter min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)]">
-      <header className="sticky top-0 z-40 flex h-14 items-center justify-between bg-[var(--oppa-green)] px-4 text-white shadow-md sm:px-6">
+    <div className="cashier-workspace admin-page-enter min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)]">
+      <header className="cashier-header sticky top-0 z-40 flex h-14 items-center justify-between px-4 text-white sm:px-6">
         <Link to={cashierMode ? '/cashier/pos' : '/franchise/pos'} className="flex min-w-0 items-center gap-3">
           <img src={oppaDruLogo} alt="" className="size-9 rounded-full border border-white/30 object-cover" />
           <span className="min-w-0"><strong className="block truncate font-serif text-sm sm:text-base"><span className="sm:hidden">Oppa Dru</span><span className="hidden sm:inline">Oppa Dru Korean Fried Chicken</span></strong><small className="hidden truncate text-[9px] font-semibold uppercase tracking-wide text-white/75 sm:block">Onsite POS Register · {cashierMode ? 'Cashier' : 'Branch Manager'} · {branchName}</small></span>
         </Link>
-        <nav className="flex shrink-0 items-center gap-3 text-xs font-semibold sm:gap-5 sm:text-sm">
+        <nav className="flex shrink-0 items-center gap-1 text-xs font-semibold sm:gap-2 sm:text-sm" aria-label="Cashier navigation">
           {cashierMode ? (
             <>
-              <Link to="/cashier/branch-orders" className="flex items-center gap-1.5 hover:text-white/80"><ClipboardList size={16} /><span className="hidden sm:inline">Orders</span></Link>
-              <Link to="/cashier/transactions" className="flex items-center gap-1.5 hover:text-white/80"><Activity size={16} /><span className="hidden sm:inline">Transactions</span></Link>
+              <Link to="/cashier/branch-orders" className={`cashier-nav-link ${location.pathname === '/cashier/branch-orders' ? 'cashier-nav-link-active' : ''}`}><ClipboardList size={16} /><span className="hidden sm:inline">Orders</span></Link>
+              <Link to="/cashier/transactions" className={`cashier-nav-link ${location.pathname === '/cashier/transactions' ? 'cashier-nav-link-active' : ''}`}><Activity size={16} /><span className="hidden sm:inline">Transactions</span></Link>
+              <Link to="/cashier/top-products" className={`cashier-nav-link ${location.pathname === '/cashier/top-products' ? 'cashier-nav-link-active' : ''}`}><Trophy size={16} /><span className="hidden sm:inline">Top Products</span></Link>
             </>
           ) : (
-            <Link to="/franchise/orders" className="flex items-center gap-1.5 hover:text-white/80"><ClipboardList size={16} /><span className="hidden sm:inline">Onsite Orders</span></Link>
+            <Link to="/franchise/orders" className="cashier-nav-link"><ClipboardList size={16} /><span className="hidden sm:inline">Onsite Orders</span></Link>
           )}
-          <button type="button" onClick={() => { setShowFavoritesOnly((value) => !value); setStage('menu'); }} className={`flex items-center gap-1.5 ${showFavoritesOnly ? 'text-yellow-200' : 'hover:text-white/80'}`}><Heart size={16} fill={showFavoritesOnly ? 'currentColor' : 'none'} /><span className="hidden sm:inline">Favorites</span></button>
-          <span className="flex items-center gap-1.5 border-l border-white/20 pl-3 sm:pl-5"><span className="flex size-7 items-center justify-center rounded-full bg-white/15"><UserRound size={15} /></span><span className="hidden sm:inline">{staffName.trim().split(/\s+/)[0]}</span></span>
+          <button type="button" onClick={() => { setShowFavoritesOnly((value) => !value); setStage('menu'); }} className={`cashier-nav-link ${showFavoritesOnly ? 'cashier-nav-link-active' : ''}`} aria-pressed={showFavoritesOnly}><Heart size={16} fill={showFavoritesOnly ? 'currentColor' : 'none'} /><span className="hidden sm:inline">Favorites</span></button>
+          <span className="flex items-center gap-1.5 border-l border-white/20 pl-2 sm:pl-4"><span className="flex size-7 items-center justify-center rounded-full bg-white/15"><UserRound size={15} /></span><span className="hidden sm:inline">{staffName.trim().split(/\s+/)[0]}</span></span>
         </nav>
       </header>
 
       {error && <div role="alert" aria-live="assertive" className={`${cashierMode ? 'fixed right-4 top-16 z-50 flex max-w-[calc(100vw-2rem)] items-start gap-3 shadow-lg' : 'mx-4 mt-3 sm:mx-6'} rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700`}><span className="flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss error" className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-red-100"><X size={16} /></button></div>}
       {success && <div role="status" aria-live="polite" className={`${cashierMode ? 'fixed right-4 top-16 z-50 flex max-w-[calc(100vw-2rem)] items-start gap-3 shadow-lg' : 'mx-4 mt-3 sm:mx-6'} rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800`}><span className="flex-1">{success}</span><button type="button" onClick={() => setSuccess('')} aria-label="Dismiss notification" className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-green-100"><X size={16} /></button></div>}
+      {cashierMode && (draftError || !draftReady) && <div role={draftError ? 'alert' : 'status'} className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 sm:mx-6"><span>{draftError || 'Restoring this tab’s saved cashier order…'}</span>{draftError && <button type="button" onClick={() => draftReady ? setDraftSaveAttempt((attempt) => attempt + 1) : setDraftAttempt((attempt) => attempt + 1)} className="min-h-11 rounded-lg border border-amber-700 bg-white px-3 font-semibold">{draftReady ? 'Retry save' : 'Retry loading'}</button>}</div>}
 
-      <div className="grid min-h-[calc(100vh-56px)] grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_320px]">
-        <aside className="hidden border-r border-gray-100 bg-[var(--oppa-surface)] p-5 lg:block">
-          <div className="mb-5 border-b border-gray-100 pb-4"><h2 className="font-serif text-xl font-bold text-[#1c3d2e]">Register Menu</h2><p className="mt-1 text-xs text-gray-500">Select category to filter items</p></div>
+      <div className={`grid min-h-[calc(100vh-56px)] grid-cols-1 ${stage === 'checkout' ? 'lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]' : 'lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_320px]'}`}>
+        <aside className={`${stage === 'checkout' ? 'hidden' : 'hidden border-r border-gray-100 bg-[var(--oppa-surface)] p-5 lg:block'}`}>
+          <div className="mb-5 border-b border-gray-100 pb-4"><h2 className="font-serif text-xl font-bold text-[#1c3d2e]">Register Menu</h2><p className="mt-1 text-xs text-gray-500">Select category to filter items</p><p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-400">Categories</p></div>
           <nav className="flex flex-col gap-1" aria-label="Product categories">
             {[{ id: 'all', label: 'All' }, ...categories.map((category) => ({ id: category.toLowerCase(), label: category.replaceAll('-', ' ') }))].map(({ id, label }) => (
-              <button key={id} type="button" onClick={() => { setActiveCategory(id); setShowFavoritesOnly(false); setStage('menu'); }} aria-pressed={activeCategory === id && !showFavoritesOnly} className={`flex min-h-11 items-center rounded-xl px-3 py-3 text-left text-sm capitalize ${activeCategory === id && !showFavoritesOnly ? 'bg-[#e3efe7] font-semibold text-[#1c3d2e]' : 'text-gray-600 hover:bg-gray-50'}`}><span className="flex-1">{label}</span><span className="mr-2 text-xs tabular-nums text-gray-400">{categoryCount(id)}</span>{activeCategory === id && !showFavoritesOnly && <span className="h-5 w-1 rounded-full bg-[#2d6a4f]" />}</button>
+              <button key={id} type="button" onClick={() => { setActiveCategory(id); setShowFavoritesOnly(false); setStage('menu'); }} aria-pressed={activeCategory === id && !showFavoritesOnly} className={`relative flex min-h-11 items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm capitalize transition-colors ${activeCategory === id && !showFavoritesOnly ? 'bg-[#e3efe7] font-semibold text-[#1c3d2e] before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-[#1f6b45]' : 'text-gray-600 hover:bg-gray-50'}`}>
+                {id === 'all' ? <Store size={16} aria-hidden="true" /> : id.includes('chicken') ? <Drumstick size={16} aria-hidden="true" /> : id.includes('drink') || id.includes('lemonade') ? <Coffee size={16} aria-hidden="true" /> : id.includes('noodle') ? <Soup size={16} aria-hidden="true" /> : <Utensils size={16} aria-hidden="true" />}
+                <span className="flex-1">{label}</span><span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] tabular-nums text-gray-500">{categoryCount(id)}</span>
+              </button>
             ))}
           </nav>
         </aside>
@@ -703,78 +814,51 @@ const FranchisePOSPage: React.FC = () => {
             event.preventDefault();
             void submitOrder();
           }
-        }} className="min-w-0 p-4 pb-28 sm:p-6 sm:pb-28 xl:pb-6">
+        }} className={`min-w-0 p-4 pb-28 sm:p-6 sm:pb-28 xl:pb-6 ${stage === 'checkout' ? 'xl:col-span-1' : ''}`}>
           {stage === 'menu' ? (
             <>
-              <section className="mb-5 rounded-2xl bg-[#17643b] p-4 text-white shadow-md sm:p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+              <section className="cashier-greeting mb-5 rounded-2xl px-4 py-3 text-white shadow-md sm:px-5">
+                <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
                   <div><h1 className="font-serif text-xl font-bold sm:text-2xl">Good {greeting}, {staffName.trim().split(/\s+/)[0]}!</h1><p className="mt-1 text-sm text-white/90">Register active & ready · {branchName}</p></div>
-                  <div className="text-right"><span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold"><Store size={13} /> Counter Register</span><p className="mt-2 text-xs text-white/85">{manilaDateTime} · {itemCount} item{itemCount === 1 ? '' : 's'} in order</p></div>
+                  <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
+                    <span className="inline-flex min-h-8 items-center gap-1 rounded-full bg-white/15 px-3 text-[11px] font-semibold"><ClipboardList size={13} /> Orders today <strong className="tabular-nums">{ordersToday}</strong></span>
+                    <span className="inline-flex min-h-8 items-center gap-1 rounded-full bg-white/15 px-3 text-[11px] font-semibold">Sales <strong className="tabular-nums">{formatPeso(salesToday)}</strong></span>
+                    <span className="inline-flex min-h-8 items-center gap-1 rounded-full bg-white/15 px-3 text-[11px] font-semibold"><Store size={13} />Time <strong>{manilaTime}</strong></span>
+                  </div>
                 </div>
               </section>
               <nav aria-label="Product categories" className="sticky top-14 z-30 -mx-4 mb-4 flex gap-2 overflow-x-auto border-y border-gray-100 bg-[var(--oppa-cream)]/95 px-4 py-2 backdrop-blur lg:hidden">
                 {[{ id: 'all', label: 'All' }, ...categories.map((category) => ({ id: category.toLowerCase(), label: category.replaceAll('-', ' ') }))].map(({ id, label }) => <button key={id} type="button" onClick={() => { setActiveCategory(id); setShowFavoritesOnly(false); }} aria-pressed={activeCategory === id && !showFavoritesOnly} className={`min-h-11 shrink-0 rounded-full border px-3 text-xs font-semibold capitalize ${activeCategory === id && !showFavoritesOnly ? 'border-[#2d6a4f] bg-[#2d6a4f] text-white' : 'border-gray-200 bg-white text-gray-700'}`}>{label} <span className="opacity-75">({categoryCount(id)})</span></button>)}
               </nav>
-              {cashierMode && <section aria-labelledby="top-sellers-title" className="mb-5 rounded-2xl border border-[#e4ded0] bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div><h2 id="top-sellers-title" className="font-serif text-lg font-bold text-[#1c3d2e]">Top Sellers This Month</h2><p className="mt-0.5 text-xs text-gray-600">Most ordered at this branch</p></div>
-                  <span aria-hidden="true" className="text-xl">★</span>
+              <div className="cashier-filter-glass sticky top-[108px] z-30 -mx-4 mb-4 grid grid-cols-1 gap-3 rounded-b-2xl px-4 py-3 shadow-sm sm:-mx-6 sm:px-6 lg:top-14 lg:grid-cols-[minmax(180px,1fr)_auto] xl:-mx-6">
+                <label className="relative block">
+                  <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-500" />
+                  <input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search menu items..." aria-label="Search menu items" className="min-h-11 w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-12 text-sm shadow-sm focus:border-[#1c3d2e] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
+                  {search ? <button type="button" onClick={() => { setSearch(''); searchRef.current?.focus(); }} aria-label="Clear search" className="absolute right-1 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"><X size={17} /></button> : <span className="absolute right-3 top-1/2 hidden -translate-y-1/2 text-xs text-gray-400 sm:block">/</span>}
+                </label>
+                <div className="flex gap-2 overflow-x-auto pb-1 lg:items-center" role="group" aria-label="Product filters">
+                  {[
+                    { id: 'all', label: 'All', active: !showFavoritesOnly && !showBestSellersOnly && !showAvailableOnly },
+                    { id: 'favorites', label: 'Favorites', active: showFavoritesOnly },
+                    { id: 'best-sellers', label: 'Best Sellers', active: showBestSellersOnly },
+                    { id: 'available', label: 'Available only', active: showAvailableOnly },
+                  ].map((filter) => <button key={filter.id} type="button" aria-pressed={filter.active} onClick={() => {
+                    setShowFavoritesOnly(filter.id === 'favorites' ? !showFavoritesOnly : false);
+                    setShowBestSellersOnly(filter.id === 'best-sellers' ? !showBestSellersOnly : false);
+                    setShowAvailableOnly(filter.id === 'available' ? !showAvailableOnly : false);
+                  }} className={`min-h-10 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${filter.active ? 'border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 bg-white text-gray-600 hover:border-[#2d6a4f]'}`}>{filter.label}</button>)}
                 </div>
-                {isLoadingTopProducts ? <div className="flex gap-3 overflow-hidden" aria-label="Loading top sellers">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-40 min-w-40 animate-pulse rounded-xl bg-gray-100 sm:min-w-48"><div className="h-24 rounded-t-xl bg-gray-200" /><div className="space-y-2 p-3"><div className="h-3 w-4/5 rounded bg-gray-200" /><div className="h-3 w-2/5 rounded bg-gray-200" /></div></div>)}</div>
-                  : topProductsError ? <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><span>{topProductsError}</span><button type="button" onClick={() => { setIsLoadingTopProducts(true); void loadTopProducts(); }} className="min-h-11 rounded-lg border border-amber-700 px-3 font-semibold">Retry</button></div>
-                    : topProducts.length === 0 ? <p role="status" className="rounded-xl bg-[#fbf8f1] px-4 py-5 text-center text-sm text-gray-600">No sales yet this month</p>
-                      : <div className="flex snap-x gap-3 overflow-x-auto pb-1">
-                        {topProducts.map((topProduct) => {
-                          const menuProduct = products.find((product) => product.id === topProduct.productId);
-                          const rankColor = topProduct.rank === 1
-                            ? 'bg-amber-400 text-amber-950'
-                            : topProduct.rank === 2
-                              ? 'bg-slate-300 text-slate-800'
-                              : topProduct.rank === 3
-                                ? 'bg-orange-300 text-orange-950'
-                                : 'bg-[#e3efe7] text-[#1c3d2e]';
-                          return <article key={topProduct.productId} className="relative w-40 shrink-0 snap-start overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:w-48">
-                            <span className={`absolute left-2 top-2 z-10 flex size-8 items-center justify-center rounded-full text-xs font-extrabold shadow ${rankColor}`}>#{topProduct.rank}</span>
-                            <div className="relative h-24 bg-gradient-to-br from-emerald-100 via-amber-50 to-lime-100">
-                              {topProduct.image && <img src={getProductImage(topProduct.image)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} />}
-                              {!topProduct.image && <Store size={28} aria-hidden="true" className="absolute inset-0 m-auto text-emerald-900/50" />}
-                            </div>
-                            <div className="p-3">
-                              <h3 className="line-clamp-2 min-h-10 text-sm font-bold text-gray-900">{topProduct.name}</h3>
-                              <p className="mt-1 text-xs text-gray-600">{topProduct.qtySold} sold · <strong className="text-gray-800">{formatPeso(Number(topProduct.price || menuProduct?.price || 0))}</strong></p>
-                              <button type="button" disabled={!menuProduct || !isBranchProductAvailable(menuProduct)} aria-label={`Add ${topProduct.name} to order`} onClick={() => { if (menuProduct) void openProduct(menuProduct); }} className="mt-2 flex min-h-10 w-full items-center justify-center gap-1 rounded-lg bg-[#2d6a4f] text-sm font-bold text-white transition-transform duration-150 hover:bg-[#1b4d3e] active:scale-95 disabled:bg-gray-300"><Plus size={16} /> Add</button>
-                            </div>
-                          </article>;
-                        })}
-                      </div>}
-              </section>}
-              <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Product filters">
-                {[
-                  { id: 'all', label: 'All', active: !showFavoritesOnly && !showBestSellersOnly && !showAvailableOnly },
-                  { id: 'favorites', label: 'Favorites', active: showFavoritesOnly },
-                  { id: 'best-sellers', label: 'Best Sellers', active: showBestSellersOnly },
-                  { id: 'available', label: 'Available only', active: showAvailableOnly },
-                ].map((filter) => <button key={filter.id} type="button" aria-pressed={filter.active} onClick={() => {
-                  setShowFavoritesOnly(filter.id === 'favorites' ? !showFavoritesOnly : false);
-                  setShowBestSellersOnly(filter.id === 'best-sellers' ? !showBestSellersOnly : false);
-                  setShowAvailableOnly(filter.id === 'available' ? !showAvailableOnly : false);
-                }} className={`min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors ${filter.active ? 'border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 bg-white text-gray-600 hover:border-[#2d6a4f]'}`}>{filter.label}</button>)}
               </div>
-              <label className="relative mb-5 block">
-                <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-500" />
-                <input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search menu items for customer order..." aria-label="Search menu items" className="min-h-12 w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-12 text-sm shadow-sm focus:border-[#1c3d2e] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
-                {search ? <button type="button" onClick={() => { setSearch(''); searchRef.current?.focus(); }} aria-label="Clear search" className="absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"><X size={17} /></button> : <span className="absolute right-3 top-1/2 hidden -translate-y-1/2 text-xs text-gray-400 sm:block">/</span>}
-              </label>
               {isLoading ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4" aria-label="Loading products">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-white"><div className="h-32 rounded-t-2xl bg-gray-200" /><div className="space-y-3 p-3"><div className="h-4 w-2/3 rounded bg-gray-200" /><div className="h-3 w-full rounded bg-gray-100" /><div className="h-10 rounded-xl bg-gray-100" /></div></div>)}</div> : filteredProducts.length === 0 ? <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center" role="status"><Search className="mx-auto mb-3 text-gray-400" size={28} /><h2 className="font-serif text-lg font-semibold text-gray-800">{debouncedSearch ? 'No results found' : 'No products match this filter'}</h2><p className="mt-1 text-sm text-gray-600">{showFavoritesOnly ? 'Favorite items will appear here.' : 'Try another search or choose a different category.'}</p>{debouncedSearch && <button type="button" onClick={() => setSearch('')} className="mt-4 min-h-11 rounded-xl bg-[#2d6a4f] px-4 text-sm font-semibold text-white">Clear search</button>}</div> : (
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
                   {filteredProducts.map((product) => {
                     const inCartQuantity = quantityForProduct(product.id);
-                    const available = isBranchProductAvailable(product);
+                    const available = isBranchProductAvailable(product) && (!cashierMode || draftReady);
                     const favorite = favoriteIds.includes(product.id);
                     const bestSeller = cashierMode
                       ? topProductIds.has(product.id)
                       : Boolean(product.is_best_seller || product.best_seller);
-                    return <article key={product.id} className={`overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition duration-150 ${available ? 'hover:-translate-y-0.5 hover:shadow-lg' : 'opacity-65'}`}>
+                    return <article key={product.id} className={`cashier-menu-card overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition duration-150 ${available ? 'hover:-translate-y-0.5 hover:shadow-lg' : 'opacity-65'}`}>
                       <div className="relative h-28 overflow-hidden bg-gradient-to-br from-emerald-100 via-amber-50 to-lime-100 sm:h-36">
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-emerald-900/65"><Store size={36} /><span className="mt-2 text-xs font-semibold capitalize">{product.category.replaceAll('-', ' ')}</span></div>
                         {product.image && <img src={product.image} alt={product.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} />}
@@ -784,16 +868,16 @@ const FranchisePOSPage: React.FC = () => {
                         {!available && <span className="absolute bottom-3 left-3 rounded-full bg-gray-800/90 px-2.5 py-1 text-xs font-bold text-white">{product.branch_stock_tracked && product.branch_stock === 0 ? 'Sold out' : 'Unavailable'}</span>}
                         {available && isBranchProductLowStock(product) && <span className="absolute left-3 top-3 rounded-full bg-orange-600 px-2.5 py-1 text-xs font-bold text-white shadow">Low stock</span>}
                       </div>
-                      <div className="flex min-h-36 flex-col p-3 sm:p-4">
+                      <div className="flex min-h-32 flex-col p-3">
                         <h2 className="line-clamp-2 min-h-10 font-serif text-sm font-bold text-gray-900 sm:text-base">{product.name}</h2>
                         <p className="mt-1 line-clamp-2 min-h-9 flex-1 text-xs leading-4 text-gray-600 sm:text-[13px] sm:leading-5">{product.description || 'Freshly prepared at this branch.'}</p>
                         {inCartQuantity > 0 && <span className="mt-2 w-fit rounded-full bg-[#e3efe7] px-2.5 py-1 text-xs font-semibold text-[#1c3d2e]">In order ×{inCartQuantity}</span>}
                         {product.branch_stock_tracked && <p className="mt-1 text-xs text-gray-600">{product.branch_stock} in branch stock</p>}
-                        {inCartQuantity ? <div className="mt-3 flex items-center justify-end gap-2">
+                        {inCartQuantity ? <div className="mt-2 flex items-center justify-between gap-2">
                           <button type="button" aria-label={`Remove one ${product.name}`} onClick={() => adjustProductQuantity(product, -1)} className="flex size-11 items-center justify-center rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50"><Minus size={17} /></button>
                           <span className="min-w-8 text-center text-base font-bold tabular-nums">{inCartQuantity}</span>
                           <button type="button" disabled={!available} aria-label={`Add one ${product.name}`} onClick={() => adjustProductQuantity(product, 1)} className="flex size-11 items-center justify-center rounded-xl bg-[#2d6a4f] text-white hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:bg-gray-300"><Plus size={17} /></button>
-                        </div> : <button type="button" disabled={!available} onClick={() => void openProduct(product)} className="mt-3 min-h-11 self-start rounded-xl bg-[#2d6a4f] px-5 text-sm font-bold text-white transition-colors hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600">{available ? 'Add' : 'Sold out'}</button>}
+                        </div> : <button type="button" disabled={!available} onClick={() => void openProduct(product)} className="mt-3 min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-sm font-bold text-white transition-colors hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600">{available ? 'Add' : 'Sold out'}</button>}
                       </div>
                     </article>;
                   })}
@@ -801,15 +885,16 @@ const FranchisePOSPage: React.FC = () => {
               )}
             </>
           ) : (
-            <div className="mx-auto max-w-3xl">
+            <div className="mx-auto max-w-none">
               <div className="mb-5 flex items-center gap-3 border-b border-[#e76f51]/20 pb-3"><button type="button" onClick={() => setStage('menu')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#2d6a4f]"><ArrowLeft size={17} /> Back to Register Menu</button><span className="text-gray-300">|</span><h1 className="font-serif text-lg font-bold text-[#2d6a4f]">POS Register Checkout (Onsite)</h1></div>
-              <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-3 text-base font-bold">Dining Option</h2>
-                <div className="grid grid-cols-2 gap-3">{(['dine_in', 'takeout'] as const).map((option) => <button key={option} type="button" aria-pressed={diningOption === option} onClick={() => setDiningOption(option)} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition-colors ${diningOption === option ? 'border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e] ring-1 ring-[#2d6a4f]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>{diningOption === option && <Check size={17} aria-hidden="true" />}{option === 'dine_in' ? 'Dine-in' : 'Takeout'}</button>)}</div>
-                {diningOption === 'dine_in' && <label className="mt-4 block text-sm font-semibold text-gray-700">Table #<input value={tableNumber} onChange={(event) => setTableNumber(event.target.value)} placeholder="Optional table number" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20" /></label>}
-              </section>
-              <section className="mb-4 space-y-3 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h2 className="text-base font-bold">Customer Details <span className="font-normal text-gray-600">(Optional)</span></h2>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <section className="cashier-surface mb-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-8 items-center justify-center rounded-full bg-[#e3efe7] text-sm font-extrabold text-[#1f6b45]">1</span>Dining</h2>
+              <div className="grid grid-cols-2 gap-3">{(['dine_in', 'takeout'] as const).map((option) => <button key={option} type="button" aria-pressed={diningOption === option} onClick={() => setDiningOption(option)} className={`flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border px-4 py-3 text-sm font-semibold transition-colors ${diningOption === option ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e] ring-1 ring-[#2d6a4f]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>{diningOption === option && <Check size={15} aria-hidden="true" />}{option === 'dine_in' ? <Store size={20} aria-hidden="true" /> : <ShoppingBag size={20} aria-hidden="true" />}{option === 'dine_in' ? 'Dine-in' : 'Takeout'}</button>)}</div>
+              {diningOption === 'dine_in' && <label className="mt-4 block text-sm font-semibold text-gray-700">Table #<input value={tableNumber} onChange={(event) => setTableNumber(event.target.value)} placeholder="Optional table number" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20" /></label>}
+            </section>
+            <section className="cashier-surface mb-4 space-y-3 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h2 className="flex items-center gap-2 text-base font-bold"><span className="flex size-8 items-center justify-center rounded-full bg-[#e3efe7] text-sm font-extrabold text-[#1f6b45]">2</span>Customer <span className="font-normal text-gray-600">(Optional)</span></h2>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-sm font-semibold text-gray-700">Customer name / callout<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Walk-in Customer" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" /></label>
                   <label className="text-sm font-semibold text-gray-700">Contact / phone #<input type="tel" inputMode="tel" value={phone} onChange={(event) => { const digits = event.target.value.replace(/\D/g, '').slice(0, 11); setPhone([digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 11)].filter(Boolean).join(' ')); }} placeholder="09XX XXX XXXX (optional)" aria-invalid={!phoneIsValid} className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" />{!phoneIsValid && <span className="mt-1 block text-xs text-red-700">Use a valid 11-digit number starting with 09.</span>}</label>
@@ -817,23 +902,24 @@ const FranchisePOSPage: React.FC = () => {
                 <label className="block text-sm font-semibold text-gray-700">Order notes / kitchen instructions<textarea value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} placeholder="Add special instructions for the kitchen" maxLength={500} rows={3} className="mt-1 w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" /></label>
                 <div className="flex flex-wrap gap-2" aria-label="Quick order notes">{['Extra crispy', 'Sauce on the side', 'No onions'].map((note) => <button key={note} type="button" aria-pressed={customerNotes.toLowerCase().includes(note.toLowerCase())} onClick={() => setCustomerNotes((current) => current.toLowerCase().includes(note.toLowerCase()) ? current.split(', ').filter((value) => value.toLowerCase() !== note.toLowerCase()).join(', ') : [current.trim(), note].filter(Boolean).join(', '))} className="min-h-11 rounded-full border border-gray-300 px-3 text-xs font-semibold text-gray-700 hover:border-[#2d6a4f] hover:text-[#1c3d2e]">{note}</button>)}</div>
               </section>
-              <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-3 text-base font-bold">Discounts</h2>
-                <div className="flex flex-wrap gap-2">{[{ value: '', label: 'Regular (No Discount)' }, { value: 'Senior Citizen', label: 'Senior Citizen (20%)' }, { value: 'PWD', label: 'PWD (20%)' }].map(({ value, label }) => <button key={value || 'regular'} type="button" aria-pressed={discountType === value} onClick={() => { setDiscountType(value as typeof discountType); setPaymentReference(''); setPaymentConfirmed(false); if (!value) { setDiscountIdNumber(''); setDiscountCardholderName(''); } }} className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold ${discountType === value ? 'bg-[#2d6a4f] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>{discountType === value && <Check size={16} aria-hidden="true" />}{label}</button>)}</div>
+              <section className="cashier-surface mb-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-8 items-center justify-center rounded-full bg-[#e3efe7] text-sm font-extrabold text-[#1f6b45]">3</span>Discount</h2>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">{[{ value: '', label: 'Regular', savings: 0 }, { value: 'Senior Citizen', label: 'Senior Citizen', savings: Math.round(vatExemptBase * 0.2) }, { value: 'PWD', label: 'PWD', savings: Math.round(vatExemptBase * 0.2) }].map(({ value, label, savings }) => <button key={value || 'regular'} type="button" aria-pressed={discountType === value} onClick={() => { setDiscountType(value as typeof discountType); setPaymentReference(''); setPaymentConfirmed(false); if (!value) { setDiscountIdNumber(''); setDiscountCardholderName(''); } }} className={`flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border px-3 py-2 text-center text-sm font-bold transition-colors ${discountType === value ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 bg-white text-gray-700 hover:border-[#2d6a4f]'}`}>{discountType === value && <Check size={15} aria-hidden="true" />}<span>{label}{value ? ' · 20%' : ''}</span><span className="text-xs font-medium text-emerald-700">{savings ? `Save ${formatPeso(savings)}` : 'No discount'}</span></button>)}</div>
                 {discountType && <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">Cardholder name<input value={discountCardholderName} onChange={(event) => setDiscountCardholderName(event.target.value)} placeholder="Name as shown on ID" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" required /></label><label className="text-sm font-semibold">{discountType} ID Number<input value={discountIdNumber} onChange={(event) => setDiscountIdNumber(event.target.value)} placeholder={`Enter ${discountType} ID #`} className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" required /></label><p className="sm:col-span-2 text-xs text-gray-600" title="The 20% discount is applied to the VAT-exempt base amount.">VAT-exempt base + 20% statutory discount</p></div>}
               </section>
-              <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-3 text-base font-bold">Payment Processing</h2>
+              <section className="cashier-surface rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-8 items-center justify-center rounded-full bg-[#e3efe7] text-sm font-extrabold text-[#1f6b45]">4</span>Payment</h2>
                 <div className="grid grid-cols-3 gap-2">{[{ value: 'cash', label: 'Cash', Icon: null }, { value: 'gcash', label: 'GCash', Icon: Smartphone }, { value: 'credit_card', label: 'Card / Terminal', Icon: CreditCard }].map(({ value, label, Icon }) => <button key={value} type="button" aria-pressed={paymentMethod === value} onClick={() => { setPaymentMethod(value as typeof paymentMethod); setPaymentReference(''); setTerminalReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); }} className={`relative flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-sm font-semibold transition-colors ${paymentMethod === value ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>{paymentMethod === value && <Check size={15} className="absolute right-2 top-2" aria-hidden="true" />}{Icon ? <Icon size={22} /> : <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-full border-2 border-current text-lg font-bold leading-none">₱</span>}{label}</button>)}</div>
                 {paymentMethod === 'cash' && <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
                   <div className="flex items-center justify-between gap-2"><label htmlFor="cash-tendered" className="text-xs font-bold uppercase text-gray-700">Cash tendered</label><span className="text-xs text-gray-600">Amount due <strong className="tabular-nums text-gray-900">{formatPeso(total)}</strong></span></div>
                   <div className="relative mt-2"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-gray-600">₱</span><input id="cash-tendered" type="number" inputMode="decimal" min="0" step="0.01" value={cashTendered} onChange={(event) => setCashTendered(event.target.value)} placeholder="0.00" className="min-h-14 w-full rounded-lg border border-gray-300 bg-white py-3 pl-9 pr-3 text-xl font-bold tabular-nums focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20" /></div>
-                  <div className="mt-3 flex flex-wrap gap-2">{[{ amount: total, label: 'Exact' }, ...quickCashAmounts.map((amount) => ({ amount, label: formatPeso(amount) }))].map(({ amount, label }) => <button key={`${amount}-${label}`} type="button" onClick={() => setCashTendered(String(amount))} className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold tabular-nums hover:border-[#2d6a4f]">{label}</button>)}</div>
+                  <div className="mt-3 flex flex-wrap gap-2">{[{ amount: total, label: 'Exact' }, ...quickCashAmounts.map((amount) => ({ amount, label: formatPeso(amount) }))].map(({ amount, label }) => <button key={`${amount}-${label}`} type="button" onClick={() => setCashTendered(String(amount))} className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold tabular-nums hover:border-[#2d6a4f]">{label}</button>)}</div>
                   <p className="mt-3 flex min-h-11 items-center justify-between border-t border-gray-200 pt-3 text-sm" aria-live="polite"><span className="font-semibold">Change Due</span><strong className={`text-lg tabular-nums ${tenderedAmount < total ? 'text-red-700' : 'text-[#2d6a4f]'}`}>{tenderedAmount < total ? `Insufficient: ${formatPeso(total - tenderedAmount)} short` : formatPeso(changeDue)}</strong></p>
                 </div>}
                 {paymentMethod === 'credit_card' && <div className="mt-4"><p className="mb-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Waiting for terminal… Enter the approval code once the terminal completes payment.</p><label className="block text-sm font-semibold text-gray-700">Card / Terminal Approval Code<input value={terminalReference} onChange={(event) => setTerminalReference(event.target.value)} placeholder="Enter terminal approval code" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal normal-case" /></label></div>}
                 {paymentMethod === 'gcash' && <div className="mt-4 space-y-2 rounded-xl bg-[#edf5ef] p-3 text-sm">{!paymentReference ? <button type="button" onClick={() => void startGatewayPayment()} disabled={isStartingPayment || lines.length === 0} className="min-h-11 w-full rounded-lg bg-[#2d6a4f] px-3 py-2.5 font-semibold text-white disabled:opacity-50">{isStartingPayment ? 'Starting secure payment...' : `Start GCash payment · ${formatPeso(total)}`}</button> : <><p>Payment reference: <strong>{paymentReference}</strong></p>{paymentCheckoutUrl && <a href={paymentCheckoutUrl} target="_blank" rel="noreferrer" className="block rounded-lg border border-[#2d6a4f] bg-white px-3 py-2 text-center font-semibold text-[#2d6a4f]">Open GCash checkout</a>}<button type="button" onClick={() => void verifyGatewayPayment()} className={`min-h-11 w-full rounded-lg px-3 py-2.5 font-semibold ${paymentConfirmed ? 'bg-green-100 text-green-800' : 'border border-gray-300 bg-white'}`}>{paymentConfirmed ? 'Payment confirmed' : 'Check gateway payment status'}</button>{!paymentConfirmed && <button type="button" onClick={() => { setPaymentReference(''); setPaymentCheckoutUrl(''); }} className="min-h-11 w-full text-xs text-gray-600 underline">Start a different payment</button>}</>}</div>}
               </section>
+              </div>
             </div>
           )}
         </main>
@@ -842,7 +928,7 @@ const FranchisePOSPage: React.FC = () => {
           <div className="flex min-h-[72px] items-center justify-between border-b border-gray-200 px-4 py-3 xl:px-5">
             <button type="button" onClick={() => setShowOrderDrawer((open) => !open)} aria-expanded={showOrderDrawer} className="flex min-h-11 min-w-0 items-center gap-2 text-left xl:pointer-events-none">
               <ShoppingBag size={19} className="shrink-0" />
-              <span className="min-w-0"><strong className="block text-base">Current Order <span className="ml-1 rounded-full bg-[#e3efe7] px-2 py-0.5 text-xs text-[#1c3d2e]">{itemCount}</span></strong><span className="block text-xs text-gray-600">{itemCount ? `${itemCount} item${itemCount === 1 ? '' : 's'} in queue` : 'Tap an item to start an order'}</span></span>
+            <span className="min-w-0"><strong className="block truncate text-base"><span className="xl:hidden">View Order</span><span className="hidden xl:inline">Current Order</span> <span className="ml-1 rounded-full bg-[#e3efe7] px-2 py-0.5 text-xs text-[#1c3d2e]">{itemCount}</span></strong><span className="block truncate text-xs text-gray-600"><span className="xl:hidden">{formatPeso(total)}</span><span className="hidden xl:inline">{itemCount ? `${itemCount} item${itemCount === 1 ? '' : 's'} in queue` : 'No items yet. Tap a product to start an order.'}</span></span></span>
             </button>
             {lines.length > 0 && <button type="button" onClick={clearOrder} className="min-h-11 shrink-0 px-2 text-sm font-semibold text-red-700 hover:underline">Clear</button>}
           </div>
@@ -852,30 +938,33 @@ const FranchisePOSPage: React.FC = () => {
                 const { key, product, quantity, selectedSize, selectedAddons, specialInstructions: itemNotes } = line;
                 const lineTotal = (Number(product.price) + selectedAddons.reduce((sum, addon) => sum + Number(addon.price) * Math.max(1, Number(addon.quantity || 1)), 0)) * quantity;
                 return <div key={key} className="border-b border-gray-100 pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <button type="button" onClick={() => setEditingNotesKey(editingNotesKey === key ? null : key)} className="min-w-0 text-left">
-                      <span className="block font-semibold text-gray-900">{quantity}× {product.name}</span>
-                      {selectedSize && <span className="block text-xs text-gray-600">{selectedSize}</span>}
-                      {selectedAddons.map((addon) => <span key={addon.id} className="block text-xs text-gray-600">+ {addon.name}</span>)}
-                      {itemNotes && <span className="block text-xs text-gray-500">{itemNotes}</span>}
-                      <span className="mt-1 block text-sm font-semibold tabular-nums">{formatPeso(lineTotal)}</span>
-                    </button>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <button type="button" title={`${quantity}× ${product.name}`} onClick={() => setEditingNotesKey(editingNotesKey === key ? null : key)} className="block min-h-8 max-w-full truncate text-left font-semibold text-gray-900">{quantity}× {product.name}</button>
+                      {selectedSize && <span className="block truncate text-xs text-gray-600">{selectedSize}</span>}
+                      {selectedAddons.map((addon) => <span key={addon.id} className="block truncate text-xs text-gray-600">+ {addon.name}</span>)}
+                      {itemNotes && <span className="block truncate text-xs text-gray-500" title={itemNotes}>{itemNotes}</span>}
+                      <button type="button" onClick={() => setEditingNotesKey(editingNotesKey === key ? null : key)} className="mt-1 min-h-11 text-xs font-semibold text-[#1f6b45] underline underline-offset-2">{itemNotes ? 'Edit note' : 'Add note'}</button>
+                    </div>
+                    <span className="shrink-0 pt-1 text-sm font-bold tabular-nums">{formatPeso(lineTotal)}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-end gap-1">
                     <div className="flex shrink-0 items-center gap-1">
-                      <button type="button" aria-label={`Remove one ${product.name}`} onClick={() => setQuantity(key, quantity - 1)} className="flex size-11 items-center justify-center rounded-xl border border-gray-300 hover:bg-gray-50"><Minus size={15} /></button>
+                      <button type="button" aria-label={`Remove one ${product.name}`} onClick={() => setQuantity(key, quantity - 1)} className="flex size-11 items-center justify-center rounded-xl hover:bg-gray-50"><span className="flex size-8 items-center justify-center rounded-full border border-gray-300"><Minus size={14} /></span></button>
                       <span className="min-w-7 text-center font-bold tabular-nums">{quantity}</span>
-                      <button type="button" aria-label={`Add one ${product.name}`} onClick={() => setQuantity(key, quantity + 1)} className="flex size-11 items-center justify-center rounded-xl border border-gray-300 hover:bg-gray-50"><Plus size={15} /></button>
-                      <button type="button" aria-label={`Remove ${product.name} from order`} onClick={() => removeCartLine(line)} className="ml-1 flex size-11 items-center justify-center rounded-xl text-red-700 hover:bg-red-50"><Trash2 size={17} /></button>
+                      <button type="button" aria-label={`Add one ${product.name}`} onClick={() => setQuantity(key, quantity + 1)} className="flex size-11 items-center justify-center rounded-xl hover:bg-gray-50"><span className="flex size-8 items-center justify-center rounded-full border border-gray-300"><Plus size={14} /></span></button>
+                      <button type="button" aria-label={`Remove ${product.name} from order`} onClick={() => removeCartLine(line)} className="ml-1 flex size-11 items-center justify-center rounded-xl text-red-700 hover:bg-red-50"><Trash2 size={15} /></button>
                     </div>
                   </div>
                   {editingNotesKey === key && <label className="mt-2 block text-xs font-semibold text-gray-600">Item notes<textarea value={itemNotes || ''} onChange={(event) => setCart((current) => ({ ...current, [key]: { ...current[key], specialInstructions: event.target.value || undefined } }))} placeholder="Add item-specific kitchen notes" maxLength={250} rows={2} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal" /></label>}
                 </div>;
               })}
-              {!lines.length && <div className="flex min-h-52 flex-col items-center justify-center text-center"><span className="mb-3 flex size-16 items-center justify-center rounded-full bg-[#e3efe7] text-[#2d6a4f]"><ShoppingBag size={27} /></span><strong className="text-gray-800">Your order is empty</strong><p className="mt-1 text-sm text-gray-600">Tap an item to start an order</p></div>}
+              {!lines.length && <div className="flex min-h-52 flex-col items-center justify-center text-center"><span className="mb-3 flex size-16 items-center justify-center rounded-full bg-[#e3efe7] text-[#2d6a4f]"><ShoppingBag size={27} /></span><strong className="text-gray-800">No items yet</strong><p className="mt-1 text-sm text-gray-600">Tap a product to start an order.</p></div>}
             </div>
             <div className="border-t border-gray-200 bg-white">
               <div className="flex justify-between px-5 py-3 text-sm"><span className="text-gray-700">Order Subtotal</span><strong className="tabular-nums" aria-live="polite">{formatPeso(subtotal)}</strong></div>
               <label className="flex min-h-12 cursor-pointer items-center justify-between border-t border-gray-100 px-5 py-3 text-sm"><span>Include Cutlery / Utensils</span><input type="checkbox" checked={includeCutlery} onChange={(event) => setIncludeCutlery(event.target.checked)} aria-checked={includeCutlery} className="size-5 accent-[#2d6a4f]" /></label>
-              <div className="space-y-2 p-4">
+              <div className={`p-4 ${stage === 'checkout' ? 'cashier-checkout-totals space-y-2' : 'space-y-2'}`}>
                 {stage === 'menu' ? <button type="button" disabled={!lines.length} onClick={() => { setStage('checkout'); setShowOrderDrawer(false); }} className="min-h-12 w-full rounded-xl bg-[#2d6a4f] px-4 py-3.5 text-left text-base font-bold text-white shadow transition-colors hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:bg-gray-300"><span className="flex items-center justify-between"><span>Proceed to Checkout</span><span className="tabular-nums">{formatPeso(total)} →</span></span></button> : <>
                   <div className="flex justify-between text-sm text-gray-700"><span>Subtotal</span><span className="tabular-nums">{formatPeso(subtotal)}</span></div>
                   {discountType && <><div className="flex justify-between text-sm text-gray-600"><span>VAT-exempt base</span><span className="tabular-nums">{formatPeso(vatExemptBase)}</span></div><div className="flex justify-between text-sm font-medium text-emerald-700"><span>Discount ({discountType} 20%)</span><span className="tabular-nums">−{formatPeso(discountAmount)}</span></div></>}
@@ -895,7 +984,7 @@ const FranchisePOSPage: React.FC = () => {
         {removedLine && <div role="status" aria-live="polite" className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-xl bg-gray-900 px-4 py-3 text-sm text-white shadow-xl xl:bottom-5">Item removed <button type="button" onClick={undoRemove} className="font-bold underline underline-offset-2">Undo</button></div>}
       </div>
 
-      {completedOrder && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onKeyDown={(event) => { if (event.key === 'Escape') setCompletedOrder(null); }}><section role="dialog" aria-modal="true" aria-labelledby="branch-pos-receipt-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center gap-2 text-[#2d6a4f]"><CheckCircle2 size={22} /><h2 id="branch-pos-receipt-title" className="text-lg font-bold">Order processed successfully</h2></div><p className="text-center font-serif text-lg font-bold">OPPA DRU KOREAN FRIED CHICKEN</p><p className="text-center text-xs text-gray-600">ONSITE REGISTER RECEIPT · {branchName}</p>{branchAddress && <p className="mb-4 text-center text-xs text-gray-500">{branchAddress}</p>}<div className="space-y-2 border-y border-dashed py-3 text-sm"><p className="flex justify-between"><span>Order #</span><strong>{completedOrder.order_number}</strong></p><p className="flex justify-between"><span>Customer</span><span>{completedOrder.customerName}</span></p><p className="flex justify-between"><span>Dining</span><span>{completedOrder.diningOption === 'dine_in' ? 'Dine-in' : 'Takeout'}</span></p>{(completedOrder.items || []).map((item, index) => { const quantity = Number(item.quantity || 1); const itemAmount = Number(item.product_price || 0) * quantity + (item.selected_addons || []).reduce((sum, addon) => sum + Number(addon.price || 0) * Math.max(1, Number(addon.quantity || 1)) * quantity, 0); return <p key={`${item.product_name}-${index}`} className="flex justify-between"><span>{quantity}x {item.product_name}</span><span className="tabular-nums">{formatPeso(itemAmount)}</span></p>; })}<p className="flex justify-between font-bold"><span>Total</span><span className="tabular-nums">{formatPeso(Number(completedOrder.total))}</span></p><p className="flex justify-between text-xs text-gray-600"><span>Payment</span><span className="uppercase">{completedOrder.payment_method.replace('_', ' ')}</span></p>{completedOrder.payment_method === 'cash' && <><p className="flex justify-between text-xs"><span>Cash Tendered</span><span className="tabular-nums">{formatPeso(Number(completedOrder.cashTendered || 0))}</span></p><p className="flex justify-between text-xs"><span>Change</span><span className="tabular-nums">{formatPeso(Number(completedOrder.changeDue || 0))}</span></p></>}{completedOrder.includeCutlery && <p className="text-xs">Cutlery / utensils included</p>}</div><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => window.print()} className="min-h-11 rounded-xl border px-3 text-sm font-semibold">Print Receipt</button><button type="button" onClick={() => { setCompletedOrder(null); setSuccess(''); setCustomerName(''); setPhone(''); setCustomerNotes(''); setTableNumber(''); setDiscountCardholderName(''); setDiscountIdNumber(''); setCashTendered(''); setTerminalReference(''); setPaymentMethod('cash'); setDiningOption('takeout'); }} className="min-h-11 rounded-xl bg-[#2d6a4f] px-3 text-sm font-semibold text-white">New Order</button><Link to={cashierMode ? '/cashier/branch-orders' : '/franchise/orders'} onClick={() => setCompletedOrder(null)} className="col-span-2 flex min-h-11 items-center justify-center rounded-xl border border-[#2d6a4f] px-3 text-sm font-semibold text-[#1c3d2e]">View Order</Link></div></section></div>}
+      {completedOrder && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onKeyDown={(event) => { if (event.key === 'Escape') setCompletedOrder(null); }}><section role="dialog" aria-modal="true" aria-labelledby="branch-pos-receipt-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center gap-2 text-[#2d6a4f]"><CheckCircle2 size={22} className="cashier-success-check" /><h2 id="branch-pos-receipt-title" className="text-lg font-bold">Order processed successfully</h2></div><p className="text-center font-serif text-lg font-bold">OPPA DRU KOREAN FRIED CHICKEN</p><p className="text-center text-xs text-gray-600">ONSITE REGISTER RECEIPT · {branchName}</p>{branchAddress && <p className="mb-4 text-center text-xs text-gray-500">{branchAddress}</p>}<div className="space-y-2 border-y border-dashed py-3 text-sm"><p className="flex justify-between"><span>Order #</span><strong>{completedOrder.order_number}</strong></p><p className="flex justify-between"><span>Customer</span><span>{completedOrder.customerName}</span></p><p className="flex justify-between"><span>Dining</span><span>{completedOrder.diningOption === 'dine_in' ? 'Dine-in' : 'Takeout'}</span></p>{(completedOrder.items || []).map((item, index) => { const quantity = Number(item.quantity || 1); const itemAmount = Number(item.product_price || 0) * quantity + (item.selected_addons || []).reduce((sum, addon) => sum + Number(addon.price || 0) * Math.max(1, Number(addon.quantity || 1)) * quantity, 0); return <p key={`${item.product_name}-${index}`} className="flex justify-between"><span>{quantity}x {item.product_name}</span><span className="tabular-nums">{formatPeso(itemAmount)}</span></p>; })}<p className="flex justify-between font-bold"><span>Total</span><span className="tabular-nums">{formatPeso(Number(completedOrder.total))}</span></p><p className="flex justify-between text-xs text-gray-600"><span>Payment</span><span className="uppercase">{completedOrder.payment_method.replace('_', ' ')}</span></p>{completedOrder.payment_method === 'cash' && <><p className="flex justify-between text-xs"><span>Cash Tendered</span><span className="tabular-nums">{formatPeso(Number(completedOrder.cashTendered || 0))}</span></p><p className="flex justify-between text-xs"><span>Change</span><span className="tabular-nums">{formatPeso(Number(completedOrder.changeDue || 0))}</span></p></>}{completedOrder.includeCutlery && <p className="text-xs">Cutlery / utensils included</p>}</div><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => window.print()} className="min-h-11 rounded-xl border px-3 text-sm font-semibold">Print Receipt</button><button type="button" onClick={() => { setCompletedOrder(null); setSuccess(''); setCustomerName(''); setPhone(''); setCustomerNotes(''); setTableNumber(''); setDiscountCardholderName(''); setDiscountIdNumber(''); setCashTendered(''); setTerminalReference(''); setPaymentMethod('cash'); setDiningOption('takeout'); }} className="min-h-11 rounded-xl bg-[#2d6a4f] px-3 text-sm font-semibold text-white">New Order</button><Link to={cashierMode ? '/cashier/branch-orders' : '/franchise/orders'} onClick={() => setCompletedOrder(null)} className="col-span-2 flex min-h-11 items-center justify-center rounded-xl border border-[#2d6a4f] px-3 text-sm font-semibold text-[#1c3d2e]">View Order</Link></div></section></div>}
 
       {configuringProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={() => setConfiguringProduct(null)}>

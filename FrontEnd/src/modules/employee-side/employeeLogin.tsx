@@ -29,7 +29,7 @@ const EmployeeLoginPage: React.FC<EmployeeLoginPageProps> = ({ portal = "employe
       if (result.success && result.position) {
         const normalizedPosition = result.position.toLowerCase().trim();
         const isKitchenStaff = normalizedPosition === "kitchen staff" || normalizedPosition === "kitchen";
-        const employeeData = JSON.parse(localStorage.getItem("employee_auth") || "null") as { franchise_id?: string | null } | null;
+        const employeeData = JSON.parse(sessionStorage.getItem("employee_auth") || "null") as { franchise_id?: string | null } | null;
         const isEmployee = normalizedPosition === "cashier" || normalizedPosition === "staff" || normalizedPosition === "employee";
 
         if (isKitchenPortal && isKitchenStaff) {

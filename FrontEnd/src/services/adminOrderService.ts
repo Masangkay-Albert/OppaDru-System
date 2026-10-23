@@ -332,7 +332,7 @@ interface PosOnsiteOrderResponse {
 export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder> => {
   const getCashierEmail = (): string => {
     try {
-      const raw = localStorage.getItem('employee_auth');
+      const raw = sessionStorage.getItem('employee_auth');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed?.email && typeof parsed.email === 'string' && parsed.email.trim()) {
@@ -377,7 +377,7 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
   let backendOrder: PosOnsiteOrderResponse | undefined;
   let serverChangeDue: number;
   try {
-    const employeeToken = localStorage.getItem('employee_token');
+    const employeeToken = sessionStorage.getItem('employee_token');
     const response = await fetch(`${API_URL}/employee/pos/orders`, {
       method: 'POST',
       headers: {

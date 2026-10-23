@@ -7,7 +7,7 @@ const KitchenLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const navigate = useNavigate();
   const employee = (() => {
     try {
-      return JSON.parse(localStorage.getItem('employee_auth') || 'null') as {
+      return JSON.parse(sessionStorage.getItem('employee_auth') || 'null') as {
       franchise_id?: string | null;
       franchise?: { id?: string; name?: string } | null;
       } | null;

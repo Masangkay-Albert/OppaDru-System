@@ -5,14 +5,129 @@ namespace App\Http\Controllers\Franchise;
 use App\Models\Employee;
 use App\Models\FranchiseUser;
 use App\Models\Order;
+use App\Services\EmployeePosDraftService;
 use App\Services\FranchiseInventoryService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 
 trait FranchisePosReadActions
 {
+    public function employeePosDraft(Request $request, EmployeePosDraftService $draftService)
+    {
+        $user = $request->user();
+        if (! $this->isBranchCashier($user)) {
+            return response()->json(['success' => false, 'message' => 'Branch cashier access required.'], 403);
+        }
+
+        $validator = Validator::make($request->query(), [
+            'browser_session_id' => 'required|uuid',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'A valid browser session ID is required.',
+                'errors' => $validator->errors(),
+            ], 400);
+        }
+
+        if (! $draftService->isConfigured()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cashier draft storage is not configured. Contact the system administrator.',
+            ], 503);
+        }
+
+        try {
+            return response()->json([
+                'success' => true,
+                'draft' => $draftService->find(
+                    (string) $user->id,
+                    (string) $user->franchise_id,
+                    $request->query('browser_session_id'),
+                ),
+            ]);
+        } catch (ConnectionException|RequestException $exception) {
+            Log::warning('Could not load employee POS draft from Supabase.', [
+                'employee_id' => $user->id,
+                'franchise_id' => $user->franchise_id,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not load the saved cashier order. Check your connection and retry.',
+            ], 502);
+        }
+    }
+
+    public function saveEmployeePosDraft(Request $request, EmployeePosDraftService $draftService)
+    {
+        $user = $request->user();
+        if (! $this->isBranchCashier($user)) {
+            return response()->json(['success' => false, 'message' => 'Branch cashier access required.'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'browser_session_id' => 'required|uuid',
+            'cart' => 'required|array|max:100',
+            'favorite_ids' => 'required|array|max:500',
+            'favorite_ids.*' => 'required|string|max:100',
+            'include_cutlery' => 'required|boolean',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The cashier draft is invalid.',
+                'errors' => $validator->errors(),
+            ], 400);
+        }
+        if (strlen($request->getContent()) > 1_000_000) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The cashier draft is too large to save.',
+            ], 413);
+        }
+        if (! $draftService->isConfigured()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cashier draft storage is not configured. Contact the system administrator.',
+            ], 503);
+        }
+
+        try {
+            $draft = $draftService->save(
+                (string) $user->id,
+                (string) $user->franchise_id,
+                $validator->validated(),
+            );
+
+            return response()->json(['success' => true, 'draft' => $draft]);
+        } catch (ConnectionException|RequestException $exception) {
+            Log::warning('Could not save employee POS draft to Supabase.', [
+                'employee_id' => $user->id,
+                'franchise_id' => $user->franchise_id,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Could not save the cashier order. Check your connection and retry.',
+            ], 502);
+        }
+    }
+
+    private function isBranchCashier(mixed $user): bool
+    {
+        return $user instanceof Employee
+            && $user->franchise_id
+            && strtolower((string) $user->position) === 'cashier';
+    }
+
     public function employeePosProducts(Request $request)
     {
         $user = $request->user();
@@ -77,8 +192,8 @@ trait FranchisePosReadActions
         }
 
         $validator = Validator::make($request->query(), [
-            'period' => 'nullable|string|in:month',
-            'limit' => 'nullable|integer|min:1|max:20',
+            'period' => 'nullable|string|in:month,last_month,week,today',
+            'limit' => 'nullable|integer|min:1|max:100',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -90,12 +205,24 @@ trait FranchisePosReadActions
 
         $period = $request->query('period', 'month');
         $limit = (int) $request->query('limit', 5);
-        $month = now('Asia/Manila')->format('Y_m');
-        $cacheKey = "employee_pos_top_products_{$user->franchise_id}_{$period}_{$limit}_{$month}";
+        $manilaNow = now('Asia/Manila');
+        $cacheKey = "employee_pos_top_products_{$user->franchise_id}_{$period}_{$limit}_".$manilaNow->format('Y_m_d');
 
-        $products = Cache::remember($cacheKey, now()->addSeconds(60), function () use ($user, $limit) {
-            $monthStart = now('Asia/Manila')->startOfMonth()->utc();
-            $monthEnd = now('Asia/Manila')->endOfMonth()->utc();
+        $periodStart = $manilaNow->copy();
+        if ($period === 'last_month') {
+            $periodStart->startOfMonth()->subMonthNoOverflow()->startOfMonth();
+        } elseif ($period === 'week') {
+            $periodStart->startOfWeek();
+        } elseif ($period === 'today') {
+            $periodStart->startOfDay();
+        } else {
+            $periodStart->startOfMonth();
+        }
+        $periodEnd = $periodStart->copy()->endOf($period === 'week' ? 'week' : ($period === 'today' ? 'day' : 'month'));
+        $rangeStart = $periodStart->copy()->utc();
+        $rangeEnd = $periodEnd->copy()->utc();
+
+        $products = Cache::remember($cacheKey, now()->addSeconds(60), function () use ($user, $limit, $rangeStart, $rangeEnd) {
 
             return DB::table('order_items')
                 ->join('orders', 'orders.id', '=', 'order_items.order_id')
@@ -107,7 +234,7 @@ trait FranchisePosReadActions
                                 ->where('orders.franchise_id', $user->franchise_id);
                         });
                 })
-                ->whereBetween('orders.created_at', [$monthStart, $monthEnd])
+                ->whereBetween('orders.created_at', [$rangeStart, $rangeEnd])
                 ->where('orders.payment_status', 'paid')
                 ->whereNotIn('orders.status', ['cancelled', 'voided', 'failed'])
                 ->select([

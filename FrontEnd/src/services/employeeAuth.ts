@@ -1,10 +1,10 @@
 import { API_URL } from './apiConfig';
 
 export const fetchWithEmployeeAuth = async (url: string, init: RequestInit = {}): Promise<Response> => {
-  const token = localStorage.getItem('employee_token');
+  const token = sessionStorage.getItem('employee_token');
   const redirectToLogin = () => {
-    localStorage.removeItem('employee_auth');
-    localStorage.removeItem('employee_token');
+    sessionStorage.removeItem('employee_auth');
+    sessionStorage.removeItem('employee_token');
     const loginPath = window.location.pathname.startsWith('/kitchen')
       ? '/kitchen/login'
       : window.location.pathname.startsWith('/cashier')
@@ -53,9 +53,9 @@ export const employeeAuth = {
         return { success: false, message: data.message || "Invalid credentials." };
       }
 
-      // Save to local storage
-      localStorage.setItem("employee_auth", JSON.stringify(data.employee));
-      localStorage.setItem("employee_token", data.token);
+      // Keep employee credentials scoped to this browser tab.
+      sessionStorage.setItem("employee_auth", JSON.stringify(data.employee));
+      sessionStorage.setItem("employee_token", data.token);
 
       return { success: true, position: data.position, message: "Login successful" };
     } catch {
@@ -64,9 +64,9 @@ export const employeeAuth = {
   },
 
   logout: () => {
-    const token = localStorage.getItem('employee_token');
-    localStorage.removeItem("employee_auth");
-    localStorage.removeItem("employee_token");
+    const token = sessionStorage.getItem('employee_token');
+    sessionStorage.removeItem("employee_auth");
+    sessionStorage.removeItem("employee_token");
     if (token) {
       void fetch(`${API_BASE_URL}/employee/logout`, {
         method: 'POST',

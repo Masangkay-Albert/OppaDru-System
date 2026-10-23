@@ -9,7 +9,7 @@ const NavbarEmployee: React.FC = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [employee] = useState<{ full_name?: string; fullName?: string; email?: string; position?: string; franchise_id?: string | null; franchise?: { name?: string } | null } | null>(() => {
     try {
-      const raw = localStorage.getItem("employee_auth");
+      const raw = sessionStorage.getItem("employee_auth");
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;

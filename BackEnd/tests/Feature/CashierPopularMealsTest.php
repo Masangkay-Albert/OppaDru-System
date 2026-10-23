@@ -40,7 +40,9 @@ class CashierPopularMealsTest extends TestCase
         $this->createProductSale($branch, $lessPopular, 1);
         $this->createProductSale($otherBranch, $otherBranchProduct, 20);
         $this->createProductSale($branch, $popular, 9, 'cancelled');
-        Cache::forget('employee_pos_top_products_'.$branch->id.'_month_5_'.now('Asia/Manila')->format('Y_m'));
+        foreach (['month', 'week', 'today'] as $period) {
+            Cache::forget('employee_pos_top_products_'.$branch->id.'_'.$period.'_5_'.now('Asia/Manila')->format('Y_m_d'));
+        }
 
         $this->getJson('/api/employee/pos/top-products?period=month&limit=5', $headers)
             ->assertOk()
@@ -53,6 +55,18 @@ class CashierPopularMealsTest extends TestCase
             ->assertJsonPath('1.rank', 2);
 
         $this->getJson('/api/employee/pos/top-products?period=week', $headers)
+            ->assertOk()
+            ->assertJsonPath('0.qtySold', 3);
+
+        $this->getJson('/api/employee/pos/top-products?period=today', $headers)
+            ->assertOk()
+            ->assertJsonPath('0.qtySold', 3);
+
+        $this->getJson('/api/employee/pos/top-products?period=last_month', $headers)
+            ->assertOk()
+            ->assertExactJson([]);
+
+        $this->getJson('/api/employee/pos/top-products?period=invalid', $headers)
             ->assertBadRequest()
             ->assertJsonPath('success', false);
     }

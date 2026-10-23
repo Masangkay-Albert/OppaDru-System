@@ -7,8 +7,8 @@ interface ProtectedEmployeeRouteProps {
 }
 
 const ProtectedEmployeeRoute: React.FC<ProtectedEmployeeRouteProps> = ({ children, portal = 'main-cashier' }) => {
-  const token = localStorage.getItem('employee_token');
-  const authData = localStorage.getItem('employee_auth');
+  const token = sessionStorage.getItem('employee_token');
+  const authData = sessionStorage.getItem('employee_auth');
 
   if (!token || !authData) {
     return <Navigate to="/employee/login" replace />;
@@ -18,14 +18,14 @@ const ProtectedEmployeeRoute: React.FC<ProtectedEmployeeRouteProps> = ({ childre
   try {
     employee = JSON.parse(authData) as { position?: string; franchise_id?: string | null };
   } catch {
-    localStorage.removeItem('employee_auth');
-    localStorage.removeItem('employee_token');
+    sessionStorage.removeItem('employee_auth');
+    sessionStorage.removeItem('employee_token');
     return <Navigate to="/employee/login" replace />;
   }
 
   if (!employee) {
-    localStorage.removeItem('employee_auth');
-    localStorage.removeItem('employee_token');
+    sessionStorage.removeItem('employee_auth');
+    sessionStorage.removeItem('employee_token');
     return <Navigate to="/employee/login" replace />;
   }
 

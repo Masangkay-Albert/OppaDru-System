@@ -4,7 +4,7 @@ import { FiLock, FiShield } from 'react-icons/fi';
 const SecuritySection: React.FC = () => {
   const [employee] = useState(() => {
     try {
-      const raw = localStorage.getItem('employee_auth');
+      const raw = sessionStorage.getItem('employee_auth');
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;

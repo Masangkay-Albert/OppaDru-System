@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw } from 'lucide-react';
+import { Heart, RefreshCw, Trophy } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithEmployeeAuth } from '../../../services/employeeAuth';
 import { formatPeso } from '../../../utils/formatters';
@@ -24,7 +24,7 @@ const CashierTransactionsPage: React.FC<{ view?: 'orders' | 'transactions' }> = 
   const [error, setError] = useState('');
   const staff = (() => {
     try {
-      return JSON.parse(localStorage.getItem('employee_auth') || 'null') as {
+      return JSON.parse(sessionStorage.getItem('employee_auth') || 'null') as {
         franchise_id?: string | null;
         franchise?: { id?: string; name?: string } | null;
       } | null;
@@ -64,6 +64,8 @@ const CashierTransactionsPage: React.FC<{ view?: 'orders' | 'transactions' }> = 
             <Link to="/cashier/pos" className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">POS</Link>
             <Link to="/cashier/branch-orders" className={`rounded-xl border px-4 py-2 text-sm font-medium ${view === 'orders' ? 'border-[var(--oppa-green)] text-[var(--oppa-green)]' : ''}`}>Orders</Link>
             <Link to="/cashier/transactions" className={`rounded-xl border px-4 py-2 text-sm font-medium ${view === 'transactions' ? 'border-[var(--oppa-green)] text-[var(--oppa-green)]' : ''}`}>Transactions</Link>
+            <Link to="/cashier/top-products" className="inline-flex items-center gap-1 rounded-xl border px-4 py-2 text-sm font-medium"><Trophy size={15} /> Top Products</Link>
+            <Link to="/cashier/pos?filter=favorites" className="inline-flex items-center gap-1 rounded-xl border px-4 py-2 text-sm font-medium"><Heart size={15} /> Favorites</Link>
             <button onClick={() => void loadOrders()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm disabled:opacity-50"><RefreshCw size={15} /> Refresh</button>
           </div>
         </header>
