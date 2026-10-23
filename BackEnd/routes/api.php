@@ -292,6 +292,7 @@ Route::middleware(['admin.access'])->prefix('admin')->group(function () {
     Route::post('/franchise-accounts', [FranchiseAccountController::class, 'store']);
     Route::get('/franchise-accounts/{id}', [FranchiseAccountController::class, 'show']);
     Route::get('/franchise-accounts/{id}/report', [FranchiseAccountController::class, 'report']);
+    Route::get('/franchise-accounts/{id}/detailed-report', [FranchiseAccountController::class, 'detailedReport']);
     Route::put('/franchise-accounts/{id}', [FranchiseAccountController::class, 'update']);
     Route::post('/franchise-accounts/{id}/locations', [FranchiseAccountController::class, 'storeLocation']);
     Route::post('/franchise-accounts/{id}/managers', [FranchiseAccountController::class, 'storeManager']);

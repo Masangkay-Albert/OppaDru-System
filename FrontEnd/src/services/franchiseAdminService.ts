@@ -221,10 +221,52 @@ export interface FranchiseAccountReport {
   revenue_rules: string;
 }
 
+export type FranchiseAccountDetailedReport = Omit<
+  FranchiseAccountReport,
+  'summary' | 'previous' | 'order_types' | 'top_products' | 'sales_by_location' | 'staff_performance' | 'recent_orders'
+> & {
+  summary: FranchiseAccountReport['summary'] & {
+    refunded_orders: number;
+    cancelled_refunded_orders: number;
+    cancelled_refunded_order_value: number;
+  };
+  previous: FranchiseAccountReport['summary'] & {
+    refunded_orders: number;
+    cancelled_refunded_orders: number;
+    cancelled_refunded_order_value: number;
+  };
+  order_types: FranchiseAccountReport['order_types'];
+  previous_order_types: FranchiseAccountReport['order_types'];
+  top_products: FranchiseAccountReport['top_products'];
+  previous_top_product: { name: string; units_sold: number } | null;
+  orders_by_weekday: Array<{ day: string; orders: number }>;
+  categories: Array<{ name: string; units_sold: number; sales: number }>;
+  top_addons: Array<{ name: string; units_sold: number; sales: number }>;
+  sales_by_location: Array<FranchiseAccountReport['sales_by_location'][number] & {
+    revenue_orders: number;
+    completed_rate: number;
+    completed_orders: number;
+    cancelled: number;
+  }>;
+  staff_performance: Array<FranchiseAccountReport['staff_performance'][number] & { legacy_sales: number }>;
+  franchise_user_performance: Array<FranchiseAccountReport['staff_performance'][number]>;
+  recent_orders: Array<FranchiseAccountReport['recent_orders'][number] & { legacy_customer: string }>;
+  driver_performance: Array<FranchiseAccountReport['staff_performance'][number] & {
+    cancelled_deliveries: number;
+    average_delivery_minutes: number | null;
+  }>;
+};
+
 export const getFranchiseAccountReport = (id: string, filters: { from: string; to: string; locationId?: string }): Promise<FranchiseAccountReport> => {
   const query = new URLSearchParams({ from: filters.from, to: filters.to });
   if (filters.locationId) query.set('locationId', filters.locationId);
   return franchiseAdminRequest<FranchiseAccountReport>(`${API_URL}/admin/franchise-accounts/${id}/report?${query}`);
+};
+
+export const getFranchiseAccountDetailedReport = (id: string, filters: { from: string; to: string; locationId?: string }): Promise<FranchiseAccountDetailedReport> => {
+  const query = new URLSearchParams({ from: filters.from, to: filters.to });
+  if (filters.locationId) query.set('locationId', filters.locationId);
+  return franchiseAdminRequest<FranchiseAccountDetailedReport>(`${API_URL}/admin/franchise-accounts/${id}/detailed-report?${query}`);
 };
 
 export const getFranchiseAccounts = async (): Promise<FranchiseAdminDashboard> => {

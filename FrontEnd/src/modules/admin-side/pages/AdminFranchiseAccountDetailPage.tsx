@@ -9,7 +9,7 @@ import {
   getFranchiseAccountOverview,
   updateFranchiseAccount,
 } from '../../../services/franchiseAdminService';
-import type { FranchiseAccountOverview, FranchiseAccountReport } from '../../../services/franchiseAdminService';
+import type { FranchiseAccountDetailedReport, FranchiseAccountOverview } from '../../../services/franchiseAdminService';
 import { updateFranchise } from '../../../services/franchiseAdminService';
 import { geocodeAddress } from '../../../services/geocodingService';
 import { useToast } from '../../customer-side/components/ToastProvider';
@@ -34,7 +34,7 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
   const [showManager, setShowManager] = useState(false);
   const [accountFormDirty, setAccountFormDirty] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
-  const [locationStats, setLocationStats] = useState<FranchiseAccountReport['sales_by_location']>([]);
+  const [locationStats, setLocationStats] = useState<FranchiseAccountDetailedReport['sales_by_location']>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -256,7 +256,7 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
     }
   };
 
-  const onReportData = useCallback((report: FranchiseAccountReport) => {
+  const onReportData = useCallback((report: FranchiseAccountDetailedReport) => {
     setLocationStats(report.sales_by_location);
   }, []);
 
@@ -273,8 +273,8 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
       {loading ? <div className="franchise-account-card p-12 text-center text-sm text-gray-500"><Loader2 className="mx-auto mb-3 animate-spin" />Loading franchise details...</div> : account && data && (
         <>
           <header className="franchise-account-hero mb-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-sm">
-            <div className="flex min-w-0 items-center gap-4"><span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]"><Building2 size={24} /></span><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Franchise account</p><h1 className="franchise-account-heading truncate text-2xl font-bold text-[var(--oppa-text)]">{account.name}</h1><p className="flex flex-wrap items-center gap-1 text-xs text-[var(--oppa-text-muted)]"><span>{account.id}</span><button type="button" aria-label="Copy franchise code" onClick={() => void copyCode(account.id, 'Franchise code')} className="inline-flex min-h-8 items-center gap-1 rounded px-2 text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]">{copiedCode ? <Check size={13} /> : <Copy size={13} />}</button><span>· {account.address || 'No head office address'}</span></p><p className="text-xs text-[var(--oppa-text-muted)]">Member since {account.created_at ? new Date(account.created_at).toLocaleDateString() : '—'}</p></div></div>
-            <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize ${account.status === 'active' ? 'bg-green-100 text-green-800' : account.status === 'inactive' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900'}`}>{account.status}</span><button type="button" onClick={() => document.getElementById('franchise-information')?.scrollIntoView({ behavior: 'smooth' })} className="franchise-secondary-button">Edit</button><button type="button" onClick={() => void toggleAccountStatus()} className="franchise-secondary-button">{account.status === 'active' ? 'Deactivate' : 'Activate'}</button><button type="button" onClick={() => document.getElementById('franchise-report-export')?.click()} className="franchise-action-button"><Download size={15} /> Export Report</button></div>
+            <div className="flex min-w-0 items-center gap-4"><span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]"><Building2 size={24} /></span><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]">Franchise account</p><h1 className="franchise-account-heading truncate text-2xl font-bold text-[var(--oppa-text)]">{account.name}</h1><p className="flex flex-wrap items-center gap-1 text-xs text-[var(--oppa-text-muted)]"><span>Code: {account.id}</span><button type="button" aria-label="Copy franchise code" onClick={() => void copyCode(account.id, 'Franchise code')} className="inline-flex min-h-8 items-center gap-1 rounded px-2 text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]">{copiedCode ? <Check size={13} /> : <Copy size={13} />}</button><span>· {account.address || 'No head office address'}</span></p><p className="text-xs text-[var(--oppa-text-muted)]">Date created: {account.created_at ? new Date(account.created_at).toLocaleDateString('en-PH', { dateStyle: 'medium' }) : '—'}</p></div></div>
+            <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize ${account.status === 'active' ? 'bg-green-100 text-green-800' : account.status === 'inactive' ? 'bg-gray-100 text-gray-700' : 'bg-amber-100 text-amber-900'}`}>{account.status}</span><button type="button" onClick={() => document.getElementById('franchise-information')?.scrollIntoView({ behavior: 'smooth' })} className="franchise-secondary-button">Edit</button><button type="button" onClick={() => void toggleAccountStatus()} className="franchise-secondary-button">{account.status === 'active' ? 'Deactivate' : 'Activate'}</button><button type="button" onClick={() => document.getElementById('franchise-report-export')?.click()} className="franchise-action-button"><Download size={15} /> Export Report</button></div>
           </header>
           <nav className="franchise-account-nav mb-4" aria-label="Franchise detail sections"><a href="#franchise-overview">Overview</a><a href="#franchise-report">Report</a><a href="#franchise-locations">Locations</a><a href="#franchise-team">Team</a></nav>
           <div id="franchise-overview" className="scroll-mt-32"><FranchiseAccountReportSection accountId={id} locations={data.locations.map((location) => ({ id: location.id, name: location.name }))} managers={data.performance.total_managers} staff={data.performance.total_staff} allOrders={data.performance.total_orders} allSales={data.performance.total_sales} onData={onReportData} /></div>
