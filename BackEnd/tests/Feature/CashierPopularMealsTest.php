@@ -37,10 +37,11 @@ class CashierPopularMealsTest extends TestCase
         $otherBranchProduct = $this->makeProduct($otherBranch, 'Other Branch Chicken', 500);
 
         $this->createProductSale($branch, $popular, 3);
+        $this->createProductSale($branch, $popular, 2, 'completed', 'delivery');
         $this->createProductSale($branch, $lessPopular, 1);
         $this->createProductSale($otherBranch, $otherBranchProduct, 20);
         $this->createProductSale($branch, $popular, 9, 'cancelled');
-        foreach (['month', 'week', 'today'] as $period) {
+        foreach (['month', 'last_month'] as $period) {
             Cache::forget('employee_pos_top_products_'.$branch->id.'_'.$period.'_5_'.now('Asia/Manila')->format('Y_m_d'));
         }
 
@@ -54,19 +55,11 @@ class CashierPopularMealsTest extends TestCase
             ->assertJsonPath('1.productId', $lessPopular->id)
             ->assertJsonPath('1.rank', 2);
 
-        $this->getJson('/api/employee/pos/top-products?period=week', $headers)
-            ->assertOk()
-            ->assertJsonPath('0.qtySold', 3);
-
-        $this->getJson('/api/employee/pos/top-products?period=today', $headers)
-            ->assertOk()
-            ->assertJsonPath('0.qtySold', 3);
-
         $this->getJson('/api/employee/pos/top-products?period=last_month', $headers)
             ->assertOk()
             ->assertExactJson([]);
 
-        $this->getJson('/api/employee/pos/top-products?period=invalid', $headers)
+        $this->getJson('/api/employee/pos/top-products?period=week', $headers)
             ->assertBadRequest()
             ->assertJsonPath('success', false);
     }
@@ -149,7 +142,13 @@ class CashierPopularMealsTest extends TestCase
         ]);
     }
 
-    private function createProductSale(Franchise $branch, Product $product, int $quantity, string $status = 'completed'): Order
+    private function createProductSale(
+        Franchise $branch,
+        Product $product,
+        int $quantity,
+        string $status = 'completed',
+        string $deliveryType = 'onsite'
+    ): Order
     {
         $order = Order::create([
             'franchise_id' => $branch->id,
@@ -157,8 +156,8 @@ class CashierPopularMealsTest extends TestCase
             'email' => 'cashier@example.test',
             'phone' => '',
             'total' => $product->price * $quantity,
-            'delivery_type' => 'onsite',
-            'delivery_address' => 'Onsite - Takeout',
+            'delivery_type' => $deliveryType,
+            'delivery_address' => $deliveryType === 'onsite' ? 'Onsite - Takeout' : 'Delivery address',
             'status' => $status,
             'payment_method' => 'cash',
             'payment_status' => 'paid',

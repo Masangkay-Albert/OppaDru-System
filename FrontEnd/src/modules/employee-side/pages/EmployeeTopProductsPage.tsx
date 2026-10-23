@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, ClipboardList, Heart, Plus, Trophy, UserRound } from 'lucide-react';
+import { ClipboardList, Heart, Plus, Trophy, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 import { API_URL } from '../../../services/apiConfig';
@@ -9,7 +9,7 @@ import { getProductImage } from '../../../data/productImages';
 import { formatPeso } from '../../../utils/formatters';
 import '../../../styles/cashier-pos.css';
 
-type TopProductPeriod = 'month' | 'last_month' | 'week' | 'today';
+type TopProductPeriod = 'month' | 'last_month';
 
 interface TopProduct {
   productId: string;
@@ -31,8 +31,6 @@ interface CartLine {
 const periodOptions: Array<{ value: TopProductPeriod; label: string }> = [
   { value: 'month', label: 'This Month' },
   { value: 'last_month', label: 'Last Month' },
-  { value: 'week', label: 'This Week' },
-  { value: 'today', label: 'Today' },
 ];
 
 const periodLabel = (period: TopProductPeriod) =>
@@ -156,14 +154,21 @@ const EmployeeTopProductsPage: React.FC = () => {
   const podiumProducts = [products[1], products[0], products[2]].filter(Boolean);
   const rankedProducts = visibleProducts.filter((product) => product.rank > 3 && product.rank <= 10);
   const topQuantity = products[0]?.qtySold || 1;
+  const manilaDateParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: 'numeric',
+  }).formatToParts(new Date());
+  const manilaYear = Number(manilaDateParts.find((part) => part.type === 'year')?.value);
+  const manilaMonth = Number(manilaDateParts.find((part) => part.type === 'month')?.value);
+  const monthBase = new Date(Date.UTC(manilaYear, manilaMonth - (period === 'last_month' ? 2 : 1), 1));
   const monthLabel = new Intl.DateTimeFormat('en-PH', {
     month: 'long',
     year: 'numeric',
     timeZone: 'Asia/Manila',
-  }).format(new Date());
+  }).format(monthBase);
   const title = period === 'month' ? 'Top Products of the Month'
-    : period === 'last_month' ? 'Top Products of Last Month'
-      : period === 'week' ? 'Top Products This Week' : 'Top Products Today';
+    : 'Top Products of Last Month';
 
   return (
     <div className="cashier-workspace min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)]">
@@ -179,7 +184,6 @@ const EmployeeTopProductsPage: React.FC = () => {
         </Link>
         <nav className="flex shrink-0 items-center gap-1 sm:gap-2" aria-label="Cashier navigation">
           <Link to="/cashier/branch-orders" className="cashier-nav-link"><ClipboardList size={16} /><span className="hidden sm:inline">Orders</span></Link>
-          <Link to="/cashier/transactions" className="cashier-nav-link"><Activity size={16} /><span className="hidden sm:inline">Transactions</span></Link>
           <Link to="/cashier/top-products" aria-current="page" className="cashier-nav-link cashier-nav-link-active"><Trophy size={16} /><span className="hidden sm:inline">Top Products</span></Link>
           <Link to={`${registerPath}?filter=favorites`} className="cashier-nav-link"><Heart size={16} /><span className="hidden sm:inline">Favorites</span></Link>
           <span className="flex items-center gap-1.5 border-l border-white/20 pl-2 sm:pl-4"><span className="flex size-7 items-center justify-center rounded-full bg-white/15"><UserRound size={15} /></span><span className="hidden sm:inline">{employee?.fullName?.trim().split(/\s+/)[0] || 'Cashier'}</span></span>
@@ -191,7 +195,7 @@ const EmployeeTopProductsPage: React.FC = () => {
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b77b16]">Branch performance</p>
             <h1 className="mt-1 text-2xl font-bold text-[#1c3d2e] sm:text-3xl">{title}</h1>
-            <p className="mt-1 text-sm text-gray-600">{period === 'month' ? monthLabel : periodLabel(period)} · Most ordered at this branch</p>
+            <p className="mt-1 text-sm text-gray-600">{monthLabel} · Onsite orders at this branch</p>
           </div>
           <div className="cashier-segmented flex w-full gap-1 overflow-x-auto rounded-xl p-1 sm:w-auto" role="group" aria-label="Top products period">
             {periodOptions.map((option) => (
@@ -213,7 +217,7 @@ const EmployeeTopProductsPage: React.FC = () => {
         ) : error ? null : products.length === 0 ? (
           <section className="cashier-surface flex min-h-72 flex-col items-center justify-center rounded-2xl p-8 text-center">
             <Trophy size={34} className="text-[#b77b16]" aria-hidden="true" />
-            <h2 className="mt-3 font-serif text-xl font-bold text-[#1c3d2e]">No sales yet {period === 'month' ? 'this month' : period === 'last_month' ? 'last month' : period === 'week' ? 'this week' : 'today'}</h2>
+            <h2 className="mt-3 font-serif text-xl font-bold text-[#1c3d2e]">No onsite sales yet {period === 'month' ? 'this month' : 'last month'}</h2>
             <p className="mt-1 text-sm text-gray-600">Top products will appear here as completed orders come in.</p>
             <Link to={registerPath} className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-[#216b49] px-5 font-semibold text-white">Back to Register</Link>
           </section>
@@ -274,7 +278,8 @@ const EmployeeTopProductsPage: React.FC = () => {
       </main>
 
       <Link to={`${registerPath}?view_order=1`} className="cashier-order-pill fixed bottom-4 left-1/2 z-40 flex min-h-12 -translate-x-1/2 items-center gap-2 rounded-full px-5 text-sm font-bold text-white shadow-xl">
-        <span>{draftError ? 'Order unavailable' : `View Order (${cartCount})`}</span><span aria-hidden="true">·</span><span className="tabular-nums">{draftError ? 'Retry in register' : formatPeso(cartTotal)}</span>
+        <span className="sr-only">{draftError ? `Saved order could not be restored: ${draftError}. ` : ''}</span>
+        <span>View Order ({cartCount})</span><span aria-hidden="true">·</span><span className="tabular-nums">{formatPeso(cartTotal)}</span>
       </Link>
     </div>
   );

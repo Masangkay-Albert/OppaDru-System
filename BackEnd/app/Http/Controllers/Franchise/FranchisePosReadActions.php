@@ -192,7 +192,7 @@ trait FranchisePosReadActions
         }
 
         $validator = Validator::make($request->query(), [
-            'period' => 'nullable|string|in:month,last_month,week,today',
+            'period' => 'nullable|string|in:month,last_month',
             'limit' => 'nullable|integer|min:1|max:100',
         ]);
         if ($validator->fails()) {
@@ -208,17 +208,11 @@ trait FranchisePosReadActions
         $manilaNow = now('Asia/Manila');
         $cacheKey = "employee_pos_top_products_{$user->franchise_id}_{$period}_{$limit}_".$manilaNow->format('Y_m_d');
 
-        $periodStart = $manilaNow->copy();
+        $periodStart = $manilaNow->copy()->startOfMonth();
         if ($period === 'last_month') {
-            $periodStart->startOfMonth()->subMonthNoOverflow()->startOfMonth();
-        } elseif ($period === 'week') {
-            $periodStart->startOfWeek();
-        } elseif ($period === 'today') {
-            $periodStart->startOfDay();
-        } else {
-            $periodStart->startOfMonth();
+            $periodStart->subMonthNoOverflow()->startOfMonth();
         }
-        $periodEnd = $periodStart->copy()->endOf($period === 'week' ? 'week' : ($period === 'today' ? 'day' : 'month'));
+        $periodEnd = $periodStart->copy()->endOfMonth();
         $rangeStart = $periodStart->copy()->utc();
         $rangeEnd = $periodEnd->copy()->utc();
 
@@ -234,6 +228,7 @@ trait FranchisePosReadActions
                                 ->where('orders.franchise_id', $user->franchise_id);
                         });
                 })
+                ->where('orders.delivery_type', 'onsite')
                 ->whereBetween('orders.created_at', [$rangeStart, $rangeEnd])
                 ->where('orders.payment_status', 'paid')
                 ->whereNotIn('orders.status', ['cancelled', 'voided', 'failed'])

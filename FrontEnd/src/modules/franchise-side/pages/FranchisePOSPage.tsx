@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, CreditCard, Drumstick, Heart, Minus, Plus, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, Trophy, UserRound, Utensils, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, CreditCard, Drumstick, Heart, Minus, Plus, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, Trophy, UserRound, Utensils, X } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
@@ -190,6 +190,9 @@ const FranchisePOSPage: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [completedOrder, setCompletedOrder] = useState<PosOrder | null>(null);
   const canEditOrder = !cashierMode || draftReady || Boolean(draftError);
+  const showDraftStatus = cashierMode && (draftError
+    ? !/draft storage is not configured/i.test(draftError)
+    : !draftReady);
 
   useEffect(() => {
     if (!cashierMode) return;
@@ -781,7 +784,6 @@ const FranchisePOSPage: React.FC = () => {
           {cashierMode ? (
             <>
               <Link to="/cashier/branch-orders" className={`cashier-nav-link ${location.pathname === '/cashier/branch-orders' ? 'cashier-nav-link-active' : ''}`}><ClipboardList size={16} /><span className="hidden sm:inline">Orders</span></Link>
-              <Link to="/cashier/transactions" className={`cashier-nav-link ${location.pathname === '/cashier/transactions' ? 'cashier-nav-link-active' : ''}`}><Activity size={16} /><span className="hidden sm:inline">Transactions</span></Link>
               <Link to="/cashier/top-products" className={`cashier-nav-link ${location.pathname === '/cashier/top-products' ? 'cashier-nav-link-active' : ''}`}><Trophy size={16} /><span className="hidden sm:inline">Top Products</span></Link>
             </>
           ) : (
@@ -794,7 +796,7 @@ const FranchisePOSPage: React.FC = () => {
 
       {error && <div role="alert" aria-live="assertive" className={`${cashierMode ? 'fixed right-4 top-16 z-50 flex max-w-[calc(100vw-2rem)] items-start gap-3 shadow-lg' : 'mx-4 mt-3 sm:mx-6'} rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700`}><span className="flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss error" className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-red-100"><X size={16} /></button></div>}
       {success && <div role="status" aria-live="polite" className={`${cashierMode ? 'fixed right-4 top-16 z-50 flex max-w-[calc(100vw-2rem)] items-start gap-3 shadow-lg' : 'mx-4 mt-3 sm:mx-6'} rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800`}><span className="flex-1">{success}</span><button type="button" onClick={() => setSuccess('')} aria-label="Dismiss notification" className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-green-100"><X size={16} /></button></div>}
-      {cashierMode && (draftError || !draftReady) && <div role={draftError ? 'alert' : 'status'} className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 sm:mx-6"><span>{draftError || 'Restoring this tab’s saved cashier order…'}</span>{draftError && <button type="button" onClick={() => draftReady ? setDraftSaveAttempt((attempt) => attempt + 1) : setDraftAttempt((attempt) => attempt + 1)} className="min-h-11 rounded-lg border border-amber-700 bg-white px-3 font-semibold">{draftReady ? 'Retry save' : 'Retry loading'}</button>}</div>}
+      {showDraftStatus && <div role={draftError ? 'alert' : 'status'} className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 sm:mx-6"><span>{draftError || 'Restoring this tab’s saved cashier order…'}</span>{draftError && <button type="button" onClick={() => draftReady ? setDraftSaveAttempt((attempt) => attempt + 1) : setDraftAttempt((attempt) => attempt + 1)} className="min-h-11 rounded-lg border border-amber-700 bg-white px-3 font-semibold">{draftReady ? 'Retry save' : 'Retry loading'}</button>}</div>}
 
       <div className={`grid min-h-[calc(100vh-56px)] grid-cols-1 ${stage === 'checkout' ? 'lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]' : 'lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_320px]'}`}>
         <aside className={`${stage === 'checkout' ? 'hidden' : 'hidden border-r border-gray-100 bg-[var(--oppa-surface)] p-5 lg:block'}`}>
@@ -965,7 +967,6 @@ const FranchisePOSPage: React.FC = () => {
             </div>
             <div className="border-t border-gray-200 bg-white">
               <div className="flex justify-between px-5 py-3 text-sm"><span className="text-gray-700">Order Subtotal</span><strong className="tabular-nums" aria-live="polite">{formatPeso(subtotal)}</strong></div>
-              <label className="flex min-h-12 cursor-pointer items-center justify-between border-t border-gray-100 px-5 py-3 text-sm"><span>Include Cutlery / Utensils</span><input type="checkbox" checked={includeCutlery} onChange={(event) => setIncludeCutlery(event.target.checked)} aria-checked={includeCutlery} className="size-5 accent-[#2d6a4f]" /></label>
               <div className={`p-4 ${stage === 'checkout' ? 'cashier-checkout-totals space-y-2' : 'space-y-2'}`}>
                 {stage === 'menu' ? <button type="button" disabled={!lines.length} onClick={() => { setStage('checkout'); setShowOrderDrawer(false); }} className="min-h-12 w-full rounded-xl bg-[#2d6a4f] px-4 py-3.5 text-left text-base font-bold text-white shadow transition-colors hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:bg-gray-300"><span className="flex items-center justify-between"><span>Proceed to Checkout</span><span className="tabular-nums">{formatPeso(total)} →</span></span></button> : <>
                   <div className="flex justify-between text-sm text-gray-700"><span>Subtotal</span><span className="tabular-nums">{formatPeso(subtotal)}</span></div>

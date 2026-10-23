@@ -331,7 +331,7 @@ trait FranchisePosOrderActions
         $order->setAttribute('branch_name', $order->branch?->name);
         if ($employeePosRequest) {
             $cacheDate = now('Asia/Manila')->format('Y_m_d');
-            foreach (['month', 'week', 'today'] as $period) {
+            foreach (['month', 'last_month'] as $period) {
                 foreach ([5, 100] as $limit) {
                     Cache::forget("employee_pos_top_products_{$user->franchise_id}_{$period}_{$limit}_{$cacheDate}");
                 }

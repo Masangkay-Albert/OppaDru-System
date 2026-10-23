@@ -197,8 +197,7 @@ function App() {
                       <Route path="/cashier/pos" element={<ProtectedEmployeeRoute portal="branch-cashier"><FranchisePOSPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/top-products" element={<ProtectedEmployeeRoute portal="branch-cashier"><EmployeeTopProductsPage /></ProtectedEmployeeRoute>} />
                       <Route path="/employee/pos/top-products" element={<ProtectedEmployeeRoute portal="branch-cashier"><EmployeeTopProductsPage /></ProtectedEmployeeRoute>} />
-                      <Route path="/cashier/transactions" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierTransactionsPage view="transactions" /></ProtectedEmployeeRoute>} />
-                      <Route path="/cashier/branch-orders" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierTransactionsPage view="orders" /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/branch-orders" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierTransactionsPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/checkout" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/orders" element={<ProtectedEmployeeRoute><EmployeeOrdersPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/favorites" element={<Navigate to="/cashier" replace />} />
