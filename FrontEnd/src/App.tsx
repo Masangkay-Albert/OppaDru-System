@@ -85,6 +85,7 @@ import ProtectedRoute from "./modules/customer-side/components/ProtectedRoute";
 
 // ============ EMPLOYEE / POS PAGES ============
 import ProtectedEmployeeRoute from "./modules/employee-side/components/ProtectedEmployeeRoute";
+import CashierLayout from "./modules/employee-side/components/CashierLayout";
 const EmployeeMenuPage = lazy(() => import("./modules/employee-side/pages/EmployeeMenuPage"));
 const EmployeeCheckoutPage = lazy(() => import("./modules/employee-side/pages/EmployeeCheckoutPage"));
 const EmployeeOrdersPage = lazy(() => import("./modules/employee-side/pages/EmployeeOrdersPage"));
@@ -193,14 +194,14 @@ function App() {
 
                       {/* Cashier routes matching employeeLogin.tsx redirect */}
                       <Route path="/cashier" element={<ProtectedEmployeeRoute><EmployeeMenuPage /></ProtectedEmployeeRoute>} />
-                      <Route path="/cashier/popular" element={<ProtectedEmployeeRoute portal="branch-cashier"><MostPopularMealsPage /></ProtectedEmployeeRoute>} />
-                      <Route path="/cashier/pos" element={<ProtectedEmployeeRoute portal="branch-cashier"><FranchisePOSPage /></ProtectedEmployeeRoute>} />
-                      <Route path="/cashier/top-products" element={<ProtectedEmployeeRoute portal="branch-cashier"><EmployeeTopProductsPage /></ProtectedEmployeeRoute>} />
-                      <Route path="/employee/pos/top-products" element={<ProtectedEmployeeRoute portal="branch-cashier"><EmployeeTopProductsPage /></ProtectedEmployeeRoute>} />
-                      <Route path="/cashier/branch-orders" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierTransactionsPage /></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/popular" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierLayout><MostPopularMealsPage /></CashierLayout></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/pos" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierLayout><FranchisePOSPage /></CashierLayout></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/top-products" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierLayout><EmployeeTopProductsPage /></CashierLayout></ProtectedEmployeeRoute>} />
+                      <Route path="/employee/pos/top-products" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierLayout><EmployeeTopProductsPage /></CashierLayout></ProtectedEmployeeRoute>} />
+                      <Route path="/cashier/branch-orders" element={<ProtectedEmployeeRoute portal="branch-cashier"><CashierLayout><CashierTransactionsPage /></CashierLayout></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/checkout" element={<ProtectedEmployeeRoute><EmployeeCheckoutPage /></ProtectedEmployeeRoute>} />
                       <Route path="/cashier/orders" element={<ProtectedEmployeeRoute><EmployeeOrdersPage /></ProtectedEmployeeRoute>} />
-                      <Route path="/cashier/favorites" element={<Navigate to="/cashier" replace />} />
+                      <Route path="/cashier/favorites" element={<Navigate to="/cashier/pos?filter=favorites" replace />} />
                       <Route path="/cashier/settings" element={<ProtectedEmployeeRoute><EmployeeSettingsPage /></ProtectedEmployeeRoute>} />
 
                       <Route path="/kitchen/dashboard" element={<ProtectedEmployeeRoute portal="kitchen"><KitchenDashboardPage /></ProtectedEmployeeRoute>} />

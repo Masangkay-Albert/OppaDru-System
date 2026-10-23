@@ -2,16 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowDownWideNarrow,
-  ArrowLeft,
   Banknote,
   Check,
   ChevronDown,
   ClipboardList,
   Copy,
   CreditCard,
-  Heart,
   ListFilter,
-  Menu,
   MoreHorizontal,
   PackageCheck,
   Printer,
@@ -19,15 +16,15 @@ import {
   ShoppingBag,
   Store,
   Trophy,
-  UserRound,
   Wallet,
   X,
 } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithEmployeeAuth } from '../../../services/employeeAuth';
 import { formatPeso } from '../../../utils/formatters';
+import { useCashierLayoutStatus } from '../components/CashierLayoutContext';
+import { CashierPageHeader, CashierStatCard } from '../components/CashierUi';
 import StaffBranchBadge from '../../shared/components/StaffBranchBadge';
-import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 import '../../../styles/cashier-pos.css';
 
 interface CashierOrderItem {
@@ -129,6 +126,7 @@ const statusClass: Record<string, string> = {
 };
 
 const CashierTransactionsPage: React.FC = () => {
+  const setHeaderStatus = useCashierLayoutStatus();
   const [orders, setOrders] = useState<CashierOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -142,7 +140,6 @@ const CashierTransactionsPage: React.FC = () => {
       return null;
     }
   });
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => sessionStorage.getItem('cashier_orders_sidebar_collapsed') === 'true');
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customFrom, setCustomFrom] = useState('');
@@ -158,7 +155,6 @@ const CashierTransactionsPage: React.FC = () => {
 
   const branchName = employee?.franchise?.name || 'Main system';
   const branchId = employee?.franchise?.id || employee?.franchise_id || null;
-  const staffName = employee?.fullName?.trim().split(/\s+/)[0] || 'Cashier';
 
   const loadOrders = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true);
@@ -312,8 +308,9 @@ const CashierTransactionsPage: React.FC = () => {
   };
   const cashCount = dateFilteredOrders.filter((order) => order.payment_method.toLowerCase().includes('cash')).length;
   const otherPaymentCount = dateFilteredOrders.length - cashCount;
-  const paymentTotal = Math.max(1, cashCount + otherPaymentCount);
-  const paymentPercent = Math.round((cashCount / paymentTotal) * 100);
+  const paymentTotal = cashCount + otherPaymentCount;
+  const paymentPercent = paymentTotal ? Math.round((cashCount / paymentTotal) * 100) : 0;
+  const otherPaymentPercent = paymentTotal ? 100 - paymentPercent : 0;
   const recentOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
   const hasFilters = Boolean(search || dateFilter !== 'all' || statusFilter !== 'all' || paymentFilter !== 'all' || sort !== 'newest');
 
@@ -326,13 +323,6 @@ const CashierTransactionsPage: React.FC = () => {
     setPaymentFilter('all');
     setSort('newest');
     setPage(1);
-  };
-
-  const toggleSidebar = () => {
-    setSidebarCollapsed((current) => {
-      sessionStorage.setItem('cashier_orders_sidebar_collapsed', String(!current));
-      return !current;
-    });
   };
 
   const copyBranchCode = async () => {
@@ -372,6 +362,10 @@ const CashierTransactionsPage: React.FC = () => {
         : `Updated ${friendlyDate(updatedAt.toISOString())}`
     : 'Loading orders…';
 
+  useEffect(() => {
+    setHeaderStatus(refreshing ? 'Updating…' : updatedLabel);
+  }, [refreshing, setHeaderStatus, updatedLabel]);
+
   const paymentIcon = (method: string) => {
     const normalized = method.toLowerCase();
     if (normalized.includes('cash')) return <Banknote size={14} aria-hidden="true" />;
@@ -381,61 +375,41 @@ const CashierTransactionsPage: React.FC = () => {
 
   const paymentLabel = (method: string) => method.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
-  const navItems = [
-    { label: 'Register', to: '/cashier/pos', icon: ShoppingBag },
-    { label: 'Orders', to: '/cashier/branch-orders', icon: ClipboardList, active: true },
-    { label: 'Top Products', to: '/cashier/top-products', icon: Trophy },
-    { label: 'Favorites', to: '/cashier/pos?filter=favorites', icon: Heart },
-  ];
-
   return (
     <div className="cashier-workspace cashier-orders-workspace min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)]">
-      <aside className={`cashier-orders-sidebar ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
-        <Link to="/cashier/pos" className="cashier-orders-brand" aria-label="Oppa Dru cashier register">
-          <img src={oppaDruLogo} alt="" className="size-10 rounded-full object-cover" />
-          {!sidebarCollapsed && <span><strong>Oppa Dru</strong><small>Branch Cashier</small></span>}
-        </Link>
-        <button type="button" className="cashier-sidebar-toggle" onClick={toggleSidebar} aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-          {sidebarCollapsed ? <Menu size={19} /> : <ArrowLeft size={19} />}
-          {!sidebarCollapsed && <span>Collapse menu</span>}
-        </button>
-        <nav className="cashier-orders-nav" aria-label="Cashier navigation">
-          {navItems.map(({ label, to, icon: Icon, active }) => (
-            <Link key={label} to={to} title={sidebarCollapsed ? label : undefined} aria-current={active ? 'page' : undefined} className={`cashier-orders-nav-link ${active ? 'active' : ''}`}>
-              <Icon size={19} aria-hidden="true" />{!sidebarCollapsed && <span>{label}</span>}
-            </Link>
-          ))}
-        </nav>
-        <div className="cashier-orders-profile">
-          <span className="cashier-orders-avatar"><UserRound size={18} /></span>
-          {!sidebarCollapsed && <span className="min-w-0"><strong className="block truncate">{staffName}</strong><small className="block truncate">{branchName}</small></span>}
-        </div>
-      </aside>
-
       <div className="cashier-orders-main">
         <main className="cashier-orders-content">
-          <header className="cashier-orders-heading cashier-surface">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b77b16]">Branch cashier</p>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <h1 className="font-serif text-2xl font-bold text-[#1c3d2e] sm:text-3xl">My Orders</h1>
-                <span className="text-xs text-gray-500" aria-live="polite">{refreshing ? 'Updating…' : updatedLabel}</span>
-              </div>
-              <p className="mt-1 text-sm text-gray-600">Orders placed using your cashier account at your assigned branch.</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+          <CashierPageHeader
+            eyebrow="Branch cashier"
+            title="My Orders"
+            subtitle="Orders placed using your cashier account at your assigned branch."
+          >
+            <div className="mt-3 flex flex-wrap items-center gap-2">
                 <StaffBranchBadge name={branchName} id={branchId} />
                 {branchId && <button type="button" onClick={() => void copyBranchCode()} aria-label="Copy branch code" className="flex min-h-9 items-center gap-1.5 rounded-full border border-[#e7e1d6] bg-white px-3 text-xs font-semibold text-[#1c3d2e]">{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? 'Copied' : 'Copy code'}</button>}
-              </div>
             </div>
-          </header>
+          </CashierPageHeader>
 
           <section className="cashier-orders-stats" aria-label="Order summary">
-            {loading ? Array.from({ length: 4 }, (_, index) => <div key={index} className="cashier-surface h-28 animate-pulse rounded-2xl bg-white" />) : (
+            {loading ? (
               <>
-                <article className="cashier-surface cashier-orders-stat"><span className="cashier-orders-stat-icon"><ClipboardList size={19} /></span><div><p>Total Orders</p><strong>{dateFilteredOrders.length.toLocaleString()}</strong><small>{trendLabel(dateFilteredOrders.length, previousOrders.length)}</small></div></article>
-                <article className="cashier-surface cashier-orders-stat"><span className="cashier-orders-stat-icon"><Banknote size={19} /></span><div><p>Total Sales</p><strong>{formatPeso(totalSales)}</strong><small>{trendLabel(totalSales, previousSales)}</small></div></article>
-                <article className="cashier-surface cashier-orders-stat"><span className="cashier-orders-stat-icon"><Wallet size={19} /></span><div><p>Average Order</p><strong>{formatPeso(averageOrder)}</strong><small>Today: {formatPeso(averageToday)}</small></div></article>
-                <article className="cashier-surface cashier-orders-stat"><span className="cashier-orders-stat-icon"><CreditCard size={19} /></span><div className="w-full"><p>Cash vs E-wallet / Card</p><strong>{cashCount} <small>cash</small> · {otherPaymentCount} <small>other</small></strong><span className="cashier-payment-bar"><i style={{ width: `${paymentPercent}%` }} /></span></div></article>
+                <CashierStatCard icon={ClipboardList} label="Total Orders" value="" loading />
+                <CashierStatCard icon={Banknote} label="Total Sales" value="" loading />
+                <CashierStatCard icon={Wallet} label="Average Order" value="" loading />
+                <CashierStatCard icon={CreditCard} label="Cash vs E-wallet / Card" value="" loading />
+              </>
+            ) : (
+              <>
+                <CashierStatCard icon={ClipboardList} label="Total Orders" value={dateFilteredOrders.length.toLocaleString()} detail={trendLabel(dateFilteredOrders.length, previousOrders.length)} />
+                <CashierStatCard icon={Banknote} label="Total Sales" value={formatPeso(totalSales)} detail={trendLabel(totalSales, previousSales)} />
+                <CashierStatCard icon={Wallet} label="Average Order" value={formatPeso(averageOrder)} detail={`Today: ${formatPeso(averageToday)}`} />
+                <CashierStatCard
+                  icon={CreditCard}
+                  label="Cash vs E-wallet / Card"
+                  className="cashier-payment-split-stat"
+                  value={<span className="cashier-payment-split-value"><span>{cashCount} cash</span><span>{otherPaymentCount} other</span></span>}
+                  detail={<span className="cashier-payment-bar"><i style={{ width: `${paymentPercent}%` }} /></span>}
+                />
               </>
             )}
           </section>
@@ -483,16 +457,12 @@ const CashierTransactionsPage: React.FC = () => {
 
         <aside className="cashier-orders-insights" aria-label="Branch insights">
           <section className="cashier-surface rounded-2xl p-5"><h2 className="font-serif text-lg font-bold text-[#1c3d2e]">Today at a glance</h2><div className="mt-4 grid grid-cols-2 gap-3"><div><small>Orders</small><strong>{ordersToday.length}</strong></div><div><small>Sales</small><strong>{formatPeso(salesToday)}</strong></div><div className="col-span-2"><small>Average order</small><strong>{formatPeso(averageToday)}</strong></div></div></section>
-          <section className="cashier-surface rounded-2xl p-5"><h2 className="font-serif text-lg font-bold text-[#1c3d2e]">Payment mix</h2><div className="mt-4 space-y-3 text-sm"><div className="flex justify-between"><span>Cash</span><strong>{cashCount} ({paymentPercent}%)</strong></div><div className="cashier-payment-bar"><i style={{ width: `${paymentPercent}%` }} /></div><div className="flex justify-between"><span>E-wallet / Card</span><strong>{otherPaymentCount} ({100 - paymentPercent}%)</strong></div></div></section>
+          <section className="cashier-surface rounded-2xl p-5"><h2 className="font-serif text-lg font-bold text-[#1c3d2e]">Payment mix</h2><div className="mt-4 space-y-3 text-sm"><div className="flex justify-between"><span>Cash</span><strong>{cashCount} ({paymentPercent}%)</strong></div><div className="cashier-payment-bar"><i style={{ width: `${paymentPercent}%` }} /></div><div className="flex justify-between"><span>E-wallet / Card</span><strong>{otherPaymentCount} ({otherPaymentPercent}%)</strong></div></div></section>
           <section className="cashier-surface rounded-2xl p-5"><h2 className="font-serif text-lg font-bold text-[#1c3d2e]">Status breakdown</h2><div className="mt-3 space-y-2">{['pending', 'preparing', 'ready', 'delivered', 'cancelled'].map((status) => <div key={status} className="flex justify-between text-sm capitalize text-gray-600"><span>{status}</span><strong className="text-[#1c3d2e]">{statusCounts[status] || 0}</strong></div>)}</div></section>
           <section className="cashier-surface rounded-2xl p-5"><h2 className="font-serif text-lg font-bold text-[#1c3d2e]">Recent activity</h2><div className="mt-3 space-y-3">{recentOrders.length ? recentOrders.map((order) => <button type="button" key={order.id} onClick={() => setSelectedOrder(order)} className="flex w-full items-center justify-between gap-2 text-left"><span className="min-w-0"><strong className="block truncate text-xs">{order.order_number || order.id}</strong><small className="text-gray-500">{friendlyDate(order.created_at)}</small></span><strong className="shrink-0 text-xs tabular-nums">{formatPeso(Number(order.total))}</strong></button>) : <p className="text-sm text-gray-500">No recent orders.</p>}</div></section>
           <section className="cashier-surface rounded-2xl p-5"><h2 className="font-serif text-lg font-bold text-[#1c3d2e]">Quick links</h2><div className="mt-3 grid gap-2"><Link to="/cashier/pos" className="flex min-h-11 items-center gap-2 rounded-xl bg-[#216b49] px-3 text-sm font-bold text-white"><ShoppingBag size={16} /> Open Register</Link><Link to="/cashier/top-products" className="flex min-h-11 items-center gap-2 rounded-xl border border-[#d9e6dc] px-3 text-sm font-bold text-[#1c3d2e]"><Trophy size={16} /> Top Products</Link></div></section>
         </aside>
       </div>
-
-      <nav className="cashier-orders-mobile-nav lg:hidden" aria-label="Cashier navigation">
-        {navItems.map(({ label, to, icon: Icon, active }) => <Link key={label} to={to} aria-current={active ? 'page' : undefined} aria-label={label} className={active ? 'active' : ''}><Icon size={20} /><span>{label}</span></Link>)}
-      </nav>
 
       {selectedOrder && <div className="cashier-order-drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedOrder(null); }}><aside className="cashier-order-drawer" role="dialog" aria-modal="true" aria-labelledby="cashier-order-drawer-title">
         <header><div><p className="text-xs font-bold uppercase tracking-wider text-[#b77b16]">Order details</p><h2 id="cashier-order-drawer-title" className="mt-1 font-mono text-base font-bold">{selectedOrder.order_number || selectedOrder.id}</h2></div><button type="button" onClick={() => setSelectedOrder(null)} aria-label="Close order details"><X size={20} /></button></header>

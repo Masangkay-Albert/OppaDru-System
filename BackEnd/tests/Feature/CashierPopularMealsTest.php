@@ -60,9 +60,12 @@ class CashierPopularMealsTest extends TestCase
             ->assertOk()
             ->assertExactJson([]);
 
-        $this->getJson('/api/employee/pos/top-products?period=week', $headers)
-            ->assertBadRequest()
-            ->assertJsonPath('success', false);
+        foreach (['week', 'today'] as $period) {
+            $this->getJson('/api/employee/pos/top-products?period='.$period.'&limit=5', $headers)
+                ->assertOk()
+                ->assertJsonPath('0.productId', $popular->id)
+                ->assertJsonPath('0.qtySold', 3);
+        }
     }
 
     public function test_employee_pos_top_products_can_be_filtered_by_calendar_month(): void

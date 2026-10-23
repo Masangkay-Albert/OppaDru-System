@@ -204,7 +204,7 @@ trait FranchisePosReadActions
         }
 
         $validator = Validator::make($request->query(), [
-            'period' => 'nullable|string|in:month,last_month',
+            'period' => 'nullable|string|in:month,last_month,week,today',
             'month' => ['nullable', 'date_format:Y-m'],
             'limit' => 'nullable|integer|min:1|max:100',
         ]);
@@ -218,17 +218,28 @@ trait FranchisePosReadActions
 
         $limit = (int) $request->query('limit', 5);
         $manilaNow = now('Asia/Manila');
+        $period = (string) $request->query('period', 'month');
         $selectedMonth = $request->query('month')
             ? Carbon::createFromFormat('!Y-m', $request->query('month'), 'Asia/Manila')
             : $manilaNow->copy()->startOfMonth();
-        if (! $request->query('month') && $request->query('period') === 'last_month') {
+        if (! $request->query('month') && $period === 'last_month') {
             $selectedMonth->subMonthNoOverflow()->startOfMonth();
         }
         $selectedMonth->startOfMonth();
-        $cacheKey = "employee_pos_top_products_{$user->franchise_id}_{$selectedMonth->format('Y_m')}_{$limit}";
-
-        $periodStart = $selectedMonth;
-        $periodEnd = $periodStart->copy()->endOfMonth();
+        $periodStart = match ($period) {
+            'week' => $manilaNow->copy()->startOfWeek(Carbon::MONDAY),
+            'today' => $manilaNow->copy()->startOfDay(),
+            default => $selectedMonth->copy()->startOfMonth(),
+        };
+        $periodEnd = match ($period) {
+            'week' => $manilaNow->copy()->endOfWeek(Carbon::SUNDAY),
+            'today' => $manilaNow->copy()->endOfDay(),
+            default => $periodStart->copy()->endOfMonth(),
+        };
+        $cachePeriod = in_array($period, ['week', 'today'], true)
+            ? "{$period}_{$periodStart->format('Ymd')}"
+            : $selectedMonth->format('Y_m');
+        $cacheKey = "employee_pos_top_products_{$user->franchise_id}_{$cachePeriod}_{$limit}";
         $rangeStart = $periodStart->copy()->utc();
         $rangeEnd = $periodEnd->copy()->utc();
 

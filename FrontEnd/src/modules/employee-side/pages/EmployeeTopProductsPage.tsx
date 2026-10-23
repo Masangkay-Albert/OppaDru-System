@@ -1,12 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ClipboardList, Heart, Plus, Trophy, UserRound } from 'lucide-react';
+import { Banknote, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Layers3, Plus, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithEmployeeAuth } from '../../../services/employeeAuth';
-import { getEmployeePosBrowserSessionId, loadEmployeePosDraft } from '../../../services/employeePosDraft';
 import { getProductImage } from '../../../data/productImages';
 import { formatPeso } from '../../../utils/formatters';
+import { CashierPageHeader, CashierStatCard } from '../components/CashierUi';
 import '../../../styles/cashier-pos.css';
 
 interface TopProduct {
@@ -20,11 +19,7 @@ interface TopProduct {
   rank: number;
 }
 
-interface CartLine {
-  product?: { price?: number };
-  quantity?: number;
-  selectedAddons?: Array<{ price?: number; quantity?: number }>;
-}
+type ProductPeriod = 'month' | 'week' | 'today';
 
 const getManilaMonth = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -42,53 +37,42 @@ const getPreviousMonth = (month: string) => {
   return new Date(Date.UTC(year, monthNumber - 2, 1)).toISOString().slice(0, 7);
 };
 
-const readEmployee = () => {
-  try {
-    return JSON.parse(sessionStorage.getItem('employee_auth') || 'null') as {
-      id?: string;
-      fullName?: string;
-      franchise_id?: string | null;
-      franchise?: { name?: string };
-    } | null;
-  } catch {
-    return null;
-  }
-};
-
 const EmployeeTopProductsPage: React.FC = () => {
-  const [employee] = useState(() => readEmployee());
-  const [browserSessionId] = useState(() => getEmployeePosBrowserSessionId());
   const [selectedMonth, setSelectedMonth] = useState(() => getManilaMonth());
+  const [period, setPeriod] = useState<ProductPeriod>('month');
   const [products, setProducts] = useState<TopProduct[]>([]);
   const [monthProducts, setMonthProducts] = useState<TopProduct[]>([]);
   const [lastMonthProducts, setLastMonthProducts] = useState<TopProduct[]>([]);
   const [activeCategory, setActiveCategory] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [cart, setCart] = useState<Record<string, CartLine>>({});
-  const [draftError, setDraftError] = useState('');
   const registerPath = '/cashier/pos';
 
-  const loadProducts = useCallback(async (month: string, signal?: AbortSignal) => {
+  const loadProducts = useCallback(async (month: string, requestedPeriod: ProductPeriod, signal?: AbortSignal) => {
     setIsLoading(true);
     setError('');
     try {
       const previousMonth = getPreviousMonth(month);
-      const query = (value: string) => `${API_URL}/employee/pos/top-products?month=${value}&limit=100`;
+      const monthQuery = (value: string) => `${API_URL}/employee/pos/top-products?month=${value}&limit=100`;
+      const activeQuery = requestedPeriod === 'month'
+        ? monthQuery(month)
+        : `${API_URL}/employee/pos/top-products?period=${requestedPeriod}&limit=100`;
+      const queryUrls = [...new Set([activeQuery, monthQuery(month), monthQuery(previousMonth)])];
       const dataByMonth = new Map<string, TopProduct[]>();
-      await Promise.all([month, previousMonth].map(async (requestedMonth) => {
-        const response = await fetchWithEmployeeAuth(query(requestedMonth), { signal });
+      await Promise.all(queryUrls.map(async (url) => {
+        const response = await fetchWithEmployeeAuth(url, { signal });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
           throw new Error(payload.message || 'Could not load top products.');
         }
         const payload = await response.json() as TopProduct[];
-        dataByMonth.set(requestedMonth, Array.isArray(payload) ? payload : []);
+        dataByMonth.set(url, Array.isArray(payload) ? payload : []);
       }));
-      const selectedData = dataByMonth.get(month) || [];
-      const lastMonthData = dataByMonth.get(previousMonth) || [];
+      const selectedData = dataByMonth.get(activeQuery) || [];
+      const selectedMonthData = dataByMonth.get(monthQuery(month)) || [];
+      const lastMonthData = dataByMonth.get(monthQuery(previousMonth)) || [];
       setProducts(selectedData);
-      setMonthProducts(selectedData);
+      setMonthProducts(selectedMonthData);
       setLastMonthProducts(lastMonthData);
       setActiveCategory('all');
     } catch (loadError) {
@@ -101,29 +85,12 @@ const EmployeeTopProductsPage: React.FC = () => {
 
   useEffect(() => {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => void loadProducts(selectedMonth, controller.signal), 0);
+    const timeout = window.setTimeout(() => void loadProducts(selectedMonth, period, controller.signal), 0);
     return () => {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [loadProducts, selectedMonth]);
-
-  useEffect(() => {
-    let active = true;
-    const timeout = window.setTimeout(() => {
-      void loadEmployeePosDraft(browserSessionId).then((draft) => {
-        if (!active) return;
-        setCart((draft.cart || {}) as Record<string, CartLine>);
-        setDraftError('');
-      }).catch((loadError: unknown) => {
-        if (active) setDraftError(loadError instanceof Error ? loadError.message : 'Could not load the saved cashier order.');
-      });
-    }, 0);
-    return () => {
-      active = false;
-      window.clearTimeout(timeout);
-    };
-  }, [browserSessionId]);
+  }, [loadProducts, period, selectedMonth]);
 
   const categories = useMemo(
     () => [...new Set(products.map((product) => product.category).filter((category): category is string => Boolean(category)))],
@@ -146,17 +113,7 @@ const EmployeeTopProductsPage: React.FC = () => {
   const monthChange = lastMonthRevenue > 0
     ? Math.round(((monthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
     : monthRevenue > 0 ? 100 : 0;
-  const lines = Object.values(cart);
-  const cartCount = lines.reduce((sum, line) => sum + Number(line.quantity || 0), 0);
-  const cartTotal = lines.reduce((sum, line) => {
-    const base = Number(line.product?.price || 0);
-    const addons = (line.selectedAddons || []).reduce(
-      (addonSum, addon) => addonSum + Number(addon.price || 0) * Math.max(1, Number(addon.quantity || 1)),
-      0,
-    );
-    return sum + (base + addons) * Number(line.quantity || 0);
-  }, 0);
-  const podiumProducts = [products[1], products[0], products[2]].filter(Boolean);
+  const podiumProducts = products.length >= 3 ? [products[1], products[0], products[2]] : products.slice(0, 2);
   const rankedProducts = visibleProducts.filter((product) => product.rank > 3 && product.rank <= 10);
   const topQuantity = products[0]?.qtySold || 1;
   const [selectedYear, selectedMonthNumber] = selectedMonth.split('-').map(Number);
@@ -166,74 +123,99 @@ const EmployeeTopProductsPage: React.FC = () => {
     year: 'numeric',
     timeZone: 'Asia/Manila',
   }).format(monthBase);
-  const title = `Top Products for ${monthLabel}`;
+  const title = period === 'week' ? 'Top Products This Week'
+    : period === 'today' ? 'Top Products Today'
+      : 'Top Products of the Month';
+  const stepMonth = (offset: number) => {
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const nextMonth = new Date(Date.UTC(year, month - 1 + offset, 1)).toISOString().slice(0, 7);
+    if (nextMonth <= getManilaMonth()) {
+      setSelectedMonth(nextMonth);
+      setPeriod('month');
+    }
+  };
 
   return (
-    <div className="cashier-workspace min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)]">
-      <header className="cashier-header sticky top-0 z-40 flex min-h-14 items-center justify-between gap-3 px-4 text-white sm:px-6">
-        <Link to={registerPath} className="flex min-w-0 items-center gap-3">
-          <img src={oppaDruLogo} alt="" className="size-9 rounded-full border border-white/30 object-cover" />
-          <span className="min-w-0">
-            <strong className="block truncate font-serif text-sm sm:text-base">Oppa Dru Korean Fried Chicken</strong>
-            <small className="hidden truncate text-[9px] font-semibold uppercase tracking-wide text-white/75 sm:block">
-              Onsite POS Register · Cashier · {employee?.franchise?.name || 'Branch'}
-            </small>
-          </span>
-        </Link>
-        <nav className="flex shrink-0 items-center gap-1 sm:gap-2" aria-label="Cashier navigation">
-          <Link to="/cashier/branch-orders" className="cashier-nav-link"><ClipboardList size={16} /><span className="hidden sm:inline">Orders</span></Link>
-          <Link to="/cashier/top-products" aria-current="page" className="cashier-nav-link cashier-nav-link-active"><Trophy size={16} /><span className="hidden sm:inline">Top Products</span></Link>
-          <Link to={`${registerPath}?filter=favorites`} className="cashier-nav-link"><Heart size={16} /><span className="hidden sm:inline">Favorites</span></Link>
-          <span className="flex items-center gap-1.5 border-l border-white/20 pl-2 sm:pl-4"><span className="flex size-7 items-center justify-center rounded-full bg-white/15"><UserRound size={15} /></span><span className="hidden sm:inline">{employee?.fullName?.trim().split(/\s+/)[0] || 'Cashier'}</span></span>
-        </nav>
-      </header>
-
-      <main className="mx-auto max-w-[1500px] space-y-6 px-4 py-6 pb-28 sm:px-6 lg:px-8">
-        <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-          <div>
-            <Link to={registerPath} className="mb-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#d9e6dc] bg-white px-3 text-sm font-semibold text-[#216b49] shadow-sm hover:bg-[#edf5ef]"><ArrowLeft size={16} /> Back to Register</Link>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b77b16]">Branch performance</p>
-            <h1 className="mt-1 text-2xl font-bold text-[#1c3d2e] sm:text-3xl">{title}</h1>
-            <p className="mt-1 text-sm text-gray-600">{monthLabel} · Onsite orders at this branch</p>
+    <div className="cashier-workspace cashier-page-workspace min-h-screen text-[var(--oppa-text)]">
+      <main className="cashier-page-content space-y-6">
+        <CashierPageHeader
+          eyebrow="Branch performance"
+          title={title}
+          subtitle={`${period === 'month' ? monthLabel : period === 'week' ? 'Current calendar week' : 'Today'} · Onsite orders at this branch`}
+          actions={(
+            <div className="cashier-month-stepper" aria-label="Select reporting month">
+              <button type="button" aria-label="Previous month" onClick={() => stepMonth(-1)}><ChevronLeft size={18} /></button>
+              <strong>{monthLabel}</strong>
+              <button type="button" aria-label="Next month" disabled={selectedMonth >= getManilaMonth()} onClick={() => stepMonth(1)}><ChevronRight size={18} /></button>
+              <details className="cashier-month-picker">
+                <summary aria-label="Pick a month"><CalendarDays size={17} /><span className="sr-only">Pick a month</span></summary>
+                <label><span>Choose month</span><input type="month" value={selectedMonth} max={getManilaMonth()} onChange={(event) => {
+                  if (event.target.value) {
+                    setSelectedMonth(event.target.value);
+                    setPeriod('month');
+                  }
+                }} aria-label="Choose month for top products" /></label>
+              </details>
+            </div>
+          )}
+        >
+          <div className="cashier-period-toggle" role="group" aria-label="Reporting period">
+            <button type="button" aria-pressed={period === 'month' && selectedMonth === getManilaMonth()} onClick={() => {
+              setSelectedMonth(getManilaMonth());
+              setPeriod('month');
+            }}>This Month</button>
+            <button type="button" aria-pressed={period === 'month' && selectedMonth === getPreviousMonth(getManilaMonth())} onClick={() => {
+              setSelectedMonth(getPreviousMonth(getManilaMonth()));
+              setPeriod('month');
+            }}>Last Month</button>
+            <button type="button" aria-pressed={period === 'week'} onClick={() => {
+              setSelectedMonth(getManilaMonth());
+              setPeriod('week');
+            }}>This Week</button>
+            <button type="button" aria-pressed={period === 'today'} onClick={() => {
+              setSelectedMonth(getManilaMonth());
+              setPeriod('today');
+            }}>Today</button>
           </div>
-          <label className="flex min-h-11 items-center gap-3 rounded-xl border border-[#e7dfd2] bg-white px-3 text-sm font-semibold text-[#1c3d2e] shadow-sm">
-            <span>Choose month</span>
-            <input type="month" value={selectedMonth} max={getManilaMonth()} onChange={(event) => {
-              if (event.target.value) setSelectedMonth(event.target.value);
-            }} aria-label="Choose month for top products" className="min-h-10 rounded-lg border border-gray-200 bg-white px-2 text-sm" />
-          </label>
-        </section>
+        </CashierPageHeader>
 
-        {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => void loadProducts(selectedMonth)} className="min-h-11 rounded-lg border border-red-300 bg-white px-4 font-semibold">Retry</button></div>}
+        {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => void loadProducts(selectedMonth, period)} className="min-h-11 rounded-lg border border-red-300 bg-white px-4 font-semibold">Retry</button></div>}
 
         {isLoading ? (
           <div className="space-y-6" aria-label="Loading top products">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-28 animate-pulse rounded-2xl bg-white shadow-sm" />)}</div>
+            <section className="cashier-stats-grid" aria-label="Loading top product statistics">
+              {[ClipboardList, Banknote, Layers3, Trophy].map((Icon, index) => <CashierStatCard key={index} icon={Icon} label="Loading" value="" loading />)}
+            </section>
             <div className="h-72 animate-pulse rounded-2xl bg-white shadow-sm" />
             <div className="h-64 animate-pulse rounded-2xl bg-white shadow-sm" />
           </div>
         ) : error ? null : products.length === 0 ? (
           <section className="cashier-surface flex min-h-72 flex-col items-center justify-center rounded-2xl p-8 text-center">
             <Trophy size={34} className="text-[#b77b16]" aria-hidden="true" />
-            <h2 className="mt-3 font-serif text-xl font-bold text-[#1c3d2e]">No onsite sales for {monthLabel}</h2>
+            <h2 className="mt-3 font-serif text-xl font-bold text-[#1c3d2e]">No sales yet {period === 'month' ? `for ${monthLabel}` : period === 'week' ? 'this week' : 'today'}</h2>
             <p className="mt-1 text-sm text-gray-600">Top products will appear here as completed orders come in.</p>
             <Link to={registerPath} className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-[#216b49] px-5 font-semibold text-white">Back to Register</Link>
           </section>
         ) : (
           <>
-            <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <article className="cashier-surface rounded-2xl p-4 sm:p-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Units Sold</p><p className="mt-2 text-2xl font-extrabold tabular-nums text-[#1c3d2e]">{totalUnits.toLocaleString()}</p><p className="mt-1 text-xs text-gray-500">For the selected period</p></article>
-              <article className="cashier-surface rounded-2xl p-4 sm:p-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Revenue</p><p className="mt-2 text-2xl font-extrabold tabular-nums text-[#1c3d2e]">{formatPeso(totalRevenue)}</p><p className="mt-1 text-xs text-gray-500">For the selected period</p></article>
-              <article className="cashier-surface rounded-2xl p-4 sm:p-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Best Category</p><p className="mt-2 truncate text-2xl font-extrabold capitalize text-[#1c3d2e]">{bestCategory.replaceAll('-', ' ')}</p><p className="mt-1 text-xs text-gray-500">By units sold</p></article>
-              <article className="cashier-surface rounded-2xl p-4 sm:p-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">% vs previous month</p><p className={`mt-2 text-2xl font-extrabold tabular-nums ${monthChange >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{monthChange > 0 && lastMonthRevenue === 0 ? 'New' : `${monthChange > 0 ? '+' : ''}${monthChange}%`}</p><p className="mt-1 text-xs text-gray-500">Onsite revenue · selected month</p></article>
+            <section className="cashier-stats-grid" aria-label="Top product statistics">
+              <CashierStatCard icon={ClipboardList} label="Total Units Sold" value={totalUnits.toLocaleString()} detail="For the selected period" />
+              <CashierStatCard icon={Banknote} label="Total Revenue" value={formatPeso(totalRevenue)} detail="For the selected period" />
+              <CashierStatCard icon={Layers3} label="Best Category" value={bestCategory.replaceAll('-', ' ')} detail="By units sold" />
+              <CashierStatCard
+                icon={Trophy}
+                label="% vs previous month"
+                value={<span className={monthChange >= 0 ? 'text-emerald-700' : 'text-red-700'}>{monthChange > 0 && lastMonthRevenue === 0 ? 'New' : `${monthChange > 0 ? '+' : ''}${monthChange}%`}</span>}
+                detail={<span title={lastMonthRevenue === 0 ? 'No previous-month revenue was recorded for comparison.' : 'Revenue compared with the previous calendar month.'}>Onsite revenue · selected month</span>}
+              />
             </section>
 
             <section className="cashier-surface rounded-2xl p-4 sm:p-6">
               <div className="mb-5 flex items-center justify-between gap-3">
-                <div><h2 className="font-serif text-xl font-bold text-[#1c3d2e]">Top 3 Products</h2><p className="mt-1 text-sm text-gray-600">Onsite product sales for {monthLabel}</p></div>
+                <div><h2 className="font-serif text-xl font-bold text-[#1c3d2e]">{products.length < 3 ? `Top ${products.length} Product${products.length === 1 ? '' : 's'}` : 'Top 3 Products'}</h2><p className="mt-1 text-sm text-gray-600">Onsite product sales · {period === 'month' ? monthLabel : period === 'week' ? 'this week' : 'today'}</p></div>
                 <Trophy className="text-[#b77b16]" size={22} aria-hidden="true" />
               </div>
-              <div className="grid grid-cols-3 items-end gap-2 sm:gap-5">
+              <div className={`cashier-podium-grid cashier-podium-count-${podiumProducts.length}`}>
                 {podiumProducts.map((product) => (
                   <article key={product.productId} className={`cashier-podium-card relative flex flex-col items-center overflow-hidden rounded-2xl border p-3 text-center sm:p-5 ${product.rank === 1 ? 'cashier-podium-first' : ''}`}>
                     <span className={`absolute left-2 top-2 flex size-8 items-center justify-center rounded-full text-xs font-extrabold shadow ${product.rank === 1 ? 'bg-amber-400 text-amber-950' : product.rank === 2 ? 'bg-slate-300 text-slate-800' : 'bg-orange-300 text-orange-950'}`}>#{product.rank}</span>
@@ -275,10 +257,6 @@ const EmployeeTopProductsPage: React.FC = () => {
         )}
       </main>
 
-      <Link to={`${registerPath}?view_order=1`} className="cashier-order-pill fixed bottom-4 left-1/2 z-40 flex min-h-12 -translate-x-1/2 items-center gap-2 rounded-full px-5 text-sm font-bold text-white shadow-xl">
-        <span className="sr-only">{draftError ? `Saved order could not be restored: ${draftError}. ` : ''}</span>
-        <span>View Order ({cartCount})</span><span aria-hidden="true">·</span><span className="tabular-nums">{formatPeso(cartTotal)}</span>
-      </Link>
     </div>
   );
 };

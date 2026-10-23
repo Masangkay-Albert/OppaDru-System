@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FiArrowLeft,
   FiTrendingUp,
@@ -38,6 +38,9 @@ interface PopularMealsResponse {
 
 const MostPopularMealsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const branchCashierView = location.pathname.startsWith('/cashier/');
+  const registerPath = branchCashierView ? '/cashier/pos' : '/employee';
   const [data, setData] = useState<PopularMealsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -77,15 +80,15 @@ const MostPopularMealsPage: React.FC = () => {
   const top1Meal = topMeals[0] || null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]">
-      <NavbarEmployee />
+    <div className={branchCashierView ? 'cashier-workspace cashier-page-workspace min-h-screen' : 'min-h-screen bg-gradient-to-br from-[#fdf4e6] via-[#fff3e0] to-[#d8f3dc]'}>
+      {!branchCashierView && <NavbarEmployee />}
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className={branchCashierView ? 'cashier-page-content space-y-6' : 'max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6'}>
         {/* Top Header & Breadcrumb */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b border-[#e76f51]/20">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/employee')}
+              onClick={() => navigate(registerPath)}
               className="flex items-center gap-2 text-gray-500 hover:text-[#2d6a4f] transition-colors group"
             >
               <FiArrowLeft className="group-hover:-translate-x-1 transition-transform" size={18} />
@@ -186,7 +189,7 @@ const MostPopularMealsPage: React.FC = () => {
               As customers order meals at the counter or online, the top 10 rankings and sales bar charts will populate automatically.
             </p>
             <button
-              onClick={() => navigate('/employee')}
+              onClick={() => navigate(registerPath)}
               className="px-6 py-3 bg-[var(--oppa-green)] text-white rounded-xl font-bold text-sm hover:bg-[var(--oppa-green-dark)] transition shadow-md"
             >
               Start Taking Orders →

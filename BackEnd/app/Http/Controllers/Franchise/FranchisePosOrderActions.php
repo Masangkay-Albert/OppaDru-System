@@ -333,9 +333,14 @@ trait FranchisePosOrderActions
         $order = $order->refresh()->load('branch:id,name');
         $order->setAttribute('branch_name', $order->branch?->name);
         if ($employeePosRequest) {
-            $currentMonth = now('Asia/Manila')->format('Y_m');
+            $manilaNow = now('Asia/Manila');
+            $currentMonth = $manilaNow->format('Y_m');
+            $weekStart = $manilaNow->copy()->startOfWeek(\Carbon\Carbon::MONDAY)->format('Ymd');
+            $today = $manilaNow->format('Ymd');
             foreach ([5, 100] as $limit) {
                 Cache::forget("employee_pos_top_products_{$user->franchise_id}_{$currentMonth}_{$limit}");
+                Cache::forget("employee_pos_top_products_{$user->franchise_id}_week_{$weekStart}_{$limit}");
+                Cache::forget("employee_pos_top_products_{$user->franchise_id}_today_{$today}_{$limit}");
             }
         }
         $orderResponse = $order;

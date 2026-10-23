@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, CreditCard, Drumstick, Heart, Minus, Plus, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, Trophy, UserRound, Utensils, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, CreditCard, Drumstick, Heart, Minus, Plus, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, UserRound, Utensils, X } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
@@ -504,9 +504,14 @@ const FranchisePOSPage: React.FC = () => {
     const productId = searchParams.get('add_product');
     const showOrder = searchParams.has('view_order');
     const showFavorites = searchParams.get('filter') === 'favorites';
+    const showAllProducts = searchParams.get('filter') === 'all';
+    if (cashierMode && !searchParams.has('filter') && showFavoritesOnly) {
+      const timeout = window.setTimeout(() => setShowFavoritesOnly(false), 0);
+      return () => window.clearTimeout(timeout);
+    }
     if (cashierMode && !draftReady && !draftError) return;
     if (productId && isLoading) return;
-    if (!productId && !showOrder && !showFavorites) return;
+    if (!productId && !showOrder && !showFavorites && !showAllProducts) return;
     const timeout = window.setTimeout(() => {
       if (productId) {
         const product = products.find((candidate) => candidate.id === productId);
@@ -514,14 +519,17 @@ const FranchisePOSPage: React.FC = () => {
       }
       if (showOrder) setShowOrderDrawer(true);
       if (showFavorites) setShowFavoritesOnly(true);
-      const nextParams = new URLSearchParams(searchParams);
-      nextParams.delete('add_product');
-      nextParams.delete('view_order');
-      nextParams.delete('filter');
-      setSearchParams(nextParams, { replace: true });
+      if (showAllProducts) setShowFavoritesOnly(false);
+      if (productId || showOrder || showAllProducts) {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('add_product');
+        nextParams.delete('view_order');
+        nextParams.delete('filter');
+        setSearchParams(nextParams, { replace: true });
+      }
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [cashierMode, draftError, draftReady, isLoading, openProduct, products, searchParams, setSearchParams]);
+  }, [cashierMode, draftError, draftReady, isLoading, openProduct, products, searchParams, setSearchParams, showFavoritesOnly]);
 
   const addConfiguredProduct = () => {
     if (!configuringProduct) return;
@@ -779,31 +787,24 @@ const FranchisePOSPage: React.FC = () => {
   }, [completedOrder, configuringProduct, showOrderDrawer]);
 
   return (
-    <div className="cashier-workspace admin-page-enter min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)]">
-      <header className="cashier-header sticky top-0 z-40 flex h-14 items-center justify-between px-4 text-white sm:px-6">
-        <Link to={cashierMode ? '/cashier/pos' : '/franchise/pos'} className="flex min-w-0 items-center gap-3">
+    <div className={`cashier-workspace ${cashierMode ? 'cashier-pos-page min-h-[calc(100vh-64px)]' : 'min-h-screen'} admin-page-enter bg-[var(--oppa-cream)] text-[var(--oppa-text)]`}>
+      {!cashierMode && <header className="cashier-header sticky top-0 z-40 flex h-14 items-center justify-between px-4 text-white sm:px-6">
+        <Link to="/franchise/pos" className="flex min-w-0 items-center gap-3">
           <img src={oppaDruLogo} alt="" className="size-9 rounded-full border border-white/30 object-cover" />
-          <span className="min-w-0"><strong className="block truncate font-serif text-sm sm:text-base"><span className="sm:hidden">Oppa Dru</span><span className="hidden sm:inline">Oppa Dru Korean Fried Chicken</span></strong><small className="hidden truncate text-[9px] font-semibold uppercase tracking-wide text-white/75 sm:block">Onsite POS Register · {cashierMode ? 'Cashier' : 'Branch Manager'} · {branchName}</small></span>
+          <span className="min-w-0"><strong className="block truncate font-serif text-sm sm:text-base"><span className="sm:hidden">Oppa Dru</span><span className="hidden sm:inline">Oppa Dru Korean Fried Chicken</span></strong><small className="hidden truncate text-[9px] font-semibold uppercase tracking-wide text-white/75 sm:block">Onsite POS Register · Branch Manager · {branchName}</small></span>
         </Link>
-        <nav className="flex shrink-0 items-center gap-1 text-xs font-semibold sm:gap-2 sm:text-sm" aria-label="Cashier navigation">
-          {cashierMode ? (
-            <>
-              <Link to="/cashier/branch-orders" className={`cashier-nav-link ${location.pathname === '/cashier/branch-orders' ? 'cashier-nav-link-active' : ''}`}><ClipboardList size={16} /><span className="hidden sm:inline">Orders</span></Link>
-              <Link to="/cashier/top-products" className={`cashier-nav-link ${location.pathname === '/cashier/top-products' ? 'cashier-nav-link-active' : ''}`}><Trophy size={16} /><span className="hidden sm:inline">Top Products</span></Link>
-            </>
-          ) : (
-            <Link to="/franchise/orders" className="cashier-nav-link"><ClipboardList size={16} /><span className="hidden sm:inline">Onsite Orders</span></Link>
-          )}
+        <nav className="flex shrink-0 items-center gap-1 text-xs font-semibold sm:gap-2 sm:text-sm" aria-label="Branch navigation">
+          <Link to="/franchise/orders" className="cashier-nav-link"><ClipboardList size={16} /><span className="hidden sm:inline">Onsite Orders</span></Link>
           <button type="button" onClick={() => { setShowFavoritesOnly((value) => !value); setStage('menu'); }} className={`cashier-nav-link ${showFavoritesOnly ? 'cashier-nav-link-active' : ''}`} aria-pressed={showFavoritesOnly}><Heart size={16} fill={showFavoritesOnly ? 'currentColor' : 'none'} /><span className="hidden sm:inline">Favorites</span></button>
           <span className="flex items-center gap-1.5 border-l border-white/20 pl-2 sm:pl-4"><span className="flex size-7 items-center justify-center rounded-full bg-white/15"><UserRound size={15} /></span><span className="hidden sm:inline">{staffName.trim().split(/\s+/)[0]}</span></span>
         </nav>
-      </header>
+      </header>}
 
       {error && <div role="alert" aria-live="assertive" className={`${cashierMode ? 'fixed right-4 top-16 z-50 flex max-w-[calc(100vw-2rem)] items-start gap-3 shadow-lg' : 'mx-4 mt-3 sm:mx-6'} rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700`}><span className="flex-1">{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss error" className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-red-100"><X size={16} /></button></div>}
       {success && <div role="status" aria-live="polite" className={`${cashierMode ? 'fixed right-4 top-16 z-50 flex max-w-[calc(100vw-2rem)] items-start gap-3 shadow-lg' : 'mx-4 mt-3 sm:mx-6'} rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800`}><span className="flex-1">{success}</span><button type="button" onClick={() => setSuccess('')} aria-label="Dismiss notification" className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-green-100"><X size={16} /></button></div>}
       {showDraftStatus && <div role={draftError ? 'alert' : 'status'} className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 sm:mx-6"><span>{draftError || 'Restoring this tab’s saved cashier order…'}</span>{draftError && <button type="button" onClick={() => draftReady ? setDraftSaveAttempt((attempt) => attempt + 1) : setDraftAttempt((attempt) => attempt + 1)} className="min-h-11 rounded-lg border border-amber-700 bg-white px-3 font-semibold">{draftReady ? 'Retry save' : 'Retry loading'}</button>}</div>}
 
-      <div className={`grid min-h-[calc(100vh-56px)] grid-cols-1 ${stage === 'checkout' ? 'lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]' : 'lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_320px]'}`}>
+      <div className={`grid ${cashierMode ? 'min-h-[calc(100vh-64px)]' : 'min-h-[calc(100vh-56px)]'} grid-cols-1 ${stage === 'checkout' ? 'lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]' : 'lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_320px]'}`}>
         <aside className={`${stage === 'checkout' ? 'hidden' : 'hidden border-r border-gray-100 bg-[var(--oppa-surface)] p-5 lg:block'}`}>
           <div className="mb-5 border-b border-gray-100 pb-4"><h2 className="font-serif text-xl font-bold text-[#1c3d2e]">Register Menu</h2><p className="mt-1 text-xs text-gray-500">Select category to filter items</p><p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-400">Categories</p></div>
           <nav className="flex flex-col gap-1" aria-label="Product categories">
@@ -985,8 +986,8 @@ const FranchisePOSPage: React.FC = () => {
               </div>
             </div>
           </div>
-          {!showOrderDrawer && <div className="flex flex-1 items-center gap-2 px-3 py-2 xl:hidden">
-            {stage === 'menu' ? <button type="button" onClick={() => setShowOrderDrawer(true)} className="min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-sm font-bold text-white"><span className="flex items-center justify-between"><span>View Order ({itemCount})</span><span className="tabular-nums">{formatPeso(total)}</span></span></button> : <button type="button" disabled={chargeDisabled} onClick={() => void submitOrder()} className="min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-base font-bold text-white disabled:bg-gray-300">{isSubmitting ? 'Processing…' : `Charge ${formatPeso(total)}`}</button>}
+          {!showOrderDrawer && !(cashierMode && searchParams.get('filter') === 'favorites') && <div className="flex flex-1 items-center gap-2 px-3 py-2 xl:hidden">
+            {stage === 'menu' ? <button type="button" disabled={!lines.length} onClick={() => setShowOrderDrawer(true)} className="min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"><span className="flex items-center justify-between"><span>View Order ({itemCount})</span><span className="tabular-nums">{formatPeso(total)}</span></span></button> : <button type="button" disabled={chargeDisabled} onClick={() => void submitOrder()} className="min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-base font-bold text-white disabled:bg-gray-300">{isSubmitting ? 'Processing…' : `Charge ${formatPeso(total)}`}</button>}
           </div>}
         </aside>
         {removedLine && <div role="status" aria-live="polite" className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-xl bg-gray-900 px-4 py-3 text-sm text-white shadow-xl xl:bottom-5">Item removed <button type="button" onClick={undoRemove} className="font-bold underline underline-offset-2">Undo</button></div>}
