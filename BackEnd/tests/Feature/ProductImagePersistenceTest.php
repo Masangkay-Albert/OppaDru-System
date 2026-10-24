@@ -34,11 +34,15 @@ class ProductImagePersistenceTest extends TestCase
             'is_available' => true,
         ]);
 
-        $this->assertSame(url('/api/products/'.$product->id.'/image'), $product->toArray()['image']);
+        $imageUrl = $product->toArray()['image'];
+        $this->assertStringStartsWith(url('/api/products/'.$product->id.'/image').'?v=', $imageUrl);
 
         $this->get('/api/products/'.$product->id.'/image')
             ->assertOk()
             ->assertHeader('Content-Type', 'image/png')
             ->assertContent('test-image-content');
+
+        $product->update(['image' => 'data:image/png;base64,'.base64_encode('replacement-image-content')]);
+        $this->assertNotSame($imageUrl, $product->fresh()->toArray()['image']);
     }
 }

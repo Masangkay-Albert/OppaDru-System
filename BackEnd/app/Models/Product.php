@@ -32,7 +32,9 @@ class Product extends Model
     public function getImageAttribute(?string $value): ?string
     {
         if (is_string($value) && str_starts_with($value, 'data:image/')) {
-            return url('/api/products/'.$this->getKey().'/image');
+            $version = substr(hash('sha256', $value), 0, 16);
+
+            return url('/api/products/'.$this->getKey().'/image').'?v='.$version;
         }
 
         return $value;
