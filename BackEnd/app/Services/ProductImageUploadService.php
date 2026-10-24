@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\DatabaseImage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -13,8 +14,14 @@ class ProductImageUploadService
         $folder = trim((string) $folder, '/');
         $folder = $folder !== '' ? $folder : 'products';
 
+        if ($folder !== 'addons') {
+            return [
+                'success' => true,
+                'url' => DatabaseImage::fromUploadedFile($file),
+            ];
+        }
+
         $fileName = time() . '-' . Str::random(10) . '.' . $file->getClientOriginalExtension();
-        $relativePath = trim($folder, '/') . '/' . $fileName;
 
         $storedPath = Storage::disk('public')->putFileAs($folder, $file, $fileName);
         if ($storedPath === false) {

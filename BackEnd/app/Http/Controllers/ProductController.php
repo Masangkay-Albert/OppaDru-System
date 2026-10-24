@@ -9,6 +9,7 @@ use App\Models\FranchiseUser;
 use App\Models\Product;
 use App\Services\FranchiseService;
 use App\Services\ProductImageUploadService;
+use App\Support\DatabaseImage;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
 
@@ -57,5 +58,17 @@ class ProductController extends Controller
         }
 
         return $this->franchiseService->scopeProductQuery($query, $franchiseUser->franchise_id, true);
+    }
+
+    public function image(string $id)
+    {
+        $product = Product::findOrFail($id);
+        $imageData = $product->getRawOriginal('image');
+
+        if (! is_string($imageData) || ! str_starts_with($imageData, 'data:image/')) {
+            abort(404, 'Product image not found.');
+        }
+
+        return DatabaseImage::response($imageData);
     }
 }

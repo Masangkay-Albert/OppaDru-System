@@ -29,6 +29,15 @@ class Product extends Model
         'is_available' => 'boolean',
     ];
 
+    public function getImageAttribute(?string $value): ?string
+    {
+        if (is_string($value) && str_starts_with($value, 'data:image/')) {
+            return url('/api/products/'.$this->getKey().'/image');
+        }
+
+        return $value;
+    }
+
     protected static function boot()
     {
         parent::boot();

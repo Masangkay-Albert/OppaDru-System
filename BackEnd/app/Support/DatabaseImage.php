@@ -12,12 +12,12 @@ final class DatabaseImage
     {
         $contents = file_get_contents($file->getRealPath());
         if ($contents === false) {
-            throw new RuntimeException('Unable to read the uploaded proof image.');
+            throw new RuntimeException('Unable to read the uploaded image.');
         }
 
         $mimeType = $file->getMimeType();
         if (! $mimeType || ! str_starts_with($mimeType, 'image/')) {
-            throw new RuntimeException('The uploaded proof is not a supported image.');
+            throw new RuntimeException('The uploaded file is not a supported image.');
         }
 
         return 'data:'.$mimeType.';base64,'.base64_encode($contents);
@@ -32,12 +32,12 @@ final class DatabaseImage
             : '';
 
         if (count($parts) !== 2 || ! preg_match('/\Aimage\/[a-z0-9.+-]+\z/i', $mimeType)) {
-            abort(404, 'Proof image not found.');
+            abort(404, 'Image not found.');
         }
 
         $contents = base64_decode($parts[1], true);
         if ($contents === false) {
-            abort(404, 'Proof image not found.');
+            abort(404, 'Image not found.');
         }
 
         return response($contents, 200, [

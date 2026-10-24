@@ -22,6 +22,10 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## Product image persistence
+
+Product and franchise product images are stored in the database and served through `/api/products/{id}/image`, so they remain available across Render restarts and redeploys. Keep the product table's `image` column as `text` to support the encoded image data.
+
 ## Production email verification
 
 Verification uses Laravel's synchronous notification mail channel. It must use a real SMTP provider in Render; the application does not log or simulate verification links.

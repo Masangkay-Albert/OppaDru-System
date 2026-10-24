@@ -146,6 +146,7 @@ Route::post('/verification/resend', [EmailVerificationController::class, 'resend
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/available', [ProductController::class, 'getAvailable']);
 Route::get('/products/category/{category}', [ProductController::class, 'getByCategory']);
+Route::get('/products/{id}/image', [ProductController::class, 'image']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
 Route::get('/addon-groups', [AddonController::class, 'index']);
 
