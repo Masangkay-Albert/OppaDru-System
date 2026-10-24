@@ -1254,6 +1254,30 @@ class OrderPlacementTest extends TestCase
         );
     }
 
+    public function test_order_list_projection_skips_proof_image_payloads_but_keeps_image_urls(): void
+    {
+        $order = Order::create([
+            'email' => 'proof.list@example.com',
+            'total' => 263,
+            'status' => 'delivered',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Delivery proof list test address',
+            'phone' => '09171234568',
+            'items' => [],
+            'delivery_proof_image_data' => 'data:image/jpeg;base64,ZGVsaXZlcnk=',
+            'discount_proof_image_data' => 'data:image/jpeg;base64,ZGlzY291bnQ=',
+        ]);
+
+        $listedOrder = Order::query()->withoutProofImagePayload()->findOrFail($order->id);
+
+        $this->assertArrayNotHasKey('delivery_proof_image_data', $listedOrder->getAttributes());
+        $this->assertArrayNotHasKey('discount_proof_image_data', $listedOrder->getAttributes());
+        $this->assertStringContainsString('/api/orders/'.$order->id.'/delivery-proof', $listedOrder->delivery_proof_image);
+        $this->assertStringContainsString('/api/orders/'.$order->id.'/discount-proof', $listedOrder->discount_proof_image);
+        $this->assertArrayNotHasKey('has_delivery_proof_image_data', $listedOrder->toArray());
+        $this->assertArrayNotHasKey('has_discount_proof_image_data', $listedOrder->toArray());
+    }
+
     public function test_discount_verification_request_can_be_created_and_approved_by_admin(): void
     {
         $user = User::create([

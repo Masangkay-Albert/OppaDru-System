@@ -31,7 +31,7 @@ trait FranchiseAdminActions
             return response()->json(['message' => 'The report date range is invalid.', 'errors' => $validator->errors()], 422);
         }
 
-        $query = Order::where('branch_id', $user->franchise_id);
+        $query = Order::query()->withoutProofImagePayload()->where('branch_id', $user->franchise_id);
         if ($request->filled('from')) {
             $query->whereDate('created_at', '>=', $request->query('from'));
         }
@@ -39,7 +39,7 @@ trait FranchiseAdminActions
             $query->whereDate('created_at', '<=', $request->query('to'));
         }
 
-        $orders = $query->with('orderItems')->orderByDesc('created_at')->get();
+        $orders = $query->orderByDesc('created_at')->get();
         $completedOrders = $orders->whereIn('status', ['delivered', 'completed']);
         $salesOrders = $orders->filter(fn (Order $order) => $order->isCountedAsRevenue());
         $productSales = [];

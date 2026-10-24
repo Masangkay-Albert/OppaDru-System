@@ -30,10 +30,13 @@ trait OrderQueryActions
             'id', 'order_number', 'email', 'user_id', 'branch_id', 'franchise_id', 'franchise_account_id', 'total', 'status',
             'payment_method', 'payment_status', 'delivery_address', 'delivery_lat', 'delivery_lng', 'delivery_coordinates', 'phone', 'items', 'created_at',
             'delivery_proof_image', 'delivery_proof_uploaded_at', 'delivery_confirmed_at',
-            'delivery_proof_image_data', 'discount_proof_image', 'discount_proof_image_data',
+            'discount_proof_image',
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',
             'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
-        ])->with([
+        ])
+            ->selectRaw("CASE WHEN delivery_proof_image_data IS NOT NULL AND delivery_proof_image_data <> '' THEN 1 ELSE 0 END AS has_delivery_proof_image_data")
+            ->selectRaw("CASE WHEN discount_proof_image_data IS NOT NULL AND discount_proof_image_data <> '' THEN 1 ELSE 0 END AS has_discount_proof_image_data")
+            ->with([
             'user:id,full_name',
             'branch:id,name,address,latitude,longitude',
             'franchise:id,name,address,latitude,longitude',
@@ -89,7 +92,7 @@ trait OrderQueryActions
     {
         $user = $request->user();
 
-        return Order::query()->where(function ($query) use ($user) {
+        return Order::query()->withoutProofImagePayload()->where(function ($query) use ($user) {
             $query->where('user_id', $user->id)
                 ->orWhere(function ($legacyOrders) use ($user) {
                     $legacyOrders->whereNull('user_id')

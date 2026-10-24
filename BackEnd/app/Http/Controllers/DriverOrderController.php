@@ -35,7 +35,7 @@ class DriverOrderController extends Controller
         $tab = $request->query('tab', 'available');
         $branchId = DriverOrderScope::branchId($driver);
         
-        $query = Order::query()->with([
+        $query = Order::query()->withoutProofImagePayload()->with([
             'user',
             'branch:id,name,address,latitude,longitude',
             'franchise:id,name,address,latitude,longitude',

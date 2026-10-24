@@ -111,7 +111,10 @@ trait FranchiseDashboardActions
             return response()->json(['message' => 'The order filters are invalid.', 'errors' => $validator->errors()], 422);
         }
 
-        $query = Order::where('branch_id', $user->franchise_id)->with('user:id,full_name,email');
+        $query = Order::query()
+            ->withoutProofImagePayload()
+            ->where('branch_id', $user->franchise_id)
+            ->with('user:id,full_name,email');
 
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));

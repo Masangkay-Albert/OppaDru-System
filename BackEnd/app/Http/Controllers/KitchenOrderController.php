@@ -149,6 +149,7 @@ class KitchenOrderController extends Controller
     private function ordersForBranch(?string $branchId): Builder
     {
         return Order::query()
+            ->withoutProofImagePayload()
             ->where(function (Builder $query) use ($branchId): void {
                 if ($branchId === null) {
                     $query->whereNull('branch_id')->whereNull('franchise_id');

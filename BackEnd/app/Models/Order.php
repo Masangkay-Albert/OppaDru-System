@@ -112,18 +112,33 @@ class Order extends Model
     protected $hidden = [
         'delivery_proof_image_data',
         'discount_proof_image_data',
+        'has_delivery_proof_image_data',
+        'has_discount_proof_image_data',
     ];
+
+    public function scopeWithoutProofImagePayload(Builder $query): Builder
+    {
+        $columns = array_values(array_diff(
+            $this->getFillable(),
+            ['delivery_proof_image_data', 'discount_proof_image_data'],
+        ));
+
+        return $query
+            ->select($columns)
+            ->selectRaw("CASE WHEN delivery_proof_image_data IS NOT NULL AND delivery_proof_image_data <> '' THEN 1 ELSE 0 END AS has_delivery_proof_image_data")
+            ->selectRaw("CASE WHEN discount_proof_image_data IS NOT NULL AND discount_proof_image_data <> '' THEN 1 ELSE 0 END AS has_discount_proof_image_data");
+    }
 
     public function getDeliveryProofImageAttribute($value): ?string
     {
-        return $value || !empty($this->attributes['delivery_proof_image_data'])
+        return $value || !empty($this->attributes['delivery_proof_image_data']) || !empty($this->attributes['has_delivery_proof_image_data'])
             ? url('/api/orders/'.$this->id.'/delivery-proof')
             : null;
     }
 
     public function getDiscountProofImageAttribute($value): ?string
     {
-        if (!empty($this->attributes['discount_proof_image_data'])) {
+        if (!empty($this->attributes['discount_proof_image_data']) || !empty($this->attributes['has_discount_proof_image_data'])) {
             return url('/api/orders/'.$this->id.'/discount-proof');
         }
 
