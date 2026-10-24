@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
+use App\Models\Product;
 use Tests\TestCase;
 
 class AdminAuthLoginTest extends TestCase
@@ -105,7 +105,7 @@ class AdminAuthLoginTest extends TestCase
         $this->assertNotSame('', \App\Models\Addon::where('name', 'Long URL Add-on')->value('image'));
     }
 
-    public function test_admin_can_upload_product_image_and_store_it_in_public_storage(): void
+    public function test_admin_can_upload_and_update_a_product_image_persistently(): void
     {
         $login = $this->postJson('/api/admin/login', [
             'email' => 'admin@oppadru.com',
@@ -113,19 +113,36 @@ class AdminAuthLoginTest extends TestCase
         ]);
 
         $token = $login->json('token');
-        Storage::fake('public');
+        $product = Product::create([
+            'name' => 'Image update test',
+            'description' => 'Product image test',
+            'price' => 100,
+            'category' => 'chicken',
+            'image' => 'old-image.jpg',
+            'is_available' => true,
+        ]);
 
         $file = UploadedFile::fake()->create('product-image.png', 100, 'image/png');
 
-        $response = $this->post('/api/admin/products/upload-image', [
+        $upload = $this->post('/api/admin/products/upload-image', [
             'image' => $file,
-            'folder' => 'products',
+            'folder' => 'chicken',
         ], [
             'Authorization' => 'Bearer ' . $token,
         ]);
 
-        $response->assertOk();
-        $this->assertStringContainsString('/storage/', $response->json('url'));
-        $this->assertNotSame('/oppadrulogo.jpg', $response->json('url'));
+        $upload->assertOk();
+        $this->assertStringStartsWith('data:image/png;base64,', $upload->json('url'));
+
+        $this->putJson('/api/admin/products/' . $product->id, [
+            'image' => $upload->json('url'),
+        ], [
+            'Authorization' => 'Bearer ' . $token,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('products', [
+            'id' => $product->id,
+            'image' => $upload->json('url'),
+        ]);
     }
 }

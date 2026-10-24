@@ -129,8 +129,8 @@ export const toggleAvailability = async (productId: string): Promise<void> => {
   }
 };
 
-export const updateProduct = async (productId: string, changes: Partial<Product>): Promise<void> => {
-  await productService.updateProduct(productId, withAvailability(changes as ProductInput));
+export const updateProduct = async (productId: string, changes: Partial<Product>, imageFile?: File): Promise<void> => {
+  await productService.updateProduct(productId, withAvailability(changes as ProductInput), imageFile);
   notifyProductsUpdated();
 };
 

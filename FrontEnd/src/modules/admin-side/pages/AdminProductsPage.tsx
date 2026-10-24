@@ -352,10 +352,7 @@ const AdminProductsPage: React.FC = () => {
       };
 
       if (modalMode === 'edit' && selectedProductId) {
-        const image = selectedFile
-          ? await productService.uploadImage(selectedFile, form.category)
-          : undefined;
-        await updateProduct(selectedProductId, { ...payload, ...(image ? { image } : {}) });
+        await updateProduct(selectedProductId, payload, selectedFile || undefined);
       } else {
         const image = selectedFile
           ? await productService.uploadImage(selectedFile, form.category)
