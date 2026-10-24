@@ -16,9 +16,9 @@ export const categories: Category[] = [
   { id: 'rice-meals', name: 'Rice Meal', icon: '' },
   { id: 'chicken', name: 'Chicken Meal', icon: '' },
   { id: 'snacks', name: 'Snacks', icon: '' },
-  { id: 'fruity-soda-milk', name: 'Fruity Soda & Fruity Milk', icon: '' },
+  { id: 'fruity-soda-milk', name: 'Fruity Soda', icon: '' },
   { id: 'noodles', name: 'Noodles', icon: '' },
-  { id: 'fresh-lemonade', name: 'Fresh Lemonade', icon: '' },
+  { id: 'fresh-lemonade', name: 'Non-Coffee', icon: '' },
 ];
 
 export const addons: Addon[] = [

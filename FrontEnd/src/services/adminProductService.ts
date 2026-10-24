@@ -142,20 +142,11 @@ export const addProduct = async (data: ProductInput): Promise<Product> => {
 };
 
 export const deleteProduct = async (productId: string): Promise<void> => {
-  try {
-    await productService.deleteProduct(productId);
-    const deleted = new Set(getDeletedProducts());
-    deleted.add(productId);
-    saveDeletedProducts(Array.from(deleted));
-    const custom = getCustomProducts().filter((p) => p.id !== productId);
-    saveCustomProducts(custom);
-    notifyProductsUpdated();
-  } catch {
-    const deleted = new Set(getDeletedProducts());
-    deleted.add(productId);
-    saveDeletedProducts(Array.from(deleted));
-    const custom = getCustomProducts().filter((p) => p.id !== productId);
-    saveCustomProducts(custom);
-    notifyProductsUpdated();
-  }
+  await productService.deleteProduct(productId);
+  const deleted = new Set(getDeletedProducts());
+  deleted.add(productId);
+  saveDeletedProducts(Array.from(deleted));
+  const custom = getCustomProducts().filter((p) => p.id !== productId);
+  saveCustomProducts(custom);
+  notifyProductsUpdated();
 };

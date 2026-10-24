@@ -1,0 +1,51 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\AddonGroup;
+use App\Models\Product;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Tests\TestCase;
+
+class ProductDeletionTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_admin_product_delete_hides_product_without_breaking_existing_references(): void
+    {
+        $login = $this->postJson('/api/admin/login', [
+            'email' => 'admin@oppadru.com',
+            'password' => 'Admin@123',
+        ])->assertOk();
+
+        $product = Product::create([
+            'name' => 'Passion Fruit Soda',
+            'description' => 'Fruity drink',
+            'price' => 89,
+            'category' => 'fruity-soda-milk',
+            'image' => 'passionfruit-soda.jpg',
+            'is_available' => true,
+        ]);
+        $group = AddonGroup::create([
+            'name' => 'Drink options',
+            'selection_type' => 'single',
+            'supports_quantity' => false,
+            'applicable_categories' => ['fruity-soda-milk'],
+            'is_active' => true,
+        ]);
+        $product->addonGroups()->attach($group->id);
+        $headers = ['Authorization' => 'Bearer '.$login->json('token')];
+
+        $this->deleteJson('/api/admin/products/'.$product->id, [], $headers)->assertOk();
+
+        $this->assertSoftDeleted('products', ['id' => $product->id]);
+        $this->assertDatabaseHas('product_addon_groups', [
+            'product_id' => $product->id,
+            'addon_group_id' => $group->id,
+        ]);
+        $this->getJson('/api/products/available')->assertOk()->assertJsonMissing(['id' => $product->id]);
+        $this->getJson('/api/admin/products', $headers)->assertOk()->assertJsonMissing(['id' => $product->id]);
+        $this->assertSame(1, DB::table('product_addon_groups')->where('product_id', $product->id)->count());
+    }
+}

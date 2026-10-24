@@ -24,7 +24,7 @@ Laravel is accessible, powerful, and provides tools required for large, robust a
 
 ## Product image persistence
 
-Product and franchise product images are stored in the database and served through `/api/products/{id}/image`, so they remain available across Render restarts and redeploys. Keep the product table's `image` column as `text` to support the encoded image data.
+Product and franchise product images are stored in the database and served through `/api/products/{id}/image`, so they remain available across Render restarts and redeploys. Products are soft-deleted so historical orders, add-on links, and branch inventory remain intact while deleted products disappear from menus. Keep the product table's `image` column as `text` to support the encoded image data.
 
 ## Production email verification
 

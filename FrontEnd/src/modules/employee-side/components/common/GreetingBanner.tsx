@@ -10,9 +10,9 @@ const categories = [
   { id: 'rice-meals' as ProductCategory, name: 'Rice Meals' },
   { id: 'chicken' as ProductCategory, name: 'Chicken' },
   { id: 'snacks' as ProductCategory, name: 'Snacks' },
-  { id: 'fruity-soda-milk' as ProductCategory, name: 'Fruity Soda & Milk' },
+  { id: 'fruity-soda-milk' as ProductCategory, name: 'Fruity Soda' },
   { id: 'noodles' as ProductCategory, name: 'Noodles' },
-  { id: 'fresh-lemonade' as ProductCategory, name: 'Fresh Lemonade' },
+  { id: 'fresh-lemonade' as ProductCategory, name: 'Non-Coffee' },
 ];
 
 const GreetingBanner: React.FC<GreetingBannerProps> = ({
@@ -59,4 +59,3 @@ const GreetingBanner: React.FC<GreetingBannerProps> = ({
 };
 
 export default GreetingBanner;
-

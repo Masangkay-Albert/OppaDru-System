@@ -21,9 +21,9 @@ import yangnyeomChicken from '../../../assets/ChickenMeal/yangyneom-chicken.jpg'
 import tteokbokkiPhoto from '../../../assets/Snacks/tteokkboki.jpg';
 
 const categoryCards = [
-  { name: 'Fresh Lemonade', text: 'Bright citrus drinks, made for a refreshing break.', photo: lemonadePhoto, icon: GlassWater },
+  { name: 'Non-Coffee', text: 'Refreshing drinks for every mood.', photo: lemonadePhoto, icon: GlassWater },
   { name: 'Noodles', text: 'Comforting noodles with Korean-inspired flavor.', photo: noodlePhoto, icon: Soup },
-  { name: 'Fruity Soda & Fruity Milk', text: 'Colorful, cool sips to pair with your meal.', photo: sodaPhoto, icon: CupSoda },
+  { name: 'Fruity Soda', text: 'Colorful, cool sips to pair with your meal.', photo: sodaPhoto, icon: CupSoda },
   { name: 'Snacks', text: 'Shareable bites for any time of day.', photo: snackPhoto, icon: Sandwich },
   { name: 'Chicken Meal', text: 'Crispy Korean fried chicken with bold sauces.', photo: chickenPhoto, icon: Drumstick },
   { name: 'Rice Meal', text: 'Satisfying meals served with rice.', photo: ricePhoto, icon: CookingPot },

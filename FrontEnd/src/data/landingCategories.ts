@@ -11,8 +11,8 @@ export interface LandingCategory {
 export const landingCategories: LandingCategory[] = [
   {
     id: 'fresh-lemonade',
-    name: 'Fresh Lemonade',
-    desc: 'Refreshing citrus drinks',
+    name: 'Non-Coffee',
+    desc: 'Refreshing non-coffee drinks',
     image: oppaLogo,
     color: '#eab308',
   },
@@ -25,7 +25,7 @@ export const landingCategories: LandingCategory[] = [
   },
   {
     id: 'fruity-soda-milk',
-    name: 'Fruity Soda & Fruity Milk',
+    name: 'Fruity Soda',
     desc: 'Cold fruity refreshments',
     image: oppaLogo,
     color: '#db2777',
