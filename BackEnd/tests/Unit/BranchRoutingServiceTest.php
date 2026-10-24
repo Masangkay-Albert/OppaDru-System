@@ -104,7 +104,7 @@ class BranchRoutingServiceTest extends TestCase
         $this->branch('Laguna branch', 14.3181, 121.1011);
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('outside its 15.0 km delivery radius');
+        $this->expectExceptionMessage('outside its 15.0 km delivery area');
 
         app(BranchRoutingService::class)->resolve([
             'lat' => 14.1700,

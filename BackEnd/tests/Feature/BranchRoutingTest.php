@@ -167,7 +167,7 @@ class BranchRoutingTest extends TestCase
             'fulfillment_type' => 'delivery',
         ])->assertUnprocessable()
             ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
-            ->assertJsonPath('message', 'Nearest branch is Oppa Dru Korean Fried Chicken - Bulacan, 18.7 km away, outside its 15.0 km delivery radius.');
+            ->assertJsonPath('message', 'Nearest branch is Oppa Dru Korean Fried Chicken - Bulacan, 18.7 km away. Your address is outside its 15.0 km delivery area. Please choose an address closer to a branch.');
 
         $diagnostic = $response->json('branch_diagnostics.0');
         $this->assertSame($bulacan->id, $diagnostic['id']);
@@ -352,7 +352,7 @@ class BranchRoutingTest extends TestCase
             'fulfillment_type' => 'delivery',
         ])->assertUnprocessable()
             ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
-            ->assertJsonPath('message', 'Nearest branch is Cavite branch, 5.9 km away, outside its 1.0 km delivery radius.');
+            ->assertJsonPath('message', 'Nearest branch is Cavite branch, 5.9 km away. Your address is outside its 1.0 km delivery area. Please choose an address closer to a branch.');
     }
 
     public function test_null_branch_radius_uses_the_configured_default(): void

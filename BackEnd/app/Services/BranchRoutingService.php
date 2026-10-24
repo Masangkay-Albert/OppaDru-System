@@ -83,7 +83,7 @@ class BranchRoutingService
             $nearest = $evaluatedBranches->sortBy('distance')->first();
             $nearestBranch = $nearest['branch'];
             $nearestMessage = sprintf(
-                'Nearest branch is %s, %.1f km away, outside its %.1f km delivery radius.',
+                'Nearest branch is %s, %.1f km away. Your address is outside its %.1f km delivery area. Please choose an address closer to a branch.',
                 $nearestBranch->name,
                 $nearest['distance'],
                 $nearest['radius'],
