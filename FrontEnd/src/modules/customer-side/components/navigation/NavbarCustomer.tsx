@@ -4,6 +4,7 @@ import { useAuth } from "../../../../contexts/Authcontext";
 import { useFavorites } from "../../../../contexts/FavoritesContext";
 import { BriefcaseBusiness, Heart, ChevronDown, Package, LogOut, Settings } from "lucide-react";
 import oppaLogo from "../../../../assets/oppadrulogo.jpg";
+import CustomerAnnouncementBell from "../common/CustomerAnnouncementBell";
 
 const NavbarCustomer: React.FC = () => {
   const navigate = useNavigate();
@@ -41,10 +42,10 @@ const NavbarCustomer: React.FC = () => {
               alt="Oppa Dru"
               className="w-9 h-9 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-white/20 shadow-sm"
             />
-            <span className="font-serif font-bold text-[var(--oppa-cream)] text-sm sm:text-base md:text-lg whitespace-nowrap hidden sm:inline">
+            <span className="font-serif font-bold !text-white text-sm sm:text-base md:text-lg whitespace-nowrap hidden sm:inline">
               Oppa Dru Korean Fried Chicken
             </span>
-            <span className="font-serif font-bold text-[var(--oppa-cream)] text-sm whitespace-nowrap sm:hidden">
+            <span className="font-serif font-bold !text-white text-sm whitespace-nowrap sm:hidden">
               Oppa Dru
             </span>
           </div>
@@ -52,7 +53,7 @@ const NavbarCustomer: React.FC = () => {
           <div className="flex items-center gap-3 sm:gap-5 md:gap-6 flex-shrink-0">
             <button
               onClick={handleFavoritesClick}
-              className="relative flex items-center gap-1 sm:gap-2 text-[var(--oppa-cream)] font-sans font-medium hover:text-white transition-colors duration-200"
+              className="relative flex items-center gap-1 sm:gap-2 !text-white font-sans font-medium hover:text-white transition-colors duration-200"
             >
               <Heart size={16} className="sm:w-[18px] sm:h-[18px] md:w-5 md:h-5" />
               <span className="text-sm sm:text-base">Favorites</span>
@@ -63,13 +64,16 @@ const NavbarCustomer: React.FC = () => {
               )}
             </button>
 
-            {user && (
-              <div className="relative">
+            {user ? (
+              <>
+                <CustomerAnnouncementBell />
+
+                <div className="relative">
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className="flex items-center gap-1 sm:gap-2 text-[var(--oppa-cream)] font-sans font-medium hover:text-white transition-colors duration-200"
+                  className="flex items-center gap-1 sm:gap-2 !text-white font-sans font-medium hover:text-white transition-colors duration-200"
                 >
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/15 flex items-center justify-center text-[var(--oppa-cream)] font-bold text-xs sm:text-sm">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/15 flex items-center justify-center !text-white font-bold text-xs sm:text-sm">
                     {getInitials(user.full_name)}
                   </div>
                   <span className="hidden sm:inline text-sm md:text-base">
@@ -132,7 +136,15 @@ const NavbarCustomer: React.FC = () => {
                   </>
                 )}
               </div>
-            )}
+            </>
+          ) : (
+            <button
+              onClick={() => navigate("/login")}
+              className="px-4 py-1.5 rounded-full bg-[var(--oppa-yellow)] text-[#133824] font-bold text-xs sm:text-sm hover:bg-yellow-300 transition-all duration-150 shadow-xs"
+            >
+              Login
+            </button>
+          )}
           </div>
         </div>
       </div>

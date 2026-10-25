@@ -22,7 +22,6 @@ import {
   Send,
   Share2,
   Sparkles,
-  Tag,
   ThumbsUp,
   Trash2,
   UploadCloud,
@@ -31,7 +30,6 @@ import {
 import {
   FiArrowRight,
   FiCheckCircle,
-  FiGlobe,
   FiHeart,
   FiMapPin,
   FiShoppingBag,
@@ -54,34 +52,7 @@ import type {
   AnnouncementPriority,
   AnnouncementStats,
   FacebookStatus,
-  TargetAudience,
 } from '../../../types/announcement.types';
-
-const AUDIENCE_OPTIONS: {
-  id: TargetAudience;
-  label: string;
-  shortLabel: string;
-  description: string;
-  icon: React.FC<{ size?: number; className?: string }>;
-  color: string;
-}[] = [
-  {
-    id: 'all',
-    label: 'All Category',
-    shortLabel: 'All',
-    description: 'Broadcasted to everyone across all platforms',
-    icon: Globe,
-    color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
-  },
-  {
-    id: 'customers',
-    label: 'Customers Only',
-    shortLabel: 'Customers',
-    description: 'Food ordering menu & customer notifications',
-    icon: Tag,
-    color: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
-  },
-];
 
 const LEGACY_AUDIENCE_META = {
   label: 'Legacy audience',
@@ -105,6 +76,9 @@ const formatDateForInput = (isoDate?: string | null): string => {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
+
+const getMinimumScheduleDateTime = (): string =>
+  formatDateForInput(new Date(Date.now() + 60_000).toISOString());
 
 const formatDisplayDate = (isoDate?: string | null): string => {
   if (!isoDate) return 'Immediate';
@@ -134,7 +108,6 @@ const AdminAnnouncementsPage: React.FC = () => {
 
   // Filter States
   const [search, setSearch] = useState('');
-  const [audienceFilter, setAudienceFilter] = useState<string>('all_filter');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc');
 
@@ -178,7 +151,6 @@ const AdminAnnouncementsPage: React.FC = () => {
     setLoading(true);
     try {
       const filters: AnnouncementFilters = {
-        audience: audienceFilter,
         status: statusFilter,
         search: search.trim(),
         direction: sortDirection,
@@ -198,7 +170,7 @@ const AdminAnnouncementsPage: React.FC = () => {
     announcementService.getFacebookStatus().then((status) => {
       setFbStatus(status);
     });
-  }, [audienceFilter, statusFilter, sortDirection]);
+  }, [statusFilter, sortDirection]);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -256,7 +228,7 @@ const AdminAnnouncementsPage: React.FC = () => {
     setFormData({
       title: item.title,
       content: item.content,
-      target_audience: item.target_audience === 'all' ? 'all' : 'customers',
+      target_audience: 'customers',
       priority: item.priority,
       status: item.status,
       date_sent: item.date_sent || '',
@@ -264,7 +236,7 @@ const AdminAnnouncementsPage: React.FC = () => {
       image_url: item.image_url || '',
       imageFile: null,
       remove_image: false,
-      publish_to_facebook: false,
+      publish_to_facebook: item.status === 'draft' && !item.metadata?.facebook_published_at,
     });
     setImagePreview(item.image_url || null);
     setIsFormOpen(true);
@@ -314,23 +286,64 @@ const AdminAnnouncementsPage: React.FC = () => {
       return;
     }
 
+    const submittedStatus = statusOverride ?? (
+      sendMode === 'schedule'
+        ? 'scheduled'
+        : editingItem || formData.status === 'published'
+        ? 'published'
+        : formData.status
+    );
+    if (submittedStatus === 'scheduled') {
+      const scheduledTime = Date.parse(formData.scheduled_at || '');
+      if (!Number.isFinite(scheduledTime) || scheduledTime <= Date.now()) {
+        showToast('Choose a schedule date and time in the future.', 'error');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
-      const submittedStatus = statusOverride ?? (sendMode === 'schedule' ? 'scheduled' : formData.status);
       const submissionData: AnnouncementFormData = {
         ...formData,
+        target_audience: 'customers',
         status: submittedStatus,
         date_sent: submittedStatus === 'draft'
           ? formData.date_sent
           : sendMode === 'immediate'
-          ? (formData.date_sent || new Date().toISOString())
+          ? (editingItem?.status === 'published'
+            ? formData.date_sent || new Date().toISOString()
+            : new Date().toISOString())
           : (formData.scheduled_at || formData.date_sent || new Date().toISOString()),
         scheduled_at: submittedStatus === 'scheduled' ? formData.scheduled_at : undefined,
       };
 
       if (editingItem) {
-        await announcementService.updateAnnouncement(editingItem.id, submissionData);
-        showToast('Announcement updated successfully!');
+        const updated = await announcementService.updateAnnouncement(editingItem.id, submissionData);
+        if (submissionData.status === 'published' && submissionData.publish_to_facebook) {
+          try {
+            const facebookResult = await announcementService.publishToFacebook(updated.id);
+            if (facebookResult.success) {
+              showToast('Announcement updated and published successfully!');
+            } else {
+              showToast(
+                `Announcement published to customers, but Facebook publishing failed: ${facebookResult.message || 'Check the Facebook connection.'}`,
+                'error'
+              );
+              if (facebookResult.need_config || (facebookResult.message || '').includes('OAuth error 190')) {
+                setFbStatus(await announcementService.getFacebookStatus());
+                setIsFbSettingsOpen(true);
+              }
+            }
+          } catch {
+            showToast('Announcement published to customers, but Facebook publishing failed.', 'error');
+          }
+        } else if (submissionData.status === 'scheduled') {
+          showToast('Announcement scheduled successfully!');
+        } else if (submissionData.status === 'draft') {
+          showToast('Announcement saved as a draft.');
+        } else {
+          showToast('Announcement updated and published successfully!');
+        }
       } else {
         const result = await announcementService.createAnnouncement(submissionData);
         if (result.facebookPublish && !result.facebookPublish.success) {
@@ -461,7 +474,15 @@ Oppa Dru Korean Fried Chicken
   };
 
   const getAudienceMeta = (audience: AnnouncementAudience) => {
-    return AUDIENCE_OPTIONS.find((opt) => opt.id === audience) || LEGACY_AUDIENCE_META;
+    return audience === 'customers'
+      ? {
+          label: 'Customers Only',
+          shortLabel: 'Customers',
+          description: 'Food ordering menu & customer notifications',
+          icon: FiShoppingBag,
+          color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+        }
+      : LEGACY_AUDIENCE_META;
   };
 
   return (
@@ -552,26 +573,11 @@ Oppa Dru Korean Fried Chicken
               />
               <input
                 type="text"
-                placeholder="Search headline, message, or audience..."
+                placeholder="Search headline or message..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="admin-input h-[42px] w-full rounded-xl pl-9 text-sm"
               />
-            </div>
-
-            {/* Target Audience Filter */}
-            <div className="relative min-w-0 lg:w-[180px] lg:shrink-0">
-              <select
-                value={audienceFilter}
-                onChange={(e) => setAudienceFilter(e.target.value)}
-                className="admin-select h-[42px] w-full appearance-none rounded-xl pr-9 text-sm"
-                aria-label="Filter by target audience"
-              >
-                <option value="all_filter">All Categories ({stats.total})</option>
-                <option value="all">All Category ({stats.audiences?.all ?? 0})</option>
-                <option value="customers">Customers Only ({stats.audiences?.customers ?? 0})</option>
-              </select>
-              <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
             </div>
 
             {/* Status Filter */}
@@ -605,43 +611,6 @@ Oppa Dru Korean Fried Chicken
             </div>
           </div>
 
-          {/* Audience Quick Pills */}
-          <div className="flex flex-wrap items-center gap-2 border-t border-[var(--oppa-border)] pt-3 text-xs">
-            <span className="font-semibold text-[var(--oppa-text-muted)] mr-1">Category:</span>
-            <button
-              type="button"
-              onClick={() => setAudienceFilter('all_filter')}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-medium transition-colors duration-150 ${
-                audienceFilter === 'all_filter'
-                  ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white shadow-sm'
-                  : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:border-[var(--oppa-green)]/40 hover:bg-[var(--oppa-green-soft)]/40 hover:text-[var(--oppa-text)]'
-              }`}
-            >
-              All <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${audienceFilter === 'all_filter' ? 'bg-white/20' : 'bg-[var(--oppa-cream)]'}`}>{stats.total}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setAudienceFilter('all')}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-medium transition-colors duration-150 ${
-                audienceFilter === 'all'
-                  ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white shadow-sm'
-                  : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:border-[var(--oppa-green)]/40 hover:bg-[var(--oppa-green-soft)]/40 hover:text-[var(--oppa-text)]'
-              }`}
-            >
-              <FiGlobe aria-hidden="true" /> All Category <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${audienceFilter === 'all' ? 'bg-white/20' : 'bg-[var(--oppa-cream)]'}`}>{stats.audiences?.all ?? 0}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setAudienceFilter('customers')}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-medium transition-colors duration-150 ${
-                audienceFilter === 'customers'
-                  ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white shadow-sm'
-                  : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:border-[var(--oppa-green)]/40 hover:bg-[var(--oppa-green-soft)]/40 hover:text-[var(--oppa-text)]'
-              }`}
-            >
-              <FiShoppingBag aria-hidden="true" /> Customers Only <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${audienceFilter === 'customers' ? 'bg-white/20' : 'bg-[var(--oppa-cream)]'}`}>{stats.audiences?.customers ?? 0}</span>
-            </button>
-          </div>
         </FilterBar>
 
         {/* Content Section: Cards Grid */}
@@ -654,8 +623,8 @@ Oppa Dru Korean Fried Chicken
             </div>
             <h2 className="mt-2 font-serif text-xl font-bold text-[var(--oppa-text)]">No announcements found</h2>
             <p className="mt-1 max-w-md text-sm text-[var(--oppa-text-muted)]">
-              {search || audienceFilter !== 'all_filter' || statusFilter !== 'all'
-                ? 'Try adjusting your search criteria or audience filters.'
+              {search || statusFilter !== 'all'
+                ? 'Try adjusting your search criteria or status filter.'
                 : 'Create your first announcement to keep customers informed.'}
             </p>
             <button
@@ -860,13 +829,13 @@ Oppa Dru Korean Fried Chicken
         {/* Modal: Create & Edit Announcement (Portaled directly to document.body for unobstructed viewport positioning) */}
         {isFormOpen && typeof document !== 'undefined' && createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-stretch justify-center overflow-y-auto bg-[#10241a]/65 p-0 backdrop-blur-sm sm:items-center sm:p-5"
+            className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-[#10241a]/65 p-3 backdrop-blur-sm sm:p-5"
             onClick={(e) => {
               if (e.target === e.currentTarget && !isSubmitting) setIsFormOpen(false);
             }}
           >
             <div
-              className="admin-card relative flex h-dvh max-h-dvh w-full max-w-none flex-col overflow-hidden rounded-none border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-2xl animate-in fade-in zoom-in-95 duration-200 sm:h-auto sm:max-h-[calc(100vh-80px)] sm:max-w-[720px] sm:rounded-[20px]"
+              className="admin-card relative flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-full max-w-none min-h-0 flex-col overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-2xl animate-in fade-in zoom-in-95 duration-200 sm:h-[calc(100dvh-2.5rem)] sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-[720px]"
               role="dialog"
               aria-modal="true"
               aria-labelledby="announcement-modal-title"
@@ -912,54 +881,32 @@ Oppa Dru Korean Fried Chicken
               </div>
 
               {/* Scrollable Form Body */}
-              <form onSubmit={handleSubmitForm} className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
-                  {/* 1. Target Audience / Category */}
+              <form
+                onSubmit={handleSubmitForm}
+                className="flex min-h-0 flex-col"
+                style={{ flex: '1 1 0%' }}
+              >
+                <div
+                  className="min-h-0 space-y-5 overflow-y-auto px-5 py-5 sm:px-6"
+                  style={{ flex: '1 1 0%' }}
+                >
+                  {/* 1. Target Audience */}
                   <div>
-                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]" id="announcement-audience-label">
-                      Target Category / Audience <span className="text-red-500">*</span>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                      Recipients
                     </label>
-                    <div className="grid grid-cols-1 gap-2.5 min-[440px]:grid-cols-2" aria-labelledby="announcement-audience-label">
-                      {AUDIENCE_OPTIONS.map((opt) => {
-                        const Icon = opt.icon;
-                        const isSelected = formData.target_audience === opt.id;
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            autoFocus={opt.id === AUDIENCE_OPTIONS[0].id}
-                            onClick={() => setFormData({ ...formData, target_audience: opt.id })}
-                            className={`flex min-w-0 items-start gap-3 rounded-xl border p-3 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] ${
-                              isSelected
-                                ? 'border-2 border-[var(--oppa-green)] bg-[#EAF5EE] shadow-sm dark:bg-[var(--oppa-green)]/15'
-                                : 'border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] hover:border-[var(--oppa-green)]/50 hover:bg-[var(--oppa-green-soft)]/20'
-                            }`}
-                          >
-                            <div
-                              className={`flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                                isSelected
-                                  ? 'bg-[var(--oppa-green)] text-white'
-                                  : 'bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)]'
-                              }`}
-                            >
-                              <Icon size={16} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between">
-                                <span className={`text-xs font-bold ${isSelected ? 'text-[var(--oppa-green-dark)] dark:text-emerald-200' : 'text-[var(--oppa-text)]'}`}>
-                                  {opt.label}
-                                </span>
-                                {isSelected && (
-                                  <span className="flex size-4 items-center justify-center rounded-full bg-[var(--oppa-green)] text-[10px] text-white">✓</span>
-                                )}
-                              </div>
-                              <span className="mt-0.5 block text-[11px] text-[var(--oppa-text-muted)]">
-                                {opt.description}
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })}
+                    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-[var(--oppa-green)] bg-[#EAF5EE] p-3 dark:bg-[var(--oppa-green)]/15">
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--oppa-green)] text-white">
+                        <FiShoppingBag size={16} aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-xs font-bold text-[var(--oppa-green-dark)] dark:text-emerald-200">
+                          Customers Only
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-[var(--oppa-text-muted)]">
+                          Announcements are sent to customer accounts.
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -1112,50 +1059,50 @@ Oppa Dru Korean Fried Chicken
                       </label>
                     </div>
 
-                    {sendMode === 'schedule' ? (
-                      <div>
-                        <label htmlFor="announcement-scheduled-at" className="mb-1.5 block text-xs font-medium text-[var(--oppa-text-muted)]">
-                          Scheduled Broadcast Time:
-                        </label>
-                        <input
-                          id="announcement-scheduled-at"
-                          type="datetime-local"
-                          required={sendMode === 'schedule'}
-                          value={formatDateForInput(formData.scheduled_at || formData.date_sent)}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              scheduled_at: e.target.value ? new Date(e.target.value).toISOString() : '',
-                              date_sent: e.target.value ? new Date(e.target.value).toISOString() : '',
-                            })
-                          }
-                          className="admin-input h-11 w-full rounded-xl px-3 text-base sm:text-sm"
-                        />
-                      </div>
-                    ) : (
-                      <div>
-                        <label htmlFor="announcement-date-sent" className="mb-1.5 block text-xs font-medium text-[var(--oppa-text-muted)]">
-                          Date Sent Stamp
-                        </label>
-                        <input
-                          id="announcement-date-sent"
-                          type="datetime-local"
-                          disabled={sendMode === 'immediate'}
-                          value={formatDateForInput(formData.date_sent || new Date().toISOString())}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              date_sent: e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString(),
-                            })
-                          }
-                          className="admin-input h-11 w-full rounded-xl px-3 text-base disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
-                        />
-                        <p className="mt-1.5 text-[11px] text-[var(--oppa-text-muted)]">Current time is auto-assigned upon publish.</p>
-                      </div>
-                    )}
+                    <div className="min-w-0">
+                      <label
+                        htmlFor={sendMode === 'schedule' ? 'announcement-scheduled-at' : 'announcement-date-sent'}
+                        className="mb-1.5 block text-xs font-medium text-[var(--oppa-text-muted)]"
+                      >
+                        {sendMode === 'schedule' ? 'Scheduled Broadcast Time' : 'Date Sent Stamp'}
+                      </label>
+                      <input
+                        id={sendMode === 'schedule' ? 'announcement-scheduled-at' : 'announcement-date-sent'}
+                        type="datetime-local"
+                        required={sendMode === 'schedule'}
+                        disabled={sendMode === 'immediate'}
+                        min={sendMode === 'schedule' ? getMinimumScheduleDateTime() : undefined}
+                        value={formatDateForInput(
+                          sendMode === 'schedule'
+                            ? formData.scheduled_at
+                            : formData.date_sent || new Date().toISOString()
+                        )}
+                        onChange={(e) => {
+                          const selectedTime = e.target.value
+                            ? new Date(e.target.value).toISOString()
+                            : '';
+                          setFormData((prev) => sendMode === 'schedule'
+                            ? { ...prev, scheduled_at: selectedTime, date_sent: selectedTime }
+                            : { ...prev, date_sent: selectedTime || new Date().toISOString() });
+                        }}
+                        className="admin-input box-border block h-11 w-full min-w-0 max-w-full rounded-xl px-3 text-base disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
+                      />
+                      {sendMode === 'immediate' ? (
+                        <p className="mt-1.5 text-[11px] text-[var(--oppa-text-muted)]">
+                          Current time is auto-assigned upon publish.
+                        </p>
+                      ) : (
+                        <p className="mt-1.5 text-[11px] text-[var(--oppa-text-muted)]">
+                          Choose a future date and time for this announcement.
+                        </p>
+                      )}
+                    </div>
                   </div>
 
-                  {!editingItem && (
+                  {(!editingItem || (
+                    editingItem.status === 'draft' &&
+                    !editingItem.metadata?.facebook_published_at
+                  )) && (
                     <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--oppa-green)]/20 bg-[var(--oppa-green-soft)]/45 p-3.5 text-xs transition-colors hover:bg-[var(--oppa-green-soft)]/70 dark:bg-[var(--oppa-green)]/10 dark:hover:bg-[var(--oppa-green)]/15">
                       <input
                         type="checkbox"
@@ -1177,7 +1124,7 @@ Oppa Dru Korean Fried Chicken
                 </div>
 
                 {/* Sticky Bottom Actions Footer */}
-                <div className="sticky bottom-0 z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] px-5 py-3 sm:flex-row sm:items-center sm:justify-end sm:gap-2.5 sm:px-6">
+                <div className="z-10 mt-auto flex shrink-0 flex-col-reverse gap-2 border-t border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] px-5 py-3 sm:flex-row sm:items-center sm:justify-end sm:gap-2.5 sm:px-6">
                   <button
                     type="button"
                     onClick={() => setIsFormOpen(false)}
@@ -1379,7 +1326,7 @@ Oppa Dru Korean Fried Chicken
                       </span>
                       <span className="ml-auto text-xs font-semibold text-[var(--oppa-text-muted)]">
                         {previewItem.target_audience === 'all'
-                          ? <><FiGlobe className="mr-1 inline-block" aria-hidden="true" />All Category</>
+                          ? <><Megaphone className="mr-1 inline-block" size={12} aria-hidden="true" />Legacy audience</>
                           : <><FiShoppingBag className="mr-1 inline-block" aria-hidden="true" />Customers Only</>}
                       </span>
                     </div>

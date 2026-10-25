@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  BadgeCheck, Bell, Briefcase, Car, ChevronDown, ChevronsLeft, ChevronsRight,
+  BadgeCheck, Briefcase, Car, ChevronDown, ChevronsLeft, ChevronsRight,
   FileBarChart, Home, LayoutDashboard, LogOut, Megaphone, Menu, Moon, Package,
   Search, SlidersHorizontal, ShoppingBag, Store, Sun, Tag, Users, X,
 } from 'lucide-react';
@@ -46,7 +46,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const [menu, setMenu] = useState<'notifications' | 'profile' | null>(null);
+  const [menu, setMenu] = useState<'profile' | null>(null);
   const [dark, setDark] = useState(() => getSavedTheme() === 'dark');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -129,10 +129,6 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </div>}
           </div>
           <button aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'} title={dark ? 'Switch to light mode' : 'Switch to dark mode'} onClick={() => setDark(!dark)} className="rounded-xl p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]">{dark ? <Sun size={19} /> : <Moon size={19} />}</button>
-          <div className="relative">
-            <button aria-label="Notifications" aria-expanded={menu === 'notifications'} onClick={() => setMenu(menu === 'notifications' ? null : 'notifications')} className="relative rounded-xl p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]"><Bell size={19} /><span className="absolute right-1.5 top-1.5 size-2 rounded-full border-2 border-[var(--oppa-surface)] bg-[var(--oppa-yellow)]" /></button>
-            {menu === 'notifications' && <div className="absolute right-0 top-12 w-64 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4 shadow-xl"><p className="font-semibold text-[var(--oppa-text)]">Notifications</p><p className="mt-2 text-sm text-[var(--oppa-text-muted)]">You're all caught up.</p></div>}
-          </div>
           <div className="relative">
             <button aria-label="Open admin profile menu" aria-expanded={menu === 'profile'} onClick={() => setMenu(menu === 'profile' ? null : 'profile')} className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-[var(--oppa-cream)]">
               <span className="flex size-9 items-center justify-center rounded-full bg-[var(--oppa-green)] text-sm font-bold text-white">{adminInitial}</span>

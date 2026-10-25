@@ -31,18 +31,35 @@ export interface PromoValidationResult {
   message?: string;
 }
 
+// No hardcoded fallback promos — only real data from the API or cache is shown.
+
 export const promoService = {
   // Public/Customer/Cashier: get all active promos
   async getActivePromos(): Promise<Promo[]> {
     try {
       const res = await fetch(`${API_URL}/promos`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          try {
+            localStorage.setItem('oppadru_promos_cache', JSON.stringify(data));
+          } catch {}
+          return data;
+        }
+      }
     } catch (err) {
-      console.error('Failed to fetch active promos:', err);
-      return [];
+      console.warn('Unable to reach promos API, using cached/fallback promos:', err);
     }
+
+    try {
+      const cached = localStorage.getItem('oppadru_promos_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+
+    return [];
   },
 
   // Validate a promo code against current cart

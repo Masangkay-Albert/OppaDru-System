@@ -10,86 +10,24 @@ import type {
   TargetAudience,
 } from '../types/announcement.types';
 
-const STORAGE_KEY = 'oppadru_announcements_cache_v2';
+const STORAGE_KEY = 'oppadru_announcements_cache_v3';
 
-const defaultSeedAnnouncements: Announcement[] = [
-  {
-    id: 'ann-DEMO001',
-    title: '✨ Welcome to Oppa Dru Refresh! Special Promo Week',
-    content: 'We are thrilled to launch our new summer combo sets! Enjoy up to 15% off on our Korean Fried Chicken combos when ordering directly through our website.',
-    target_audience: 'customers',
-    target_audiences: ['customers'],
-    image_url: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=1200&q=80',
-    priority: 'promo',
-    status: 'published',
-    date_sent: new Date(Date.now() - 3600 * 1000 * 4).toISOString(),
-    author_name: 'System Administrator',
-    created_at: new Date(Date.now() - 3600 * 1000 * 4).toISOString(),
-  },
-  {
-    id: 'ann-DEMO002',
-    title: '🍗 New Menu Drop: Spicy Gangnam Wings!',
-    content: 'Introducing our latest menu addition — Spicy Gangnam Wings! Extra crispy with our secret Korean chili glaze. Available for a limited time at all branches and for delivery.',
-    target_audience: 'customers',
-    target_audiences: ['customers'],
-    image_url: 'https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=1200&q=80',
-    priority: 'high',
-    status: 'published',
-    date_sent: new Date(Date.now() - 3600 * 1000 * 28).toISOString(),
-    author_name: 'Marketing Team',
-    created_at: new Date(Date.now() - 3600 * 1000 * 28).toISOString(),
-  },
-  {
-    id: 'ann-DEMO003',
-    title: '🎉 Free Delivery This Weekend — No Minimum Order!',
-    content: 'Celebrate the weekend with us! Enjoy FREE delivery on all orders this Saturday and Sunday. No minimum spend required — order your favorites from the comfort of your home.',
-    target_audience: 'customers',
-    target_audiences: ['customers'],
-    image_url: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=1200&q=80',
-    priority: 'normal',
-    status: 'published',
-    date_sent: new Date(Date.now() - 3600 * 1000 * 50).toISOString(),
-    author_name: 'Operations Manager',
-    created_at: new Date(Date.now() - 3600 * 1000 * 50).toISOString(),
-  },
-  {
-    id: 'ann-DEMO004',
-    title: '🏷️ Loyalty Rewards Program Launch',
-    content: 'Earn points on every order and redeem them for free meals! Sign up for our loyalty program today and get 50 bonus points to start. Exclusive perks for our valued customers.',
-    target_audience: 'customers',
-    target_audiences: ['customers'],
-    image_url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1200&q=80',
-    priority: 'promo',
-    status: 'published',
-    date_sent: new Date(Date.now() - 3600 * 1000 * 60).toISOString(),
-    author_name: 'Customer Relations',
-    created_at: new Date(Date.now() - 3600 * 1000 * 60).toISOString(),
-  },
-  {
-    id: 'ann-DEMO005',
-    title: '🌐 Holiday Operating Hours Notice',
-    content: 'Please be advised that all Oppa Dru branches and delivery services will observe special operating hours during the upcoming public holiday. Store schedules will be from 10:00 AM to 7:00 PM.',
-    target_audience: 'all',
-    target_audiences: ['all'],
-    image_url: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80',
-    priority: 'urgent',
-    status: 'published',
-    date_sent: new Date(Date.now() - 3600 * 1000 * 72).toISOString(),
-    author_name: 'System Administrator',
-    created_at: new Date(Date.now() - 3600 * 1000 * 72).toISOString(),
-  },
-];
+const defaultSeedAnnouncements: Announcement[] = [];
 
 const getStoredAnnouncements = (): Announcement[] => {
   try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('oppadru_announcements_cache_v2');
+      localStorage.removeItem('oppadru_announcements_cache');
+    }
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultSeedAnnouncements));
-      return defaultSeedAnnouncements;
+      return [];
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((a: Announcement) => !a.id.startsWith('ann-DEMO')) : [];
   } catch {
-    return defaultSeedAnnouncements;
+    return [];
   }
 };
 
@@ -225,6 +163,9 @@ export const announcementService = {
         if (json.announcement) {
           const list = getStoredAnnouncements();
           saveStoredAnnouncements([json.announcement, ...list]);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('oppadru_announcement_published', { detail: json.announcement }));
+          }
           return {
             announcement: json.announcement,
             facebookPublish: json.facebook_publish ?? null,
@@ -265,6 +206,9 @@ export const announcementService = {
 
     const current = getStoredAnnouncements();
     saveStoredAnnouncements([newAnnouncement, ...current]);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('oppadru_announcement_published', { detail: newAnnouncement }));
+    }
     return { announcement: newAnnouncement };
   },
 
@@ -296,6 +240,9 @@ export const announcementService = {
         if (json.announcement) {
           const list = getStoredAnnouncements().map((a) => (a.id === id ? json.announcement : a));
           saveStoredAnnouncements(list);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('oppadru_announcement_updated', { detail: json.announcement }));
+          }
           return json.announcement;
         }
       }
@@ -331,6 +278,9 @@ export const announcementService = {
     };
 
     saveStoredAnnouncements(list.map((a) => (a.id === id ? updated : a)));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('oppadru_announcement_updated', { detail: updated }));
+    }
     return updated;
   },
 
@@ -409,7 +359,11 @@ export const announcementService = {
       const res = await fetch(`${API_URL}/announcements?audience=customers`);
       if (res.ok) {
         const data = await res.json();
-        if (data.announcements) return data.announcements;
+        if (data.announcements && Array.isArray(data.announcements)) {
+          const valid = data.announcements.filter((a: Announcement) => !a.id.startsWith('ann-DEMO'));
+          saveStoredAnnouncements(valid);
+          return valid;
+        }
       }
     } catch {
       // Fallback
@@ -418,6 +372,7 @@ export const announcementService = {
     const list = getStoredAnnouncements();
     return list.filter(
       (a) =>
+        !a.id.startsWith('ann-DEMO') &&
         a.status === 'published' &&
         (a.target_audience === 'customers' ||
           a.target_audience === 'all' ||

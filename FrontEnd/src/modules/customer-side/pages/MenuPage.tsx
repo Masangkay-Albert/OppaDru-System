@@ -258,7 +258,7 @@ const MenuPage: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="menu-search-input w-full px-4 py-3 pl-11 rounded-xl border border-gray-200 bg-white focus:border-[#1C3D2E] focus:outline-none focus:ring-1 focus:ring-[#1C3D2E] transition-all text-sm"
               />
-              <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-base" />
+              <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/75 text-base" />
             </div>
           </div>
 

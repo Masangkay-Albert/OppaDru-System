@@ -31,7 +31,7 @@ const GreetingBanner: React.FC<GreetingBannerProps> = ({
 
   return (
     <div className="menu-greeting bg-[var(--oppa-green-dark)] rounded-2xl p-6 mb-6 text-white shadow-md">
-      <h2 className="menu-greeting-title text-xl sm:text-2xl font-serif font-bold mb-1 text-[var(--oppa-cream)]">
+      <h2 className="menu-greeting-title !text-white text-xl sm:text-2xl font-serif font-bold mb-1">
         {greeting}, {displayName}!
       </h2>
       <p className="menu-greeting-subtitle text-[var(--oppa-green-soft)] text-sm mb-4">What are you craving today?</p>

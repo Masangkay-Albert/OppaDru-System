@@ -342,10 +342,15 @@
   min-height: 48px;
   max-width: 620px;
   padding-inline: 14px;
-  color: var(--menu-ink);
+  color: #fff !important;
   border-color: #d8dfd8;
   border-radius: 12px;
   box-shadow: inset 0 1px 2px rgba(28, 61, 46, 0.025);
+}
+
+.menu-branch-select option {
+  color: var(--menu-ink);
+  background: #fff;
 }
 
 .menu-branch-select:hover {
@@ -360,11 +365,15 @@
 .menu-search-input {
   min-height: 50px;
   padding-right: 16px;
-  color: var(--menu-ink);
+  color: #fff !important;
   border-color: #e0e2dc;
   border-radius: 14px;
   box-shadow: 0 2px 8px rgba(29, 48, 36, 0.04);
   font-size: 14px;
+}
+
+.menu-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.72) !important;
 }
 
 .menu-search {
