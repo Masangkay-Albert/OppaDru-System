@@ -12,7 +12,7 @@ import type {
 
 const STORAGE_KEY = 'oppadru_announcements_cache_v3';
 
-const defaultSeedAnnouncements: Announcement[] = [];
+
 
 const getStoredAnnouncements = (): Announcement[] => {
   try {

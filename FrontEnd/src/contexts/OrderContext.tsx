@@ -46,6 +46,15 @@ export interface Order {
   scheduledTime?: string | null;
   scheduleDisplay?: string | null;
   scheduleWindow?: string | null;
+  driverId?: string | null;
+  driver_id?: string | null;
+  driver?: {
+    id?: string;
+    name?: string;
+    phone?: string;
+    vehicle_type?: string;
+    vehicleType?: string;
+  } | null;
 }
 
 interface OrderContextType {
@@ -203,6 +212,14 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       scheduledDate: apiOrder.scheduled_date || null,
       scheduledTime: apiOrder.scheduled_time || apiOrder.schedule_window || null,
       scheduleDisplay: apiOrder.schedule_display || null,
+      driverId: apiOrder.driver_id || apiOrder.driver?.id || null,
+      driver: apiOrder.driver ? {
+        id: String(apiOrder.driver.id || ''),
+        name: apiOrder.driver.name || 'Assigned Driver',
+        phone: apiOrder.driver.phone || '',
+        vehicleType: apiOrder.driver.vehicleType || apiOrder.driver.vehicle_type || 'Motorcycle',
+        vehicle_type: apiOrder.driver.vehicle_type || apiOrder.driver.vehicleType || 'Motorcycle',
+      } : null,
       scheduleWindow: apiOrder.schedule_window || null,
     };
   }, [userEmail, userId]);

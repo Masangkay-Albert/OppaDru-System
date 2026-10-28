@@ -108,41 +108,15 @@ trait FranchisePosPaymentActions
         $posTotals = app(PricingService::class)->calculatePosDiscount($subtotal, $request->filled('discount_type'));
         $amount = $posTotals['total'];
 
-        $secretKey = config('services.paymongo.secret_key');
-        if (! $secretKey) {
-            return response()->json([
-                'message' => 'Gateway-backed GCash payments are not configured for this environment.',
-            ], 503);
-        }
-
         $reference = app(PaymentHelperService::class)->generateReferenceNumber();
         $posPath = $user instanceof Employee ? '/cashier/pos' : '/franchise/pos';
-        $redirectUrl = rtrim(config('app.frontend_url'), '/')
-            .$posPath
-            .'?payment_reference='.$reference;
-        $gatewayResponse = Http::withBasicAuth($secretKey, '')
-            ->acceptJson()
-            ->post(config('services.paymongo.base_url').'/sources', [
-                'data' => ['attributes' => [
-                    'amount' => (int) round($amount * 100),
-                    'currency' => 'PHP',
-                    'type' => 'gcash',
-                    'redirect' => [
-                        'success' => $redirectUrl,
-                        'failed' => $redirectUrl,
-                    ],
-                ]],
-            ]);
-        if ($gatewayResponse->failed()) {
-            return response()->json(['message' => 'Unable to start gateway GCash payment.'], 502);
-        }
+        $frontendUrl = rtrim((string) (config('app.frontend_url') ?: $request->header('Origin') ?: url('/')), '/');
+        $checkoutUrl = $frontendUrl.'/payment/confirm/'.$reference.'?amount='.$amount.'&returnUrl='.urlencode($posPath);
 
-        $source = $gatewayResponse->json('data');
-        $attributes = $source['attributes'] ?? [];
         $payment = Payment::create([
             'reference' => $reference,
-            'provider' => 'paymongo',
-            'provider_id' => $source['id'],
+            'provider' => 'simulated_gcash',
+            'provider_id' => $reference,
             'amount' => $amount,
             'status' => 'pending',
             'expires_at' => now()->addMinutes(5),
@@ -151,15 +125,16 @@ trait FranchisePosPaymentActions
                 'franchise_id' => (string) $user->franchise_id,
                 'cashier_employee_id' => $user instanceof Employee ? $user->id : null,
                 'franchise_user_id' => $user instanceof FranchiseUser ? $user->id : null,
-                'source_status' => $attributes['status'] ?? 'pending',
-                'checkout_url' => $attributes['redirect']['checkout_url'] ?? null,
+                'source_status' => 'pending',
+                'checkout_url' => $checkoutUrl,
             ],
         ]);
 
         return response()->json([
+            'success' => true,
             'data' => [
                 'reference' => $payment->reference,
-                'checkout_url' => data_get($payment->metadata, 'checkout_url'),
+                'checkout_url' => $checkoutUrl,
                 'amount' => (float) $payment->amount,
                 'expires_at' => $payment->expires_at?->toISOString(),
             ],

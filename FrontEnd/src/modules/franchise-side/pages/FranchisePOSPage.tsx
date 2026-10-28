@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, CreditCard, Drumstick, Heart, Minus, Plus, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, UserRound, Utensils, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, CreditCard, Drumstick, Heart, Minus, Plus, QrCode, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, UserRound, Utensils, X } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
@@ -11,6 +11,7 @@ import type { Product } from '../../../services/productService';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { formatPeso } from '../../../utils/formatters';
 import { getEmployeePosBrowserSessionId, loadEmployeePosDraft, saveEmployeePosDraft } from '../../../services/employeePosDraft';
+import { CashierGCashModal } from '../../employee-side/components/pos/CashierGCashModal';
 import '../../../styles/cashier-pos.css';
 
 interface PosCartLine {
@@ -174,9 +175,10 @@ const FranchisePOSPage: React.FC = () => {
   const [diningOption, setDiningOption] = useState<'dine_in' | 'takeout'>('takeout');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gcash' | 'credit_card'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
-  const [paymentCheckoutUrl, setPaymentCheckoutUrl] = useState('');
+  const [, setPaymentCheckoutUrl] = useState('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [isStartingPayment, setIsStartingPayment] = useState(false);
+  const [showGCashModal, setShowGCashModal] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [cashTendered, setCashTendered] = useState('');
   const [terminalReference, setTerminalReference] = useState('');
@@ -332,6 +334,15 @@ const FranchisePOSPage: React.FC = () => {
         setPaymentReference(reference);
         setPaymentMethod('gcash');
         setPaymentCheckoutUrl('');
+        const statusParam = searchParams.get('payment_status');
+        if (statusParam === 'confirmed') {
+          setPaymentConfirmed(true);
+      setShowGCashModal(false);
+      setSuccess('GCash payment verified successfully!');
+          setShowGCashModal(false);
+          setStage('checkout');
+          setSuccess('GCash payment confirmed via simulated redirect!');
+        }
       });
     }
   }, [searchParams]);
@@ -602,6 +613,7 @@ const FranchisePOSPage: React.FC = () => {
     }
 
     setIsStartingPayment(true);
+    setShowGCashModal(true);
     setError('');
     setPaymentConfirmed(false);
     try {
@@ -632,6 +644,7 @@ const FranchisePOSPage: React.FC = () => {
       setPaymentReference(payload.data.reference);
       setPaymentCheckoutUrl(payload.data.checkout_url || '');
     } catch (paymentError) {
+      setShowGCashModal(false);
       setError(paymentError instanceof Error ? paymentError.message : 'Could not start GCash payment.');
     } finally {
       setIsStartingPayment(false);
@@ -645,7 +658,7 @@ const FranchisePOSPage: React.FC = () => {
       const response = await fetch(`${API_URL}/payment/status/${encodeURIComponent(paymentReference)}`);
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Could not verify payment status.');
-      if (!payload.confirmed) {
+      if (!payload.confirmed && payload.status !== 'paid') {
         setPaymentConfirmed(false);
         throw new Error(`Payment is not confirmed yet (status: ${payload.status || 'pending'}).`);
       }
@@ -654,6 +667,8 @@ const FranchisePOSPage: React.FC = () => {
         throw new Error('The confirmed payment amount does not match the current order total.');
       }
       setPaymentConfirmed(true);
+      setShowGCashModal(false);
+      setSuccess('GCash payment verified successfully!');
     } catch (verifyError) {
       setError(verifyError instanceof Error ? verifyError.message : 'Could not verify payment status.');
     }
@@ -919,7 +934,7 @@ const FranchisePOSPage: React.FC = () => {
               </section>
               <section className="cashier-surface rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                 <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-8 items-center justify-center rounded-full bg-[#e3efe7] text-sm font-extrabold text-[#1f6b45]">4</span>Payment</h2>
-                <div className="grid grid-cols-3 gap-2">{[{ value: 'cash', label: 'Cash', Icon: null }, { value: 'gcash', label: 'GCash', Icon: Smartphone }, { value: 'credit_card', label: 'Card / Terminal', Icon: CreditCard }].map(({ value, label, Icon }) => <button key={value} type="button" aria-pressed={paymentMethod === value} onClick={() => { setPaymentMethod(value as typeof paymentMethod); setPaymentReference(''); setTerminalReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); }} className={`relative flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-sm font-semibold transition-colors ${paymentMethod === value ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>{paymentMethod === value && <Check size={15} className="absolute right-2 top-2" aria-hidden="true" />}{Icon ? <Icon size={22} /> : <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-full border-2 border-current text-lg font-bold leading-none">₱</span>}{label}</button>)}</div>
+                <div className="grid grid-cols-3 gap-2">{[{ value: 'cash', label: 'Cash', Icon: null }, { value: 'gcash', label: 'GCash', Icon: Smartphone }, { value: 'credit_card', label: 'Card / Terminal', Icon: CreditCard }].map(({ value, label, Icon }) => <button key={value} type="button" aria-pressed={paymentMethod === value} onClick={() => { setPaymentMethod(value as typeof paymentMethod); if (value === 'gcash') { if (!paymentReference) { void startGatewayPayment(); } else if (!paymentConfirmed) { setShowGCashModal(true); } } else { setPaymentReference(''); setTerminalReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); } }} className={`relative flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-sm font-semibold transition-colors ${paymentMethod === value ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>{paymentMethod === value && <Check size={15} className="absolute right-2 top-2" aria-hidden="true" />}{Icon ? <Icon size={22} /> : <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-full border-2 border-current text-lg font-bold leading-none">₱</span>}{label}</button>)}</div>
                 {paymentMethod === 'cash' && <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
                   <div className="flex items-center justify-between gap-2"><label htmlFor="cash-tendered" className="text-xs font-bold uppercase text-gray-700">Cash tendered</label><span className="text-xs text-gray-600">Amount due <strong className="tabular-nums text-gray-900">{formatPeso(total)}</strong></span></div>
                   <div className="relative mt-2"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-gray-600">₱</span><input id="cash-tendered" type="number" inputMode="decimal" min="0" step="0.01" value={cashTendered} onChange={(event) => setCashTendered(event.target.value)} placeholder="0.00" className="min-h-14 w-full rounded-lg border border-gray-300 bg-white py-3 pl-9 pr-3 text-xl font-bold tabular-nums focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20" /></div>
@@ -927,7 +942,90 @@ const FranchisePOSPage: React.FC = () => {
                   <p className="mt-3 flex min-h-11 items-center justify-between border-t border-gray-200 pt-3 text-sm" aria-live="polite"><span className="font-semibold">Change Due</span><strong className={`text-lg tabular-nums ${tenderedAmount < total ? 'text-red-700' : 'text-[#2d6a4f]'}`}>{tenderedAmount < total ? `Insufficient: ${formatPeso(total - tenderedAmount)} short` : formatPeso(changeDue)}</strong></p>
                 </div>}
                 {paymentMethod === 'credit_card' && <div className="mt-4"><p className="mb-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Waiting for terminal… Enter the approval code once the terminal completes payment.</p><label className="block text-sm font-semibold text-gray-700">Card / Terminal Approval Code<input value={terminalReference} onChange={(event) => setTerminalReference(event.target.value)} placeholder="Enter terminal approval code" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal normal-case" /></label></div>}
-                {paymentMethod === 'gcash' && <div className="mt-4 space-y-2 rounded-xl bg-[#edf5ef] p-3 text-sm">{!paymentReference ? <button type="button" onClick={() => void startGatewayPayment()} disabled={isStartingPayment || lines.length === 0} className="min-h-11 w-full rounded-lg bg-[#2d6a4f] px-3 py-2.5 font-semibold text-white disabled:opacity-50">{isStartingPayment ? 'Starting secure payment...' : `Start GCash payment · ${formatPeso(total)}`}</button> : <><p>Payment reference: <strong>{paymentReference}</strong></p>{paymentCheckoutUrl && <a href={paymentCheckoutUrl} target="_blank" rel="noreferrer" className="block rounded-lg border border-[#2d6a4f] bg-white px-3 py-2 text-center font-semibold text-[#2d6a4f]">Open GCash checkout</a>}<button type="button" onClick={() => void verifyGatewayPayment()} className={`min-h-11 w-full rounded-lg px-3 py-2.5 font-semibold ${paymentConfirmed ? 'bg-green-100 text-green-800' : 'border border-gray-300 bg-white'}`}>{paymentConfirmed ? 'Payment confirmed' : 'Check gateway payment status'}</button>{!paymentConfirmed && <button type="button" onClick={() => { setPaymentReference(''); setPaymentCheckoutUrl(''); }} className="min-h-11 w-full text-xs text-gray-600 underline">Start a different payment</button>}</>}</div>}
+                {paymentMethod === 'gcash' && (
+                  <div className="mt-4 space-y-3 rounded-2xl border border-emerald-300 bg-emerald-50/70 p-4 text-sm shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex size-9 items-center justify-center rounded-full bg-[#2d6a4f] text-white shadow-xs">
+                          <QrCode size={18} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-[#1c3d2e]">GCash QR Code Payment</h4>
+                          <p className="text-xs text-gray-600">Scan QR to simulate and confirm payment</p>
+                        </div>
+                      </div>
+                      {paymentReference && (
+                        <button
+                          type="button"
+                          onClick={() => setShowGCashModal(true)}
+                          className="flex items-center gap-1.5 rounded-xl border border-emerald-600 bg-white px-3 py-1.5 text-xs font-bold text-[#1c3d2e] shadow-xs hover:bg-emerald-50"
+                        >
+                          <QrCode size={14} />
+                          <span>View QR Code</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {!paymentConfirmed ? (
+                      <div className="space-y-2">
+                        {!paymentReference ? (
+                          <button
+                            type="button"
+                            onClick={() => void startGatewayPayment()}
+                            disabled={isStartingPayment || lines.length === 0}
+                            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#2d6a4f] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1b4d3e] disabled:opacity-50"
+                          >
+                            <QrCode size={18} />
+                            <span>{isStartingPayment ? 'Generating QR Code...' : `Generate GCash QR Code · ${formatPeso(total)}`}</span>
+                          </button>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between rounded-xl bg-white p-3 border border-emerald-200">
+                              <div>
+                                <span className="text-xs text-gray-500">Reference:</span>
+                                <p className="font-mono text-sm font-bold text-[#2d6a4f]">{paymentReference}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setShowGCashModal(true)}
+                                className="rounded-lg bg-[#2d6a4f] px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#1b4d3e]"
+                              >
+                                Open QR Modal
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void verifyGatewayPayment()}
+                              className="w-full rounded-xl border border-gray-300 bg-white py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                            >
+                              Check Payment Status Manually
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setPaymentReference(''); setPaymentCheckoutUrl(''); void startGatewayPayment(); }}
+                              className="w-full text-center text-xs text-gray-500 underline hover:text-gray-700"
+                            >
+                              Generate New QR Code
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between rounded-xl bg-white p-3.5 border border-emerald-300 text-xs shadow-xs">
+                        <div className="flex items-center gap-2.5">
+                          <span className="flex size-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold">✓</span>
+                          <div>
+                            <span className="font-bold text-emerald-800">Payment Verified & Paid</span>
+                            <p className="font-mono text-[11px] text-gray-500">Ref: {paymentReference}</p>
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-800">
+                          {formatPeso(total)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </section>
               </div>
             </div>
@@ -1035,6 +1133,20 @@ const FranchisePOSPage: React.FC = () => {
           </section>
         </div>
       )}
+      <CashierGCashModal
+        isOpen={showGCashModal}
+        onClose={() => setShowGCashModal(false)}
+        amount={total}
+        referenceNumber={paymentReference}
+        returnUrl={cashierMode ? '/cashier/pos' : '/franchise/pos'}
+        isLoading={isStartingPayment}
+        onPaymentConfirmed={(ref) => {
+          setPaymentConfirmed(true);
+          setPaymentReference(ref);
+          setSuccess('GCash payment confirmed successfully!');
+        }}
+        onRetry={() => void startGatewayPayment()}
+      />
     </div>
   );
 };

@@ -38,6 +38,10 @@ class OrderDataService
             ? ($order->relationLoaded('branch') ? $order->branch : $order->branch()->first())
             : $order->franchise;
 
+        $driver = $order->driver_id
+            ? ($order->relationLoaded('driver') ? $order->driver : $order->driver()->first())
+            : null;
+
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -79,6 +83,14 @@ class OrderDataService
             'phone' => $order->phone,
             'items' => $order->items,
             'order_items' => $order->orderItems,
+            'driver_id' => $order->driver_id,
+            'driver' => $driver ? [
+                'id' => (string) $driver->id,
+                'name' => $driver->name,
+                'phone' => $driver->phone,
+                'vehicle_type' => $driver->vehicleType ?? $driver->vehicle_type ?? 'Motorcycle',
+                'vehicleType' => $driver->vehicleType ?? $driver->vehicle_type ?? 'Motorcycle',
+            ] : null,
             'delivery_type' => $order->delivery_type ?? ($order->priority_fee > 0 ? 'priority' : 'standard'),
             'delivery_fee' => $order->delivery_fee,
             'delivery_distance_km' => $order->delivery_distance_km,

@@ -214,6 +214,20 @@ const OrderTrackingPageContent: React.FC = () => {
           </div>
         )}
         {cancelError && <p role="alert" className="mb-3 text-sm text-red-700">{cancelError}</p>}
+        
+        {order?.driver && (status === 'on_the_way' || status === 'prepared' || status === 'arrived') && (
+          <div className="mb-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-7 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-bold">🛵</span>
+              <span><strong>{order.driver.name}</strong> accepted your delivery ({order.driver.vehicleType || 'Driver'}).</span>
+            </div>
+            {order.driver.phone && (
+              <a href={`tel:${order.driver.phone}`} className="font-bold text-[#2d6a4f] hover:underline flex items-center gap-1 text-xs shrink-0">
+                Call {order.driver.phone}
+              </a>
+            )}
+          </div>
+        )}
         <div className="mb-6"><ProgressBar status={status || ORDER_STATUS.PENDING} progress={getBarProgress()} /></div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

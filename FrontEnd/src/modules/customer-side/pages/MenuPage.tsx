@@ -5,6 +5,7 @@ import { useFavorites } from '../../../contexts/FavoritesContext';
 import { categories } from '../../../data/mockData';
 import type { Product, ProductCategory } from '../../../types/product.types';
 import ProductCard from '../components/product/ProductCard';
+import Top3PopularMeals from '../components/product/Top3PopularMeals';
 import ProductModal from '../components/product/ProductModal';
 import CartSidebar from '../components/cart/CartSidebar';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
@@ -248,6 +249,8 @@ const MenuPage: React.FC = () => {
             </select>
             {branchError && <p className="mt-2 text-sm text-red-600">{branchError}</p>}
           </section>
+
+          <Top3PopularMeals products={products} onSelectProduct={handleOpenModal} />
 
           <div className="menu-search mb-6">
             <div className="relative">

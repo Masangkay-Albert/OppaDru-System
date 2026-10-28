@@ -70,7 +70,10 @@ export const useGCashPaymentFlow = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  const generateQRData = useCallback(() => `${APP_URL}/payment/confirm/${referenceNumber}`, [referenceNumber]);
+  const generateQRData = useCallback(
+    () => `${APP_URL}/payment/confirm/${referenceNumber}?amount=${amount}&returnUrl=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/cashier/pos')}`,
+    [amount, referenceNumber]
+  );
 
   useEffect(() => {
     if (!isOpen) return;

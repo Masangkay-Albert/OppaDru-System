@@ -32,6 +32,15 @@ export interface CreateOrderData {
     scheduled_time?: string | null;
     schedule_display?: string | null;
     schedule_window?: string | null;
+    driver_id?: string | null;
+    driverId?: string | null;
+    driver?: {
+        id?: string;
+        name?: string;
+        phone?: string;
+        vehicle_type?: string;
+        vehicleType?: string;
+    } | null;
 }
 
 export interface Order {
@@ -70,6 +79,15 @@ export interface Order {
     scheduled_time?: string | null;
     schedule_display?: string | null;
     schedule_window?: string | null;
+    driver_id?: string | null;
+    driverId?: string | null;
+    driver?: {
+        id?: string;
+        name?: string;
+        phone?: string;
+        vehicle_type?: string;
+        vehicleType?: string;
+    } | null;
 }
 
 export class OrderServiceError extends Error {

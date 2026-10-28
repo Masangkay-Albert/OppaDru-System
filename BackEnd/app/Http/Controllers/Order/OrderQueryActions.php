@@ -51,7 +51,7 @@ trait OrderQueryActions
     public function show(Request $request, $id)
     {
         $order = $this->customerOrders($request)
-            ->with(['user', 'branch', 'franchise', 'orderItems'])
+            ->with(['user', 'branch', 'franchise', 'orderItems', 'driver:id,name,phone,vehicleType'])
             ->findOrFail($id);
 
         return response()->json($this->orderDataService->formatOrder($order));

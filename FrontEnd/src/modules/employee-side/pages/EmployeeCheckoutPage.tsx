@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FiArrowLeft, FiShoppingCart } from 'react-icons/fi';
 import { useCart } from '../../../contexts/CartContext';
 import { useToast } from '../../customer-side/components/ToastProvider';
@@ -18,6 +18,17 @@ const EmployeeCheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cartItems, clearCart } = useCart();
   const { showToast } = useToast();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const ref = searchParams.get('payment_reference');
+    const status = searchParams.get('payment_status');
+    if (ref && status === 'confirmed') {
+      setPaymentReference(ref);
+      setPaymentMethod('gcash');
+      showToast(`GCash payment ${ref} confirmed! Click Place Order to finalize.`, 'success');
+    }
+  }, [searchParams, showToast]);
 
   const [diningOption, setDiningOption] = useState<'dine_in' | 'takeout'>('takeout');
   const [customerName, setCustomerName] = useState('');
