@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bike, Car, Mail, Phone, Plus, Search, Trash2, X } from 'lucide-react';
+import { Bike, Car, Mail, Phone, Plus, Trash2, X } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { AvailabilitySwitch, ConfirmDialog, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithAdminAuth } from '../../../services/adminAuthService';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 
 export interface DeliveryPartner {
   id: string;
@@ -186,7 +187,7 @@ export default function AdminDelivery() {
         {[['Total riders', partners.length, 'text-[var(--oppa-text)]'], ['Active', activeCount, 'text-emerald-700'], ['Inactive', inactiveCount, 'text-[var(--oppa-text-muted)]']].map(([label, value, color]) => <div key={String(label)} className="admin-card flex items-center justify-between p-4"><span className="text-sm font-medium text-[var(--oppa-text-muted)]">{label}</span><strong className={`tabular-nums text-2xl ${color}`}>{value}</strong></div>)}
       </section>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
-        <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)] transition-colors focus-within:border-[var(--oppa-green)]"><Search size={17} aria-hidden="true" /><input aria-label="Search delivery partners" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, email, or phone…" className="admin-embedded-input w-full text-sm" /></label>
+        <SearchInput aria-label="Search delivery partners" value={query} onChange={setQuery} placeholder="Search name, email, or phone…" wrapperClassName="min-w-0 flex-1" />
         <Select label="Status" aria-label="Filter partners by status" value={statusFilter} onChange={(value) => setStatusFilter(value as typeof statusFilter)} options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} className="w-full sm:w-44" />
       </div>
       {error && <div role="alert" className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}<button aria-label="Dismiss message" onClick={() => setError('')} className="ml-3 rounded p-1 hover:bg-black/5"><X size={15} /></button></div>}

@@ -7,6 +7,7 @@ import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
 import { AdminDate, PageHeader, StatusBadge } from '../../admin-side/components/AdminUI';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 
 interface OrderItem {
   id?: string;
@@ -206,7 +207,7 @@ const FranchiseOrdersPage: React.FC = () => {
           <div className="flex flex-col gap-2 sm:flex-row">
             <label className="franchise-search-field flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]">
               <Search size={16} aria-hidden="true" />
-              <input aria-label="Search orders by ID, customer, or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order ID, customer, email..." className="admin-embedded-input min-w-0 w-full text-sm placeholder:text-[var(--oppa-text-muted)]" />
+              <SearchInput aria-label="Search orders by ID, customer, or email" value={search} onChange={setSearch} placeholder="Search order ID, customer, email..." wrapperClassName="min-w-0 flex-1" />
             </label>
             <Select aria-label="Filter by channel" value={channel} onChange={(value) => setChannel(value as ChannelFilter)} options={[{ value: 'all', label: 'All channels' }, { value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} className="min-w-36" />
             <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]"><span className="whitespace-nowrap">Date</span><input aria-label="Filter by date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-[145px] border-0 bg-transparent p-0 text-[var(--oppa-text)] outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0" /></label>

@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Building2, CheckCircle2, DollarSign, Loader2, MapPin, Phone, Plus, Search, Users } from 'lucide-react';
+import { Building2, CheckCircle2, DollarSign, Loader2, MapPin, Phone, Plus, Users } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 import { createFranchiseAccount, getFranchiseAccounts, updateFranchiseAccount } from '../../../services/franchiseAdminService';
 import type { FranchiseAccount, FranchiseSummary } from '../../../services/franchiseAdminService';
 import { formatCurrency } from '../../../utils/formatters';
@@ -112,7 +113,7 @@ const AdminFranchisesPage: React.FC = () => {
 
       {error && <div role="alert" className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}<button onClick={() => void load()} className="font-semibold underline">Retry</button></div>}
       <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-3 sm:flex-row">
-        <label className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search franchise or location..." className="w-full rounded-xl border border-gray-300 py-2.5 pl-9 pr-3 text-sm" /></label>
+        <SearchInput aria-label="Search franchises by name or location" value={search} onChange={setSearch} placeholder="Search franchise or location..." wrapperClassName="flex-1" />
         <Select<string> aria-label="Filter franchises by status" value={statusFilter} onChange={setStatusFilter} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'pending', label: 'Pending' }, { value: 'inactive', label: 'Inactive' }]} className="sm:min-w-40" />
       </div>
 

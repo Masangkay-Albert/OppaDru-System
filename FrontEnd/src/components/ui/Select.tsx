@@ -26,6 +26,7 @@ interface SelectProps<Value extends string | number = string> {
   name?: string;
   required?: boolean;
   className?: string;
+  triggerClassName?: string;
   id?: string;
   autoFocus?: boolean;
   'aria-label'?: string;
@@ -46,6 +47,7 @@ export default function Select<Value extends string | number = string>({
   name,
   required = false,
   className = '',
+  triggerClassName = '',
   id,
   autoFocus = false,
   'aria-label': ariaLabel,
@@ -362,7 +364,7 @@ export default function Select<Value extends string | number = string>({
         onKeyDown={handleKeyDown}
         className={`flex h-11 w-full items-center gap-2.5 rounded-xl border bg-[var(--oppa-surface)] px-4 text-left text-sm font-medium text-[var(--oppa-text)] transition-colors duration-150 hover:border-[var(--oppa-green)] focus-visible:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/20 disabled:cursor-not-allowed disabled:opacity-55 ${
           hasError ? 'border-[var(--promo-danger-border)]' : open ? 'border-[var(--oppa-green)] ring-2 ring-[var(--oppa-green)]/20' : 'border-[var(--oppa-border)]'
-        }`}
+        } ${triggerClassName}`}
       >
         {icon && <span className="shrink-0 text-[var(--oppa-text-muted)]">{icon}</span>}
         <span className={`min-w-0 flex-1 truncate ${selectedOption ? '' : 'text-[var(--oppa-text-muted)]'}`}>

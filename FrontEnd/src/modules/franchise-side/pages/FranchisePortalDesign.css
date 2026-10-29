@@ -11,8 +11,7 @@
   --franchise-shadow-card: 0 12px 32px rgb(29 48 38 / 7%), 0 2px 6px rgb(29 48 38 / 4%);
 }
 
-.franchise-shell .franchise-search-field input,
-.franchise-shell header input[aria-label='Search franchise pages'] {
+.franchise-shell .franchise-search-field input {
   min-height: 0;
   border: 0;
   border-radius: 0;
@@ -20,8 +19,7 @@
   box-shadow: none;
 }
 
-.franchise-shell .franchise-search-field input:focus-visible,
-.franchise-shell header input[aria-label='Search franchise pages']:focus-visible {
+.franchise-shell .franchise-search-field input:focus-visible {
   outline: none;
   box-shadow: none;
 }

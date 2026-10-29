@@ -149,6 +149,12 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
             <span className="text-gray-500">Subtotal</span>
             <span className="text-gray-800">{formatCurrency(subtotal)}</span>
           </div>
+          {(currentOrder.promoDiscount || 0) > 0 && (
+            <div className="flex justify-between gap-3 text-green-800 dark:text-emerald-300">
+              <span className="min-w-0 truncate">Promo{currentOrder.promoCode ? ` (${currentOrder.promoCode})` : ''}</span>
+              <span className="shrink-0 font-medium">−{formatCurrency(currentOrder.promoDiscount || 0)}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-gray-500">Delivery fee</span>
             <span className="text-gray-800">{formatCurrency(deliveryFee)}</span>

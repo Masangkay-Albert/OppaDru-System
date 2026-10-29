@@ -281,41 +281,6 @@
   backdrop-filter: blur(14px);
 }
 
-.cashier-orders-search {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 9px;
-  border: 1px solid #e5e1d8;
-  border-radius: 11px;
-  padding: 0 12px;
-  color: #68766d;
-}
-
-.cashier-orders-search:focus-within {
-  border-color: #216b49;
-  box-shadow: 0 0 0 3px rgb(33 107 73 / 14%);
-}
-
-.cashier-orders-search input {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: #1d3025;
-  font-size: 13px;
-}
-
-.cashier-orders-search button {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  place-items: center;
-  border-radius: 8px;
-}
-
 .cashier-orders-filter-row {
   display: flex;
   flex-wrap: wrap;

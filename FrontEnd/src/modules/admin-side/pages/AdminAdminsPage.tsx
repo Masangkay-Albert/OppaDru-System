@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, UserPlus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import AccountCreationModal, { type AccountCreationValues } from '../components/AccountCreationModal';
 import { useToast } from '../../customer-side/components/ToastProvider';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import { apiGetAdmins, apiRegisterAdmin, type StoredAccount } from '../../../services/adminAuthService';
 import { AdminDate, Avatar, EmptyState, PageHeader, RowActionsMenu } from '../components/AdminUI';
+import SearchInput from '../../../components/ui/SearchInput';
 
 const AdminAdminsPage: React.FC = () => {
   const [admins, setAdmins] = useState<StoredAccount[]>([]);
@@ -56,7 +57,7 @@ const AdminAdminsPage: React.FC = () => {
   return (
     <AdminLayout>
       <PageHeader title="Registered Admins" subtitle="Manage administrator accounts for the admin panel." actions={<button onClick={() => setShowModal(true)} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><UserPlus size={16} />Add Admin</button>} />
-      <label className="mb-3 flex h-11 w-full items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={17} aria-hidden="true" /><input aria-label="Search administrators" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email…" className="admin-embedded-input w-full text-sm" /></label>
+      <SearchInput aria-label="Search administrators" value={search} onChange={setSearch} placeholder="Search name or email…" wrapperClassName="mb-3" />
       {filteredAdmins.length === 0 ? <div className="admin-card"><EmptyState title={search ? 'No administrators match your search' : 'No registered admins yet'} description={search ? 'Try a different name or email.' : 'New administrator accounts will appear here.'} /></div> :
         <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-[var(--shadow-card)]">
           <table className="admin-table w-full text-sm">

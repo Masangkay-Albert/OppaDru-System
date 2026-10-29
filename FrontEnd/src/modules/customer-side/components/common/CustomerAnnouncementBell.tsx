@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import {
   Bell,
   Check,
-  CheckCheck,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -13,81 +12,22 @@ import {
   RotateCcw,
   Sparkles,
   Tag,
-  Trash2,
   X,
 } from 'lucide-react';
 import { announcementService } from '../../../../services/announcementService';
 import { promoService, type Promo } from '../../../../services/promoService';
 import type { Announcement, AnnouncementPriority } from '../../../../types/announcement.types';
+import NotificationItem from './NotificationItem';
+import type { UnifiedNotification } from './notificationTypes';
 
 const COMPLETED_STORAGE_KEY = 'oppadru_customer_completed_notifications';
 const DELETED_STORAGE_KEY = 'oppadru_customer_deleted_notifications';
 
-export type NotificationType = 'announcement' | 'promo';
-
-export interface UnifiedNotification {
-  id: string;
-  type: NotificationType;
-  title: string;
-  content: string;
-  image_url: string | null;
-  priority: AnnouncementPriority;
-  date: string;
-  isCompleted: boolean;
-  rawAnnouncement?: Announcement;
-  rawPromo?: Promo;
-  promoCode?: string;
-  discountType?: 'percent' | 'fixed';
-  discountValue?: number;
-  minOrderAmount?: number;
-  maxDiscountAmount?: number | null;
-  endDate?: string | null;
-}
-
 const PRIORITY_BADGES: Record<AnnouncementPriority, { label: string; style: string }> = {
-  normal: {
-    label: 'Update',
-    style:
-      'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] border-[var(--oppa-green)]/25 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-700/80',
-  },
-  promo: {
-    label: 'Special Promo',
-    style:
-      'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] border-[var(--oppa-green)]/25 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-700/80',
-  },
-  high: {
-    label: 'Important',
-    style:
-      'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] border-[var(--oppa-green)]/25 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-700/80',
-  },
-  urgent: {
-    label: 'Urgent Alert',
-    style:
-      'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] border-[var(--oppa-green)]/25 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-700/80',
-  },
-};
-
-const formatRelativeTime = (isoDate?: string | null): string => {
-  if (!isoDate) return 'Just now';
-  const d = new Date(isoDate);
-  if (isNaN(d.getTime())) return 'Just now';
-  const diffMs = Date.now() - d.getTime();
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHours = Math.floor(diffMin / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffSec < 60) return 'Just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  normal: { label: 'Update', style: 'border-green-200 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-950/60 dark:text-emerald-200' },
+  promo: { label: 'Special Promo', style: 'border-green-200 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-950/60 dark:text-emerald-200' },
+  high: { label: 'Important', style: 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200' },
+  urgent: { label: 'Urgent Alert', style: 'border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200' },
 };
 
 const getStoredIds = (key: string): string[] => {
@@ -120,10 +60,32 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
   const [isOpenDropdown, setIsOpenDropdown] = useState(false);
   const [expandedModal, setExpandedModal] = useState(false);
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
-  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [undoDeletedItem, setUndoDeletedItem] = useState<string | null>(null);
+  const [notificationFilter, setNotificationFilter] = useState<'all' | 'unread' | 'promos'>('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isClosingDropdown, setIsClosingDropdown] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const closeAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const closeDropdown = React.useCallback(() => {
+    if (!isOpenDropdown) return;
+    setIsOpenDropdown(false);
+    setIsClosingDropdown(true);
+    if (closeAnimationTimeoutRef.current) clearTimeout(closeAnimationTimeoutRef.current);
+    closeAnimationTimeoutRef.current = setTimeout(() => {
+      setIsClosingDropdown(false);
+      closeAnimationTimeoutRef.current = null;
+    }, 150);
+  }, [isOpenDropdown]);
+
+  const openDropdown = () => {
+    if (closeAnimationTimeoutRef.current) clearTimeout(closeAnimationTimeoutRef.current);
+    closeAnimationTimeoutRef.current = null;
+    setIsClosingDropdown(false);
+    setIsOpenDropdown(true);
+  };
 
   // Load active announcements & promos
   const fetchAllData = async () => {
@@ -136,11 +98,13 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
       setPromos(promoList);
     } catch {
       // Fallback
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAllData();
+    void Promise.resolve().then(fetchAllData);
 
     // 1. Polling interval every 15 seconds to catch new admin posts across clients
     const interval = setInterval(fetchAllData, 15000);
@@ -189,14 +153,27 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsOpenDropdown(false);
+        closeDropdown();
       }
     };
     if (isOpenDropdown) {
       document.addEventListener('mousedown', handleOutsideClick);
     }
     return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [isOpenDropdown]);
+  }, [isOpenDropdown, closeDropdown]);
+
+  useEffect(() => {
+    if (!isOpenDropdown) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeDropdown();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpenDropdown, closeDropdown]);
+
+  useEffect(() => () => {
+    if (closeAnimationTimeoutRef.current) clearTimeout(closeAnimationTimeoutRef.current);
+  }, []);
 
   // Lock body scroll and keyboard shortcuts for modal
   useEffect(() => {
@@ -299,9 +276,17 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
     saveStoredIds(COMPLETED_STORAGE_KEY, combined);
   };
 
+  const handleToggleRead = (item: UnifiedNotification) => {
+    const next = item.isCompleted
+      ? completedIds.filter((id) => id !== item.id)
+      : [...completedIds, item.id];
+    setCompletedIds(next);
+    saveStoredIds(COMPLETED_STORAGE_KEY, next);
+  };
+
   const handleDeleteNotification = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const next = [...deletedIds, id];
+    const next = Array.from(new Set([...deletedIds, id]));
     setDeletedIds(next);
     saveStoredIds(DELETED_STORAGE_KEY, next);
     setUndoDeletedItem(id);
@@ -340,14 +325,18 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
     if (!item.isCompleted) {
       handleMarkAsRead(item.id);
     }
-    setIsOpenDropdown(false);
+    closeDropdown();
     setExpandedModal(true);
   };
 
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
+  const handleCopyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode((previous) => previous === code ? null : previous), 2000);
+    } catch (error) {
+      console.error('Unable to copy the promo code.', error);
+    }
   };
 
   // Find currently active notification for large modal
@@ -376,12 +365,20 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
     }
   };
 
+  const visibleNotifications = unifiedNotifications.filter((item) => (
+    notificationFilter === 'all'
+    || (notificationFilter === 'unread' && !item.isCompleted)
+    || (notificationFilter === 'promos' && item.type === 'promo')
+  ));
+  const newNotifications = visibleNotifications.filter((item) => !item.isCompleted);
+  const earlierNotifications = visibleNotifications.filter((item) => item.isCompleted);
+
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
       {/* 1. Bell Icon Trigger Button */}
       <button
         type="button"
-        onClick={() => setIsOpenDropdown((prev) => !prev)}
+        onClick={() => (isOpenDropdown ? closeDropdown() : openDropdown())}
         className="relative flex items-center justify-center p-2 rounded-full !text-white hover:text-white hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-cream)]/70"
         aria-label="Announcements, promos, and alerts"
         aria-expanded={isOpenDropdown}
@@ -401,237 +398,82 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
       </button>
 
       {/* 2. Dropdown Menu */}
-      {isOpenDropdown && (
-        <div className="customer-bell-dropdown absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-[410px] max-w-[420px] rounded-2xl border border-[var(--oppa-border)] dark:border-[#2f4335] bg-white dark:bg-[#16251b] shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-[var(--oppa-border)] dark:border-[#2f4335] px-4 py-3 bg-[var(--oppa-cream)]/80 dark:bg-[#1c2e22]">
-            <div className="flex items-center gap-2">
-              <div className="flex size-7 items-center justify-center rounded-lg bg-[var(--oppa-green)]/15 text-[var(--oppa-green)] dark:bg-emerald-500/20 dark:text-emerald-300">
-                <Megaphone size={15} />
+      {(isOpenDropdown || isClosingDropdown) && (
+        <section className={`customer-bell-dropdown absolute right-0 z-50 flex max-h-[70vh] w-[390px] max-w-[calc(100vw-1.5rem)] flex-col rounded-2xl border border-gray-100 bg-white shadow-2xl dark:border-[#314638] dark:bg-[#101b14] ${isClosingDropdown ? 'customer-bell-dropdown--closing' : ''}`} aria-label="Notifications" aria-hidden={isClosingDropdown || undefined}>
+          <div className="customer-bell-drag-handle" aria-hidden="true"><span /></div>
+          <header className="sticky top-0 z-10 shrink-0 border-b border-gray-100 bg-[#fbf8f1] px-4 pb-3 pt-3.5 dark:border-white/10 dark:bg-[#1b2b20]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-800 dark:bg-green-950/70 dark:text-emerald-300" aria-hidden="true"><Megaphone size={16} /></span>
+                <h3 className="truncate font-serif text-base font-semibold text-gray-900 dark:text-gray-50">Notifications</h3>
+                <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-900 dark:bg-green-950/70 dark:text-emerald-200">{unreadCount} new</span>
               </div>
-              <div>
-                <h3 className="font-serif text-sm font-bold text-slate-900 dark:text-white leading-none">
-                  Notifications & Promos
-                </h3>
-                <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
-                  {unreadCount > 0 ? `${unreadCount} unread update${unreadCount > 1 ? 's' : ''}` : 'All caught up'}
-                </span>
+              <div className="flex shrink-0 items-center gap-3">
+                {unreadCount > 0 && <button type="button" onClick={handleMarkAllComplete} className="text-xs font-semibold text-green-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 dark:text-emerald-300" title="Mark all as read">Mark all read</button>}
+                <button type="button" onClick={closeDropdown} className="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white" aria-label="Close notifications"><X size={17} /></button>
               </div>
             </div>
-
-            <div className="flex items-center gap-1.5">
-              {unreadCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleMarkAllComplete}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/60 dark:hover:bg-emerald-950/60 transition-colors"
-                  title="Mark all as read"
-                >
-                  <CheckCheck size={13} />
-                  <span>Mark all read</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setIsOpenDropdown(false)}
-                className="p-1 rounded-md text-slate-500 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white transition-colors"
-                aria-label="Close notification dropdown"
-              >
-                <X size={16} />
-              </button>
+            <div className="mt-3 flex gap-2" role="tablist" aria-label="Filter notifications">
+              {([
+                ['all', 'All'],
+                ['unread', 'Unread'],
+                ['promos', 'Promos'],
+              ] as const).map(([filter, label]) => (
+                <button key={filter} type="button" role="tab" aria-selected={notificationFilter === filter} onClick={() => setNotificationFilter(filter)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 ${notificationFilter === filter ? 'bg-green-800 text-white shadow-sm dark:bg-emerald-700' : 'bg-white text-gray-600 hover:bg-green-50 hover:text-green-900 dark:bg-[#142219] dark:text-gray-300 dark:hover:bg-green-950/60 dark:hover:text-emerald-200'}`}>{label}</button>
+              ))}
             </div>
-          </div>
+          </header>
 
-          {/* Undo Deleted Bar (if any deleted) */}
           {undoDeletedItem && (
-            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 text-white text-[11px] animate-fadeIn">
-              <span>Notification dismissed.</span>
-              <button
-                type="button"
-                onClick={() => handleUndoSingleDelete(undoDeletedItem)}
-                className="text-emerald-200 hover:underline font-bold flex items-center gap-1"
-              >
-                <RotateCcw size={11} />
-                Undo
-              </button>
+            <div className="flex shrink-0 items-center justify-between bg-green-900 px-4 py-2 text-xs text-white dark:bg-[#213d2a]" role="status">
+              <span>Notification deleted.</span>
+              <button type="button" onClick={() => handleUndoSingleDelete(undoDeletedItem)} className="inline-flex items-center gap-1 font-semibold text-emerald-100 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"><RotateCcw size={13} />Undo</button>
             </div>
           )}
 
-          {/* List of Notification Items */}
-          <div className="max-h-[380px] overflow-y-auto divide-y divide-[var(--oppa-border)]/50 dark:divide-[#2f4335]">
-            {unifiedNotifications.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-[var(--oppa-green-soft)]/60 dark:bg-emerald-950/60 text-[var(--oppa-green)] dark:text-emerald-300">
-                  <Bell size={22} />
-                </div>
-                <p className="text-sm font-bold font-serif text-slate-900 dark:text-slate-100">
-                  No Notifications
-                </p>
-                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-[260px] mx-auto">
-                  Check back soon for new special promos, menu drops, and exciting announcements!
-                </p>
-                {deletedIds.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleRestoreDeleted}
-                    className="mt-3 text-xs text-[var(--oppa-green)] dark:text-emerald-300 font-semibold hover:underline inline-flex items-center gap-1"
-                  >
-                    <RotateCcw size={12} />
-                    Restore {deletedIds.length} dismissed notification{deletedIds.length > 1 ? 's' : ''}
-                  </button>
-                )}
+          <div className="customer-notification-scroll min-h-0 flex-1 overflow-y-auto" aria-live="polite">
+            {isLoading ? (
+              <div className="space-y-0" role="status" aria-busy="true" aria-label="Loading notifications">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <div key={index} className="flex animate-pulse items-center gap-3 border-b border-gray-100 px-4 py-4 dark:border-white/10">
+                    <span className="size-12 shrink-0 rounded-xl bg-gray-200 dark:bg-white/10" />
+                    <span className="min-w-0 flex-1 space-y-2"><span className="block h-3 w-2/3 rounded bg-gray-200 dark:bg-white/10" /><span className="block h-3 w-full rounded bg-gray-100 dark:bg-white/5" /><span className="block h-3 w-1/2 rounded bg-gray-100 dark:bg-white/5" /></span>
+                  </div>
+                ))}
+              </div>
+            ) : visibleNotifications.length === 0 ? (
+              <div className="px-6 py-10 text-center">
+                <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-green-50 text-green-800 dark:bg-green-950/60 dark:text-emerald-300"><Bell size={22} /></div>
+                <p className="font-serif text-sm font-semibold text-gray-900 dark:text-gray-50">You're all caught up</p>
+                <p className="mx-auto mt-1 max-w-[250px] text-xs leading-5 text-gray-600 dark:text-gray-300">New promos and announcements will show up here.</p>
+                {deletedIds.length > 0 && <button type="button" onClick={handleRestoreDeleted} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-green-800 hover:underline dark:text-emerald-300"><RotateCcw size={12} />Restore dismissed notifications</button>}
               </div>
             ) : (
-              unifiedNotifications.map((item) => {
-                const priorityBadge = PRIORITY_BADGES[item.priority] || PRIORITY_BADGES.normal;
-                const isPromo = item.type === 'promo';
-                const priorityBadgeStyle = item.isCompleted
-                  ? 'bg-white/15 text-[var(--oppa-cream)] border-white/20 dark:bg-white/10 dark:text-emerald-100 dark:border-white/15'
-                  : priorityBadge.style;
-
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => handleSelectNotification(item)}
-                    className={`group relative grid grid-cols-[3.5rem_minmax(0,1fr)_1.75rem] items-start gap-3 p-3.5 cursor-pointer transition-colors ${
-                      item.isCompleted
-                        ? 'bg-[var(--oppa-green-dark)] text-[var(--oppa-cream)] hover:bg-[var(--oppa-green-dark)]/90 dark:bg-[#0e1912] dark:text-slate-100 dark:hover:bg-[#142219]'
-                        : 'bg-[var(--oppa-green-soft)]/70 text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)] dark:bg-[#1c2e22] dark:text-slate-100 dark:hover:bg-[#223a2a]'
-                    }`}
-                  >
-                    {/* Thumbnail Image or Icon Fallback */}
-                    {item.image_url ? (
-                      <div className="relative size-14 shrink-0 overflow-hidden rounded-xl border border-slate-200 dark:border-[#354b3c] bg-black/5 shadow-xs">
-                        <img
-                          src={item.image_url}
-                          alt={item.title}
-                          className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        {isPromo && (
-                          <div className="absolute top-1 right-1 rounded-full bg-[var(--oppa-green)] p-0.5 text-white shadow-xs">
-                            <Sparkles size={10} />
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div
-                        className={`flex size-14 shrink-0 items-center justify-center rounded-xl border ${
-                          item.isCompleted
-                            ? 'bg-white/10 text-[var(--oppa-cream)] border-white/20 dark:text-emerald-200 dark:border-white/15'
-                            : 'bg-[var(--oppa-green-soft)]/60 text-[var(--oppa-green-dark)] border-[var(--oppa-green)]/25 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700/60'
-                        }`}
-                      >
-                        {isPromo ? <Sparkles size={20} /> : <Tag size={20} />}
-                      </div>
-                    )}
-
-                    {/* Content Details */}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                        <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${priorityBadgeStyle}`}>
-                          {isPromo ? (
-                            <>
-                              <Sparkles size={9} className="inline mr-0.5" />
-                              PROMO
-                            </>
-                          ) : (
-                            priorityBadge.label
-                          )}
-                        </span>
-
-                        {item.isCompleted ? (
-                          <span className="inline-flex h-4 w-12 shrink-0 items-center justify-center gap-0.5 rounded-full border border-white/20 bg-white/15 px-1.5 text-[9px] font-bold text-[var(--oppa-cream)] dark:border-white/15 dark:bg-white/10 dark:text-emerald-100">
-                            <Check size={9} className="stroke-[3]" />
-                            Read
-                          </span>
-                        ) : (
-                          <span
-                            className="inline-flex h-4 w-12 shrink-0 items-center justify-center gap-1 rounded-full border border-white/20 bg-white/15 px-1.5 text-[9px] font-bold text-[var(--oppa-cream)] dark:border-white/15 dark:bg-white/10 dark:text-emerald-100"
-                            title="Unread"
-                          >
-                            <span className="size-1.5 rounded-full bg-[var(--oppa-green)] dark:bg-emerald-300" />
-                            Unread
-                          </span>
-                        )}
-
-                        <span className={`text-[10px] font-medium flex items-center gap-0.5 ml-auto ${item.isCompleted ? 'text-white/80 dark:text-slate-300' : 'text-[var(--oppa-text-muted)] dark:text-slate-300'}`}>
-                          <Clock size={10} />
-                          {formatRelativeTime(item.date)}
-                        </span>
-                      </div>
-
-                      <h4 className={`text-xs font-bold font-serif line-clamp-1 transition-colors ${item.isCompleted ? 'text-[var(--oppa-cream)] dark:text-slate-100 group-hover:text-white' : 'text-slate-700 dark:text-slate-100 group-hover:text-[var(--oppa-green-dark)] dark:group-hover:text-emerald-300'}`}>
-                        {item.title}
-                      </h4>
-
-                      <p className={`text-[11px] line-clamp-2 mt-0.5 leading-snug ${item.isCompleted ? 'text-white/90 dark:text-slate-300' : 'text-slate-600 dark:text-slate-300'}`}>
-                        {item.content}
-                      </p>
-
-                      {/* Promo Code Tag Pill (if applicable) */}
-                      {isPromo && item.promoCode && (
-                        <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-bold ${item.isCompleted ? 'border-white/20 bg-white/10 text-[var(--oppa-cream)] dark:border-white/15 dark:text-emerald-100' : 'border-[var(--oppa-green)]/25 bg-[var(--oppa-green-soft)]/60 text-[var(--oppa-green-dark)] dark:border-emerald-700/70 dark:bg-emerald-950/40 dark:text-emerald-200'}`}>
-                          <span>CODE: {item.promoCode}</span>
-                          {item.discountValue && (
-                            <span className={item.isCompleted ? 'font-semibold text-white/80 dark:text-emerald-200' : 'font-semibold text-[var(--oppa-green-dark)] dark:text-emerald-300'}>
-                              ({item.discountType === 'percent' ? `${item.discountValue}% OFF` : `₱${item.discountValue} OFF`})
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Quick Item Actions: Read & Delete buttons */}
-                    <div className="flex w-7 flex-col items-center gap-1.5">
-                      {/* Mark Read Button (Once read, stays read) */}
-                      {item.isCompleted ? (
-                        <div
-                          className="flex size-7 shrink-0 cursor-default items-center justify-center rounded-full bg-white/15 text-[var(--oppa-cream)] dark:bg-white/10 dark:text-emerald-200"
-                          title="Already read"
-                        >
-                          <Check size={13} className="stroke-[3]" />
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => handleMarkAsRead(item.id, e)}
-                          className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-[var(--oppa-cream)] transition-colors hover:bg-white/25 dark:bg-white/10 dark:text-emerald-100 dark:hover:bg-white/20"
-                          title="Mark as read"
-                          aria-label="Mark as read"
-                        >
-                          <X size={13} />
-                        </button>
-                      )}
-
-                      {/* Delete / Dismiss Notification Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteNotification(item.id, e)}
-                        className={`flex size-7 shrink-0 items-center justify-center rounded-lg transition-colors ${item.isCompleted ? 'text-white/70 dark:text-slate-400 hover:text-red-200 hover:bg-white/10' : 'text-slate-500 dark:text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40'}`}
-                        title="Delete notification"
-                        aria-label="Delete notification"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
+              <>
+                {newNotifications.length > 0 && (
+                  <section aria-label="New notifications">
+                    <h4 className="sticky top-0 z-[1] border-b border-gray-100 bg-white/95 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 backdrop-blur dark:border-white/10 dark:bg-[#101b14]/95 dark:text-gray-400">New</h4>
+                    {newNotifications.map((item) => <NotificationItem key={item.id} item={item} onOpen={handleSelectNotification} onToggleRead={handleToggleRead} onDelete={(notification) => handleDeleteNotification(notification.id)} onCopyCode={handleCopyCode} copiedCode={copiedCode} />)}
+                  </section>
+                )}
+                {earlierNotifications.length > 0 && (
+                  <section aria-label="Earlier notifications">
+                    <h4 className="sticky top-0 z-[1] border-b border-gray-100 bg-white/95 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 backdrop-blur dark:border-white/10 dark:bg-[#101b14]/95 dark:text-gray-400">Earlier</h4>
+                    {earlierNotifications.map((item) => <NotificationItem key={item.id} item={item} onOpen={handleSelectNotification} onToggleRead={handleToggleRead} onDelete={(notification) => handleDeleteNotification(notification.id)} onCopyCode={handleCopyCode} copiedCode={copiedCode} />)}
+                  </section>
+                )}
+              </>
             )}
           </div>
+          <footer className="sticky bottom-0 flex shrink-0 items-center justify-center border-t border-gray-100 bg-[#fbf8f1] px-4 py-3 dark:border-white/10 dark:bg-[#1b2b20]">
+            <button type="button" onClick={() => { if (unifiedNotifications[0]) { setSelectedNotificationId(unifiedNotifications[0].id); setExpandedModal(true); closeDropdown(); } }} disabled={unifiedNotifications.length === 0} className="text-xs font-semibold text-green-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-300">View all notifications</button>
+          </footer>
+        </section>
+      )}
 
-          {deletedIds.length > 0 && (
-            <div className="border-t border-[var(--oppa-border)] dark:border-[#2f4335] px-4 py-2.5 bg-[var(--oppa-cream)]/70 dark:bg-[#1c2e22] flex justify-end text-xs">
-              <button
-                type="button"
-                onClick={handleRestoreDeleted}
-                className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-[var(--oppa-green)] dark:hover:text-emerald-300 flex items-center gap-1 transition-colors"
-              >
-                <RotateCcw size={11} />
-                Restore ({deletedIds.length})
-              </button>
-            </div>
-          )}
+      {copiedCode && (
+        <div className="fixed bottom-5 right-5 z-[110] inline-flex items-center gap-2 rounded-xl bg-green-900 px-4 py-3 text-sm font-semibold text-white shadow-xl dark:bg-[#285136]" role="status" aria-live="polite">
+          <Check size={16} aria-hidden="true" />Voucher code copied
         </div>
       )}
 
@@ -828,8 +670,8 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                           onClick={() => handleCopyCode(activeNotification.promoCode!)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--oppa-green)] hover:bg-[var(--oppa-green-dark)] text-white text-xs font-bold transition-all active:scale-95 shadow-xs"
                         >
-                          {copiedCode ? <Check size={14} /> : <Copy size={14} />}
-                          <span>{copiedCode ? 'Copied!' : 'Copy Code'}</span>
+                          {copiedCode === activeNotification.promoCode ? <Check size={14} /> : <Copy size={14} />}
+                          <span>{copiedCode === activeNotification.promoCode ? 'Copied!' : 'Copy Code'}</span>
                         </button>
                       </div>
 

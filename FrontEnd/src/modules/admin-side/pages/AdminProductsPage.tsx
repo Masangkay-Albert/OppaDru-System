@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Archive, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, Image as ImageIcon, ImagePlus, LayoutGrid, List, PackageOpen, PlusSquare, Search, Trash2, X } from 'lucide-react';
+import { Archive, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, Image as ImageIcon, ImagePlus, LayoutGrid, List, PackageOpen, PlusSquare, Trash2, X } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllProducts, toggleAvailability, deleteProduct, updateProduct, addProduct } from '../../../services/adminProductService';
 import { productService } from '../../../services/productService';
@@ -8,6 +8,7 @@ import { formatCurrency } from '../../../utils/formatters';
 import { categories } from '../../../data/mockData';
 import { AvailabilitySwitch, ConfirmDialog, EmptyState, PageHeader, ProductThumbnail, RowActionsMenu, Toast } from '../components/AdminUI';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 
 const categoryOptions: Array<{ value: ProductCategory | 'all'; label: string }> = [
   { value: 'all', label: 'All' },
@@ -385,17 +386,13 @@ const AdminProductsPage: React.FC = () => {
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="group relative w-full shrink-0 lg:max-w-xs lg:flex-1">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)] transition-colors duration-200 group-focus-within:text-[var(--oppa-green)]" />
-            <input
-              aria-label="Search products"
-              type="text"
-              value={searchTerm}
-              onChange={(event) => { setSearchTerm(event.target.value); setPage(1); }}
-              placeholder="Search products..."
-              className="h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] py-2 pl-9 pr-3 text-sm text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] transition-all duration-200 ease-out focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-green-500/25 focus:ring-inset"
-            />
-          </div>
+          <SearchInput
+            aria-label="Search products"
+            value={searchTerm}
+            onChange={(value) => { setSearchTerm(value); setPage(1); }}
+            placeholder="Search products..."
+            wrapperClassName="w-full shrink-0 lg:max-w-xs lg:flex-1"
+          />
 
           <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative min-w-0 flex-1">

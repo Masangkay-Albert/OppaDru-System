@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, ShoppingBag, Users } from 'lucide-react';
+import { ShoppingBag, Users } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import AccountModal from '../components/AccountModal';
 import { AdminDate, Avatar, ConfirmDialog, DataTable, EmptyState, PageHeader, RowActionsMenu, Toast } from '../components/AdminUI';
@@ -8,6 +8,7 @@ import { getAllCustomers } from '../../../services/adminOrderService';
 import { API_URL } from '../../../services/apiConfig';
 import { formatCurrency } from '../../../utils/formatters';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 
 interface CustomerWithStats extends StoredAccount {
   order_count?: number;
@@ -101,7 +102,7 @@ const AdminCustomersPage: React.FC = () => {
     <AdminLayout>
       <PageHeader title="Registered Customers" subtitle="View accounts and manage customer passwords." actions={<div className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2"><Users size={16} className="text-[var(--oppa-green)]" /><span className="text-sm font-semibold text-[var(--oppa-text)]">{customers.length} customers</span></div>} />
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-        <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={17} aria-hidden="true" /><input aria-label="Search customers by name or email" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search customers…" className="admin-embedded-input w-full text-sm" /></label>
+        <SearchInput aria-label="Search customers by name or email" value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Search customers…" wrapperClassName="min-w-0 flex-1" />
         <div className="flex shrink-0 items-center gap-2 text-sm text-[var(--oppa-text-muted)]"><span>Sort by</span><Select aria-label="Sort customers" value={sortBy} onChange={(value) => { setSortBy(value as typeof sortBy); setPage(1); }} options={[{ value: 'spent', label: 'Total spent' }, { value: 'orders', label: 'Orders' }, { value: 'registered', label: 'Registered' }]} className="w-40" /></div>
       </div>
       {notice && <Toast message={notice} tone={notice.toLowerCase().includes('failed') ? 'error' : 'success'} onDismiss={() => setNotice('')} />}

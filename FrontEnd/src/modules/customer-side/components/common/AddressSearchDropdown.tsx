@@ -2,9 +2,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { 
   FiMapPin, 
-  FiX, 
-  FiLoader, 
-  FiSearch, 
   FiHome, 
   FiMap,
   FiCheckCircle,
@@ -16,6 +13,7 @@ import {
 } from 'react-icons/io5';
 import { useLocationSearch } from '../../../../hooks/useLocationSearch';
 import type { LocationResult } from '../../../../hooks/useLocationSearch';
+import SearchInput from '../../../../components/ui/SearchInput';
 
 interface AddressSearchDropdownProps {
   onSelect: (location: LocationResult) => void;
@@ -63,8 +61,7 @@ const AddressSearchDropdown: React.FC<AddressSearchDropdownProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onFocusChange]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
+  const handleInputChange = (val: string) => {
     setInputValue(val);
     setSearchQuery(val);
     setIsOpen(val.length > 1);
@@ -118,41 +115,17 @@ const AddressSearchDropdown: React.FC<AddressSearchDropdownProps> = ({
 
   return (
     <div ref={wrapperRef} className={`relative ${className}`}>
-      <div className="relative">
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-          <FiSearch size={18} />
-        </div>
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          onChange={handleInputChange}
-          onFocus={handleFocus}
-          placeholder={placeholder}
-          className="h-11 w-full min-w-0 truncate whitespace-nowrap pl-10 pr-10 py-3 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-gray-800"
-          autoComplete="off"
-        />
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-          {isSearching && (
-            <FiLoader className="animate-spin text-[#2d6a4f]" size={20} />
-          )}
-          {inputValue && !isSearching && (
-            <button
-              onClick={() => {
-                setInputValue('');
-                setSearchQuery('');
-                setIsOpen(false);
-                if (onChange) onChange('');
-                onQueryChange?.('');
-              }}
-              className="text-gray-400 hover:text-gray-600 transition p-1"
-              type="button"
-            >
-              <FiX size={18} />
-            </button>
-          )}
-        </div>
-      </div>
+      <SearchInput
+        ref={inputRef}
+        aria-label="Search delivery location"
+        value={inputValue}
+        onChange={handleInputChange}
+        onFocus={handleFocus}
+        placeholder={placeholder}
+        autoComplete="off"
+        debounceMs={0}
+        isLoading={isSearching}
+      />
 
       {/* Dropdown with higher z-index */}
       {isOpen && searchResults.length > 0 && (

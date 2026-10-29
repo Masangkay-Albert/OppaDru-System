@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle, X, Eye, Package, CalendarDays, Copy, Search, Globe2, Store } from 'lucide-react';
+import { CheckCircle, X, Eye, Package, CalendarDays, Copy, Globe2, Store } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { AdminDate, Avatar, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
 import { getAllOrders, markOrderServed, type AdminOrder } from '../../../services/adminOrderService';
 import { formatCurrency } from '../../../utils/formatters';
 import { getScheduledOrderDetails } from '../../../utils/orderUtils';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 
 const statusLabels: Record<string, string> = {
   pending: 'Pending',
@@ -263,7 +264,7 @@ const AdminOrdersPage: React.FC = () => {
 
       <div className="mb-4 space-y-2">
         <div className="flex flex-col gap-2 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 shadow-sm sm:flex-row">
-          <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={16} /><input aria-label="Search orders by ID, customer, or email" value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setCurrentPage(1); }} placeholder="Search order ID, customer, email…" className="admin-embedded-input min-w-0 w-full text-sm text-[var(--oppa-text)]" /></label>
+          <SearchInput aria-label="Search orders by ID, customer, or email" value={searchTerm} onChange={(value) => { setSearchTerm(value); setCurrentPage(1); }} placeholder="Search order ID, customer, email…" wrapperClassName="min-w-0 flex-1" />
           <Select aria-label="Filter by channel" value={channelFilter} onChange={(value) => { setChannelFilter(value as 'all' | 'online' | 'onsite'); setCurrentPage(1); }} options={[{ value: 'all', label: 'All channels' }, { value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} className="min-w-36" />
           <input aria-label="Filter by exact date" type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setCurrentPage(1); }} className="h-11 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" />
         </div>

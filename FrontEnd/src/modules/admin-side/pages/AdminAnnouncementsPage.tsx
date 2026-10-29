@@ -17,7 +17,6 @@ import {
   Pencil,
   Plus,
   RefreshCw,
-  Search,
   Send,
   Share2,
   Sparkles,
@@ -42,6 +41,7 @@ import {
   PageHeader,
   Toast,
 } from '../components/AdminUI';
+import SearchInput from '../../../components/ui/SearchInput';
 import Select from '../../../components/ui/Select';
 import { announcementService } from '../../../services/announcementService';
 import type {
@@ -566,19 +566,13 @@ Oppa Dru Korean Fried Chicken
         <FilterBar className="space-y-3.5 rounded-2xl p-3.5 sm:p-4">
           <div className="grid grid-cols-2 gap-2.5 lg:flex lg:items-center">
             {/* Search Input */}
-            <div className="relative col-span-2 min-w-0 lg:flex-1">
-              <Search
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]"
-              />
-              <input
-                type="text"
-                placeholder="Search headline or message..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="admin-input h-[42px] w-full rounded-xl pl-9 text-sm"
-              />
-            </div>
+            <SearchInput
+              aria-label="Search announcement headlines or messages"
+              placeholder="Search headline or message..."
+              value={search}
+              onChange={setSearch}
+              wrapperClassName="col-span-2 min-w-0 lg:flex-1"
+            />
 
             {/* Status Filter */}
             <div className="min-w-0 lg:w-[170px] lg:shrink-0">

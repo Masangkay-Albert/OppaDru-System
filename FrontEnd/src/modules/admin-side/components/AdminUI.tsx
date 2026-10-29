@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, MoreHorizontal, PackageCheck, Search } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, MoreHorizontal, PackageCheck } from 'lucide-react';
 import { getProductImage } from '../../../data/productImages';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
+import SearchInput from '../../../components/ui/SearchInput';
 
 export const PageHeader: React.FC<{
   title: string;
@@ -238,10 +239,7 @@ export const DataTable: React.FC<React.PropsWithChildren<{
   };
   return <section className={className}>
     {(search || sortControl) && <div className="mb-3 flex flex-col gap-3 sm:flex-row">
-      {search && <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]">
-        <Search size={16} aria-hidden="true" />
-        <input aria-label={search.placeholder || 'Search table'} value={search.value} onChange={(event) => search.onChange(event.target.value)} placeholder={search.placeholder || 'Search…'} className="admin-embedded-input w-full text-sm text-[var(--oppa-text)]" />
-      </label>}
+      {search && <SearchInput aria-label={search.placeholder || 'Search table'} value={search.value} onChange={search.onChange} placeholder={search.placeholder || 'Search…'} wrapperClassName="min-w-0 flex-1" />}
       {sortControl}
     </div>}
     <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-[var(--shadow-card)]">

@@ -11,12 +11,13 @@ import CartSidebar from '../components/cart/CartSidebar';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import NotificationToast from '../components/common/ProductNotification';
 import GreetingBanner from '../components/common/GreetingBanner';
-import { FiShoppingCart, FiMenu, FiX, FiSearch } from 'react-icons/fi';
+import { FiShoppingCart, FiMenu, FiX } from 'react-icons/fi';
 import { LuStore } from 'react-icons/lu';
 import foodpandaLogo from '../../../assets/foodpanda.png';
 import '../../../styles/global.css';
 import { productService } from '../../../services/productService';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 import { getActiveBranches, getSelectedBranchId, setSelectedBranchId } from '../../../services/franchiseBranchService';
 import type { FranchiseBranch } from '../../../services/franchiseBranchService';
 import '../../../styles/menu-design.css';
@@ -27,7 +28,6 @@ const MenuPage: React.FC = () => {
   const { showNotification, newFavoriteName, clearNotification } = useFavorites();
   const [products, setProducts] = useState<Product[]>([]);
   const [branches, setBranches] = useState<FranchiseBranch[]>([]);
-  const [mainBranch, setMainBranch] = useState<FranchiseBranch | null>(null);
   const [branchesLoaded, setBranchesLoaded] = useState(false);
   const [selectedBranchId, setSelectedBranchIdState] = useState<string | null>(() => getSelectedBranchId());
   const [branchError, setBranchError] = useState('');
@@ -55,7 +55,6 @@ const MenuPage: React.FC = () => {
       .then((activeBranches) => {
         setBranches(activeBranches);
         const main = activeBranches.find((branch) => branch.is_main) || null;
-        setMainBranch(main);
         const savedBranchId = getSelectedBranchId();
         const selectedId = savedBranchId && activeBranches.some((branch) => branch.id === savedBranchId)
           ? savedBranchId
@@ -102,10 +101,6 @@ const MenuPage: React.FC = () => {
     setSelectedBranchIdState(nextBranchId);
     setBranchError('');
   };
-
-  const activeBranch = selectedBranchId
-    ? branches.find((branch) => branch.id === selectedBranchId) || null
-    : mainBranch;
 
   const handleOpenModal = useCallback((product: Product) => {
     scrollPositionRef.current = window.scrollY;
@@ -220,28 +215,25 @@ const MenuPage: React.FC = () => {
           />
 
           <section className="menu-branch-control mb-6 rounded-2xl border border-[#dce8de] bg-white p-4 shadow-sm sm:p-5">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-3">
               <div>
                 <label htmlFor="customer-branch" className="block text-sm font-bold text-[#1C3D2E]">
                   Choose which branch to order from
                 </label>
                 <p className="mt-0.5 text-xs text-gray-500">Menu availability can vary by location.</p>
               </div>
-              <span className="rounded-full bg-[#E3EFE7] px-3 py-1 text-[11px] font-semibold text-[#1C3D2E]">
-                {activeBranch?.is_main
-                  ? <><LuStore className="mr-1 inline-block" aria-hidden="true" />Main branch</>
-                  : 'Franchise branch'}
-              </span>
             </div>
             <Select
               id="customer-branch"
               aria-label="Choose a branch"
               value={selectedBranchId || ''}
               onChange={handleBranchChange}
-              disabled={branches.length === 0}
-              placeholder={branchesLoaded ? 'No active branches available' : 'Loading branches...'}
-              options={branches.map((branch) => ({ value: branch.id, label: `${branch.name}${branch.address ? `, ${branch.address}` : ''}` }))}
+              icon={<LuStore size={18} aria-hidden="true" />}
+              disabled={branchesLoaded && branches.length === 0}
+              placeholder={branchesLoaded ? 'Select a branch' : 'Loading branches...'}
+              options={branches.map((branch) => ({ value: branch.id, label: branch.name, description: branch.address || undefined }))}
               className="w-full sm:max-w-xl"
+              triggerClassName="h-12"
             />
             {branchError && <p className="mt-2 text-sm text-red-600">{branchError}</p>}
           </section>
@@ -249,16 +241,15 @@ const MenuPage: React.FC = () => {
           <Top3PopularMeals products={products} onSelectProduct={handleOpenModal} />
 
           <div className="menu-search mb-6">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search for your favorite food..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="menu-search-input w-full px-4 py-3 pl-11 rounded-xl border border-gray-200 bg-white focus:border-[#1C3D2E] focus:outline-none focus:ring-1 focus:ring-[#1C3D2E] transition-all text-sm"
-              />
-              <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/75 text-base" />
-            </div>
+            <SearchInput
+              aria-label="Search menu dishes"
+              placeholder="Search for chicken, rice meals, snacks…"
+              value={searchTerm}
+              onChange={setSearchTerm}
+              resultsCount={filteredProducts.length}
+              showResultsCount
+              wrapperClassName="w-full"
+            />
           </div>
 
           <div className="menu-product-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
@@ -285,7 +276,10 @@ const MenuPage: React.FC = () => {
 
           {filteredProducts.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-gray-500">No products found</p>
+              <p className="text-gray-600 dark:text-gray-300">
+                {searchTerm.trim() ? `No dishes found for '${searchTerm.trim()}'` : 'No products found'}
+              </p>
+              {searchTerm.trim() && <button type="button" onClick={() => setSearchTerm('')} className="mt-3 rounded-lg px-3 py-2 text-sm font-semibold text-green-800 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 dark:text-emerald-300 dark:hover:bg-green-950/60">Clear search</button>}
             </div>
           )}
         </main>

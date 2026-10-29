@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, Drumstick, Heart, Minus, Plus, QrCode, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, UserRound, Utensils, X } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
+import SearchInput from '../../../components/ui/SearchInput';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { fetchWithEmployeeAuth } from '../../../services/employeeAuth';
 import { getProductImage } from '../../../data/productImages';
@@ -840,11 +841,14 @@ const FranchisePOSPage: React.FC = () => {
                 {[{ id: 'all', label: 'All' }, ...categories.map((category) => ({ id: category.toLowerCase(), label: category.replaceAll('-', ' ') }))].map(({ id, label }) => <button key={id} type="button" onClick={() => { setActiveCategory(id); setShowFavoritesOnly(false); }} aria-pressed={activeCategory === id && !showFavoritesOnly} className={`min-h-11 shrink-0 rounded-full border px-3 text-xs font-semibold capitalize ${activeCategory === id && !showFavoritesOnly ? 'border-[#2d6a4f] bg-[#2d6a4f] text-white' : 'border-gray-200 bg-white text-gray-700'}`}>{label} <span className="opacity-75">({categoryCount(id)})</span></button>)}
               </nav>
               <div className="cashier-filter-glass sticky top-[108px] z-30 -mx-4 mb-4 grid grid-cols-1 gap-3 rounded-b-2xl px-4 py-3 shadow-sm sm:-mx-6 sm:px-6 lg:top-14 lg:grid-cols-[minmax(180px,1fr)_auto] xl:-mx-6">
-                <label className="relative block">
-                  <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-500" />
-                  <input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search menu items..." aria-label="Search menu items" className="min-h-11 w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-12 text-sm shadow-sm focus:border-[#1c3d2e] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30" />
-                  {search ? <button type="button" onClick={() => { setSearch(''); searchRef.current?.focus(); }} aria-label="Clear search" className="absolute right-1 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"><X size={17} /></button> : <span className="absolute right-3 top-1/2 hidden -translate-y-1/2 text-xs text-gray-400 sm:block">/</span>}
-                </label>
+                <SearchInput
+                  ref={searchRef}
+                  aria-label="Search menu items"
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Search menu items..."
+                  debounceMs={0}
+                />
                 <div className="flex gap-2 overflow-x-auto pb-1 lg:items-center" role="group" aria-label="Product filters">
                   {[
                     { id: 'all', label: 'All', active: !showFavoritesOnly && !showBestSellersOnly && !showAvailableOnly },

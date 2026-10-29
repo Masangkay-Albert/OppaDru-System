@@ -11,7 +11,6 @@ import {
   MoreHorizontal,
   PackageCheck,
   Printer,
-  Search,
   ShoppingBag,
   Store,
   Trophy,
@@ -24,6 +23,7 @@ import { formatPeso } from '../../../utils/formatters';
 import { useCashierLayoutStatus } from '../components/CashierLayoutContext';
 import { CashierPageHeader, CashierStatCard } from '../components/CashierUi';
 import StaffBranchBadge from '../../shared/components/StaffBranchBadge';
+import SearchInput from '../../../components/ui/SearchInput';
 import Select from '../../../components/ui/Select';
 import '../../../styles/cashier-pos.css';
 
@@ -415,7 +415,7 @@ const CashierTransactionsPage: React.FC = () => {
           </section>
 
           <section className="cashier-orders-filters cashier-surface" aria-label="Filter orders">
-            <label className="cashier-orders-search"><Search size={17} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search order number or customer…" aria-label="Search by order number or customer" />{search && <button type="button" onClick={() => { setSearch(''); setPage(1); }} aria-label="Clear search"><X size={16} /></button>}</label>
+            <SearchInput aria-label="Search by order number or customer" value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Search order number or customer…" />
             <div className="cashier-orders-filter-row">
               <div className="cashier-orders-chips" role="group" aria-label="Date range">
                 {([['all', 'All dates'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'This Week'], ['month', 'This Month'], ['custom', 'Custom']] as Array<[DateFilter, string]>).map(([value, label]) => <button type="button" key={value} aria-pressed={dateFilter === value} onClick={() => { setDateFilter(value); setPage(1); }}>{label}</button>)}

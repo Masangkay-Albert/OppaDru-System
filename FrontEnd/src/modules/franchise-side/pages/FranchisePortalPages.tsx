@@ -7,6 +7,7 @@ import { categories } from '../../../data/mockData';
 import { formatCurrency } from '../../../utils/formatters';
 import { AvailabilitySwitch, EmptyState, PageHeader, ProductThumbnail, Toast } from '../../admin-side/components/AdminUI';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 
 const Shell: React.FC<{ eyebrow: string; title: string; description: string; icon: React.ElementType; children: React.ReactNode }> = ({ eyebrow, title, description, icon: Icon, children }) => <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7"><div className="mx-auto max-w-[1500px]"><div className="mb-4 flex items-start justify-between gap-3"><div className="min-w-0"><p className="mb-1 text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--oppa-green)]">{eyebrow}</p><PageHeader title={title} subtitle={description} /></div><span className="mt-2 rounded-xl bg-[var(--oppa-green-soft)] p-2.5 text-[var(--oppa-green-dark)]"><Icon size={20} aria-hidden="true" /></span></div>{children}</div></main>;
 const Card: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => <section className="admin-card p-6"><h2 className="font-semibold text-[var(--oppa-text)]">{title}</h2><div className="mt-4">{children}</div></section>;
@@ -205,7 +206,7 @@ export const MenuAvailabilityPage: React.FC = () => {
         <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center">
           <label className="franchise-search-field flex h-11 w-full shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)] lg:max-w-xs lg:flex-1">
             <Search size={16} aria-hidden="true" />
-            <input aria-label="Search products" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products..." className="admin-embedded-input min-w-0 w-full text-sm placeholder:text-[var(--oppa-text-muted)]" />
+            <SearchInput aria-label="Search products" value={search} onChange={setSearch} placeholder="Search products..." wrapperClassName="min-w-0 flex-1" />
           </label>
           <div role="tablist" aria-label="Filter products by category" className="admin-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto py-1">
             {[{ id: 'all', name: 'All' }, ...categories.filter((entry) => entry.id !== 'all')].map((entry) => {

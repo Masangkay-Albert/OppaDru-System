@@ -10,7 +10,8 @@ import CartSidebar from '../components/cart/CartSidebar';
 import NavbarEmployee from '../components/navigation/NavbarEmployee';
 import NotificationToast from '../components/common/ProductNotification';
 import GreetingBanner from '../components/common/GreetingBanner';
-import { FiShoppingCart, FiMenu, FiX, FiSearch, FiTrendingUp } from 'react-icons/fi';
+import SearchInput from '../../../components/ui/SearchInput';
+import { FiShoppingCart, FiMenu, FiX, FiTrendingUp } from 'react-icons/fi';
 import '../../../styles/global.css';
 import { productService } from '../../../services/productService';
 
@@ -199,16 +200,12 @@ const EmployeeMenuPage: React.FC = () => {
           />
 
           <div className="mb-6">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search menu items for customer order..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-3 pl-11 rounded-xl border border-gray-200 bg-white focus:border-[#1C3D2E] focus:outline-none focus:ring-1 focus:ring-[#1C3D2E] transition-all text-sm shadow-sm"
-              />
-              <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-base" />
-            </div>
+            <SearchInput
+              aria-label="Search menu items"
+              placeholder="Search menu items for customer order..."
+              value={searchTerm}
+              onChange={setSearchTerm}
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, ChevronDown, ChevronsLeft, ChevronsRight, CircleHelp, ClipboardList, LayoutDashboard, LogOut, Menu, Megaphone, Moon, PackageCheck, ReceiptText, Search, Settings, Store, Sun, Users, WalletCards, X } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronsLeft, ChevronsRight, CircleHelp, ClipboardList, LayoutDashboard, LogOut, Menu, Megaphone, Moon, PackageCheck, ReceiptText, Settings, Store, Sun, Users, WalletCards, X } from 'lucide-react';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 import '../pages/FranchisePortalDesign.css';
 import { RoleBadge } from './FranchisePortalUI';
+import SearchInput from '../../../components/ui/SearchInput';
 
 type Role = 'owner' | 'manager' | 'staff' | 'cashier';
 type Item = { to: string; label: string; icon: React.ElementType; roles: Role[]; feature?: 'delivery_enabled' | 'fees_enabled'; badge?: 'announcements' | 'stock' };
@@ -73,11 +74,22 @@ const FranchiseLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
         <button aria-label="Open navigation" onClick={() => setMobileOpen(true)} className="rounded-lg p-2 text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] md:hidden"><Menu size={20} /></button>
         <div className="hidden min-w-0 text-sm sm:block"><span className="text-[var(--oppa-text-muted)]">Franchise</span><span className="mx-2 text-[var(--oppa-border)]">/</span><span className="font-semibold text-[var(--oppa-text)]">{pageName}</span></div>
         <div className="relative ml-auto w-full max-w-sm">
-          <label className="flex h-10 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-3 text-[var(--oppa-text-muted)] focus-within:border-[var(--oppa-green)]">
-            <Search size={16} aria-hidden="true" />
-            <input ref={searchInputRef} aria-label="Search franchise pages" value={query} onFocus={() => setSearchOpen(true)} onChange={(event) => { setQuery(event.target.value); setSearchOpen(true); }} onKeyDown={(event) => { if (event.key === 'Escape') setSearchOpen(false); if (event.key === 'Enter' && matches[0]) { navigate(matches[0].to); setSearchOpen(false); setQuery(''); } }} placeholder="Search pages..." className="admin-embedded-input w-full text-sm" />
-            <kbd className="hidden shrink-0 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2 py-1 text-[10px] font-semibold text-[var(--oppa-text-muted)] lg:inline">Ctrl K</kbd>
-          </label>
+          <SearchInput
+            ref={searchInputRef}
+            aria-label="Search franchise pages"
+            value={query}
+            onChange={(value) => { setQuery(value); setSearchOpen(true); }}
+            onValueChange={(value) => { setQuery(value); setSearchOpen(true); }}
+            onFocus={() => setSearchOpen(true)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setSearchOpen(false);
+              if (event.key === 'Enter') {
+                const match = visibleItems.find((item) => item.label.toLowerCase().includes(event.currentTarget.value.toLowerCase()));
+                if (match) { navigate(match.to); setSearchOpen(false); setQuery(''); }
+              }
+            }}
+            placeholder="Search pages..."
+          />
           {searchOpen && query && <div className="absolute left-0 right-0 top-12 z-40 overflow-hidden rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-1 shadow-xl">
             {matches.length ? matches.map((item) => <Link key={item.to} to={item.to} onClick={() => { setQuery(''); setSearchOpen(false); }} className="block rounded-lg px-3 py-2 text-sm text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]">{item.label}</Link>) : <p className="px-3 py-2 text-sm text-[var(--oppa-text-muted)]">No matching pages.</p>}
           </div>}

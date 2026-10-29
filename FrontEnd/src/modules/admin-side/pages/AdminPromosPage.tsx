@@ -6,6 +6,7 @@ import { formatCurrency } from '../../../utils/formatters';
 import { categories } from '../../../data/mockData';
 import { PageContainer, PageHeader } from '../../../components/ui/AdminPage';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 import {
   CategoryBadge,
   DiscountBadge,
@@ -29,7 +30,6 @@ import {
   LuPencil,
   LuPercent,
   LuPlus,
-  LuSearch,
   LuSparkles,
   LuTag,
   LuTrash2,
@@ -665,34 +665,14 @@ export default function AdminPromosPage() {
               />
             </div>
             <div className="flex w-full flex-col gap-2 sm:flex-row xl:max-w-2xl xl:flex-1">
-              <label className="relative block min-w-0 flex-1">
-                <span className="sr-only">Search title, code, or description</span>
-                <LuSearch size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
-                <input
-                  type="text"
-                  inputMode="search"
-                  placeholder="Search title, code, or description..."
-                  value={search}
-                  onChange={(event) => {
-                    searchRef.current = event.target.value;
-                    setSearch(event.target.value);
-                  }}
-                  className="h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] pl-10 pr-10 text-sm text-[var(--oppa-text)] shadow-inner placeholder:text-[var(--oppa-text-muted)] focus-visible:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/20"
-                />
-                {search && (
-                  <button
-                    type="button"
-                    aria-label="Clear promo search"
-                    onClick={() => {
-                      searchRef.current = '';
-                      setSearch('');
-                    }}
-                    className="absolute right-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-lg text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/40"
-                  >
-                    <LuX size={15} aria-hidden="true" />
-                  </button>
-                )}
-              </label>
+              <SearchInput
+                aria-label="Search title, code, or description"
+                placeholder="Search title, code, or description..."
+                value={search}
+                onChange={setSearch}
+                onValueChange={(value) => { searchRef.current = value; }}
+                wrapperClassName="min-w-0 flex-1"
+              />
               <Select
                 aria-label="Filter promotions by channel"
                 value={channelFilter}

@@ -3,6 +3,7 @@ import { AlertCircle, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 import { getFranchiseApplications, type FranchiseApplication } from '../../../services/franchiseAdminService';
 import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 import { FranchiseSkeleton, FranchiseStatusPill } from '../../franchise-side/components/FranchisePortalUI';
@@ -71,7 +72,7 @@ const AdminFranchiseApplicationsPage: React.FC = () => {
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">
         <label className="relative flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-          <input aria-label="Search applications" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search applicant, email, location, or reference" className="w-full rounded-xl border border-[var(--oppa-border)] bg-white py-2.5 pl-10 pr-3 text-sm" />
+          <SearchInput aria-label="Search franchise applications" value={search} onChange={setSearch} placeholder="Search applicant, email, location, or reference" />
         </label>
         <Select<string> aria-label="Filter application status" value={statusFilter} onChange={setStatusFilter} options={[{ value: 'all', label: 'All statuses' }, ...statuses.map((status) => ({ value: status, label: franchiseStatusLabel(status) }))]} className="sm:w-56" />
       </div>

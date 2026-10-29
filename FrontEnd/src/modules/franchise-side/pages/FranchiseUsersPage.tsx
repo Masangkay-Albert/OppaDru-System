@@ -8,6 +8,7 @@ import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 
 interface BranchUser {
   id: string;
@@ -224,7 +225,7 @@ const FranchiseUsersPage: React.FC = () => {
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
         <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]">
           <Search size={17} aria-hidden="true" />
-          <input aria-label="Search branch users by name or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email..." className="admin-embedded-input w-full text-sm" />
+          <SearchInput aria-label="Search branch users by name or email" value={search} onChange={setSearch} placeholder="Search name or email..." />
         </label>
         <Select<string> aria-label="Filter branch users by position" value={positionFilter} onChange={setPositionFilter} options={positionOptions} className="w-full sm:w-48" />
       </div>

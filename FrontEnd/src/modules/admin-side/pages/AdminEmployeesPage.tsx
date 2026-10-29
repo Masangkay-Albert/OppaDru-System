@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, UserPlus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import AccountModal from '../components/AccountModal';
 import AccountCreationModal, { type AccountCreationValues } from '../components/AccountCreationModal';
@@ -10,6 +10,7 @@ import { getFranchises } from '../../../services/franchiseAdminService';
 import type { FranchiseSummary } from '../../../services/franchiseAdminService';
 import { AdminDate, Avatar, ConfirmDialog, EmptyState, PageHeader, RowActionsMenu } from '../components/AdminUI';
 import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
 
 export interface EmployeeAccount {
   id: string;
@@ -168,7 +169,7 @@ const AdminEmployeesPage: React.FC = () => {
     <AdminLayout>
       <PageHeader title="Registered Employees" subtitle="Add employees to the Main Branch. Employees in other branches are view-only here." actions={<button onClick={() => { setShowModal(true); setSubmitError(''); }} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><UserPlus size={16} />Add Employee</button>} />
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-        <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={17} aria-hidden="true" /><input aria-label="Search employees by name or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email…" className="admin-embedded-input w-full text-sm" /></label>
+        <SearchInput aria-label="Search employees by name or email" value={search} onChange={setSearch} placeholder="Search name or email…" wrapperClassName="min-w-0 flex-1" />
         <Select<string> aria-label="Filter employees by position" value={positionFilter} onChange={setPositionFilter} options={[{ value: 'all', label: 'All positions' }, ...positions.map((position) => ({ value: position, label: formatPositionLabel(position) }))]} className="w-full sm:w-48" />
         <Select<string> aria-label="Filter employees by franchise location" value={locationFilter} onChange={setLocationFilter} options={[{ value: 'all', label: 'All locations' }, { value: 'main', label: 'Main system (Cavite branch)' }, ...otherLocations.map((location) => ({ value: String(location.id), label: location.name }))]} className="w-full sm:w-56" />
       </div>

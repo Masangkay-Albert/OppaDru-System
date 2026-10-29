@@ -39,6 +39,8 @@ export interface Order {
   discountType?: 'PWD' | 'Senior Citizen' | null;
   discountRate?: number;
   discountAmount?: number;
+  promoDiscount?: number;
+  promoCode?: string | null;
   discountStatus?: string;
   discountProofImage?: string | null;
   scheduledAt?: string | null;
@@ -206,6 +208,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       discountType: apiOrder.discount_type || null,
       discountRate: Number(apiOrder.discount_rate || 0),
       discountAmount: Number(apiOrder.discount_amount || 0),
+      promoDiscount: Number(apiOrder.promo_discount || apiOrder.voucher_discount || 0),
+      promoCode: apiOrder.promo_code || null,
       discountStatus: apiOrder.discount_status || 'not_requested',
       discountProofImage: apiOrder.discount_proof_image || null,
       scheduledAt: apiOrder.scheduled_at || null,
@@ -427,6 +431,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deliveryAddressCoords: mappedOrder.deliveryAddressCoords || deliveryAddressCoords,
         coords: mappedOrder.deliveryAddressCoords || deliveryAddressCoords,
         discountType: mappedOrder.discountType || discountType || null,
+        promoDiscount: mappedOrder.promoDiscount || voucherDiscount,
+        promoCode: mappedOrder.promoCode || promoCode || null,
       };
       persistOrders(mergeOrderLists(ordersRef.current, [newOrder]));
       persistCurrentOrder(newOrder);

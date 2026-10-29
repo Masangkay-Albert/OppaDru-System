@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiSearch, FiX, FiPackage, FiShoppingBag, FiCheckCircle, FiClock, FiPlus } from 'react-icons/fi';
+import { FiArrowLeft, FiPackage, FiShoppingBag, FiCheckCircle, FiClock, FiPlus } from 'react-icons/fi';
 import NavbarEmployee from '../components/navigation/NavbarEmployee';
 import { OrderCard } from '../components/orders/OrderCard';
 import POSReceiptModal from '../components/pos/POSReceiptModal';
 import { getOnsiteOrders, fetchOnsiteOrders, markOrderServed, removeOrder, type AdminOrder } from '../../../services/adminOrderService';
+import SearchInput from '../../../components/ui/SearchInput';
 
 const EmployeeOrdersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -144,24 +145,13 @@ const EmployeeOrdersPage: React.FC = () => {
 
         {/* Filters and Search */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
-            <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="text"
-              placeholder="Search by order #, customer name, or item..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-10 py-3 rounded-xl border border-gray-200 bg-white/90 backdrop-blur-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#2d6a4f] shadow-sm"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-              >
-                <FiX size={16} />
-              </button>
-            )}
-          </div>
+          <SearchInput
+            aria-label="Search orders by number, customer, or item"
+            placeholder="Search by order #, customer name, or item..."
+            value={searchTerm}
+            onChange={setSearchTerm}
+            wrapperClassName="flex-1"
+          />
 
           <div className="flex bg-white/90 backdrop-blur-sm p-1 rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
             <button

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiSearch, FiX, FiChevronDown, FiPackage, FiShoppingBag, FiCheckCircle, FiClock } from 'react-icons/fi';
+import { FiArrowLeft, FiChevronDown, FiPackage, FiShoppingBag, FiCheckCircle, FiClock } from 'react-icons/fi';
 import { FaClipboardList, FaStore } from 'react-icons/fa';
 import { useOrder } from '../../../contexts/OrderContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
@@ -14,6 +14,7 @@ import {
 } from '../../../utils/orderManagement';
 import { OrderCard } from '../components/orders/OrderCard';
 import { OrderEditModal } from '../components/orders/OrderEditModal';
+import SearchInput from '../../../components/ui/SearchInput';
 import '../../../styles/secondary-pages.css';
 
 const MyOrdersPage: React.FC = () => {
@@ -239,24 +240,13 @@ const MyOrdersPage: React.FC = () => {
 
         {/* Filters */}
         <div className="orders-toolbar flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={17} />
-            <input
-              type="text"
-              placeholder="Search orders..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="orders-search-input w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20 bg-white text-sm"
-            />
-            {searchTerm && (
-              <button 
-                onClick={() => setSearchTerm('')} 
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <FiX size={17} />
-              </button>
-            )}
-          </div>
+          <SearchInput
+            aria-label="Search orders"
+            placeholder="Search orders..."
+            value={searchTerm}
+            onChange={setSearchTerm}
+            wrapperClassName="flex-1"
+          />
 
           <div className="relative">
             <button
