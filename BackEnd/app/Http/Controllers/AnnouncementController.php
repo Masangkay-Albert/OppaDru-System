@@ -77,16 +77,24 @@ class AnnouncementController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // Summary statistics
-        $all = Announcement::all();
+        // Summary statistics via single aggregate query to avoid pulling the entire table
+        $rawStats = Announcement::query()->selectRaw("
+            COUNT(*) as total,
+            COUNT(CASE WHEN status = 'published' THEN 1 END) as published,
+            COUNT(CASE WHEN status = 'scheduled' THEN 1 END) as scheduled,
+            COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft,
+            COUNT(CASE WHEN target_audience = 'all' OR target_audiences::text LIKE '%\"all\"%' THEN 1 END) as audience_all,
+            COUNT(CASE WHEN target_audience = 'customers' OR target_audiences::text LIKE '%\"customers\"%' THEN 1 END) as audience_customers
+        ")->first();
+
         $stats = [
-            'total' => $all->count(),
-            'published' => $all->where('status', 'published')->count(),
-            'scheduled' => $all->where('status', 'scheduled')->count(),
-            'draft' => $all->where('status', 'draft')->count(),
+            'total' => (int) ($rawStats->total ?? 0),
+            'published' => (int) ($rawStats->published ?? 0),
+            'scheduled' => (int) ($rawStats->scheduled ?? 0),
+            'draft' => (int) ($rawStats->draft ?? 0),
             'audiences' => [
-                'all' => $all->filter(fn($a) => $a->target_audience === 'all' || in_array('all', (array)($a->target_audiences ?? [])))->count(),
-                'customers' => $all->filter(fn($a) => $a->target_audience === 'customers' || in_array('customers', (array)($a->target_audiences ?? [])))->count(),
+                'all' => (int) ($rawStats->audience_all ?? 0),
+                'customers' => (int) ($rawStats->audience_customers ?? 0),
             ],
         ];
 
