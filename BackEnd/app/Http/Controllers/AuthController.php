@@ -4,9 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\GmailApiException;
 use App\Models\User;
+use Illuminate\Auth\Passwords\PasswordBroker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -115,6 +118,97 @@ class AuthController extends Controller
             'token' => $token,
             'message' => 'Login successful!'
         ]);
+    }
+
+    public function forgotPassword(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255'],
+        ]);
+
+        $email = strtolower(trim((string) $validated['email']));
+        $rateLimiterKey = 'customer-forgot-password:' . $email;
+
+        if (RateLimiter::tooManyAttempts($rateLimiterKey, 5)) {
+            return response()->json([
+                'message' => 'Too many password reset attempts. Please wait a moment and try again.',
+            ], 429);
+        }
+
+        RateLimiter::hit($rateLimiterKey, 60);
+
+        $user = User::whereRaw('LOWER(email) = ?', [$email])
+            ->where('role', 'customer')
+            ->first();
+
+        if ($user && $user->hasVerifiedEmail()) {
+            try {
+                Password::broker()->sendResetLink(['email' => $user->email]);
+            } catch (\Throwable $exception) {
+                Log::warning('Customer password reset email failed.', [
+                    'user_id' => $user->id,
+                    'email' => $email,
+                    'exception_class' => get_class($exception),
+                    'exception_message' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return response()->json([
+            'message' => "If that email is registered, we've sent a password reset link.",
+        ]);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $validated = $request->validate([
+            'token' => ['required', 'string'],
+            'email' => ['required', 'email'],
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+                'confirmed',
+                'regex:/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/',
+            ],
+        ]);
+
+        $email = strtolower(trim((string) $validated['email']));
+        $rateLimiterKey = 'customer-reset-password:' . $email;
+
+        if (RateLimiter::tooManyAttempts($rateLimiterKey, 10)) {
+            return response()->json([
+                'message' => 'Too many password reset attempts. Please wait a moment and try again.',
+            ], 429);
+        }
+
+        RateLimiter::hit($rateLimiterKey, 60);
+
+        $status = Password::broker()->reset([
+            'token' => $validated['token'],
+            'email' => $email,
+            'password' => $validated['password'],
+            'password_confirmation' => $request->input('password_confirmation'),
+        ], function (User $user, string $password) {
+            $user->password = Hash::make($password);
+            $user->api_token = null;
+
+            if (is_null($user->email_verified_at)) {
+                $user->email_verified_at = now();
+            }
+
+            $user->save();
+        });
+
+        if ($status === Password::PASSWORD_RESET) {
+            return response()->json([
+                'message' => 'Password reset successful. Please sign in with your new password.',
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'This reset link is invalid or has expired.',
+        ], 422);
     }
 
     public function logout(Request $request)

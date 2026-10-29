@@ -18,6 +18,8 @@ import ProtectedAdminRoute from "./modules/admin-side/components/ProtectedAdminR
 const LandingPage = lazy(() => import("./modules/customer-side/pages/LandingPage"));
 const LoginPage = lazy(() => import("./modules/customer-side/pages/Loginpage"));
 const RegistrationPage = lazy(() => import("./modules/customer-side/pages/RegistrationPage"));
+const ForgotPasswordPage = lazy(() => import("./modules/customer-side/pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./modules/customer-side/pages/ResetPasswordPage"));
 const MenuPage = lazy(() => import("./modules/customer-side/pages/MenuPage"));
 const FavoritesPage = lazy(() => import("./modules/customer-side/pages/FavoritesPage"));
 const CheckoutPage = lazy(() => import("./modules/customer-side/pages/CheckoutPage"));
@@ -113,6 +115,8 @@ function App() {
                       <Route path="/" element={<LandingPage />} />
                       <Route path="/login" element={<LoginPage />} />
                       <Route path="/register" element={<RegistrationPage />} />
+                      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                      <Route path="/reset-password" element={<ResetPasswordPage />} />
                       <Route path="/franchise-opportunities" element={<FranchiseOpportunitiesPage />} />
                       <Route path="/franchise/applicant-access" element={<Navigate to="/franchise/applicant-login?returnTo=%2Ffranchise%2Fapply" replace />} />
                       <Route path="/franchise/applicant-login" element={<FranchiseApplicantLoginPage />} />

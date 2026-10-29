@@ -141,6 +141,8 @@ Route::post('/driver/logout', [DriverAuthController::class, 'logout']);
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/customer/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
+Route::post('/customer/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,1');
 Route::post('/verification/resend', [EmailVerificationController::class, 'resend'])->middleware('throttle:6,1');
 
 Route::get('/products', [ProductController::class, 'index']);

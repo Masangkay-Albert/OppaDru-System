@@ -32,6 +32,17 @@ export interface LoginData {
   password: string;
 }
 
+export interface ForgotPasswordData {
+  email: string;
+}
+
+export interface ResetPasswordData {
+  token: string;
+  email: string;
+  password: string;
+  password_confirmation: string;
+}
+
 export interface AuthResponse {
   user: User;
   token?: string;
@@ -86,6 +97,39 @@ class AuthService {
     this.setUser(result.user);
     this.setToken(result.token);
     return result;
+  }
+
+  async forgotPassword(email: string): Promise<string> {
+    const response = await fetch(`${API_URL}/customer/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result.message || 'Unable to send password reset link');
+    }
+
+    return result.message || 'If that email is registered, we\'ve sent a password reset link.';
+  }
+
+  async resetPassword(data: ResetPasswordData): Promise<string> {
+    const response = await fetch(`${API_URL}/customer/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const validationMessages = result.errors
+        ? Object.values(result.errors).flat().join(' ')
+        : '';
+      throw new Error(validationMessages || result.message || 'Unable to reset password');
+    }
+
+    return result.message || 'Password reset successful.';
   }
 
   async resendVerification(email: string): Promise<string> {

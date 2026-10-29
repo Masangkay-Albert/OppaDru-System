@@ -19,11 +19,16 @@ const LoginPage: React.FC = () => {
   const [isResending, setIsResending] = useState(false);
   const isVerificationError = error === "Please verify your email address before logging in.";
 
-  const registeredMessage = new URLSearchParams(location.search).get("registered") === "1"
+  const params = new URLSearchParams(location.search);
+  const registeredMessage = params.get("registered") === "1"
     ? "Account created. Check your email to verify your account before signing in."
-    : new URLSearchParams(location.search).get("verified") === "1"
+    : params.get("verified") === "1"
       ? "Email verified. You can now sign in."
       : "";
+
+  const resetSuccessMessage = params.get("reset") === "1"
+    ? "Password reset successful. Please sign in with your new password."
+    : "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +105,12 @@ const LoginPage: React.FC = () => {
             </div>
           )}
 
+          {resetSuccessMessage && (
+            <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3.5 text-sm text-green-800" role="status">
+              {resetSuccessMessage}
+            </div>
+          )}
+
           {resendMessage && (
             <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3.5 text-sm text-green-800" role="status">
               {resendMessage}
@@ -162,6 +173,16 @@ const LoginPage: React.FC = () => {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+            </div>
+
+            <div className="mb-2 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => navigate("/forgot-password")}
+                className="text-sm font-medium text-[var(--oppa-green)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
+              >
+                Forgot password?
+              </button>
             </div>
 
             <button

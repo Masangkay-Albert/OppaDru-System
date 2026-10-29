@@ -2,16 +2,20 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPasswordNotification;
+use App\Notifications\VerifyUserEmail;
+use Illuminate\Auth\Passwords\CanResetPassword;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Notifications\Notifiable;
-use App\Notifications\VerifyUserEmail;
+use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
-    use HasFactory, Notifiable;
+    use CanResetPassword, HasFactory, Notifiable;
 
     public $incrementing = false;
     protected $keyType = 'string';
@@ -24,6 +28,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'email',
         'phone',
         'password',
+        'role',
         'api_token',
         'email_verified_at',
     ];
@@ -55,7 +60,17 @@ class User extends Authenticatable implements MustVerifyEmail
         });
     }
 
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->sendNotificationWithFallback(new ResetPasswordNotification($token));
+    }
+
     public function sendEmailVerificationNotification(): void
+    {
+        $this->sendNotificationWithFallback(new VerifyUserEmail());
+    }
+
+    protected function sendNotificationWithFallback(Notification $notification): void
     {
         $primaryMailer = config('mail.default');
         $smtpConfigured = !empty(config('mail.mailers.smtp.username')) && !empty(config('mail.mailers.smtp.password'));
@@ -65,17 +80,33 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         try {
-            $this->notify(new VerifyUserEmail());
+            $this->notify($notification);
             return;
         } catch (\Throwable $e) {
             if (!$smtpConfigured) {
+                Log::warning('Mail notification failed without SMTP fallback.', [
+                    'user_id' => $this->id,
+                    'notification' => get_class($notification),
+                    'exception_class' => get_class($e),
+                    'exception_message' => $e->getMessage(),
+                ]);
+
                 throw $e;
             }
 
             config()->set('mail.default', 'smtp');
 
             try {
-                $this->notify(new VerifyUserEmail());
+                $this->notify($notification);
+            } catch (\Throwable $fallbackException) {
+                Log::warning('Mail notification failed after SMTP fallback.', [
+                    'user_id' => $this->id,
+                    'notification' => get_class($notification),
+                    'exception_class' => get_class($fallbackException),
+                    'exception_message' => $fallbackException->getMessage(),
+                ]);
+
+                throw $fallbackException;
             } finally {
                 config()->set('mail.default', $primaryMailer);
             }
