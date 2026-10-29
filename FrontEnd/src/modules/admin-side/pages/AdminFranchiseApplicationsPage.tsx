@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Select from '../../../components/ui/Select';
 import { getFranchiseApplications, type FranchiseApplication } from '../../../services/franchiseAdminService';
 import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 import { FranchiseSkeleton, FranchiseStatusPill } from '../../franchise-side/components/FranchisePortalUI';
@@ -72,10 +73,7 @@ const AdminFranchiseApplicationsPage: React.FC = () => {
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
           <input aria-label="Search applications" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search applicant, email, location, or reference" className="w-full rounded-xl border border-[var(--oppa-border)] bg-white py-2.5 pl-10 pr-3 text-sm" />
         </label>
-        <select aria-label="Filter application status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2.5 text-sm">
-          <option value="all">All statuses</option>
-          {statuses.map((status) => <option key={status} value={status}>{franchiseStatusLabel(status)}</option>)}
-        </select>
+        <Select<string> aria-label="Filter application status" value={statusFilter} onChange={setStatusFilter} options={[{ value: 'all', label: 'All statuses' }, ...statuses.map((status) => ({ value: status, label: franchiseStatusLabel(status) }))]} className="sm:w-56" />
       </div>
       {error && <InlineMessage variant="error" message={error} className="mb-4" />}
 

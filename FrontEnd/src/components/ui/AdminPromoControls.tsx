@@ -68,6 +68,9 @@ export function CategoryBadge({ children, neutral = false }: { children: ReactNo
 
 export function DiscountBadge({ type, value }: { type: 'percent' | 'fixed'; value: number }) {
   const Icon = type === 'percent' ? LuPercent : LuBanknote;
+  const tone = type === 'percent'
+    ? 'border-[var(--promo-success-border)] bg-[var(--promo-success-bg)] text-[var(--promo-success-text)]'
+    : 'border-[var(--promo-warning-border)] bg-[var(--promo-warning-bg)] text-[var(--promo-warning-text)]';
   const text = type === 'percent' ? `${value}% OFF` : `${new Intl.NumberFormat('en-PH', {
     style: 'currency',
     currency: 'PHP',
@@ -75,8 +78,8 @@ export function DiscountBadge({ type, value }: { type: 'percent' | 'fixed'; valu
   }).format(value)} OFF`;
 
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--promo-success-border)] bg-[var(--promo-success-bg)] px-2.5 py-1 text-xs font-semibold text-[var(--promo-success-text)]">
-      <Icon size={14} aria-hidden="true" />
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}`}>
+      <Icon size={15} aria-hidden="true" />
       {text}
     </span>
   );
@@ -99,14 +102,14 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(option.value)}
-            className={`inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full px-3.5 text-sm font-semibold capitalize transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50 ${
+            className={`inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full px-3.5 text-sm font-semibold capitalize transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50 ${
               selected
-                ? 'bg-[var(--oppa-green)] text-white'
+                ? 'bg-[var(--oppa-green)] text-white shadow-sm'
                 : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)]'
             }`}
           >
             {option.label}
-            <span className={`rounded-full px-1.5 py-0.5 text-xs ${selected ? 'bg-white/20 text-white' : 'bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)]'}`}>
+            <span className={`grid size-5 shrink-0 place-items-center rounded-full text-[11px] leading-none ${selected ? 'bg-white/20 text-white' : 'bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)]'}`}>
               {option.count}
             </span>
           </button>
@@ -116,7 +119,7 @@ export function SegmentedControl<T extends string>({ value, options, onChange }:
   );
 }
 
-export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
+export function Toggle({ checked, onChange, label, disabled = false }: { checked: boolean; onChange: (checked: boolean) => void; label: string; disabled?: boolean }) {
   return (
     <button
       type="button"
@@ -124,7 +127,8 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50 focus-visible:ring-offset-2 ${
+      disabled={disabled}
+      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 ${
         checked ? 'bg-[var(--oppa-green)]' : 'bg-slate-300'
       }`}
     >

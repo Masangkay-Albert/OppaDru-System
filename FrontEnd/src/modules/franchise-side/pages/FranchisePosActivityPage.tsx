@@ -4,6 +4,7 @@ import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatPeso } from '../../../utils/formatters';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
+import Select from '../../../components/ui/Select';
 
 interface PosTransaction {
   id: string;
@@ -121,14 +122,7 @@ const FranchisePosActivityPage: React.FC = () => {
             <label className="grid gap-1 text-xs font-medium text-gray-600">To
               <input type="date" value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900" />
             </label>
-            <label className="grid gap-1 text-xs font-medium text-gray-600">Payment method
-              <select value={paymentMethod} onChange={(event) => { setPaymentMethod(event.target.value); setPage(1); }} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
-                <option value="">All methods</option>
-                <option value="cash">Cash</option>
-                <option value="gcash">GCash</option>
-                <option value="credit_card">Card</option>
-              </select>
-            </label>
+            <Select label="Payment method" value={paymentMethod} onChange={(value) => { setPaymentMethod(value); setPage(1); }} options={[{ value: '', label: 'All methods' }, { value: 'cash', label: 'Cash' }, { value: 'gcash', label: 'GCash' }, { value: 'credit_card', label: 'Card' }]} />
           </div>
 
           {loading ? <p className="p-10 text-center text-sm text-gray-500">Loading POS activity...</p>

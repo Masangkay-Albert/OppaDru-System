@@ -6,6 +6,7 @@ export interface Promo {
   code?: string;
   title: string;
   description?: string;
+  channel?: 'all' | 'online' | 'onsite';
   discount_type: 'percent' | 'fixed';
   discount_value: number;
   start_date?: string | null;
@@ -96,10 +97,11 @@ export const promoService = {
   },
 
   // Admin CRUD
-  async getAllPromos(filter?: { status?: string; search?: string }): Promise<Promo[]> {
+  async getAllPromos(filter?: { status?: string; search?: string; channel?: string }): Promise<Promo[]> {
     const params = new URLSearchParams();
     if (filter?.status && filter.status !== 'all') params.append('status', filter.status);
     if (filter?.search) params.append('search', filter.search);
+    if (filter?.channel && filter.channel !== 'all') params.append('channel', filter.channel);
 
     const res = await fetchWithAdminAuth(`${API_URL}/admin/promos?${params.toString()}`);
     if (!res.ok) {
@@ -162,4 +164,3 @@ export const promoService = {
     return data.promo;
   },
 };
-

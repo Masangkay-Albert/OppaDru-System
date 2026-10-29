@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Building2, CheckCircle2, DollarSign, Loader2, MapPin, Phone, Plus, Search, Users } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Select from '../../../components/ui/Select';
 import { createFranchiseAccount, getFranchiseAccounts, updateFranchiseAccount } from '../../../services/franchiseAdminService';
 import type { FranchiseAccount, FranchiseSummary } from '../../../services/franchiseAdminService';
 import { formatCurrency } from '../../../utils/formatters';
@@ -112,7 +113,7 @@ const AdminFranchisesPage: React.FC = () => {
       {error && <div role="alert" className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}<button onClick={() => void load()} className="font-semibold underline">Retry</button></div>}
       <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-[var(--oppa-border)] bg-white p-3 sm:flex-row">
         <label className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search franchise or location..." className="w-full rounded-xl border border-gray-300 py-2.5 pl-9 pr-3 text-sm" /></label>
-        <select aria-label="Filter franchises by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm sm:min-w-40"><option value="all">All status</option><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select>
+        <Select<string> aria-label="Filter franchises by status" value={statusFilter} onChange={setStatusFilter} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'pending', label: 'Pending' }, { value: 'inactive', label: 'Inactive' }]} className="sm:min-w-40" />
       </div>
 
       {loading ? (
@@ -161,7 +162,7 @@ const AdminFranchisesPage: React.FC = () => {
           <label className="block text-sm font-medium">Franchise name<input name="name" required maxLength={255} className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label>
           <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium">Email<input name="email" type="email" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><label className="text-sm font-medium">Phone<input name="phone" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label></div>
           <label className="block text-sm font-medium">Head office address<textarea name="address" rows={2} className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label>
-          <label className="block text-sm font-medium">Status<select name="status" defaultValue="active" className="mt-1 w-full rounded-xl border bg-white px-3 py-2.5 font-normal"><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select></label>
+          <Select label="Status" name="status" defaultValue="active" options={[{ value: 'active', label: 'Active' }, { value: 'pending', label: 'Pending' }, { value: 'inactive', label: 'Inactive' }]} />
           <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowCreate(false)} className="rounded-xl border px-4 py-2 text-sm">Cancel</button><button disabled={saving} className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Creating…' : 'Create franchise'}</button></div>
         </form>
       </div>}

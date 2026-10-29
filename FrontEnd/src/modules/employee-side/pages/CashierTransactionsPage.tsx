@@ -4,7 +4,6 @@ import {
   ArrowDownWideNarrow,
   Banknote,
   Check,
-  ChevronDown,
   ClipboardList,
   Copy,
   CreditCard,
@@ -25,6 +24,7 @@ import { formatPeso } from '../../../utils/formatters';
 import { useCashierLayoutStatus } from '../components/CashierLayoutContext';
 import { CashierPageHeader, CashierStatCard } from '../components/CashierUi';
 import StaffBranchBadge from '../../shared/components/StaffBranchBadge';
+import Select from '../../../components/ui/Select';
 import '../../../styles/cashier-pos.css';
 
 interface CashierOrderItem {
@@ -420,8 +420,8 @@ const CashierTransactionsPage: React.FC = () => {
               <div className="cashier-orders-chips" role="group" aria-label="Date range">
                 {([['all', 'All dates'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'This Week'], ['month', 'This Month'], ['custom', 'Custom']] as Array<[DateFilter, string]>).map(([value, label]) => <button type="button" key={value} aria-pressed={dateFilter === value} onClick={() => { setDateFilter(value); setPage(1); }}>{label}</button>)}
               </div>
-              <label className="cashier-orders-select"><ListFilter size={15} /><select aria-label="Filter payment method" value={paymentFilter} onChange={(event) => { setPaymentFilter(event.target.value); setPage(1); }}><option value="all">All payments</option><option value="cash">Cash</option><option value="gcash">GCash / E-wallet</option><option value="card">Card</option></select><ChevronDown size={14} /></label>
-              <label className="cashier-orders-select"><ArrowDownWideNarrow size={15} /><select aria-label="Sort orders" value={sort} onChange={(event) => { setSort(event.target.value as SortOption); setPage(1); }}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="highest">Highest total</option><option value="lowest">Lowest total</option></select><ChevronDown size={14} /></label>
+              <Select aria-label="Filter payment method" value={paymentFilter} onChange={(value) => { setPaymentFilter(value); setPage(1); }} icon={<ListFilter size={15} aria-hidden="true" />} options={[{ value: 'all', label: 'All payments' }, { value: 'cash', label: 'Cash' }, { value: 'gcash', label: 'GCash / E-wallet' }, { value: 'card', label: 'Card' }]} className="min-w-44" />
+              <Select aria-label="Sort orders" value={sort} onChange={(value) => { setSort(value as SortOption); setPage(1); }} icon={<ArrowDownWideNarrow size={15} aria-hidden="true" />} options={[{ value: 'newest', label: 'Newest' }, { value: 'oldest', label: 'Oldest' }, { value: 'highest', label: 'Highest total' }, { value: 'lowest', label: 'Lowest total' }]} className="min-w-40" />
             </div>
             {dateFilter === 'custom' && <div className="flex flex-wrap items-center gap-2"><label className="text-xs font-semibold text-gray-600">From <input type="date" value={customFrom} onChange={(event) => { setCustomFrom(event.target.value); setPage(1); }} className="ml-1 min-h-10 rounded-lg border border-gray-200 px-2" /></label><label className="text-xs font-semibold text-gray-600">To <input type="date" value={customTo} onChange={(event) => { setCustomTo(event.target.value); setPage(1); }} className="ml-1 min-h-10 rounded-lg border border-gray-200 px-2" /></label></div>}
             <div className="cashier-orders-filter-row cashier-orders-statuses" role="group" aria-label="Filter by order status">
@@ -450,7 +450,7 @@ const CashierTransactionsPage: React.FC = () => {
                     </tr>)}</tbody>
                   </table>
                 </div>
-                <footer className="cashier-orders-pagination"><span>Showing {(effectivePage - 1) * pageSize + 1}–{Math.min(effectivePage * pageSize, filteredOrders.length)} of {filteredOrders.length}</span><label>Rows <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select></label><div><button type="button" disabled={effectivePage <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} aria-label="Previous page">‹</button><span>{effectivePage} / {pageCount}</span><button type="button" disabled={effectivePage >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} aria-label="Next page">›</button></div></footer>
+                <footer className="cashier-orders-pagination"><span>Showing {(effectivePage - 1) * pageSize + 1}–{Math.min(effectivePage * pageSize, filteredOrders.length)} of {filteredOrders.length}</span><div className="flex items-center gap-2"><span>Rows</span><Select aria-label="Rows per page" value={pageSize} onChange={(value) => { setPageSize(Number(value)); setPage(1); }} options={[{ value: 10, label: '10' }, { value: 20, label: '20' }, { value: 50, label: '50' }]} className="w-24" /></div><div><button type="button" disabled={effectivePage <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} aria-label="Previous page">‹</button><span>{effectivePage} / {pageCount}</span><button type="button" disabled={effectivePage >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} aria-label="Next page">›</button></div></footer>
               </>}
           </section>
         </main>

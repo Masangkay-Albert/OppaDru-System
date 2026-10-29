@@ -14,6 +14,7 @@ return new class extends Migration
                 $table->string('code', 50)->nullable()->unique();
                 $table->string('title', 255);
                 $table->text('description')->nullable();
+                $table->string('channel', 16)->default('all');
                 $table->enum('discount_type', ['percent', 'fixed'])->default('percent');
                 $table->decimal('discount_value', 10, 2)->default(0);
                 $table->dateTime('start_date')->nullable();
@@ -66,4 +67,3 @@ return new class extends Migration
         Schema::dropIfExists('promos');
     }
 };
-

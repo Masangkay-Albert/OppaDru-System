@@ -19,6 +19,7 @@ class Promo extends Model
         'code',
         'title',
         'description',
+        'channel',
         'discount_type',
         'discount_value',
         'start_date',
@@ -162,4 +163,3 @@ class Promo extends Model
         return min((float) $this->discount_value, $eligibleSubtotal);
     }
 }
-

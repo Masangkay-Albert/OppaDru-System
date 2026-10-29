@@ -5,6 +5,7 @@ import { promoService, type Promo } from '../../../services/promoService';
 import { formatCurrency } from '../../../utils/formatters';
 import { categories } from '../../../data/mockData';
 import { PageContainer, PageHeader } from '../../../components/ui/AdminPage';
+import Select from '../../../components/ui/Select';
 import {
   CategoryBadge,
   DiscountBadge,
@@ -12,13 +13,16 @@ import {
   IconButton,
   PromoModal,
   SegmentedControl,
-  StatusBadge,
   Toggle,
 } from '../../../components/ui/AdminPromoControls';
 import { getLocalDateTimeMin, stripEmoji } from '../../../utils/promoUi';
+import { useToast } from '../../customer-side/components/ToastProvider';
 import {
   LuCalendar,
   LuCheck,
+  LuClipboard,
+  LuClipboardCheck,
+  LuFilter,
   LuImage,
   LuLoaderCircle,
   LuBanknote,
@@ -78,12 +82,30 @@ const statusLabel = (promo: Promo): string => (
   promo.is_expired ? 'expired' : promo.is_active ? 'active' : 'inactive'
 );
 
+const daysUntil = (value: string): number => Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
+
 interface PromoDetailsProps {
   promo: Promo;
 }
 
 function PromoDetails({ promo }: PromoDetailsProps) {
   const title = stripEmoji(promo.title);
+  const { showToast } = useToast();
+  const [copied, setCopied] = useState(false);
+
+  const copyCode = async () => {
+    if (!promo.code) return;
+    try {
+      await navigator.clipboard.writeText(promo.code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+      showToast('Promo code copied.', 'success');
+    } catch (error: unknown) {
+      console.error('Unable to copy promo code.', error);
+      showToast('Could not copy promo code.', 'error');
+    }
+  };
+
   return (
     <div className="flex min-w-0 items-center gap-3">
       {promo.image_url ? (
@@ -99,11 +121,12 @@ function PromoDetails({ promo }: PromoDetailsProps) {
       )}
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h3 className="min-w-0 truncate text-sm font-semibold text-[var(--oppa-text)]">{title}</h3>
+          <h3 className="min-w-0 truncate font-display text-sm font-semibold text-[var(--oppa-text)]">{title}</h3>
           {promo.code && (
-            <span className="rounded-md border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-2 py-0.5 font-mono text-xs font-medium text-[var(--oppa-text-muted)]">
+            <button type="button" onClick={() => void copyCode()} title="Copy promo code" aria-label={`Copy promo code ${promo.code}`} className="group/code inline-flex items-center gap-1 rounded-md border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-2 py-0.5 font-mono text-xs font-medium text-[var(--oppa-text-muted)] transition-colors hover:border-[var(--oppa-green)] hover:text-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/40">
               {promo.code}
-            </span>
+              {copied ? <LuClipboardCheck size={12} aria-hidden="true" /> : <LuClipboard size={12} aria-hidden="true" className="opacity-0 transition-opacity group-hover/code:opacity-100 group-focus-visible/code:opacity-100" />}
+            </button>
           )}
         </div>
         {promo.description && (
@@ -117,18 +140,72 @@ function PromoDetails({ promo }: PromoDetailsProps) {
   );
 }
 
+function ApplicableCategories({ promo }: { promo: Promo }) {
+  const categoriesForPromo = promo.applicable_categories || [];
+  if (!categoriesForPromo.length) return <CategoryBadge neutral>All Categories</CategoryBadge>;
+  const visible = categoriesForPromo.slice(0, 3);
+  const remaining = categoriesForPromo.slice(3);
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {visible.map((category) => <CategoryBadge key={category}>{category.replaceAll('-', ' ')}</CategoryBadge>)}
+      {remaining.length > 0 && (
+        <details className="group relative">
+          <summary
+            aria-label={`Show ${remaining.length} more applicable categories`}
+            title={remaining.map((category) => category.replaceAll('-', ' ')).join(', ')}
+            className="inline-flex cursor-pointer list-none rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-2.5 py-1 text-xs font-semibold text-[var(--oppa-text-muted)] transition-colors hover:border-[var(--oppa-green)] hover:text-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/40 [&::-webkit-details-marker]:hidden"
+          >
+            +{remaining.length} more
+          </summary>
+          <div className="absolute left-0 top-full z-20 mt-2 min-w-40 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-2 shadow-lg">
+            <ul className="space-y-1">
+              {remaining.map((category) => <li key={category}><CategoryBadge>{category.replaceAll('-', ' ')}</CategoryBadge></li>)}
+            </ul>
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function PromoValidity({ promo }: { promo: Promo }) {
+  if (!promo.end_date) {
+    return <span className="inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)]"><span className="size-2 rounded-full bg-[var(--oppa-text-muted)]/50" aria-hidden="true" />No expiration</span>;
+  }
+  if (promo.is_expired) {
+    return <span className="inline-flex items-center gap-2 text-sm text-[var(--oppa-text-muted)]"><span className="size-2 rounded-full bg-[var(--promo-danger-text)]" aria-hidden="true" />Expired {formatPromoDate(promo.end_date)}</span>;
+  }
+
+  const remainingDays = daysUntil(promo.end_date);
+  const endingSoon = remainingDays <= 3;
+  const dotClass = endingSoon ? 'bg-[var(--promo-warning-text)]' : 'bg-[var(--oppa-green)]';
+  const relative = remainingDays <= 0
+    ? 'Ends today'
+    : `Ends in ${remainingDays} day${remainingDays === 1 ? '' : 's'}`;
+
+  return (
+    <div className="text-sm">
+      <p className="inline-flex items-center gap-2 font-medium text-[var(--oppa-text)]">
+        <span className={`size-2 rounded-full ${dotClass}`} aria-hidden="true" />
+        {relative}
+      </p>
+      <p className="mt-0.5 pl-4 text-xs text-[var(--oppa-text-muted)]">Until {formatPromoDate(promo.end_date)}</p>
+    </div>
+  );
+}
+
 interface PromoRowProps {
   promo: Promo;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
+  toggling?: boolean;
 }
 
-function PromoRow({ promo, onEdit, onDelete, onToggle }: PromoRowProps) {
-  const isExpired = Boolean(promo.is_expired);
+function PromoRow({ promo, onEdit, onDelete, onToggle, toggling = false }: PromoRowProps) {
   return (
-    <>
-      <tr className="min-h-[76px] transition-colors duration-150 hover:bg-green-50/40">
+      <tr className="promo-table-row transition-colors duration-150">
         <td className="min-w-[320px] px-5 py-4"><PromoDetails promo={promo} /></td>
         <td className="w-40 px-4 py-4">
           <DiscountBadge type={promo.discount_type} value={Number(promo.discount_value)} />
@@ -139,30 +216,13 @@ function PromoRow({ promo, onEdit, onDelete, onToggle }: PromoRowProps) {
           )}
         </td>
         <td className="w-44 px-4 py-4">
-          {promo.applicable_categories?.length ? (
-            <div className="flex flex-wrap gap-1.5">
-              {promo.applicable_categories.map((category) => (
-                <CategoryBadge key={category}>{category.replaceAll('-', ' ')}</CategoryBadge>
-              ))}
-            </div>
-          ) : <CategoryBadge neutral>All Categories</CategoryBadge>}
+          <ApplicableCategories promo={promo} />
         </td>
         <td className="w-44 px-4 py-4 text-sm">
-          {isExpired ? (
-            <StatusBadge active={false} expired />
-          ) : promo.end_date ? (
-            <div>
-              <p className="font-medium text-[var(--oppa-text)]">Until {formatPromoDate(promo.end_date)}</p>
-              <p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">
-                {promo.start_date ? `From ${formatPromoDate(promo.start_date)}` : 'Ongoing'}
-              </p>
-            </div>
-          ) : <span className="text-sm text-[var(--oppa-text-muted)]">No expiration</span>}
+          <PromoValidity promo={promo} />
         </td>
         <td className="w-32 px-4 py-4">
-          <button type="button" onClick={onToggle} aria-label={`${promo.is_active ? 'Deactivate' : 'Activate'} ${stripEmoji(promo.title)}`}>
-            <StatusBadge active={promo.is_active} expired={isExpired} />
-          </button>
+          <Toggle checked={promo.is_active} onChange={onToggle} label={`${promo.is_active ? 'Deactivate' : 'Activate'} ${stripEmoji(promo.title)}`} disabled={toggling} />
         </td>
         <td className="w-24 px-4 py-4">
           <div className="flex items-center justify-end gap-1">
@@ -171,12 +231,10 @@ function PromoRow({ promo, onEdit, onDelete, onToggle }: PromoRowProps) {
           </div>
         </td>
       </tr>
-    </>
   );
 }
 
-function PromoCard({ promo, onEdit, onDelete, onToggle }: PromoRowProps) {
-  const isExpired = Boolean(promo.is_expired);
+function PromoCard({ promo, onEdit, onDelete, onToggle, toggling = false }: PromoRowProps) {
   return (
     <article className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4 shadow-card">
       <div className="flex items-start justify-between gap-3">
@@ -196,23 +254,15 @@ function PromoCard({ promo, onEdit, onDelete, onToggle }: PromoRowProps) {
         </div>
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Status</p>
-          <button type="button" onClick={onToggle} aria-label={`${promo.is_active ? 'Deactivate' : 'Activate'} ${stripEmoji(promo.title)}`}>
-            <StatusBadge active={promo.is_active} expired={isExpired} />
-          </button>
+          <Toggle checked={promo.is_active} onChange={onToggle} label={`${promo.is_active ? 'Deactivate' : 'Activate'} ${stripEmoji(promo.title)}`} disabled={toggling} />
         </div>
         <div className="col-span-2">
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Applicable to</p>
-          <div className="flex flex-wrap gap-1.5">
-            {promo.applicable_categories?.length
-              ? promo.applicable_categories.map((category) => <CategoryBadge key={category}>{category.replaceAll('-', ' ')}</CategoryBadge>)
-              : <CategoryBadge neutral>All Categories</CategoryBadge>}
-          </div>
+          <ApplicableCategories promo={promo} />
         </div>
         <div className="col-span-2">
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Validity</p>
-          <p className="text-sm font-medium text-[var(--oppa-text)]">
-            {promo.end_date ? `Until ${formatPromoDate(promo.end_date)}` : 'No expiration'}
-          </p>
+          <PromoValidity promo={promo} />
           {promo.start_date && <p className="text-xs text-[var(--oppa-text-muted)]">From {formatPromoDate(promo.start_date)}</p>}
         </div>
       </div>
@@ -250,7 +300,11 @@ export default function AdminPromosPage() {
   });
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<PromoStatusFilter>('all');
+  const [channelFilter, setChannelFilter] = useState<'all' | 'online' | 'onsite'>('all');
   const [search, setSearch] = useState('');
+  const [channel, setChannel] = useState<'all' | 'online' | 'onsite'>('all');
+  const [togglingPromoIds, setTogglingPromoIds] = useState<Set<string>>(() => new Set());
+  const { showToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPromo, setEditingPromo] = useState<Promo | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -277,11 +331,19 @@ export default function AdminPromosPage() {
   const [initialStartDate, setInitialStartDate] = useState('');
   const [initialEndDate, setInitialEndDate] = useState('');
   const searchRef = useRef(search);
+  const loadRequestSequence = useRef(0);
 
   const loadPromos = useCallback(async () => {
+    const requestSequence = loadRequestSequence.current + 1;
+    loadRequestSequence.current = requestSequence;
     setLoading(true);
     try {
-      const data = await promoService.getAllPromos({ status: statusFilter, search: searchRef.current });
+      const data = await promoService.getAllPromos({
+        status: statusFilter,
+        search: searchRef.current,
+        channel: channelFilter,
+      });
+      if (requestSequence !== loadRequestSequence.current) return;
       setPromos(data);
       setPromoCounts((previous) => {
         if (statusFilter !== 'all') return { ...previous, [statusFilter]: data.length };
@@ -293,11 +355,15 @@ export default function AdminPromosPage() {
         };
       });
     } catch (error: unknown) {
-      console.error(error);
+      if (requestSequence === loadRequestSequence.current) console.error(error);
     } finally {
-      setLoading(false);
+      if (requestSequence === loadRequestSequence.current) setLoading(false);
     }
-  }, [statusFilter]);
+  }, [channelFilter, statusFilter]);
+  const loadPromosRef = useRef(loadPromos);
+  useEffect(() => {
+    loadPromosRef.current = loadPromos;
+  }, [loadPromos]);
 
   useEffect(() => {
     void Promise.resolve().then(loadPromos);
@@ -317,6 +383,7 @@ export default function AdminPromosPage() {
     setTitle('');
     setCode('');
     setDescription('');
+    setChannel('all');
     setDiscountType('percent');
     setDiscountValue(10);
     setMinOrderAmount(0);
@@ -344,6 +411,7 @@ export default function AdminPromosPage() {
     setTitle(promo.title);
     setCode(promo.code || '');
     setDescription(promo.description || '');
+    setChannel(promo.channel || 'all');
     setDiscountType(promo.discount_type);
     setDiscountValue(promo.discount_value);
     setMinOrderAmount(promo.min_order_amount ?? 0);
@@ -452,6 +520,7 @@ export default function AdminPromosPage() {
       formData.append('title', title.trim());
       if (code.trim()) formData.append('code', code.trim().toUpperCase());
       formData.append('description', description.trim());
+      formData.append('channel', channel);
       formData.append('discount_type', discountType);
       formData.append('discount_value', String(discountValue));
       formData.append('min_order_amount', String(minOrderAmount || 0));
@@ -490,23 +559,41 @@ export default function AdminPromosPage() {
   };
 
   const handleToggleActive = async (promo: Promo) => {
+    if (togglingPromoIds.has(promo.id)) return;
+    const nextActive = !promo.is_active;
+    setTogglingPromoIds((previous) => new Set(previous).add(promo.id));
+    setPromos((previous) => previous.map((item) => (
+      item.id === promo.id ? { ...item, is_active: nextActive } : item
+    )));
     try {
       const updated = await promoService.toggleActive(promo.id);
       setPromos((previous) => previous.map((item) => (
         item.id === promo.id ? { ...item, is_active: updated.is_active } : item
       )));
+      showToast(`Promo ${updated.is_active ? 'activated' : 'deactivated'}.`, 'success');
+      await loadPromosRef.current();
     } catch (error: unknown) {
-      window.alert(errorMessage(error, 'Failed to toggle promo.'));
+      setPromos((previous) => previous.map((item) => (
+        item.id === promo.id ? { ...item, is_active: promo.is_active } : item
+      )));
+      showToast(errorMessage(error, 'Failed to toggle promo.'), 'error');
+    } finally {
+      setTogglingPromoIds((previous) => {
+        const next = new Set(previous);
+        next.delete(promo.id);
+        return next;
+      });
     }
   };
 
   const filteredPromos = useMemo(() => promos.filter((promo) => {
     const query = search.trim().toLowerCase();
-    return !query
+    const matchesSearch = !query
       || promo.title.toLowerCase().includes(query)
       || Boolean(promo.code?.toLowerCase().includes(query))
       || Boolean(promo.description?.toLowerCase().includes(query));
-  }), [promos, search]);
+    return matchesSearch && (statusFilter === 'all' || statusLabel(promo) === statusFilter);
+  }), [promos, search, statusFilter]);
 
   const visiblePromos = filteredPromos;
   const endDateMin = startDate && startDate > dateTimeMin ? startDate : dateTimeMin;
@@ -545,16 +632,17 @@ export default function AdminPromosPage() {
 
   return (
     <AdminLayout>
-      <PageContainer>
+      <PageContainer compact>
         <PageHeader
           icon={LuTag}
           title="Promos & Discounts"
           subtitle="Create, schedule, and manage database-driven promotions across Customer and Cashier POS."
+          iconClassName="size-12 rounded-2xl bg-gradient-to-br from-[var(--oppa-green-soft)] to-[var(--oppa-surface)] ring-1 ring-[var(--oppa-green)]/15 shadow-sm"
           action={(
             <button
               type="button"
               onClick={openCreateModal}
-              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50 focus-visible:ring-offset-2"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:bg-[var(--oppa-green-dark)] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50 focus-visible:ring-offset-2"
             >
               <LuPlus size={18} aria-hidden="true" />
               Add New Promo
@@ -563,8 +651,8 @@ export default function AdminPromosPage() {
         />
 
         <section className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 shadow-card sm:p-4" aria-label="Promotion filters">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="-mx-1 overflow-x-auto px-1 pb-1 lg:pb-0">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="-mx-1 overflow-x-auto px-1 pb-1 xl:pb-0">
               <SegmentedControl<PromoStatusFilter>
                 value={statusFilter}
                 onChange={setStatusFilter}
@@ -576,26 +664,69 @@ export default function AdminPromosPage() {
                 ]}
               />
             </div>
-            <label className="relative block w-full min-w-[260px] lg:max-w-md lg:flex-1">
-              <span className="sr-only">Search title, code, or description</span>
-              <LuSearch size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
-              <input
-                type="search"
-                placeholder="Search title, code, or description..."
-                value={search}
-                onChange={(event) => {
-                  searchRef.current = event.target.value;
-                  setSearch(event.target.value);
-                }}
-                className="h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] pl-10 pr-4 text-sm text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)] focus-visible:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/30"
+            <div className="flex w-full flex-col gap-2 sm:flex-row xl:max-w-2xl xl:flex-1">
+              <label className="relative block min-w-0 flex-1">
+                <span className="sr-only">Search title, code, or description</span>
+                <LuSearch size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
+                <input
+                  type="text"
+                  inputMode="search"
+                  placeholder="Search title, code, or description..."
+                  value={search}
+                  onChange={(event) => {
+                    searchRef.current = event.target.value;
+                    setSearch(event.target.value);
+                  }}
+                  className="h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] pl-10 pr-10 text-sm text-[var(--oppa-text)] shadow-inner placeholder:text-[var(--oppa-text-muted)] focus-visible:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/20"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    aria-label="Clear promo search"
+                    onClick={() => {
+                      searchRef.current = '';
+                      setSearch('');
+                    }}
+                    className="absolute right-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-lg text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/40"
+                  >
+                    <LuX size={15} aria-hidden="true" />
+                  </button>
+                )}
+              </label>
+              <Select
+                aria-label="Filter promotions by channel"
+                value={channelFilter}
+                onChange={(value) => setChannelFilter(value as typeof channelFilter)}
+                icon={<LuFilter size={16} aria-hidden="true" />}
+                options={[
+                  { value: 'all', label: 'All channels' },
+                  { value: 'online', label: 'Online' },
+                  { value: 'onsite', label: 'Onsite' },
+                ]}
+                className="w-full shrink-0 sm:w-44"
               />
-            </label>
+            </div>
           </div>
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-card" aria-label="Promotions">
-          {loading && promos.length === 0 ? (
-            <div role="status" aria-label="Loading promotions" aria-busy="true" className="min-h-64" />
+          {loading ? (
+            <div role="status" aria-label="Loading promotions" aria-busy="true" className="space-y-3 p-4">
+              <div className="hidden md:block">
+                <div className="grid grid-cols-6 gap-4 rounded-xl bg-[var(--oppa-green-soft)]/60 px-5 py-3.5">
+                  {Array.from({ length: 6 }, (_, index) => <span key={index} className="h-3 animate-pulse rounded bg-[var(--oppa-text-muted)]/15" />)}
+                </div>
+                {Array.from({ length: 3 }, (_, index) => (
+                  <div key={index} className="grid min-h-24 grid-cols-6 items-center gap-4 px-5 py-5">
+                    <span className="col-span-1 h-10 animate-pulse rounded-lg bg-[var(--oppa-green-soft)]" />
+                    {Array.from({ length: 5 }, (_, cell) => <span key={cell} className="h-7 animate-pulse rounded-lg bg-[var(--oppa-cream)]" />)}
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-3 md:hidden">
+                {Array.from({ length: 3 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-2xl bg-[var(--oppa-cream)]" />)}
+              </div>
+            </div>
           ) : visiblePromos.length === 0 ? (
             <div className="flex flex-col items-center px-6 py-14 text-center">
               <span className="mb-4 grid size-14 place-items-center rounded-2xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]">
@@ -628,7 +759,7 @@ export default function AdminPromosPage() {
                     <col className="w-32" />
                     <col className="w-24" />
                   </colgroup>
-                  <thead className="bg-[var(--oppa-green-soft)]/60 text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                  <thead className="sticky top-0 z-10 bg-[var(--oppa-green-soft)]/80 text-[11px] uppercase tracking-[0.06em] text-[var(--oppa-text-muted)]">
                     <tr>
                       <th scope="col" className="px-5 py-3.5 font-semibold">Promo details</th>
                       <th scope="col" className="px-4 py-3.5 font-semibold">Discount</th>
@@ -638,11 +769,12 @@ export default function AdminPromosPage() {
                       <th scope="col" className="px-4 py-3.5 text-right font-semibold">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[var(--oppa-border)]">
+                  <tbody>
                     {visiblePromos.map((promo) => (
                       <PromoRow
                         key={promo.id}
                         promo={promo}
+                        toggling={togglingPromoIds.has(promo.id)}
                         onEdit={() => openEditModal(promo)}
                         onDelete={() => setDeleteTarget(promo)}
                         onToggle={() => void handleToggleActive(promo)}
@@ -656,6 +788,7 @@ export default function AdminPromosPage() {
                   <PromoCard
                     key={promo.id}
                     promo={promo}
+                    toggling={togglingPromoIds.has(promo.id)}
                     onEdit={() => openEditModal(promo)}
                     onDelete={() => setDeleteTarget(promo)}
                     onToggle={() => void handleToggleActive(promo)}
@@ -690,6 +823,18 @@ export default function AdminPromosPage() {
               <div className="sm:col-span-5">
                 <FieldLabel htmlFor="promo-code">Promo code (voucher)</FieldLabel>
                 <input id="promo-code" type="text" placeholder="e.g. OPPA10, WEEKEND50" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className={`${inputClass()} font-mono uppercase`} />
+              </div>
+              <div className="sm:col-span-4">
+                <Select
+                  label="Available channel"
+                  value={channel}
+                  onChange={(value) => setChannel(value as typeof channel)}
+                  options={[
+                    { value: 'all', label: 'All channels' },
+                    { value: 'online', label: 'Online' },
+                    { value: 'onsite', label: 'Onsite' },
+                  ]}
+                />
               </div>
               <div className="sm:col-span-12">
                 <FieldLabel htmlFor="promo-description">Description</FieldLabel>

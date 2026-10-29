@@ -7,6 +7,7 @@ import type { Product, ProductCategory } from '../../../types/product.types';
 import { formatCurrency } from '../../../utils/formatters';
 import { categories } from '../../../data/mockData';
 import { AvailabilitySwitch, ConfirmDialog, EmptyState, PageHeader, ProductThumbnail, RowActionsMenu, Toast } from '../components/AdminUI';
+import Select from '../../../components/ui/Select';
 
 const categoryOptions: Array<{ value: ProductCategory | 'all'; label: string }> = [
   { value: 'all', label: 'All' },
@@ -86,6 +87,7 @@ const AdminProductsPage: React.FC = () => {
   const selectAllRef = useRef<HTMLInputElement>(null);
   const mobileSelectAllRef = useRef<HTMLInputElement>(null);
   const [pendingAvailability, setPendingAvailability] = useState<string[]>([]);
+  const [bulkCategorySelectKey, setBulkCategorySelectKey] = useState(0);
 
   const isAvailable = (product: Product) => product.isAvailable ?? product.is_available;
   const isArchived = (product: Product) => archivedIds.includes(product.id);
@@ -432,10 +434,7 @@ const AdminProductsPage: React.FC = () => {
             <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setSelectedIds([]); setPage(1); }} className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${showArchived ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><Archive size={14} />{showArchived ? 'Showing archived' : `Archived (${archivedIds.length})`}</button>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
-                <label htmlFor="product-sort" className="whitespace-nowrap text-xs font-medium text-[var(--oppa-text-muted)]">Sort by</label>
-                <select id="product-sort" value={sortBy} onChange={(event) => { const value = event.target.value as typeof sortBy; setSortBy(value); setSortDirection(value === 'newest' ? 'desc' : 'asc'); setPage(1); }} className="h-9 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)] transition-all duration-200 ease-out hover:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
-                  <option value="name">Name</option><option value="price">Price</option><option value="category">Category</option><option value="newest">Newest</option>
-                </select>
+                <Select aria-label="Sort products" value={sortBy} onChange={(value) => { const sort = value as typeof sortBy; setSortBy(sort); setSortDirection(sort === 'newest' ? 'desc' : 'asc'); setPage(1); }} options={[{ value: 'name', label: 'Name' }, { value: 'price', label: 'Price' }, { value: 'category', label: 'Category' }, { value: 'newest', label: 'Newest' }]} className="w-36" />
                 <button type="button" aria-label={sortDirection === 'asc' ? 'Sort ascending' : 'Sort descending'} title={sortDirection === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc')} className="inline-flex size-9 items-center justify-center rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
                   {sortDirection === 'asc' ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
                 </button>
@@ -569,11 +568,9 @@ const AdminProductsPage: React.FC = () => {
       {!isLoading && filteredProducts.length > 0 && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--oppa-text-muted)]">
         <div className="flex items-center gap-3">
           <span>Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredProducts.length)} of {filteredProducts.length}</span>
-          <label className="flex items-center gap-2 text-xs">Rows
-            <select aria-label="Rows per page" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="h-9 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2 text-sm text-[var(--oppa-text)] transition-all duration-200 ease-out hover:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
-              <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option>
-            </select>
-          </label>
+          <div className="flex items-center gap-2 text-xs"><span>Rows</span>
+            <Select aria-label="Rows per page" value={pageSize} onChange={(value) => { setPageSize(Number(value)); setPage(1); }} options={[{ value: 10, label: '10' }, { value: 20, label: '20' }, { value: 50, label: '50' }]} className="w-24" />
+          </div>
         </div>
         <nav aria-label="Product pages" className="flex items-center gap-1">
           <button type="button" disabled={currentPage === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-[var(--oppa-text)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Prev</button>
@@ -587,10 +584,7 @@ const AdminProductsPage: React.FC = () => {
         <button type="button" disabled={!products.some((product) => selectedIds.includes(product.id) && !isAvailable(product))} onClick={() => void handleBulkAvailability(true)} className="whitespace-nowrap rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-50">Mark available</button>
         <button type="button" disabled={!products.some((product) => selectedIds.includes(product.id) && isAvailable(product))} onClick={() => void handleBulkAvailability(false)} className="whitespace-nowrap rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:cursor-not-allowed disabled:opacity-50">Mark unavailable</button>
         <label className="sr-only" htmlFor="bulk-product-category">Change category for selected products</label>
-        <select id="bulk-product-category" aria-label="Change category for selected products" defaultValue="" onChange={(event) => { if (event.target.value) void handleBulkCategory(event.target.value as ProductCategory); event.target.value = ''; }} className="h-9 max-w-36 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2 text-xs text-[var(--oppa-text)]">
-          <option value="" disabled>Change category</option>
-          {categoryOptions.filter((option) => option.value !== 'all').map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
+        <Select key={bulkCategorySelectKey} aria-label="Change category for selected products" defaultValue="" placeholder="Change category" onChange={(value) => { setBulkCategorySelectKey((key) => key + 1); void handleBulkCategory(value as ProductCategory); }} options={categoryOptions.filter((option) => option.value !== 'all')} className="w-40" />
         <button type="button" onClick={() => setConfirmBulkDelete(true)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"><Trash2 size={14} />Delete</button>
         <button type="button" aria-label="Clear product selection" onClick={() => setSelectedIds([])} className="rounded-lg p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]"><X size={16} /></button>
       </div>
@@ -652,18 +646,12 @@ const AdminProductsPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Category</label>
-                  <select
+                  <Select
+                    label="Category"
                     value={form.category}
-                    onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value as ProductCategory }))}
-                    className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
-                  >
-                    {categoryOptions.filter((option) => option.value !== 'all').map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(category) => setForm((prev) => ({ ...prev, category: category as ProductCategory }))}
+                    options={categoryOptions.filter((option) => option.value !== 'all')}
+                  />
                 </div>
               </div>
 

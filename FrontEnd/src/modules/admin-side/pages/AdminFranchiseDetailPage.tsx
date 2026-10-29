@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { ArrowLeft, Building2, Loader2, MapPin, Plus, Save, Users } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Select from '../../../components/ui/Select';
 import {
   createFranchiseManager,
   getFranchiseAdminOverview,
@@ -283,7 +284,7 @@ const AdminFranchiseDetailPage: React.FC = () => {
               <Field label="Branch name" name="name" defaultValue={branch.name} required />
               <Field label="Contact email" name="email" type="email" defaultValue={branch.email || ''} />
               <Field label="Phone" name="phone" defaultValue={branch.phone || ''} />
-              <label className="text-sm font-medium text-gray-700">Status<select name="status" defaultValue={branch.status || 'active'} className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 font-normal"><option value="active">Active</option><option value="pending">Pending</option><option value="inactive">Inactive</option></select></label>
+              <Select label="Status" name="status" defaultValue={branch.status || 'active'} options={[{ value: 'active', label: 'Active' }, { value: 'pending', label: 'Pending' }, { value: 'inactive', label: 'Inactive' }]} />
               <label className="text-sm font-medium text-gray-700 sm:col-span-2">Address<textarea name="address" value={branchAddress} onChange={(event) => { setBranchAddress(event.target.value); setBranchCoordinatesEdited(false); setBranchCoordinates({ latitude: '', longitude: '' }); }} rows={3} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 font-normal" /></label>
               <div className="sm:col-span-2 rounded-xl border border-[var(--oppa-border)] p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Branch delivery location</h3><p className="text-xs text-gray-500">Location status: {branch.location_status === 'needs_location' ? 'Needs location' : branch.location_status === 'manual' ? 'Manually set' : branch.location_status === 'geocoded' ? 'Geocoded estimate' : 'Not recorded'}</p>{branch.location_status === 'geocoded' && <p className="text-xs text-gray-500">Location is estimated from the address. Adjust the pin if needed.</p>}</div><div className="flex flex-wrap gap-2">{(!branch.latitude || !branch.longitude) && <button type="button" onClick={() => void geocodeAndSaveBranchCoordinates()} disabled={saving} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)] disabled:opacity-50">Re-detect from address</button>}<button type="button" onClick={() => setShowBranchLocationPicker(true)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green)]"><MapPin size={15} />Pin on map</button></div></div>

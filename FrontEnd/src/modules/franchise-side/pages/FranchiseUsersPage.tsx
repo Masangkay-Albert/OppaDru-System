@@ -7,6 +7,7 @@ import { useToast } from '../../customer-side/components/ToastProvider';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
+import Select from '../../../components/ui/Select';
 
 interface BranchUser {
   id: string;
@@ -225,11 +226,7 @@ const FranchiseUsersPage: React.FC = () => {
           <Search size={17} aria-hidden="true" />
           <input aria-label="Search branch users by name or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email..." className="admin-embedded-input w-full text-sm" />
         </label>
-        <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]">
-          Position<select aria-label="Filter branch users by position" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} className="admin-embedded-input max-w-40 font-medium text-[var(--oppa-text)]">
-            {positionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>
+        <Select<string> aria-label="Filter branch users by position" value={positionFilter} onChange={setPositionFilter} options={positionOptions} className="w-full sm:w-48" />
       </div>
 
       <DataTable
@@ -274,12 +271,8 @@ const FranchiseUsersPage: React.FC = () => {
         }} className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl">
           <h2 id="edit-role-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">Edit staff role</h2>
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Choose a position for {editingRoleUser.name}.</p>
-          <label htmlFor="branch-user-role" className="mt-5 block text-sm font-medium text-[var(--oppa-text)]">Position</label>
           <div className="mt-2"><RoleBadge role={roleDraft} /></div>
-          <select id="branch-user-role" autoFocus value={roleDraft} onChange={(event) => setRoleDraft(event.target.value)} disabled={savingRole} className="mt-1 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]">
-            <option value="cashier">Cashier</option>
-            <option value="kitchen_staff">Kitchen Staff</option>
-          </select>
+          <Select<string> id="branch-user-role" label="Position" autoFocus value={roleDraft} onChange={setRoleDraft} disabled={savingRole} options={[{ value: 'cashier', label: 'Cashier' }, { value: 'kitchen_staff', label: 'Kitchen Staff' }]} className="mt-5" />
           <div className="mt-6 flex justify-end gap-2">
             <button type="button" onClick={() => setEditingRoleUser(null)} disabled={savingRole} className="franchise-button-secondary">Cancel</button>
             <button type="button" onClick={() => void updateEmployeeRole(editingRoleUser, roleDraft)} disabled={savingRole || roleDraft === editingRoleUser.role} className="franchise-button-primary">{savingRole ? 'Saving…' : 'Save role'}</button>

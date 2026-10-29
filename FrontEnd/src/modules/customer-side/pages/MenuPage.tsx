@@ -16,6 +16,7 @@ import { LuStore } from 'react-icons/lu';
 import foodpandaLogo from '../../../assets/foodpanda.png';
 import '../../../styles/global.css';
 import { productService } from '../../../services/productService';
+import Select from '../../../components/ui/Select';
 import { getActiveBranches, getSelectedBranchId, setSelectedBranchId } from '../../../services/franchiseBranchService';
 import type { FranchiseBranch } from '../../../services/franchiseBranchService';
 import '../../../styles/menu-design.css';
@@ -232,21 +233,16 @@ const MenuPage: React.FC = () => {
                   : 'Franchise branch'}
               </span>
             </div>
-            <select
+            <Select
               id="customer-branch"
+              aria-label="Choose a branch"
               value={selectedBranchId || ''}
-              onChange={(event) => handleBranchChange(event.target.value)}
-              className="menu-branch-select w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-800 focus:border-[#1C3D2E] focus:outline-none focus:ring-2 focus:ring-[#1C3D2E]/10 sm:max-w-xl"
-            >
-              {branches.length === 0 && (
-                <option value="" disabled>
-                  {branchesLoaded ? 'No active branches available' : 'Loading branches...'}
-                </option>
-              )}
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name}{branch.address ? `, ${branch.address}` : ''}</option>
-              ))}
-            </select>
+              onChange={handleBranchChange}
+              disabled={branches.length === 0}
+              placeholder={branchesLoaded ? 'No active branches available' : 'Loading branches...'}
+              options={branches.map((branch) => ({ value: branch.id, label: `${branch.name}${branch.address ? `, ${branch.address}` : ''}` }))}
+              className="w-full sm:max-w-xl"
+            />
             {branchError && <p className="mt-2 text-sm text-red-600">{branchError}</p>}
           </section>
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BriefcaseBusiness, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, User, X } from 'lucide-react';
+import Select from '../../../components/ui/Select';
 
 export type AccountCreationMode = 'admin' | 'employee' | 'branch-staff';
 
@@ -238,43 +239,36 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
           )}
           {(mode === 'employee' || isBranchStaff) && (
             <div>
-              <label htmlFor="account-position" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">
-                Position
-              </label>
-              <div className="relative">
-                <BriefcaseBusiness size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
-                <select
-                  id="account-position"
-                  name="position"
-                  value={form.position || 'cashier'}
-                  onChange={(event) => updateField('position', event.target.value)}
-                  className={`${fieldClass} appearance-none pl-10`}
-                  aria-invalid={Boolean(errors.position)}
-                >
-                  <option value="cashier">Cashier</option>
-                  <option value={isBranchStaff ? 'kitchen_staff' : 'kitchen staff'}>Kitchen Staff</option>
-                  {isBranchStaff && <option value="driver">Driver</option>}
-                </select>
-              </div>
+              <Select
+                id="account-position"
+                name="position"
+                label="Position"
+                icon={<BriefcaseBusiness size={16} aria-hidden="true" />}
+                value={form.position || 'cashier'}
+                onChange={(position) => updateField('position', position)}
+                error={errors.position}
+                options={[
+                  { value: 'cashier', label: 'Cashier' },
+                  { value: isBranchStaff ? 'kitchen_staff' : 'kitchen staff', label: 'Kitchen Staff' },
+                  ...(isBranchStaff ? [{ value: 'driver', label: 'Driver' }] : []),
+                ]}
+              />
               {positionPreview && <div className="mt-2">{positionPreview(form.position || 'cashier')}</div>}
               {errors.position && <p className={errorClass}>{errors.position}</p>}
             </div>
           )}
           {isBranchStaff && form.position === 'driver' && (
             <div>
-              <label htmlFor="account-vehicle-type" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">Vehicle type</label>
-              <select
+              <Select
                 id="account-vehicle-type"
                 name="vehicle_type"
+                label="Vehicle type"
+                placeholder="Select vehicle type"
                 value={form.vehicle_type || ''}
-                onChange={(event) => updateField('vehicle_type', event.target.value)}
-                className={fieldClass.replace('pl-10', 'pl-3')}
-                aria-invalid={Boolean(errors.vehicle_type)}
-              >
-                <option value="" disabled>Select vehicle type</option>
-                <option value="motorcycle">Motor</option>
-                <option value="bike">Bike</option>
-              </select>
+                onChange={(vehicleType) => updateField('vehicle_type', vehicleType)}
+                error={errors.vehicle_type}
+                options={[{ value: 'motorcycle', label: 'Motor' }, { value: 'bike', label: 'Bike' }]}
+              />
               {errors.vehicle_type && <p className={errorClass}>{errors.vehicle_type}</p>}
             </div>
           )}

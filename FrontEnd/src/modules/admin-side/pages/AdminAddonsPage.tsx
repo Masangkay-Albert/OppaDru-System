@@ -7,6 +7,7 @@ import type { AddonGroup } from '../../../types/product.types';
 import { categories } from '../../../data/mockData';
 import { getAddonImage } from '../../../data/productImages';
 import { formatCurrency } from '../../../utils/formatters';
+import Select from '../../../components/ui/Select';
 
 type AddonDraft = {
   name: string;
@@ -311,7 +312,7 @@ const AdminAddonsPage: React.FC = () => {
                     {draftGroup && <div className="mt-4 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/50 p-4">
                       <div className="flex flex-col gap-3 sm:flex-row">
                         <input aria-label="Edit group name" value={draftGroup.name} onChange={(event) => setEditingGroups({ ...editingGroups, [group.id]: { ...draftGroup, name: event.target.value } })} className="h-10 min-w-0 flex-1 rounded-lg border border-[var(--oppa-border)] px-3 text-sm" />
-                        <select aria-label="Selection type" value={draftGroup.selection_type} onChange={(event) => setEditingGroups({ ...editingGroups, [group.id]: { ...draftGroup, selection_type: event.target.value as 'single' | 'multiple' } })} className="h-10 rounded-lg border border-[var(--oppa-border)] px-3 text-sm"><option value="single">Single selection</option><option value="multiple">Multiple selection</option></select>
+                        <Select aria-label="Selection type" value={draftGroup.selection_type} onChange={(selection_type) => setEditingGroups({ ...editingGroups, [group.id]: { ...draftGroup, selection_type } })} options={[{ value: 'single', label: 'Single selection' }, { value: 'multiple', label: 'Multiple selection' }]} />
                         <button type="button" onClick={() => void saveGroup(group.id)} disabled={!draftGroup.name.trim() || draftGroup.categories.length === 0} className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Save</button>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">{editableCategories.map((category) => <button type="button" aria-pressed={draftGroup.categories.includes(category.id)} key={category.id} onClick={() => toggleGroupCategory(group.id, category.id)} className={`rounded-full border px-2.5 py-1 text-xs ${draftGroup.categories.includes(category.id) ? 'border-green-700 bg-green-700 text-white' : 'border-[var(--oppa-border)] bg-white text-[var(--oppa-text)]'}`}>{category.name}</button>)}</div>

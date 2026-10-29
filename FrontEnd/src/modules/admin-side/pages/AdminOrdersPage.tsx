@@ -7,6 +7,7 @@ import { AdminDate, Avatar, EmptyState, PageHeader, StatusBadge, Toast } from '.
 import { getAllOrders, markOrderServed, type AdminOrder } from '../../../services/adminOrderService';
 import { formatCurrency } from '../../../utils/formatters';
 import { getScheduledOrderDetails } from '../../../utils/orderUtils';
+import Select from '../../../components/ui/Select';
 
 const statusLabels: Record<string, string> = {
   pending: 'Pending',
@@ -263,7 +264,7 @@ const AdminOrdersPage: React.FC = () => {
       <div className="mb-4 space-y-2">
         <div className="flex flex-col gap-2 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 shadow-sm sm:flex-row">
           <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={16} /><input aria-label="Search orders by ID, customer, or email" value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setCurrentPage(1); }} placeholder="Search order ID, customer, email…" className="admin-embedded-input min-w-0 w-full text-sm text-[var(--oppa-text)]" /></label>
-          <select aria-label="Filter by channel" value={channelFilter} onChange={(event) => { setChannelFilter(event.target.value as 'all' | 'online' | 'onsite'); setCurrentPage(1); }} className="h-11 min-w-36 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]"><option value="all">All channels</option><option value="online">Online</option><option value="onsite">Onsite</option></select>
+          <Select aria-label="Filter by channel" value={channelFilter} onChange={(value) => { setChannelFilter(value as 'all' | 'online' | 'onsite'); setCurrentPage(1); }} options={[{ value: 'all', label: 'All channels' }, { value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} className="min-w-36" />
           <input aria-label="Filter by exact date" type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setCurrentPage(1); }} className="h-11 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" />
         </div>
         {(searchTerm || dateFilter) && <div className="flex flex-wrap gap-2 text-xs">{searchTerm && <span className="rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 text-[var(--oppa-green-dark)]">Search: {searchTerm}</span>}{dateFilter && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-800">Date: {dateFilter}</span>}</div>}
@@ -392,7 +393,7 @@ const AdminOrdersPage: React.FC = () => {
           </div>
           <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--oppa-border)] px-4 py-3 text-xs text-[var(--oppa-text-muted)]">
             <span>Showing <strong className="tabular-nums text-[var(--oppa-text)]">{filteredOrders.length ? (currentPage - 1) * rowsPerPage + 1 : 0}-{Math.min(currentPage * rowsPerPage, filteredOrders.length)}</strong> of <strong className="tabular-nums text-[var(--oppa-text)]">{filteredOrders.length}</strong></span>
-            <div className="flex items-center gap-2"><label htmlFor="orders-page-size">Rows</label><select id="orders-page-size" value={rowsPerPage} onChange={(event) => { setRowsPerPage(Number(event.target.value)); setCurrentPage(1); }} className="h-8 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2"><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select>
+            <div className="flex items-center gap-2"><span>Rows</span><Select aria-label="Orders per page" value={rowsPerPage} onChange={(value) => { setRowsPerPage(Number(value)); setCurrentPage(1); }} options={[{ value: 10, label: '10' }, { value: 20, label: '20' }, { value: 50, label: '50' }]} className="w-24" />
               <button type="button" disabled={currentPage <= 1} onClick={() => setCurrentPage((page) => page - 1)} className="rounded-lg border border-[var(--oppa-border)] px-2.5 py-1.5 disabled:opacity-40">Prev</button><span className="tabular-nums">{currentPage} / {pageCount}</span><button type="button" disabled={currentPage >= pageCount} onClick={() => setCurrentPage((page) => page + 1)} className="rounded-lg border border-[var(--oppa-border)] px-2.5 py-1.5 disabled:opacity-40">Next</button>
             </div>
           </footer>

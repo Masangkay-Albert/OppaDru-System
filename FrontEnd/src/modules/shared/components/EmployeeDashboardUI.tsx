@@ -1,6 +1,7 @@
 import React from 'react';
-import { ArrowDownUp, ChefHat, ChevronDown, ClipboardList, LogOut, Store, Truck, UserRound } from 'lucide-react';
+import { ArrowDownUp, ChefHat, ClipboardList, LogOut, Store, Truck, UserRound } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import Select from '../../../components/ui/Select';
 
 export type EmployeeDashboardRole = 'kitchen' | 'driver';
 
@@ -150,21 +151,11 @@ export const EmployeeDashboardSort = <T extends string>({
   options: Array<{ value: T; label: string }>;
   ariaLabel: string;
 }) => (
-  <label className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)] shadow-sm transition-all duration-200 ease-out focus-within:ring-2 focus-within:ring-green-500/40 focus-within:ring-offset-2">
+  <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-1.5 text-sm text-[var(--oppa-text-muted)] shadow-sm transition-all duration-200 ease-out focus-within:ring-2 focus-within:ring-green-500/40 focus-within:ring-offset-2">
     <ArrowDownUp size={15} className="shrink-0 text-[var(--oppa-green)]" aria-hidden="true" />
     <span className="whitespace-nowrap font-medium">Sort by:</span>
-    <span className="relative inline-flex min-w-0 items-center">
-      <select
-        aria-label={ariaLabel}
-        value={value}
-        onChange={(event) => onChange(event.target.value as T)}
-        className="min-w-0 cursor-pointer appearance-none bg-transparent py-1 pr-5 font-semibold text-[var(--oppa-text)] outline-none"
-      >
-        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-      <ChevronDown size={14} className="pointer-events-none absolute right-0 text-[var(--oppa-text-muted)]" aria-hidden="true" />
-    </span>
-  </label>
+    <Select aria-label={ariaLabel} value={value} onChange={(nextValue) => onChange(nextValue as T)} options={options} className="min-w-[140px]" />
+  </div>
 );
 
 export const EmployeeDashboardEmptyState: React.FC<{

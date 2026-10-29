@@ -3,6 +3,7 @@ import { PlusIcon, XIcon, PhoneIcon, MailIcon, ChefHat } from "lucide-react";
 import { addKitchenService } from "../../../services/addKitchenService";
 import type { KitchenEmployee } from "../../../types/kitchen.type";
 import AdminLayout from '../components/AdminLayout';
+import Select from '../../../components/ui/Select';
 
 export default function AdminKitchenPage() {
   const [employees, setEmployees] = useState<KitchenEmployee[]>([]);
@@ -82,13 +83,7 @@ export default function AdminKitchenPage() {
                 <input type="email" placeholder="Email" required value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)]" />
                 <input type="password" placeholder="Password" required value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)]" />
                 
-                <select required value={form.role} onChange={(e) => setForm({...form, role: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)] bg-white">
-                  <option value="" disabled>Select Role</option>
-                  <option value="head chef">Head Chef</option>
-                  <option value="line cook">Line Cook</option>
-                  <option value="prep cook">Prep Cook</option>
-                  <option value="dishwasher">Dishwasher</option>
-                </select>
+                <Select aria-label="Kitchen role" required placeholder="Select Role" value={form.role} onChange={(role) => setForm({ ...form, role })} options={[{ value: 'head chef', label: 'Head Chef' }, { value: 'line cook', label: 'Line Cook' }, { value: 'prep cook', label: 'Prep Cook' }, { value: 'dishwasher', label: 'Dishwasher' }]} />
                 
                 <input type="number" placeholder="Phone Number" required value={form.phone} onChange={(e) => setForm({...form, phone: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)]" />
                 

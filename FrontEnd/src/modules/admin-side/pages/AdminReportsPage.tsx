@@ -8,6 +8,7 @@ import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } f
 import { formatCurrency } from '../../../utils/formatters';
 import { generateSalesReportPdf } from '../../../utils/reportPdfGenerator';
 import { EmptyState, PageHeader, Toast } from '../components/AdminUI';
+import Select from '../../../components/ui/Select';
 
 type ReportRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
 type QuickRange = 'custom' | 'today' | '7days' | '30days' | 'month' | 'year';
@@ -559,12 +560,7 @@ const MetricCard = ({ icon, label, value, detail }: { icon: React.ReactNode; lab
 const formatCompactPeso = (amount: number) => formatCurrency(amount);
 
 const FilterSelect = ({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) => (
-  <label className="text-xs font-medium text-[var(--oppa-text-muted)]">
-    {label}
-    <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 block h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2 text-sm font-normal text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)]">
-      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </select>
-  </label>
+  <Select label={label} value={value} onChange={onChange} options={options} />
 );
 
 interface GoalCardProps {

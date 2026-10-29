@@ -6,6 +6,7 @@ import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
 import { AdminDate, PageHeader, StatusBadge } from '../../admin-side/components/AdminUI';
+import Select from '../../../components/ui/Select';
 
 interface OrderItem {
   id?: string;
@@ -207,7 +208,7 @@ const FranchiseOrdersPage: React.FC = () => {
               <Search size={16} aria-hidden="true" />
               <input aria-label="Search orders by ID, customer, or email" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order ID, customer, email..." className="admin-embedded-input min-w-0 w-full text-sm placeholder:text-[var(--oppa-text-muted)]" />
             </label>
-            <select aria-label="Filter by channel" value={channel} onChange={(event) => setChannel(event.target.value as ChannelFilter)} className="h-11 min-w-36 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]"><option value="all">All channels</option><option value="online">Online</option><option value="onsite">Onsite</option></select>
+            <Select aria-label="Filter by channel" value={channel} onChange={(value) => setChannel(value as ChannelFilter)} options={[{ value: 'all', label: 'All channels' }, { value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} className="min-w-36" />
             <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]"><span className="whitespace-nowrap">Date</span><input aria-label="Filter by date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-[145px] border-0 bg-transparent p-0 text-[var(--oppa-text)] outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0" /></label>
             {hasFilters && <button type="button" onClick={clearFilters} className="h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">Clear filters</button>}
           </div>

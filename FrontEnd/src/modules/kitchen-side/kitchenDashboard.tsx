@@ -17,6 +17,7 @@ import KitchenLayout from './components/kitchenLayout';
 import OrderDetailsModal from './components/OrderDetailsModal';
 import type { KitchenOrder, KitchenSort, KitchenTab, ScheduledDateFilter } from './kitchenOrderTypes';
 import { formatKitchenManilaDateTime, getKitchenScheduleState } from './kitchenSchedule';
+import Select from '../../components/ui/Select';
 
 const chipBase = 'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition whitespace-nowrap';
 const chipPrimary = `${chipBase} bg-[var(--oppa-green)] text-white shadow-sm hover:bg-[#245f37] disabled:cursor-not-allowed disabled:opacity-50`;
@@ -312,11 +313,7 @@ const KitchenDashboardPage: React.FC = () => {
         <div className="admin-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {activeTab === 'scheduled' && (
             <>
-              <select aria-label="Filter scheduled orders by date" value={scheduledDateFilter}
-                onChange={(event) => setScheduledDateFilter(event.target.value as ScheduledDateFilter)}
-                className="h-10 shrink-0 rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm font-medium text-[var(--oppa-text)] transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
-                <option value="all">All dates</option><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="week">This Week</option><option value="custom">Custom</option>
-              </select>
+              <Select aria-label="Filter scheduled orders by date" value={scheduledDateFilter} onChange={(value) => setScheduledDateFilter(value as ScheduledDateFilter)} options={[{ value: 'all', label: 'All dates' }, { value: 'today', label: 'Today' }, { value: 'tomorrow', label: 'Tomorrow' }, { value: 'week', label: 'This Week' }, { value: 'custom', label: 'Custom' }]} className="shrink-0" />
               {scheduledDateFilter === 'custom' && <input aria-label="Choose scheduled date" type="date" value={customDate} onChange={(event) => setCustomDate(event.target.value)} className="h-10 shrink-0 rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2" />}
             </>
           )}

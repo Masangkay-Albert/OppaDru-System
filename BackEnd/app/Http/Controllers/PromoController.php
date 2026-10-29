@@ -31,6 +31,10 @@ class PromoController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
+        $request->validate([
+            'channel' => 'sometimes|in:all,online,onsite',
+        ]);
+
         $query = Promo::query();
 
         if ($request->filled('status')) {
@@ -49,6 +53,10 @@ class PromoController extends Controller
             } elseif ($status === 'expired') {
                 $query->where('end_date', '<', $now);
             }
+        }
+
+        if ($request->filled('channel') && $request->channel !== 'all') {
+            $query->where('channel', $request->channel);
         }
 
         if ($request->filled('search')) {
@@ -77,6 +85,7 @@ class PromoController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'code' => 'nullable|string|max:50|unique:promos,code',
+            'channel' => 'sometimes|in:all,online,onsite',
             'discount_type' => 'required|in:percent,fixed',
             'discount_value' => 'required|numeric|min:0.01',
             'start_date' => 'nullable|date',
@@ -95,6 +104,7 @@ class PromoController extends Controller
         }
 
         $data = $validator->validated();
+        $data['channel'] = $data['channel'] ?? 'all';
         $data['is_active'] = $request->boolean('is_active', true);
 
         if ($request->hasFile('image')) {
@@ -131,6 +141,7 @@ class PromoController extends Controller
             'title' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
             'code' => 'nullable|string|max:50|unique:promos,code,' . $promo->id . ',id',
+            'channel' => 'sometimes|required|in:all,online,onsite',
             'discount_type' => 'sometimes|required|in:percent,fixed',
             'discount_value' => 'sometimes|required|numeric|min:0.01',
             'start_date' => 'nullable|date',
@@ -308,6 +319,7 @@ class PromoController extends Controller
             'code' => $promo->code,
             'title' => $promo->title,
             'description' => $promo->description,
+            'channel' => $promo->channel ?? 'all',
             'discount_type' => $promo->discount_type,
             'discount_value' => (float) $promo->discount_value,
             'start_date' => $promo->start_date?->toISOString(),
@@ -341,4 +353,3 @@ class PromoController extends Controller
         }
     }
 }
-

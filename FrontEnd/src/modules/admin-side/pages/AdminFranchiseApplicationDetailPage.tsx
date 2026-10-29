@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, ChevronDown, Download, Eye, FileText, Loader2, MapPin, MoreHorizontal, Plus, Save, Upload, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import Select from '../../../components/ui/Select';
 import { ConfirmDialog } from '../components/AdminUI';
 import {
   approveFranchiseApplication,
@@ -357,11 +358,10 @@ const FranchiseRequirementsForm: React.FC<{
             return <article key={`${index}-${document.category || 'other'}`} className="overflow-visible rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-3 sm:p-4">
               <header className="flex flex-col gap-3 lg:flex-row lg:items-center">
                 <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(170px,.7fr)_minmax(200px,1.3fr)]">
-                  <label className="sr-only" htmlFor={`${templateInputId}-category`}>Requirement category</label>
-                  <select id={`${templateInputId}-category`} value={document.category || ''} disabled={saving} onChange={(event) => changeCategory(index, event.target.value)} className="min-h-10 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">
-                    {document.category && !requirementCategories.some(([value]) => value === document.category) && <option value={document.category}>Legacy category</option>}
-                    {requirementCategories.map(([value, label]) => <option key={`${value}-${label}`} value={value}>{label}</option>)}
-                  </select>
+                  <Select id={`${templateInputId}-category`} label="Requirement category" value={document.category || ''} disabled={saving} onChange={(value) => changeCategory(index, value)} options={[
+                    ...(document.category && !requirementCategories.some(([value]) => value === document.category) ? [{ value: document.category, label: 'Legacy category' }] : []),
+                    ...requirementCategories.map(([value, label]) => ({ value, label })),
+                  ]} />
                   <div className="min-w-0">
                     <label className="sr-only" htmlFor={nameInputId}>Requirement name</label>
                     <input id={nameInputId} ref={(element) => { nameInputs.current[index] = element; }} value={document.label} onChange={(event) => {
@@ -379,10 +379,7 @@ const FranchiseRequirementsForm: React.FC<{
                     <input type="checkbox" role="switch" aria-label={`${document.label || 'Requirement'} is required`} checked={document.required} disabled={saving} onChange={(event) => updateDocument(index, { required: event.target.checked })} className="size-4 accent-[var(--oppa-green)]" />
                     Required
                   </label>
-                  <label className="sr-only" htmlFor={`${templateInputId}-status`}>Document status</label>
-                  <select id={`${templateInputId}-status`} value={document.status} disabled={saving} onChange={(event) => setDocumentStatus(index, event.target.value)} className="min-h-9 rounded-lg border border-[var(--oppa-border)] bg-white px-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">
-                    <option value="pending">Pending</option><option value="submitted">Submitted</option><option value="received">Under review</option><option value="verified">Verified</option><option value="rejected">Rejected</option><option value="not_applicable">Not applicable</option>
-                  </select>
+                  <Select id={`${templateInputId}-status`} aria-label="Document status" value={document.status} disabled={saving} onChange={(value) => setDocumentStatus(index, value)} options={[{ value: 'pending', label: 'Pending' }, { value: 'submitted', label: 'Submitted' }, { value: 'received', label: 'Under review' }, { value: 'verified', label: 'Verified' }, { value: 'rejected', label: 'Rejected' }, { value: 'not_applicable', label: 'Not applicable' }]} className="min-w-40" />
                   <div className="relative">
                     <button type="button" aria-label="Requirement actions" aria-haspopup="menu" aria-expanded={openMenu === index} onClick={() => setOpenMenu(openMenu === index ? null : index)} className="inline-flex size-9 items-center justify-center rounded-lg border border-[var(--oppa-border)] bg-white text-[var(--oppa-text)] hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]"><MoreHorizontal size={18} /></button>
                     {openMenu === index && <div role="menu" className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-[var(--oppa-border)] bg-white p-1 shadow-lg">
@@ -840,7 +837,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             <div className="space-y-5"><form noValidate onChange={() => { formDirty.current = true; }} onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
               <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Review and verify the requested documents, then approve to activate dashboard access. Agreement, fee, and opening setup can be completed separately.</p></div>
               {error && application && <InlineMessage variant="error" message={error} />}
-              <label className="block text-sm font-medium">Application status<select value={status} onChange={(event) => setStatus(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm">{[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => <option key={option} value={option}>{statusTitle(option)}</option>)}</select></label>
+              <Select<string> label="Application status" required value={status} onChange={setStatus} options={[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => ({ value: option, label: statusTitle(option) }))} />
               {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview is completed, select Location Assessment. This begins the combined final stage (site inspection, financial evaluation, and agreement). Add the required-document checklist in the panel below. A blank form is optional; saving the requirements automatically opens the applicant's upload area.</p>}
               {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Request and review any needed documents in the panel below. Once the requested documents are verified, approve the application to activate dashboard access.</p>}
               {application.status === 'approved' && (application.franchise_id
@@ -859,7 +856,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                 <h3 className="mb-3 text-sm font-semibold">Interview record (Philippine time)</h3>
                 <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Date and time<input type="datetime-local" min={minimumInterviewAt} value={interviewAt} onChange={(event) => setInterviewAt(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
                 <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Past dates and times are unavailable. Choose today or a future date.</p>
-                <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Interview type<select value={interviewType} onChange={(event) => setInterviewType(event.target.value as 'online' | 'onsite')} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]"><option value="online">Online</option><option value="onsite">Onsite</option></select></label>
+                <Select label="Interview type" value={interviewType} onChange={(value) => setInterviewType(value as 'online' | 'onsite')} options={[{ value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} />
                 {interviewType === 'online' ? <>
                   <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Online meeting link<input type="url" maxLength={2048} value={interviewMeetingUrl} onChange={(event) => setInterviewMeetingUrl(event.target.value)} placeholder="https://meet.google.com/… or https://zoom.us/…" className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
                   <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">This link will be shared with the franchisee in their application portal.</p>

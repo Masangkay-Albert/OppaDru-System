@@ -5,7 +5,6 @@ import {
   Calendar,
   Check,
   CheckCircle2,
-  ChevronDown,
   Clock,
   Copy,
   ExternalLink,
@@ -43,6 +42,7 @@ import {
   PageHeader,
   Toast,
 } from '../components/AdminUI';
+import Select from '../../../components/ui/Select';
 import { announcementService } from '../../../services/announcementService';
 import type {
   Announcement,
@@ -581,33 +581,23 @@ Oppa Dru Korean Fried Chicken
             </div>
 
             {/* Status Filter */}
-            <div className="relative min-w-0 lg:w-[170px] lg:shrink-0">
-              <select
+            <div className="min-w-0 lg:w-[170px] lg:shrink-0">
+              <Select<string>
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="admin-select h-[42px] w-full appearance-none rounded-xl pr-9 text-sm"
+                onChange={setStatusFilter}
+                options={[{ value: 'all', label: 'All Statuses' }, { value: 'published', label: 'Published / Sent' }, { value: 'scheduled', label: 'Scheduled' }, { value: 'draft', label: 'Drafts' }]}
                 aria-label="Filter by announcement status"
-              >
-                <option value="all">All Statuses</option>
-                <option value="published">Published / Sent</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="draft">Drafts</option>
-              </select>
-              <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
+              />
             </div>
 
             {/* Sort Order */}
-            <div className="relative min-w-0 lg:w-[170px] lg:shrink-0">
-              <select
+            <div className="min-w-0 lg:w-[170px] lg:shrink-0">
+              <Select
                 value={sortDirection}
-                onChange={(e) => setSortDirection(e.target.value as 'asc' | 'desc')}
-                className="admin-select h-[42px] w-full appearance-none rounded-xl pr-9 text-sm"
+                onChange={(value) => setSortDirection(value as 'asc' | 'desc')}
+                options={[{ value: 'desc', label: 'Newest Sent' }, { value: 'asc', label: 'Oldest Sent' }]}
                 aria-label="Sort order"
-              >
-                <option value="desc">Newest Sent</option>
-                <option value="asc">Oldest Sent</option>
-              </select>
-              <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
+              />
             </div>
           </div>
 
@@ -932,20 +922,12 @@ Oppa Dru Korean Fried Chicken
                         Priority Tag
                       </label>
                       <div className="relative">
-                        <select
-                          id="announcement-priority"
+                        <Select
+                          label="Priority Tag"
                           value={formData.priority}
-                          onChange={(e) =>
-                            setFormData({ ...formData, priority: e.target.value as AnnouncementPriority })
-                          }
-                          className="admin-select h-11 w-full appearance-none rounded-xl px-3 pr-9 text-base sm:text-sm"
-                        >
-                          <option value="normal">Standard / General</option>
-                          <option value="promo">Special Promo</option>
-                          <option value="high">High Priority</option>
-                          <option value="urgent">Urgent Alert</option>
-                        </select>
-                        <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
+                          onChange={(priority) => setFormData({ ...formData, priority: priority as AnnouncementPriority })}
+                          options={[{ value: 'normal', label: 'Standard / General' }, { value: 'promo', label: 'Special Promo' }, { value: 'high', label: 'High Priority' }, { value: 'urgent', label: 'Urgent Alert' }]}
+                        />
                       </div>
                     </div>
                   </div>

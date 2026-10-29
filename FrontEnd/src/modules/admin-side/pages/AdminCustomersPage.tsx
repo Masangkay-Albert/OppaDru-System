@@ -7,6 +7,7 @@ import { getAccountsByRole, resetAccountPassword, deleteAccount, fetchWithAdminA
 import { getAllCustomers } from '../../../services/adminOrderService';
 import { API_URL } from '../../../services/apiConfig';
 import { formatCurrency } from '../../../utils/formatters';
+import Select from '../../../components/ui/Select';
 
 interface CustomerWithStats extends StoredAccount {
   order_count?: number;
@@ -101,7 +102,7 @@ const AdminCustomersPage: React.FC = () => {
       <PageHeader title="Registered Customers" subtitle="View accounts and manage customer passwords." actions={<div className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2"><Users size={16} className="text-[var(--oppa-green)]" /><span className="text-sm font-semibold text-[var(--oppa-text)]">{customers.length} customers</span></div>} />
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
         <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]"><Search size={17} aria-hidden="true" /><input aria-label="Search customers by name or email" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search customers…" className="admin-embedded-input w-full text-sm" /></label>
-        <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]">Sort by<select aria-label="Sort customers" value={sortBy} onChange={(event) => { setSortBy(event.target.value as typeof sortBy); setPage(1); }} className="admin-embedded-input max-w-32 font-medium text-[var(--oppa-text)]"><option value="spent">Total spent</option><option value="orders">Orders</option><option value="registered">Registered</option></select></label>
+        <div className="flex shrink-0 items-center gap-2 text-sm text-[var(--oppa-text-muted)]"><span>Sort by</span><Select aria-label="Sort customers" value={sortBy} onChange={(value) => { setSortBy(value as typeof sortBy); setPage(1); }} options={[{ value: 'spent', label: 'Total spent' }, { value: 'orders', label: 'Orders' }, { value: 'registered', label: 'Registered' }]} className="w-40" /></div>
       </div>
       {notice && <Toast message={notice} tone={notice.toLowerCase().includes('failed') ? 'error' : 'success'} onDismiss={() => setNotice('')} />}
       <DataTable

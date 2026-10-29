@@ -5,6 +5,7 @@ import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
 import StatCard from '../../admin-side/components/StatCard';
 import { PageHeader } from '../../admin-side/components/AdminUI';
+import Select from '../../../components/ui/Select';
 
 interface InventoryItem {
   id: string;
@@ -106,8 +107,8 @@ const FranchiseInventoryPage: React.FC = () => {
             <div className="border-b border-[var(--oppa-border)] px-4 py-4 sm:px-5"><h2 className="font-semibold text-[var(--oppa-text)]">Stock and availability</h2><p className="mt-1 text-xs text-gray-500">Set a quantity to start branch-level stock tracking.</p></div>
             <div className="grid gap-3 border-b border-[var(--oppa-border)] p-4 md:grid-cols-[1fr_220px_200px]">
               <label className="franchise-search-field relative flex h-11 items-center rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)]"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search inventory" className="admin-embedded-input w-full py-2.5 pl-10 pr-3 text-sm" /></label>
-              <select value={category} onChange={(event) => setCategory(event.target.value)} className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"><option value="all">All categories</option>{categories.map((value) => <option key={value} value={value}>{value}</option>)}</select>
-              <select value={filter} onChange={(event) => setFilter(event.target.value as InventoryFilter)} className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm"><option value="all">All availability</option><option value="available">Available</option><option value="low">Low stock</option><option value="out">Out of stock</option><option value="unavailable">Unavailable</option></select>
+              <Select<string> aria-label="Filter inventory by category" value={category} onChange={setCategory} options={[{ value: 'all', label: 'All categories' }, ...categories.map((value) => ({ value, label: value }))]} />
+              <Select aria-label="Filter inventory by availability" value={filter} onChange={(value) => setFilter(value as InventoryFilter)} options={[{ value: 'all', label: 'All availability' }, { value: 'available', label: 'Available' }, { value: 'low', label: 'Low stock' }, { value: 'out', label: 'Out of stock' }, { value: 'unavailable', label: 'Unavailable' }]} />
             </div>
             {filteredItems.length === 0 ? <p className="p-8 text-center text-sm text-[var(--oppa-text-muted)]">No products match these filters.</p> : (
               <div className="overflow-x-auto">

@@ -3,3 +3,63 @@
 .franchise-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .28) transparent; }
 .franchise-scrollbar::-webkit-scrollbar { width: 5px; }
 .franchise-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .28); border-radius: 999px; }
+
+.select-menu {
+  animation: select-menu-in 150ms ease-out both;
+}
+
+.select-options {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--oppa-text-muted) 35%, transparent) transparent;
+}
+
+.select-options::-webkit-scrollbar { width: 5px; }
+.select-options::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--oppa-text-muted) 35%, transparent);
+}
+
+@keyframes select-menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 639px) {
+  .select-menu {
+    inset: auto 0 0 !important;
+    display: flex;
+    max-height: min(60dvh, 480px) !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    flex-direction: column;
+    border-radius: 1.25rem 1.25rem 0 0;
+    padding: 1rem;
+    animation-name: select-sheet-in;
+  }
+
+  .select-menu--up { inset: auto 0 0 !important; }
+  .select-options { max-height: none; }
+  .select-mobile-backdrop { display: block; }
+}
+
+@keyframes select-sheet-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.promo-table-row {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    var(--oppa-border) 5%,
+    var(--oppa-border) 95%,
+    transparent
+  );
+  background-repeat: no-repeat;
+  background-position: bottom;
+  background-size: 100% 1px;
+}
+
+.promo-table-row:hover {
+  background-color: color-mix(in srgb, var(--oppa-green-soft) 55%, transparent);
+}
