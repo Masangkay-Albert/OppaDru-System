@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\GmailApiException;
 use App\Models\User;
-use Illuminate\Auth\Passwords\PasswordBroker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -141,15 +140,13 @@ class AuthController extends Controller
             ->where('role', 'customer')
             ->first();
 
-        if ($user && $user->hasVerifiedEmail()) {
+        if ($user) {
             try {
                 Password::broker()->sendResetLink(['email' => $user->email]);
             } catch (\Throwable $exception) {
                 Log::warning('Customer password reset email failed.', [
                     'user_id' => $user->id,
-                    'email' => $email,
                     'exception_class' => get_class($exception),
-                    'exception_message' => $exception->getMessage(),
                 ]);
             }
         }

@@ -46,6 +46,26 @@ class PasswordResetTest extends TestCase
         Notification::assertNothingSent();
     }
 
+    public function test_forgot_password_sends_reset_notification_for_unverified_customer(): void
+    {
+        Notification::fake();
+
+        $user = User::create([
+            'full_name' => 'Unverified Customer',
+            'email' => 'unverified@example.com',
+            'password' => 'Password1!',
+            'role' => 'customer',
+            'email_verified_at' => null,
+        ]);
+
+        $this->postJson('/api/customer/forgot-password', [
+            'email' => $user->email,
+        ])->assertOk()
+            ->assertJsonPath('message', "If that email is registered, we've sent a password reset link.");
+
+        Notification::assertSentTo($user, ResetPasswordNotification::class);
+    }
+
     public function test_forgot_password_does_not_send_for_non_customer_role_rows(): void
     {
         Notification::fake();
