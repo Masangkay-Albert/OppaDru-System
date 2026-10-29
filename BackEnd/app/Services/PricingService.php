@@ -43,22 +43,24 @@ class PricingService
 
     public function settings(): array
     {
-        $storedSettings = SystemSetting::query()
-            ->whereIn('key', self::SETTINGS_KEYS)
-            ->pluck('value', 'key')
-            ->all();
+        return \Illuminate\Support\Facades\Cache::remember('system_pricing_settings', 1800, function () {
+            $storedSettings = SystemSetting::query()
+                ->whereIn('key', self::SETTINGS_KEYS)
+                ->pluck('value', 'key')
+                ->all();
 
-        return [
-            'delivery_base_fee' => $this->setting($storedSettings, 'delivery_base_fee', 49),
-            'delivery_base_distance_km' => $this->setting($storedSettings, 'delivery_base_distance_km', 3),
-            'delivery_per_km_rate' => $this->setting($storedSettings, 'delivery_per_km_rate', 10),
-            'delivery_free_subtotal' => $this->setting($storedSettings, 'delivery_free_subtotal', 999),
-            'delivery_max_fee' => $this->setting($storedSettings, 'delivery_max_fee', 150),
-            'service_fee_rate' => $this->setting($storedSettings, 'service_fee_rate', 0.03, 4),
-            'service_fee_min' => $this->setting($storedSettings, 'service_fee_min', 15),
-            'service_fee_max' => $this->setting($storedSettings, 'service_fee_max', 80),
-            'vat_rate' => 0.12,
-        ];
+            return [
+                'delivery_base_fee' => $this->setting($storedSettings, 'delivery_base_fee', 49),
+                'delivery_base_distance_km' => $this->setting($storedSettings, 'delivery_base_distance_km', 3),
+                'delivery_per_km_rate' => $this->setting($storedSettings, 'delivery_per_km_rate', 10),
+                'delivery_free_subtotal' => $this->setting($storedSettings, 'delivery_free_subtotal', 999),
+                'delivery_max_fee' => $this->setting($storedSettings, 'delivery_max_fee', 150),
+                'service_fee_rate' => $this->setting($storedSettings, 'service_fee_rate', 0.03, 4),
+                'service_fee_min' => $this->setting($storedSettings, 'service_fee_min', 15),
+                'service_fee_max' => $this->setting($storedSettings, 'service_fee_max', 80),
+                'vat_rate' => 0.12,
+            ];
+        });
     }
 
     public function calculate(array $items, string $deliveryType = 'standard', float $voucherDiscount = 0, float $discountRate = 0, ?array $deliveryCoordinates = null, ?array $originCoordinates = null): array

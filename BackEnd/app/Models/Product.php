@@ -68,6 +68,17 @@ class Product extends Model
         ]);
     }
 
+    public static function clearCatalogCache(): void
+    {
+        \Illuminate\Support\Facades\Cache::forget('catalog_products_all');
+        \Illuminate\Support\Facades\Cache::forget('catalog_products_available');
+        // Clear category caches
+        $categories = ['chicken', 'rice-meals', 'burgers', 'drinks', 'sides', 'noodles', 'combos'];
+        foreach ($categories as $cat) {
+            \Illuminate\Support\Facades\Cache::forget("catalog_products_cat_{$cat}");
+        }
+    }
+
     protected static function boot()
     {
         parent::boot();
@@ -78,6 +89,12 @@ class Product extends Model
                 $slug = substr($slug, 0, 20);
                 $model->id = 'OPPA-PROD-' . ($slug ?: 'ITEM') . '-' . strtoupper(Str::random(4));
             }
+        });
+        static::saved(function () {
+            static::clearCatalogCache();
+        });
+        static::deleted(function () {
+            static::clearCatalogCache();
         });
     }
 

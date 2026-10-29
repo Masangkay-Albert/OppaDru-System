@@ -47,6 +47,14 @@ class Announcement extends Model
                 $model->date_sent = now();
             }
         });
+
+        static::saved(function () {
+            \Illuminate\Support\Facades\Cache::forget('announcements_public_list');
+        });
+
+        static::deleted(function () {
+            \Illuminate\Support\Facades\Cache::forget('announcements_public_list');
+        });
     }
 
     public function scopeForAudience($query, string $audience)

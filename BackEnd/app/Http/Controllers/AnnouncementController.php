@@ -5,14 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\Announcement;
 use App\Services\FacebookService;
 use App\Services\ProductImageUploadService;
+use App\Support\HttpCacheResponse;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class AnnouncementController extends Controller
 {
     use AdminAuthTrait;
+    use HttpCacheResponse;
 
     public function __construct(
         private readonly ProductImageUploadService $imageUploadService,
@@ -371,23 +374,26 @@ class AnnouncementController extends Controller
      */
     public function publicList(Request $request)
     {
-        $query = Announcement::published()
-            ->where(function ($q) {
-                $q->where('target_audience', 'customers')
-                  ->orWhere('target_audience', 'all')
-                  ->orWhereJsonContains('target_audiences', 'customers')
-                  ->orWhereJsonContains('target_audiences', 'all');
-            });
+        $data = Cache::remember('announcements_public_list', 300, function () {
+            $announcements = Announcement::published()
+                ->where(function ($q) {
+                    $q->where('target_audience', 'customers')
+                      ->orWhere('target_audience', 'all')
+                      ->orWhereJsonContains('target_audiences', 'customers')
+                      ->orWhereJsonContains('target_audiences', 'all');
+                })
+                ->orderBy('priority', 'desc')
+                ->orderBy('date_sent', 'desc')
+                ->limit(20)
+                ->get();
 
-        $announcements = $query->orderBy('priority', 'desc')
-            ->orderBy('date_sent', 'desc')
-            ->limit(20)
-            ->get();
+            return [
+                'success' => true,
+                'announcements' => $announcements,
+            ];
+        });
 
-        return response()->json([
-            'success' => true,
-            'announcements' => $announcements,
-        ]);
+        return $this->cachedJsonResponse($request, $data, 180);
     }
 
     /**

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Promo;
+use App\Support\HttpCacheResponse;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -12,12 +14,15 @@ use Illuminate\Support\Str;
 class PromoController extends Controller
 {
     use AdminAuthTrait;
+    use HttpCacheResponse;
 
     public function index(Request $request)
     {
-        $promos = Promo::active()->orderBy('created_at', 'desc')->get();
+        $promos = Cache::remember('promos_active_list', 600, function () {
+            return Promo::active()->orderBy('created_at', 'desc')->get()->map(fn (Promo $promo) => $this->formatPromo($promo))->values();
+        });
 
-        return response()->json($promos->map(fn (Promo $promo) => $this->formatPromo($promo)));
+        return $this->cachedJsonResponse($request, $promos, 300);
     }
 
     public function adminIndex(Request $request)

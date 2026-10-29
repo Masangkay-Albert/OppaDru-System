@@ -64,6 +64,14 @@ class Promo extends Model
                 $promo->code = strtoupper(trim($promo->code));
             }
         });
+
+        static::saved(function () {
+            \Illuminate\Support\Facades\Cache::forget('promos_active_list');
+        });
+
+        static::deleted(function () {
+            \Illuminate\Support\Facades\Cache::forget('promos_active_list');
+        });
     }
 
     public function scopeActive(Builder $query): Builder
