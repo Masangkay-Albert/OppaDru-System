@@ -51,6 +51,8 @@ The SMTP account must have permission to send mail and should use an app passwor
 
 Registration returns an error instead of claiming success when SMTP rejects the message. The signed verification URL expires after 60 minutes, is validated by Laravel, marks `email_verified_at`, and redirects to the frontend login page.
 
+Customer password reset uses the same synchronous mail transport and fallback as verification. It requires the same Render mail environment variables above, plus the idempotent `password_reset_tokens` migration. A reset notification is only considered sent when the configured mail transport accepts it; transport failures are logged without including reset tokens or URLs, and failed tokens are removed so another request can retry. The public endpoint continues to return a generic response to avoid revealing whether an email belongs to an account.
+
 ### Improve inbox placement
 
 The application trusts the forwarding headers from its Render reverse proxy so verification links use the public HTTPS host instead of an internal HTTP connection. Keep `APP_URL` set to the canonical public HTTPS backend URL, and redeploy after changing Render environment variables.

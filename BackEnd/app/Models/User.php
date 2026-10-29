@@ -80,36 +80,37 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         try {
-            $this->notify($notification);
-            return;
-        } catch (\Throwable $e) {
-            if (!$smtpConfigured) {
-                Log::warning('Mail notification failed without SMTP fallback.', [
-                    'user_id' => $this->id,
-                    'notification' => get_class($notification),
-                    'exception_class' => get_class($e),
-                    'exception_message' => $e->getMessage(),
-                ]);
-
-                throw $e;
-            }
-
-            config()->set('mail.default', 'smtp');
-
             try {
                 $this->notify($notification);
-            } catch (\Throwable $fallbackException) {
-                Log::warning('Mail notification failed after SMTP fallback.', [
-                    'user_id' => $this->id,
-                    'notification' => get_class($notification),
-                    'exception_class' => get_class($fallbackException),
-                    'exception_message' => $fallbackException->getMessage(),
-                ]);
+            } catch (\Throwable $e) {
+                if (!$smtpConfigured) {
+                    Log::warning('Mail notification failed without SMTP fallback.', [
+                        'user_id' => $this->id,
+                        'notification' => get_class($notification),
+                        'exception_class' => get_class($e),
+                        'exception_message' => $e->getMessage(),
+                    ]);
 
-                throw $fallbackException;
-            } finally {
-                config()->set('mail.default', $primaryMailer);
+                    throw $e;
+                }
+
+                config()->set('mail.default', 'smtp');
+
+                try {
+                    $this->notify($notification);
+                } catch (\Throwable $fallbackException) {
+                    Log::warning('Mail notification failed after SMTP fallback.', [
+                        'user_id' => $this->id,
+                        'notification' => get_class($notification),
+                        'exception_class' => get_class($fallbackException),
+                        'exception_message' => $fallbackException->getMessage(),
+                    ]);
+
+                    throw $fallbackException;
+                }
             }
+        } finally {
+            config()->set('mail.default', $primaryMailer);
         }
     }
 }

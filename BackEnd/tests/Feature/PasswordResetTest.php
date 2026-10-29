@@ -85,6 +85,53 @@ class PasswordResetTest extends TestCase
         Notification::assertNotSentTo($admin, ResetPasswordNotification::class);
     }
 
+    public function test_forgot_password_deletes_token_when_mail_delivery_throws(): void
+    {
+        $user = User::create([
+            'full_name' => 'Verified Customer',
+            'email' => 'customer@example.com',
+            'password' => 'Password1!',
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+
+        Notification::shouldReceive('send')
+            ->once()
+            ->andThrow(new \RuntimeException('Mail transport unavailable'));
+
+        $this->postJson('/api/customer/forgot-password', [
+            'email' => $user->email,
+        ])->assertOk()
+            ->assertJsonPath('message', "If that email is registered, we've sent a password reset link.");
+
+        $this->assertDatabaseMissing('password_reset_tokens', [
+            'email' => $user->email,
+        ]);
+    }
+
+    public function test_password_reset_notification_restores_primary_mailer_after_send(): void
+    {
+        Notification::fake();
+        config([
+            'mail.default' => 'gmail_api',
+            'mail.mailers.smtp.username' => 'smtp-user',
+            'mail.mailers.smtp.password' => 'smtp-password',
+        ]);
+
+        $user = User::create([
+            'full_name' => 'Verified Customer',
+            'email' => 'customer@example.com',
+            'password' => 'Password1!',
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+
+        $user->sendPasswordResetNotification('test-token');
+
+        $this->assertSame('gmail_api', config('mail.default'));
+        Notification::assertSentTo($user, ResetPasswordNotification::class);
+    }
+
     public function test_reset_password_succeeds_with_valid_token_and_revokes_existing_session(): void
     {
         $user = User::create([

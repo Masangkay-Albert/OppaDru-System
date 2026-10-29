@@ -142,11 +142,39 @@ class AuthController extends Controller
 
         if ($user) {
             try {
-                Password::broker()->sendResetLink(['email' => $user->email]);
+                $status = Password::broker()->sendResetLink(['email' => $user->email]);
+
+                if ($status === Password::RESET_THROTTLED) {
+                    Log::notice('Customer password reset email was throttled by the password broker.', [
+                        'user_id' => $user->id,
+                    ]);
+                } elseif ($status === Password::RESET_LINK_SENT) {
+                    Log::info('Customer password reset notification was accepted by the mail transport.', [
+                        'user_id' => $user->id,
+                        'mailer' => config('mail.default'),
+                    ]);
+                } else {
+                    Log::warning('Customer password reset link was not sent by the password broker.', [
+                        'user_id' => $user->id,
+                        'broker_status' => $status,
+                    ]);
+                }
             } catch (\Throwable $exception) {
-                Log::warning('Customer password reset email failed.', [
+                try {
+                    Password::deleteToken($user);
+                } catch (\Throwable $cleanupException) {
+                    Log::error('Customer password reset token cleanup failed after a mail error.', [
+                        'user_id' => $user->id,
+                        'exception_class' => get_class($cleanupException),
+                    ]);
+                }
+
+                Log::error('Customer password reset email failed.', [
                     'user_id' => $user->id,
                     'exception_class' => get_class($exception),
+                    'mail_phase' => $exception instanceof GmailApiException ? $exception->phase() : null,
+                    'mail_reason' => $exception instanceof GmailApiException ? $exception->reason() : null,
+                    'mailer' => config('mail.default'),
                 ]);
             }
         }
