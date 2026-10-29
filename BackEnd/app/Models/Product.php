@@ -33,13 +33,39 @@ class Product extends Model
 
     public function getImageAttribute(?string $value): ?string
     {
-        if (is_string($value) && str_starts_with($value, 'data:image/')) {
-            $version = substr(hash('sha256', $value), 0, 16);
+        if (is_string($value)) {
+            if (str_starts_with($value, 'data:image/')) {
+                $version = substr(hash('sha256', $value), 0, 16);
 
-            return url('/api/products/'.$this->getKey().'/image').'?v='.$version;
+                return url('/api/products/'.$this->getKey().'/image').'?v='.$version;
+            }
+
+            if (str_starts_with($value, '/api/')) {
+                return url($value);
+            }
         }
 
         return $value;
+    }
+
+    /**
+     * Scope query to select lightweight columns, replacing heavy base64 image data
+     * with an endpoint URL directly in SQL to minimize Supabase egress.
+     */
+    public function scopeWithCatalogColumns($query)
+    {
+        return $query->select([
+            'id',
+            'franchise_id',
+            'name',
+            'description',
+            'price',
+            'category',
+            'is_available',
+            'created_at',
+            'updated_at',
+            \Illuminate\Support\Facades\DB::raw("CASE WHEN image LIKE 'data:image%' THEN CONCAT('/api/products/', id, '/image?v=', SUBSTRING(MD5(image), 1, 16)) ELSE image END AS image")
+        ]);
     }
 
     protected static function boot()

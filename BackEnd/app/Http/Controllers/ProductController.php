@@ -38,7 +38,7 @@ class ProductController extends Controller
 
     private function productQuery()
     {
-        return Product::orderBy('category', 'asc')->orderBy('name', 'asc');
+        return Product::withCatalogColumns()->orderBy('category', 'asc')->orderBy('name', 'asc');
     }
 
     private function franchiseUser(Request $request): ?FranchiseUser
@@ -50,7 +50,7 @@ class ProductController extends Controller
 
     private function franchiseProductQuery(Request $request)
     {
-        $query = Product::query()->orderBy('category', 'asc')->orderBy('name', 'asc');
+        $query = Product::withCatalogColumns()->orderBy('category', 'asc')->orderBy('name', 'asc');
         $franchiseUser = $this->franchiseUser($request);
 
         if (! $franchiseUser) {
@@ -62,7 +62,7 @@ class ProductController extends Controller
 
     public function image(string $id)
     {
-        $product = Product::findOrFail($id);
+        $product = Product::select(['id', 'image'])->findOrFail($id);
         $imageData = $product->getRawOriginal('image');
 
         if (! is_string($imageData) || ! str_starts_with($imageData, 'data:image/')) {

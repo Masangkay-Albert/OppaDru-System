@@ -21,7 +21,7 @@ trait ProductCatalogActions
     public function show($id)
     {
         try {
-            return response()->json(Product::with(['addonGroups.addons'])->findOrFail($id));
+            return response()->json(Product::withCatalogColumns()->with(['addonGroups.addons'])->findOrFail($id));
         } catch (\Exception $e) {
             return response()->json(['error' => 'Product not found'], 404);
         }
@@ -57,7 +57,7 @@ trait ProductCatalogActions
     public function getByCategory($category)
     {
         try {
-            return response()->json(Product::where('category', $category)->orderBy('name', 'asc')->get());
+            return response()->json($this->productQuery()->where('category', $category)->get());
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
