@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 export interface AddressDetails {
   block?: string;
   lot?: string;
+  street?: string;
   floor?: string;
   unit?: string;
   building?: string;

@@ -1,7 +1,7 @@
 import React from 'react';
 import DiningOptionSelector from '../pos/DiningOptionSelector';
 import POSCashCalculator from '../pos/POSCashCalculator';
-import { Check, CreditCard, Smartphone, QrCode, Tag, Loader2 } from 'lucide-react';
+import { Check, Smartphone, QrCode, Tag, Loader2 } from 'lucide-react';
 import { formatPeso } from '../../../../utils/formatters';
 
 interface CheckoutFormProps {
@@ -47,7 +47,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   paymentMethod,
   setPaymentMethod,
   paymentReference,
-  setPaymentReference,
   cashTendered,
   setCashTendered,
   totalDue,
@@ -224,7 +223,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm space-y-4">
         <h3 className="font-bold text-gray-800 text-base">Payment Processing</h3>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             aria-pressed={paymentMethod === 'cash'}
@@ -255,20 +254,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
             <span className="text-xs font-semibold">GCash (QR Scan)</span>
           </button>
 
-          <button
-            type="button"
-            aria-pressed={paymentMethod === 'credit_card'}
-            onClick={() => setPaymentMethod('credit_card')}
-            className={`relative flex flex-col items-center justify-center p-3.5 rounded-xl border transition ${
-              paymentMethod === 'credit_card'
-                ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] font-bold shadow-sm'
-                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <CreditCard size={22} className="mb-1 text-purple-500" />
-            {paymentMethod === 'credit_card' && <Check size={14} className="absolute right-2 top-2" aria-hidden="true" />}
-            <span className="text-xs font-semibold">Card / Terminal</span>
-          </button>
         </div>
 
         {paymentMethod === 'cash' && (
@@ -322,20 +307,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
           </div>
         )}
 
-        {paymentMethod === 'credit_card' && (
-          <div className="pt-2">
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">
-              POS Terminal / Card Reference Number
-            </label>
-            <input
-              type="text"
-              value={paymentReference}
-              onChange={(e) => setPaymentReference(e.target.value)}
-              placeholder="Enter reference / transaction #"
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)] focus:border-transparent font-mono"
-            />
-          </div>
-        )}
       </div>
     </div>
   );

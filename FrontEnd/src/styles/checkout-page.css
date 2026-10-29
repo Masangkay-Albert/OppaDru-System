@@ -335,6 +335,24 @@
   border-color: #ecefe9;
 }
 
+.checkout-address-card input,
+.checkout-address-card textarea {
+  min-height: 44px;
+  background-color: #fff;
+  border-color: #dce4dc;
+  transition: border-color var(--checkout-transition), box-shadow var(--checkout-transition);
+}
+
+.checkout-address-card input:focus,
+.checkout-address-card textarea:focus {
+  border-color: #397351;
+  box-shadow: 0 0 0 3px rgba(57, 115, 81, 0.13);
+}
+
+.checkout-additional-street {
+  background-color: #fbfcfa !important;
+}
+
 .checkout-address-card h3 {
   color: #314538;
   font-size: 13px;
@@ -916,6 +934,10 @@
 
   .checkout-saved-address {
     padding: 12px;
+  }
+
+  .checkout-address-card .grid-cols-2 {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .checkout-saved-address > div:first-child {

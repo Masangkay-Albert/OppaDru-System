@@ -7,6 +7,7 @@ import type { SavedAddress } from '../../../../hooks/useAddressManagement';
 interface AddressDetails {
   block?: string;
   lot?: string;
+  street?: string;
   floor?: string;
   unit?: string;
   building?: string;
@@ -164,6 +165,16 @@ const AddressSection: React.FC<AddressSectionProps> = ({
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Street</label>
+                <input
+                  type="text"
+                  value={formData.street || ''}
+                  onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                  className="checkout-additional-street w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-[#2d6a4f] focus:outline-none transition text-sm"
+                  placeholder="e.g., Mabini Street"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Floor</label>
@@ -233,6 +244,7 @@ const AddressSection: React.FC<AddressSectionProps> = ({
                   <p className="text-sm text-gray-600 mt-1">
                     {selectedDetails?.block && `Block ${selectedDetails.block}`} 
                     {selectedDetails?.lot && ` • Lot ${selectedDetails.lot}`} 
+                    {selectedDetails?.street && ` • ${selectedDetails.street}`}
                     {selectedDetails?.floor && ` • ${selectedDetails.floor}`} 
                     {selectedDetails?.unit && ` • Unit ${selectedDetails.unit}`} 
                     {selectedDetails?.building && ` • ${selectedDetails.building}`} 

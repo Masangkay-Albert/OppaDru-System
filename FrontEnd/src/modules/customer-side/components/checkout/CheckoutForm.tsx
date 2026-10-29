@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../../../contexts/Authcontext';
-import { useAddressManagement } from '../../../../hooks/useAddressManagement';
+import { useAddressManagement, type AddressDetails } from '../../../../hooks/useAddressManagement';
 import LocationPicker from '../common/LocationPicker';
 import AddressSection from './AddressSection';
 import PersonalDetailsForm from './PersonalDetailsForm';
@@ -32,6 +32,7 @@ interface CheckoutFormProps {
   discountProof?: File | null;
   onDiscountProofChange?: (file: File | null) => void;
   onAddressCoordinatesChange?: (coordinates: { lat: number; lng: number } | null) => void;
+  onStreetDetailChange?: (street: string) => void;
 }
 
 const CheckoutForm: React.FC<CheckoutFormProps> = ({
@@ -48,6 +49,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   discountProof,
   onDiscountProofChange,
   onAddressCoordinatesChange,
+  onStreetDetailChange,
 }) => {
   const { user } = useAuth();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
@@ -73,6 +75,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         && !(coordinates.lat === 0 && coordinates.lng === 0)
       );
       onAddressCoordinatesChange?.(hasValidCoordinates ? { lat: coordinates!.lat, lng: coordinates!.lng } : null);
+      onStreetDetailChange?.(details?.street || '');
       if (street) {
         updateAddress('street', street);
       }
@@ -98,9 +101,10 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
     setDefaultAddress(id);
   };
 
-  const handleSaveDetails = (details: any) => {
+  const handleSaveDetails = (details: AddressDetails) => {
     if (selectedAddressId) {
       updateDetails(selectedAddressId, details);
+      onStreetDetailChange?.(details.street || '');
       if (details.floor) updateAddress('floor', details.floor);
       if (details.note) updateAddress('note', details.note);
       updateAddress('block', details.block || '');

@@ -42,6 +42,7 @@ const OrderTrackingPageContent: React.FC = () => {
   const [tick, setTick] = useState(Date.now());
   const [routePoints, setRoutePoints] = useState<[number, number][]>([]);
   const [simulatedProgress, setSimulatedProgress] = useState(0);
+  const [dismissedDeliveredNoticeId, setDismissedDeliveredNoticeId] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setTick(Date.now()), 1000);
@@ -97,6 +98,9 @@ const OrderTrackingPageContent: React.FC = () => {
   const onTheWayEntries = order?.statusHistory?.filter((entry) => normalizeOrderStatus(entry.status) === 'on_the_way') || [];
   const onTheWayEntry = onTheWayEntries[onTheWayEntries.length - 1];
   const isDelivered = status === 'delivered' || status === 'completed';
+  const showDeliveredNotice = Boolean(order && isDelivered && dismissedDeliveredNoticeId !== order.id);
+  const deliveredDriverName = order?.driver?.name?.trim() || 'Driver details unavailable';
+  const deliveredDriverPhone = order?.driver?.phone?.trim() || '';
   const routeProgress = isDelivered ? 100 : simulatedProgress;
   const statusColor = STATUS_COLORS[status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700';
   const createdAt = order ? getOrderCreatedAtMs(order) : 0;
@@ -196,13 +200,15 @@ const OrderTrackingPageContent: React.FC = () => {
             <button className="ml-2 font-semibold underline" onClick={() => setRetryVersion((value) => value + 1)}>Retry now</button>
           </div>
         )}
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/customer/orders')} className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-[#2d6a4f]">← <span>Back to My Orders</span></button>
-            <span className="text-gray-300">|</span>
-            <h1 className="font-serif text-xl font-bold text-[#2d6a4f]">Track Your Order</h1>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm sm:p-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <button aria-label="Back to My Orders" onClick={() => navigate('/customer/orders')} className="flex size-10 shrink-0 items-center justify-center rounded-full border border-gray-200 text-lg text-gray-600 transition hover:border-[#2d6a4f] hover:text-[#2d6a4f]">←</button>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#7b887e]">Order {order.orderNumber || `#${order.id}`}</p>
+              <h1 className="truncate font-serif text-xl font-bold text-[#1c3d2e] sm:text-2xl">Track your order</h1>
+            </div>
           </div>
-          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${statusColor}`}>
+          <span className={`rounded-full px-3.5 py-1.5 text-xs font-bold sm:text-sm ${statusColor}`}>
             {status ? status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Pending'}
           </span>
         </div>
@@ -228,12 +234,12 @@ const OrderTrackingPageContent: React.FC = () => {
             )}
           </div>
         )}
-        <div className="mb-6"><ProgressBar status={status || ORDER_STATUS.PENDING} progress={getBarProgress()} /></div>
+        <div className="mb-5 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm sm:p-5"><ProgressBar status={status || ORDER_STATUS.PENDING} progress={getBarProgress()} /></div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3 lg:gap-6">
           <div className="lg:col-span-2">
-            <div className="overflow-hidden rounded-2xl bg-white shadow-lg">
-              <div className="relative z-0 h-[400px] w-full">
+            <div className="overflow-hidden rounded-2xl border border-white/80 bg-white shadow-md">
+              <div className="relative z-0 h-[300px] w-full sm:h-[380px] lg:h-[440px]">
                 {!hasTrackingCoordinates && <div className="flex h-full items-center justify-center bg-[#f8fbf8] px-6 text-center text-sm text-gray-600">Store or delivery coordinates are not available for this order.</div>}
                 {hasTrackingCoordinates && <MapContainer key={`${order.id}-${branchCoordinates!.lat}-${branchCoordinates!.lng}-${destinationCoordinates!.lat}-${destinationCoordinates!.lng}`} center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl>
                   <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -259,6 +265,33 @@ const OrderTrackingPageContent: React.FC = () => {
         </div>
 
       </main>
+      {showDeliveredNotice && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#15271d]/55 p-4 backdrop-blur-sm">
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delivered-notice-title"
+            aria-describedby="delivered-notice-message"
+            className="w-full max-w-md rounded-3xl border border-white/70 bg-white p-6 shadow-2xl sm:p-7"
+          >
+            <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-emerald-100 text-2xl text-emerald-700" aria-hidden="true">✓</div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Delivery complete</p>
+            <h2 id="delivered-notice-title" className="mt-1 font-serif text-2xl font-bold text-[#1c3d2e]">Your order has been delivered</h2>
+            <p id="delivered-notice-message" className="mt-2 text-sm leading-6 text-gray-600">Thank you for ordering with Oppa Dru. Here are the details of the driver who handled your delivery.</p>
+            <div className="mt-5 rounded-2xl border border-emerald-100 bg-[#f3f8f3] p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Delivered by</p>
+              <p className="mt-1 text-base font-bold text-gray-900">{deliveredDriverName}</p>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Contact information</p>
+              {deliveredDriverPhone ? (
+                <a href={`tel:${deliveredDriverPhone}`} className="mt-1 inline-flex min-h-10 items-center font-semibold text-[#2d6a4f] hover:underline">{deliveredDriverPhone}</a>
+              ) : (
+                <p className="mt-1 text-sm text-gray-600">Not available</p>
+              )}
+            </div>
+            <button type="button" autoFocus onClick={() => setDismissedDeliveredNoticeId(order.id)} className="mt-5 min-h-12 w-full rounded-xl bg-[#2d6a4f] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1c3d2e]">Got it</button>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

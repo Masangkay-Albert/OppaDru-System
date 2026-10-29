@@ -41,6 +41,7 @@ const CheckoutPage: React.FC = () => {
   const [discountType, setDiscountType] = useState<'PWD' | 'Senior Citizen' | null>(activeDiscount.type === 'PWD' ? 'PWD' : activeDiscount.type === 'Senior' ? 'Senior Citizen' : null);
   const [discountProof, setDiscountProof] = useState<File | null>(null);
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates | null>(null);
+  const [additionalStreet, setAdditionalStreet] = useState('');
   const [branchResolution, setBranchResolution] = useState<BranchResolution | null>(null);
   const [branchError, setBranchError] = useState('');
   const [addressSelectionVersion, setAddressSelectionVersion] = useState(0);
@@ -76,6 +77,7 @@ const CheckoutPage: React.FC = () => {
     const parts: string[] = [];
     if (address.block.trim()) parts.push(`Block ${address.block.trim()}`);
     if (address.lot.trim()) parts.push(`Lot ${address.lot.trim()}`);
+    if (additionalStreet.trim()) parts.push(additionalStreet.trim());
     if (address.street.trim()) parts.push(address.street.trim());
     return parts.join(', ');
   };
@@ -392,6 +394,7 @@ const CheckoutPage: React.FC = () => {
                 setDeliveryCoordinates(coordinates);
                 setAddressSelectionVersion((version) => version + 1);
               }}
+              onStreetDetailChange={setAdditionalStreet}
               tempPerson={tempPerson}
               updatePerson={updatePerson}
               deliveryType={deliveryType}

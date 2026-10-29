@@ -12,6 +12,7 @@ interface AddressCardProps {
   details?: {
     block?: string;
     lot?: string;
+    street?: string;
     floor?: string;
     unit?: string;
     building?: string;
@@ -63,6 +64,7 @@ const AddressCard: React.FC<AddressCardProps> = ({
             <div className="text-xs text-gray-500 mt-1 space-x-2 truncate">
               {details.block && <span>Block {details.block}</span>}
               {details.lot && <span>Lot {details.lot}</span>}
+              {details.street && <span>{details.street}</span>}
               {details.floor && <span>Floor {details.floor}</span>}
               {details.unit && <span>Unit {details.unit}</span>}
               {details.building && <span>{details.building}</span>}

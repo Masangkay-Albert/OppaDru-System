@@ -47,6 +47,7 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
   }
 
   const hasPriorityFee = currentOrder.deliveryType === 'priority' || priorityFee > 0;
+  const isDelivered = ['delivered', 'completed'].includes(currentOrder.status.toLowerCase());
 
   return (
     <div className="space-y-4">
@@ -54,11 +55,11 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
         <div className="bg-gradient-to-br from-[#f0f9f4] to-white rounded-2xl shadow-lg p-5 border border-[#2d6a4f]/25 transition-all">
           <div className="flex items-center justify-between mb-3.5">
             <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#2d6a4f] animate-pulse"></span>
-              Assigned Delivery Driver
+              <span className={`w-2.5 h-2.5 rounded-full bg-[#2d6a4f] ${isDelivered ? '' : 'animate-pulse'}`}></span>
+              {isDelivered ? 'Delivered by' : 'Assigned Delivery Driver'}
             </h3>
             <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-[#d8f3dc] text-[#1c3d2e] tracking-wide uppercase">
-              Order Accepted
+              {isDelivered ? 'Delivered' : 'Order Accepted'}
             </span>
           </div>
 
