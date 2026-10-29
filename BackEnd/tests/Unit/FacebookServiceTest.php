@@ -70,6 +70,8 @@ class FacebookServiceTest extends TestCase
                 str_ends_with($request->url(), '/page-123/photos')
                 && $request->hasFile('source')
                 && str_contains($request->body(), 'New menu item')
+                && str_contains($request->body(), 'name="published"')
+                && str_contains($request->body(), "\r\n\r\n1\r\n")
             );
         } finally {
             unlink($imagePath);

@@ -94,7 +94,11 @@ class FacebookService
         }
 
         $endpoint = "https://graph.facebook.com/{$this->apiVersion}/{$this->pageId}";
-        $payload = ['caption' => $message, 'access_token' => $this->pageAccessToken];
+        $payload = [
+            'caption' => $message,
+            'access_token' => $this->pageAccessToken,
+            'published' => true,
+        ];
 
         try {
             if ($imagePath !== null) {
