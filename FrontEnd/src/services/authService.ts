@@ -88,7 +88,6 @@ class AuthService {
 
     const result = await response.json();
     this.clearAuth();
-    this.setUser(result.user);
     return result;
   }
 

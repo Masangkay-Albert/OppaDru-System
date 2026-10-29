@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response = await authService.register(data);
       if (response && response.user) {
-        setUser(response.user);
+        setUser(null);
         setIsLoading(false);
         return true;
       }

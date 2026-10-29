@@ -360,9 +360,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     promoId?: string | null,
     promoCode?: string | null,
   ): Promise<string | null> => {
-    const activeUser = user ?? authService.getUserFromStorage();
-    if (!activeUser) {
-      return null;
+    const token = authService.getToken();
+    const activeUser = token ? user ?? authService.getUserFromStorage() : null;
+    if (!activeUser || !token) {
+      throw new Error('Sign in to place your order.');
     }
 
     setIsLoading(true);
