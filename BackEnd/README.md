@@ -51,7 +51,17 @@ The SMTP account must have permission to send mail and should use an app passwor
 
 Registration returns an error instead of claiming success when SMTP rejects the message. The signed verification URL expires after 60 minutes, is validated by Laravel, marks `email_verified_at`, and redirects to the frontend login page.
 
-Customer password reset uses the same synchronous mail transport and fallback as verification. It requires the same Render mail environment variables above, plus the idempotent `password_reset_tokens` migration. A reset notification is only considered sent when the configured mail transport accepts it; transport failures are logged without including reset tokens or URLs, and failed tokens are removed so another request can retry. The public endpoint continues to return a generic response to avoid revealing whether an email belongs to an account.
+The legacy `/api/customer/forgot-password` and `/api/customer/reset-password` endpoints retain their synchronous email-reset behavior and require the mail configuration above. The customer-facing `/forgot-password` page uses the no-email recovery flow below and does not send email or SMS.
+
+### Customer password recovery without email
+
+Verified customers can recover access using their account email plus either their registered Philippine phone number or a saved security question. The one-time reset token expires after 10 minutes, is stored hashed, and is held only in frontend component state. Customers can add or update a security question in **Customer Settings → Security**; the answer is normalized and hashed.
+
+The fixed question keys and labels are in `config/customer_security_questions.php`. The additive migrations create the standard `password_reset_tokens` table, the customer security-question columns, and the Laravel `cache`/`cache_locks` tables needed by the database cache store.
+
+Rate limiting uses Laravel's configured cache store. `config/cache.php` defaults `CACHE_STORE` to `database`; on Render, keep `CACHE_STORE=database` and point all backend instances at the same Supabase database so email/IP limits are persistent and shared. Do not use the `array` store or instance-local `file` store for production rate limits.
+
+Manual smoke test: set a question in customer settings, then visit `/forgot-password` and verify once with the registered phone and once with the saved question. Complete each reset with a compliant password, confirm the prior password no longer logs in, and confirm the new password does. Three failed identity checks for one email should cause subsequent attempts to return the 15-minute lockout response. No reset email or SMS should be sent.
 
 ### Improve inbox placement
 

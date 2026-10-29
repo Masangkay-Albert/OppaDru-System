@@ -31,11 +31,14 @@ class User extends Authenticatable implements MustVerifyEmail
         'role',
         'api_token',
         'email_verified_at',
+        'security_question',
+        'security_answer_hash',
     ];
 
     protected $hidden = [
         'password',
         'api_token',
+        'security_answer_hash',
     ];
 
     protected $casts = [

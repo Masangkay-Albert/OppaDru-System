@@ -26,9 +26,11 @@ const LoginPage: React.FC = () => {
       ? "Email verified. You can now sign in."
       : "";
 
-  const resetSuccessMessage = params.get("reset") === "1"
-    ? "Password reset successful. Please sign in with your new password."
-    : "";
+  const resetSuccessMessage = (location.state as { passwordResetSuccess?: boolean } | null)?.passwordResetSuccess
+    ? "Password updated. Log in with your new password."
+    : params.get("reset") === "1"
+      ? "Password reset successful. Please sign in with your new password."
+      : "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

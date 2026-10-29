@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CustomerPasswordRecoveryController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\OrderController;
@@ -143,6 +144,9 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/customer/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
 Route::post('/customer/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,1');
+Route::get('/customer/security-questions', [CustomerPasswordRecoveryController::class, 'securityQuestions']);
+Route::post('/customer/password-reset/verify', [CustomerPasswordRecoveryController::class, 'verify'])->middleware('throttle:20,1');
+Route::post('/customer/password-reset/complete', [CustomerPasswordRecoveryController::class, 'complete'])->middleware('throttle:20,1');
 Route::post('/verification/resend', [EmailVerificationController::class, 'resend'])->middleware('throttle:6,1');
 
 Route::get('/products', [ProductController::class, 'index']);
@@ -188,6 +192,8 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::put('/user/profile', [AuthController::class, 'updateProfile']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
+    Route::get('/customer/security-question/status', [CustomerPasswordRecoveryController::class, 'status']);
+    Route::put('/customer/security-question', [CustomerPasswordRecoveryController::class, 'updateSecurityQuestion'])->middleware('throttle:5,1');
 
     Route::post('/products', [ProductController::class, 'store']);
     Route::put('/products/{id}', [ProductController::class, 'update']);

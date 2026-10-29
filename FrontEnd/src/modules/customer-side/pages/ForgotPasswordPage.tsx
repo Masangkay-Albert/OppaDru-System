@@ -1,139 +1,367 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Clock3, Mail } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, KeyRound, Mail, Phone, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
-import { authService } from "../../../services/authService";
+import { useToast } from "../components/ToastProvider";
+import { authService, type SecurityQuestion } from "../../../services/authService";
 
-const FORGOT_PASSWORD_COOLDOWN_KEY = "oppa_dru_forgot_password_cooldown";
-const COOLDOWN_SECONDS = 60;
+type VerificationMethod = "phone" | "question";
+
+const passwordRules = [
+  { label: "At least 8 characters", test: (value: string) => value.length >= 8 },
+  { label: "At least one uppercase letter", test: (value: string) => /[A-Z]/.test(value) },
+  { label: "At least one lowercase letter", test: (value: string) => /[a-z]/.test(value) },
+  { label: "At least one number", test: (value: string) => /[0-9]/.test(value) },
+  { label: "At least one special character", test: (value: string) => /[!@#$%^&*(),.?":{}|<>]/.test(value) },
+];
+
+const INVALID_RESET_MESSAGE = "This reset session is invalid or has expired. Start again.";
 
 const ForgotPasswordPage: React.FC = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const [step, setStep] = useState<1 | 2>(1);
+  const [method, setMethod] = useState<VerificationMethod>("phone");
   const [email, setEmail] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [questions, setQuestions] = useState<SecurityQuestion[]>([]);
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [resetToken, setResetToken] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-  const [countdown, setCountdown] = useState<number>(() => {
-    const expiry = Number(sessionStorage.getItem(FORGOT_PASSWORD_COOLDOWN_KEY) || "0");
-    if (!expiry || expiry <= Date.now()) {
-      sessionStorage.removeItem(FORGOT_PASSWORD_COOLDOWN_KEY);
-      return 0;
-    }
-
-    return Math.max(0, Math.ceil((expiry - Date.now()) / 1000));
-  });
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    if (countdown <= 0) {
-      return undefined;
-    }
-
-    const timer = window.setInterval(() => {
-      setCountdown((current) => {
-        const next = Math.max(0, current - 1);
-
-        if (next === 0) {
-          sessionStorage.removeItem(FORGOT_PASSWORD_COOLDOWN_KEY);
+    let active = true;
+    authService.getSecurityQuestions()
+      .then((availableQuestions) => {
+        if (active) setQuestions(availableQuestions);
+      })
+      .catch((loadError: unknown) => {
+        if (active) {
+          setError(loadError instanceof Error ? loadError.message : "Unable to load security questions.");
         }
-
-        return next;
+      })
+      .finally(() => {
+        if (active) setIsLoadingQuestions(false);
       });
-    }, 1000);
 
-    return () => window.clearInterval(timer);
-  }, [countdown]);
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  const startCooldown = () => {
-    const expiry = Date.now() + COOLDOWN_SECONDS * 1000;
-    sessionStorage.setItem(FORGOT_PASSWORD_COOLDOWN_KEY, String(expiry));
-    setCountdown(COOLDOWN_SECONDS);
-  };
-
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleVerify = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
-    setSuccessMessage("");
+    setNotice("");
+    setIsSubmitting(true);
 
-    const normalizedEmail = email.trim();
-    if (!normalizedEmail) {
-      setError("Please enter your email address.");
+    try {
+      const token = await authService.verifyPasswordReset({
+        email: email.trim(),
+        method,
+        ...(method === "phone" ? { phone } : { question, answer }),
+      });
+      setResetToken(token);
+      setStep(2);
+    } catch (verifyError: unknown) {
+      setError(verifyError instanceof Error ? verifyError.message : "Unable to verify your account details.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleComplete = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+
+    if (password !== passwordConfirmation) {
+      setError("Passwords do not match.");
       return;
     }
 
-    setIsLoading(true);
+    if (!passwordRules.every((rule) => rule.test(password))) {
+      setError("Please meet all password requirements.");
+      return;
+    }
 
+    setIsSubmitting(true);
     try {
-      const message = await authService.forgotPassword(normalizedEmail);
-      setSuccessMessage(message);
-      startCooldown();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unable to send the password reset link.");
+      const message = await authService.completePasswordReset({
+        email: email.trim(),
+        reset_token: resetToken,
+        password,
+        password_confirmation: passwordConfirmation,
+      });
+      showToast(message, "success");
+      navigate("/login", { replace: true, state: { passwordResetSuccess: true } });
+    } catch (completeError: unknown) {
+      const message = completeError instanceof Error ? completeError.message : "Unable to update your password.";
+      if (message === INVALID_RESET_MESSAGE) {
+        setResetToken("");
+        setStep(1);
+        setNotice("Your reset session expired. Verify your identity again to continue.");
+        setPassword("");
+        setPasswordConfirmation("");
+      } else {
+        setError(message);
+      }
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const isCooldownActive = countdown > 0;
+  const toggleMethod = (nextMethod: VerificationMethod) => {
+    setMethod(nextMethod);
+    setError("");
+    setNotice("");
+  };
+
+  const inputClassName = "min-h-11 w-full rounded-xl border border-[var(--oppa-border)] px-3.5 py-2.5 text-sm transition-colors placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20";
+  const passwordValid = passwordRules.every((rule) => rule.test(password));
 
   return (
     <div className="min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)] lg:grid lg:grid-cols-2">
-      <LoginBrandPanel title="Reset Your Password" description="We’ll send you a secure link to get back into your account." />
+      <LoginBrandPanel title="Recover Your Account" description="Verify your identity and get back to enjoying your favorites." />
 
       <main className="flex min-h-screen items-center justify-center px-5 py-8 sm:px-8">
         <div className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-sm sm:p-8">
           <div className="mb-6 text-center">
-            <h1 className="font-serif text-3xl font-semibold text-[var(--oppa-green)]">Forgot Password</h1>
+            <div className="mb-3 inline-flex size-11 items-center justify-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]">
+              {step === 1 ? <ShieldCheck className="size-5" aria-hidden="true" /> : <KeyRound className="size-5" aria-hidden="true" />}
+            </div>
+            <h1 className="font-serif text-3xl font-semibold text-[var(--oppa-green)]">
+              {step === 1 ? "Verify identity" : "Set a new password"}
+            </h1>
             <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">
-              Enter the email linked to your account.
+              {step === 1
+                ? "Confirm your account email and one saved detail."
+                : "Choose a strong password for your account."}
             </p>
           </div>
 
-          {error && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-700" role="alert" aria-live="assertive">
-              {error}
-            </div>
-          )}
-
-          {successMessage && (
-            <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3.5 text-sm text-green-800" role="status" aria-live="polite">
-              {successMessage}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5" aria-busy={isLoading}>
-            <div>
-              <label htmlFor="forgot-password-email" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input
-                  id="forgot-password-email"
-                  type="email"
-                  value={email}
-                  autoComplete="email"
-                  autoFocus
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm transition-colors placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading || isCooldownActive}
-              className="min-h-11 w-full rounded-xl bg-[var(--oppa-green)] py-3 font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60"
+          {(error || notice) && (
+            <div
+              className={`mb-4 rounded-xl border p-3.5 text-sm ${error ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}
+              role={error ? "alert" : "status"}
+              aria-live={error ? "assertive" : "polite"}
             >
-              {isLoading ? "Sending..." : isCooldownActive ? `Send again in 00:${String(countdown).padStart(2, "0")}` : "Send reset link"}
-            </button>
-          </form>
-
-          {isCooldownActive && (
-            <div className="mt-4 flex items-center justify-center gap-2 text-xs text-[var(--oppa-text-muted)]">
-              <Clock3 className="size-3.5" aria-hidden="true" />
-              <span>Resend is available in {countdown}s.</span>
+              {error || notice}
             </div>
+          )}
+
+          {step === 1 ? (
+            <>
+              <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1" role="group" aria-label="Identity verification method">
+                <button
+                  type="button"
+                  onClick={() => toggleMethod("phone")}
+                  disabled={isSubmitting}
+                  aria-pressed={method === "phone"}
+                  className={`min-h-10 rounded-lg px-2 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] ${method === "phone" ? "bg-white text-[var(--oppa-green)] shadow-sm" : "text-gray-600 hover:text-[var(--oppa-green)]"}`}
+                >
+                  Phone number
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleMethod("question")}
+                  disabled={isSubmitting}
+                  aria-pressed={method === "question"}
+                  className={`min-h-10 rounded-lg px-2 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] ${method === "question" ? "bg-white text-[var(--oppa-green)] shadow-sm" : "text-gray-600 hover:text-[var(--oppa-green)]"}`}
+                >
+                  Security question
+                </button>
+              </div>
+
+              <form onSubmit={handleVerify} className="space-y-4" aria-busy={isSubmitting}>
+                <div>
+                  <label htmlFor="recovery-email" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
+                    Account email
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                    <input
+                      id="recovery-email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      disabled={isSubmitting}
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      className={`${inputClassName} pl-10`}
+                      placeholder="you@example.com"
+                    />
+                  </div>
+                </div>
+
+                {method === "phone" ? (
+                  <div>
+                    <label htmlFor="recovery-phone" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
+                      Registered phone number
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                      <input
+                        id="recovery-phone"
+                        name="phone"
+                        type="tel"
+                        autoComplete="tel"
+                        required
+                        disabled={isSubmitting}
+                        value={phone}
+                        onChange={(event) => setPhone(event.target.value)}
+                        className={`${inputClassName} pl-10`}
+                        placeholder="09XXXXXXXXX"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label htmlFor="recovery-question" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
+                        Security question
+                      </label>
+                      <select
+                        id="recovery-question"
+                        name="question"
+                        required
+                        disabled={isSubmitting || isLoadingQuestions || questions.length === 0}
+                        value={question}
+                        onChange={(event) => setQuestion(event.target.value)}
+                        className={inputClassName}
+                      >
+                        <option value="" disabled>
+                          {isLoadingQuestions ? "Loading questions..." : "Select your question"}
+                        </option>
+                        {questions.map((item) => (
+                          <option key={item.id} value={item.id}>{item.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="recovery-answer" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
+                        Answer
+                      </label>
+                      <input
+                        id="recovery-answer"
+                        name="answer"
+                        type="text"
+                        autoComplete="off"
+                        required
+                        disabled={isSubmitting}
+                        value={answer}
+                        onChange={(event) => setAnswer(event.target.value)}
+                        className={inputClassName}
+                      />
+                    </div>
+                  </>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || (method === "question" && (isLoadingQuestions || questions.length === 0))}
+                  className="min-h-11 w-full rounded-xl bg-[var(--oppa-green)] py-3 font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmitting ? "Verifying..." : "Verify identity"}
+                </button>
+              </form>
+
+              <p className="mt-4 text-center text-xs text-[var(--oppa-text-muted)]">
+                Don&apos;t have a phone number or security question saved? Contact support.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800" role="status">
+                This reset session lasts 10 minutes.
+              </p>
+              <form onSubmit={handleComplete} className="space-y-4" aria-busy={isSubmitting}>
+                <div>
+                  <label htmlFor="new-password" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
+                    New password
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="new-password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      required
+                      disabled={isSubmitting}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className={`${inputClassName} pr-12`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((visible) => !visible)}
+                      aria-label={showPassword ? "Hide new password" : "Show new password"}
+                      aria-pressed={showPassword}
+                      className="absolute right-2.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:text-[var(--oppa-green)] focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <ul className="mt-2 space-y-1" aria-label="Password requirements">
+                    {passwordRules.map((rule) => {
+                      const valid = rule.test(password);
+                      return (
+                        <li key={rule.label} className={`text-xs ${valid ? "text-green-600" : "text-gray-500"}`}>
+                          {valid ? "✓" : "○"} {rule.label}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+
+                <div>
+                  <label htmlFor="confirm-new-password" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
+                    Confirm new password
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="confirm-new-password"
+                      name="password_confirmation"
+                      type={showConfirmation ? "text" : "password"}
+                      autoComplete="new-password"
+                      required
+                      disabled={isSubmitting}
+                      value={passwordConfirmation}
+                      onChange={(event) => setPasswordConfirmation(event.target.value)}
+                      className={`${inputClassName} pr-12`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmation((visible) => !visible)}
+                      aria-label={showConfirmation ? "Hide password confirmation" : "Show password confirmation"}
+                      aria-pressed={showConfirmation}
+                      className="absolute right-2.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:text-[var(--oppa-green)] focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]"
+                    >
+                      {showConfirmation ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {passwordConfirmation && password !== passwordConfirmation && (
+                    <p className="mt-1 text-xs text-red-600">Passwords do not match.</p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !passwordValid || password !== passwordConfirmation}
+                  className="min-h-11 w-full rounded-xl bg-[var(--oppa-green)] py-3 font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmitting ? "Updating password..." : "Update password"}
+                </button>
+              </form>
+            </>
           )}
 
           <button
