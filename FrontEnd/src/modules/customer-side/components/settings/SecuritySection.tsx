@@ -3,7 +3,6 @@ import { FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
 import { useAuth } from '../../../../contexts/Authcontext';
 import { authService } from '../../../../services/authService';
 import { API_URL } from '../../../../services/apiConfig';
-import SecurityQuestionSection from './SecurityQuestionSection';
 
 const SecuritySection: React.FC = () => {
   const { user } = useAuth();
@@ -144,7 +143,6 @@ const SecuritySection: React.FC = () => {
           {isSaving ? 'Changing Password...' : 'Change Password'}
         </button>
       </form>
-      <SecurityQuestionSection />
     </div>
   );
 };

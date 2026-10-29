@@ -1,11 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { ArrowLeft, Eye, EyeOff, KeyRound, Mail, Phone, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
 import { useToast } from "../components/ToastProvider";
-import { authService, type SecurityQuestion } from "../../../services/authService";
-
-type VerificationMethod = "phone" | "question";
+import { authService } from "../../../services/authService";
 
 const passwordRules = [
   { label: "At least 8 characters", test: (value: string) => value.length >= 8 },
@@ -21,41 +19,16 @@ const ForgotPasswordPage: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [step, setStep] = useState<1 | 2>(1);
-  const [method, setMethod] = useState<VerificationMethod>("phone");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [questions, setQuestions] = useState<SecurityQuestion[]>([]);
-  const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-
-  useEffect(() => {
-    let active = true;
-    authService.getSecurityQuestions()
-      .then((availableQuestions) => {
-        if (active) setQuestions(availableQuestions);
-      })
-      .catch((loadError: unknown) => {
-        if (active) {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load security questions.");
-        }
-      })
-      .finally(() => {
-        if (active) setIsLoadingQuestions(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const handleVerify = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -66,8 +39,7 @@ const ForgotPasswordPage: React.FC = () => {
     try {
       const token = await authService.verifyPasswordReset({
         email: email.trim(),
-        method,
-        ...(method === "phone" ? { phone } : { question, answer }),
+        phone,
       });
       setResetToken(token);
       setStep(2);
@@ -118,12 +90,6 @@ const ForgotPasswordPage: React.FC = () => {
     }
   };
 
-  const toggleMethod = (nextMethod: VerificationMethod) => {
-    setMethod(nextMethod);
-    setError("");
-    setNotice("");
-  };
-
   const inputClassName = "min-h-11 w-full rounded-xl border border-[var(--oppa-border)] px-3.5 py-2.5 text-sm transition-colors placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20";
   const passwordValid = passwordRules.every((rule) => rule.test(password));
 
@@ -142,7 +108,7 @@ const ForgotPasswordPage: React.FC = () => {
             </h1>
             <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">
               {step === 1
-                ? "Confirm your account email and one saved detail."
+                ? "Confirm your account email and registered phone."
                 : "Choose a strong password for your account."}
             </p>
           </div>
@@ -159,27 +125,11 @@ const ForgotPasswordPage: React.FC = () => {
 
           {step === 1 ? (
             <>
-              <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1" role="group" aria-label="Identity verification method">
-                <button
-                  type="button"
-                  onClick={() => toggleMethod("phone")}
-                  disabled={isSubmitting}
-                  aria-pressed={method === "phone"}
-                  className={`min-h-10 rounded-lg px-2 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] ${method === "phone" ? "bg-white text-[var(--oppa-green)] shadow-sm" : "text-gray-600 hover:text-[var(--oppa-green)]"}`}
-                >
+              <div className="mb-5 rounded-xl bg-gray-100 p-1" role="group" aria-label="Verification method">
+                <span className="flex min-h-10 w-1/2 items-center justify-center rounded-lg bg-white px-2 text-sm font-medium text-[var(--oppa-green)] shadow-sm">
                   Phone number
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleMethod("question")}
-                  disabled={isSubmitting}
-                  aria-pressed={method === "question"}
-                  className={`min-h-10 rounded-lg px-2 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] ${method === "question" ? "bg-white text-[var(--oppa-green)] shadow-sm" : "text-gray-600 hover:text-[var(--oppa-green)]"}`}
-                >
-                  Security question
-                </button>
+                </span>
               </div>
-
               <form onSubmit={handleVerify} className="space-y-4" aria-busy={isSubmitting}>
                 <div>
                   <label htmlFor="recovery-email" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
@@ -201,82 +151,34 @@ const ForgotPasswordPage: React.FC = () => {
                     />
                   </div>
                 </div>
-
-                {method === "phone" ? (
-                  <div>
-                    <label htmlFor="recovery-phone" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
-                      Registered phone number
-                    </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                      <input
-                        id="recovery-phone"
-                        name="phone"
-                        type="tel"
-                        autoComplete="tel"
-                        required
-                        disabled={isSubmitting}
-                        value={phone}
-                        onChange={(event) => setPhone(event.target.value)}
-                        className={`${inputClassName} pl-10`}
-                        placeholder="09XXXXXXXXX"
-                      />
-                    </div>
+                <div>
+                  <label htmlFor="recovery-phone" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
+                    Registered phone number
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                    <input
+                      id="recovery-phone"
+                      name="phone"
+                      type="tel"
+                      autoComplete="tel"
+                      required
+                      disabled={isSubmitting}
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                      className={`${inputClassName} pl-10`}
+                      placeholder="09XXXXXXXXX"
+                    />
                   </div>
-                ) : (
-                  <>
-                    <div>
-                      <label htmlFor="recovery-question" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
-                        Security question
-                      </label>
-                      <select
-                        id="recovery-question"
-                        name="question"
-                        required
-                        disabled={isSubmitting || isLoadingQuestions || questions.length === 0}
-                        value={question}
-                        onChange={(event) => setQuestion(event.target.value)}
-                        className={inputClassName}
-                      >
-                        <option value="" disabled>
-                          {isLoadingQuestions ? "Loading questions..." : "Select your question"}
-                        </option>
-                        {questions.map((item) => (
-                          <option key={item.id} value={item.id}>{item.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label htmlFor="recovery-answer" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
-                        Answer
-                      </label>
-                      <input
-                        id="recovery-answer"
-                        name="answer"
-                        type="text"
-                        autoComplete="off"
-                        required
-                        disabled={isSubmitting}
-                        value={answer}
-                        onChange={(event) => setAnswer(event.target.value)}
-                        className={inputClassName}
-                      />
-                    </div>
-                  </>
-                )}
-
+                </div>
                 <button
                   type="submit"
-                  disabled={isSubmitting || (method === "question" && (isLoadingQuestions || questions.length === 0))}
+                  disabled={isSubmitting}
                   className="min-h-11 w-full rounded-xl bg-[var(--oppa-green)] py-3 font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSubmitting ? "Verifying..." : "Verify identity"}
                 </button>
               </form>
-
-              <p className="mt-4 text-center text-xs text-[var(--oppa-text-muted)]">
-                Don&apos;t have a phone number or security question saved? Contact support.
-              </p>
             </>
           ) : (
             <>
@@ -321,7 +223,6 @@ const ForgotPasswordPage: React.FC = () => {
                     })}
                   </ul>
                 </div>
-
                 <div>
                   <label htmlFor="confirm-new-password" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
                     Confirm new password
@@ -352,7 +253,6 @@ const ForgotPasswordPage: React.FC = () => {
                     <p className="mt-1 text-xs text-red-600">Passwords do not match.</p>
                   )}
                 </div>
-
                 <button
                   type="submit"
                   disabled={isSubmitting || !passwordValid || password !== passwordConfirmation}
@@ -362,6 +262,12 @@ const ForgotPasswordPage: React.FC = () => {
                 </button>
               </form>
             </>
+          )}
+
+          {step === 1 && (
+            <p className="mt-4 text-center text-xs text-[var(--oppa-text-muted)]">
+              Don&apos;t have a phone number saved? Contact support.
+            </p>
           )}
 
           <button

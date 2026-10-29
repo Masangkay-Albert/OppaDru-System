@@ -10,32 +10,17 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 
 class CustomerPasswordRecoveryController extends Controller
 {
-    private const DUMMY_ANSWER_HASH = '$2y$12$TEpZ0DSoOjBPNtteTxACXO7667EPjGJ9tYaK1ATPy4mm0xm7Eh3ce';
-
-    public function securityQuestions()
-    {
-        $questions = [];
-
-        foreach (config('customer_security_questions', []) as $id => $label) {
-            $questions[] = ['id' => $id, 'label' => $label];
-        }
-
-        return response()->json(['questions' => $questions]);
-    }
+    private const DUMMY_PHONE_CHECK_HASH = '$2y$12$TEpZ0DSoOjBPNtteTxACXO7667EPjGJ9tYaK1ATPy4mm0xm7Eh3ce';
 
     public function verify(Request $request)
     {
         $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255'],
-            'method' => ['required', Rule::in(['phone', 'question'])],
-            'phone' => ['required_if:method,phone', 'nullable', 'string', 'max:32'],
-            'question' => ['required_if:method,question', 'nullable', 'string', 'max:100'],
-            'answer' => ['required_if:method,question', 'nullable', 'string', 'max:100'],
+            'phone' => ['required', 'string', 'max:32'],
         ]);
 
         $email = $validated['email'];
@@ -55,24 +40,15 @@ class CustomerPasswordRecoveryController extends Controller
             ->whereNotNull('email_verified_at')
             ->first();
 
-        if ($validated['method'] === 'question' && $user && $user->security_answer_hash) {
-            $answerMatches = Hash::check($this->normalizeAnswer($validated['answer']), $user->security_answer_hash);
+        if (!$user || !$user->phone) {
+            Hash::check('unregistered recovery account', self::DUMMY_PHONE_CHECK_HASH);
+            $verified = false;
         } else {
-            Hash::check('unregistered recovery account', self::DUMMY_ANSWER_HASH);
-            $answerMatches = false;
-        }
-
-        $verified = false;
-        if ($user && $validated['method'] === 'phone') {
             $storedPhone = $this->normalizePhone((string) $user->phone);
             $submittedPhone = $this->normalizePhone($validated['phone']);
             $verified = $storedPhone !== null
                 && $submittedPhone !== null
                 && hash_equals($storedPhone, $submittedPhone);
-        } elseif ($user && $validated['method'] === 'question') {
-            $verified = $user->security_question !== null
-                && hash_equals((string) $user->security_question, (string) $validated['question'])
-                && $answerMatches;
         }
 
         if (!$verified) {
@@ -159,51 +135,6 @@ class CustomerPasswordRecoveryController extends Controller
         return response()->json(['message' => 'Password updated successfully.']);
     }
 
-    public function status(Request $request)
-    {
-        if (!$request->user() || $request->user()->role !== 'customer') {
-            return response()->json(['message' => 'Forbidden.'], 403);
-        }
-
-        $user = $request->user();
-
-        return response()->json([
-            'has_question' => $user->security_question !== null && $user->security_answer_hash !== null,
-            'question' => $user->security_question,
-        ]);
-    }
-
-    public function updateSecurityQuestion(Request $request)
-    {
-        if (!$request->user() || $request->user()->role !== 'customer') {
-            return response()->json(['message' => 'Forbidden.'], 403);
-        }
-
-        $validated = $request->validate([
-            'current_password' => ['required', 'string'],
-            'question' => ['required', 'string', Rule::in(array_keys(config('customer_security_questions', [])))],
-            'answer' => ['required', 'string', 'min:3', 'max:100'],
-        ]);
-
-        $user = $request->user();
-        if (!Hash::check($validated['current_password'], $user->password)) {
-            return response()->json(['message' => 'Current password is incorrect.'], 422);
-        }
-
-        $answer = $this->normalizeAnswer($validated['answer']);
-        if (mb_strlen($answer) < 3 || mb_strlen($answer) > 100) {
-            return response()->json([
-                'message' => 'The answer must be between 3 and 100 characters after normalization.',
-            ], 422);
-        }
-
-        $user->security_question = $validated['question'];
-        $user->security_answer_hash = Hash::make($answer);
-        $user->save();
-
-        return response()->json(['message' => 'Security question saved successfully.']);
-    }
-
     private function normalizePhone(string $phone): ?string
     {
         $phone = preg_replace('/[\s-]+/u', '', trim($phone));
@@ -220,14 +151,6 @@ class CustomerPasswordRecoveryController extends Controller
         }
 
         return null;
-    }
-
-    private function normalizeAnswer(string $answer): string
-    {
-        $normalized = mb_strtolower(trim($answer));
-        $collapsed = preg_replace('/\s+/u', ' ', $normalized);
-
-        return is_string($collapsed) ? $collapsed : $normalized;
     }
 
     private function limiterKeys(string $email, string $ip): array

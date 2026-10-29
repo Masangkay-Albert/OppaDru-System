@@ -43,17 +43,9 @@ export interface ResetPasswordData {
   password_confirmation: string;
 }
 
-export interface SecurityQuestion {
-  id: string;
-  label: string;
-}
-
 export interface VerifyPasswordResetData {
   email: string;
-  method: 'phone' | 'question';
-  phone?: string;
-  question?: string;
-  answer?: string;
+  phone: string;
 }
 
 export interface CompletePasswordResetData {
@@ -61,17 +53,6 @@ export interface CompletePasswordResetData {
   reset_token: string;
   password: string;
   password_confirmation: string;
-}
-
-export interface SecurityQuestionStatus {
-  has_question: boolean;
-  question: string | null;
-}
-
-export interface UpdateSecurityQuestionData {
-  current_password: string;
-  question: string;
-  answer: string;
 }
 
 export interface AuthResponse {
@@ -163,16 +144,6 @@ class AuthService {
     return result.message || 'Password reset successful.';
   }
 
-  async getSecurityQuestions(): Promise<SecurityQuestion[]> {
-    const response = await fetch(`${API_URL}/customer/security-questions`);
-    if (!response.ok) {
-      throw new Error(await getApiErrorMessage(response, 'Unable to load security questions.'));
-    }
-
-    const result = await response.json();
-    return result.questions;
-  }
-
   async verifyPasswordReset(data: VerifyPasswordResetData): Promise<string> {
     const response = await fetch(`${API_URL}/customer/password-reset/verify`, {
       method: 'POST',
@@ -197,32 +168,6 @@ class AuthService {
 
     if (!response.ok) {
       throw new Error(await getApiErrorMessage(response, 'Unable to update your password.'));
-    }
-
-    const result = await response.json();
-    return result.message;
-  }
-
-  async getSecurityQuestionStatus(): Promise<SecurityQuestionStatus> {
-    const response = await fetch(`${API_URL}/customer/security-question/status`, {
-      headers: this.getHeaders(),
-    });
-    if (!response.ok) {
-      throw new Error(await getApiErrorMessage(response, 'Unable to load security question status.'));
-    }
-
-    return response.json();
-  }
-
-  async updateSecurityQuestion(data: UpdateSecurityQuestionData): Promise<string> {
-    const response = await fetch(`${API_URL}/customer/security-question`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      throw new Error(await getApiErrorMessage(response, 'Unable to save your security question.'));
     }
 
     const result = await response.json();

@@ -29,42 +29,16 @@ class CustomerPasswordRecoveryTest extends TestCase
         ] as $phone) {
             $this->postJson('/api/customer/password-reset/verify', [
                 'email' => $user->email,
-                'method' => 'phone',
                 'phone' => $phone,
             ])->assertOk()->assertJsonStructure(['reset_token']);
         }
     }
 
-    public function test_security_question_verification_normalizes_the_answer(): void
+    public function test_all_phone_verification_failures_return_the_same_response(): void
     {
-        $user = $this->createCustomer([
-            'security_question' => 'birth_city',
-            'security_answer_hash' => Hash::make('quezon city'),
-        ]);
-
-        $this->postJson('/api/customer/password-reset/verify', [
-            'email' => $user->email,
-            'method' => 'question',
-            'question' => 'birth_city',
-            'answer' => '  QUEZON    City  ',
-        ])->assertOk()->assertJsonStructure(['reset_token']);
-    }
-
-    public function test_all_identity_failures_return_the_same_response(): void
-    {
-        $questionUser = $this->createCustomer([
-            'email' => 'question@example.com',
-            'security_question' => 'first_pet',
-            'security_answer_hash' => Hash::make('bingo'),
-        ]);
         $noPhoneUser = $this->createCustomer([
             'email' => 'nophone@example.com',
             'phone' => null,
-        ]);
-        $noQuestionUser = $this->createCustomer([
-            'email' => 'noquestion@example.com',
-            'security_question' => null,
-            'security_answer_hash' => null,
         ]);
         $adminUser = $this->createCustomer([
             'email' => 'admin@example.com',
@@ -77,18 +51,17 @@ class CustomerPasswordRecoveryTest extends TestCase
         $phoneUser = $this->createCustomer(['email' => 'wrongphone@example.com']);
 
         $cases = [
-            ['email' => $phoneUser->email, 'method' => 'phone', 'phone' => '09999999999'],
-            ['email' => $questionUser->email, 'method' => 'question', 'question' => 'first_pet', 'answer' => 'wrong'],
-            ['email' => 'missing@example.com', 'method' => 'phone', 'phone' => '09171234567'],
-            ['email' => $adminUser->email, 'method' => 'phone', 'phone' => '09171234567'],
-            ['email' => $unverifiedUser->email, 'method' => 'phone', 'phone' => '09171234567'],
-            ['email' => $noPhoneUser->email, 'method' => 'phone', 'phone' => '09171234567'],
-            ['email' => $noQuestionUser->email, 'method' => 'question', 'question' => 'first_pet', 'answer' => 'bingo'],
+            ['email' => $phoneUser->email, 'phone' => '09999999999'],
+            ['email' => 'missing@example.com', 'phone' => '09171234567'],
+            ['email' => $adminUser->email, 'phone' => '09171234567'],
+            ['email' => $unverifiedUser->email, 'phone' => '09171234567'],
+            ['email' => $noPhoneUser->email, 'phone' => '09171234567'],
         ];
 
         foreach ($cases as $case) {
-            $response = $this->postJson('/api/customer/password-reset/verify', $case);
-            $response->assertStatus(422)->assertExactJson(self::MISMATCH_RESPONSE);
+            $this->postJson('/api/customer/password-reset/verify', $case)
+                ->assertStatus(422)
+                ->assertExactJson(self::MISMATCH_RESPONSE);
         }
     }
 
@@ -96,7 +69,6 @@ class CustomerPasswordRecoveryTest extends TestCase
     {
         $payload = [
             'email' => 'not-a-customer@example.com',
-            'method' => 'phone',
             'phone' => '09171234567',
         ];
 
@@ -114,8 +86,8 @@ class CustomerPasswordRecoveryTest extends TestCase
     public function test_successful_verification_resets_the_email_failure_counter(): void
     {
         $user = $this->createCustomer();
-        $wrongPayload = ['email' => $user->email, 'method' => 'phone', 'phone' => '09999999999'];
-        $correctPayload = ['email' => $user->email, 'method' => 'phone', 'phone' => $user->phone];
+        $wrongPayload = ['email' => $user->email, 'phone' => '09999999999'];
+        $correctPayload = ['email' => $user->email, 'phone' => $user->phone];
 
         for ($attempt = 0; $attempt < 2; $attempt++) {
             $this->postJson('/api/customer/password-reset/verify', $wrongPayload)->assertStatus(422);
@@ -136,14 +108,12 @@ class CustomerPasswordRecoveryTest extends TestCase
         for ($attempt = 0; $attempt < 10; $attempt++) {
             $this->postJson('/api/customer/password-reset/verify', [
                 'email' => "missing{$attempt}@example.com",
-                'method' => 'phone',
                 'phone' => '09171234567',
             ])->assertStatus(422);
         }
 
         $this->postJson('/api/customer/password-reset/verify', [
             'email' => 'another-missing@example.com',
-            'method' => 'phone',
             'phone' => '09171234567',
         ])->assertStatus(429)
             ->assertJsonPath('message', 'Too many attempts. Try again in 15 minutes.');
@@ -206,49 +176,6 @@ class CustomerPasswordRecoveryTest extends TestCase
             'password' => 'weakpassword1',
             'password_confirmation' => 'weakpassword1',
         ])->assertStatus(422);
-    }
-
-    public function test_security_question_update_requires_current_password_and_hashes_answer(): void
-    {
-        $user = $this->createCustomer();
-        $token = 'customer-session-token';
-        $user->api_token = hash('sha256', $token);
-        $user->save();
-        $headers = ['Authorization' => 'Bearer ' . $token];
-
-        $this->putJson('/api/customer/security-question', [
-            'current_password' => 'incorrect',
-            'question' => 'first_pet',
-            'answer' => 'Mochi Cat',
-        ], $headers)->assertStatus(422);
-
-        $this->putJson('/api/customer/security-question', [
-            'current_password' => self::PASSWORD,
-            'question' => 'first_pet',
-            'answer' => '  Mochi   Cat  ',
-        ], $headers)->assertOk();
-
-        $updated = $user->fresh();
-        $this->assertSame('first_pet', $updated->security_question);
-        $this->assertNotSame('mochi cat', $updated->security_answer_hash);
-        $this->assertTrue(Hash::check('mochi cat', $updated->security_answer_hash));
-
-        $this->getJson('/api/customer/security-question/status', $headers)
-            ->assertOk()
-            ->assertJsonPath('has_question', true)
-            ->assertJsonPath('question', 'first_pet')
-            ->assertJsonMissingPath('answer')
-            ->assertJsonMissingPath('security_answer_hash');
-    }
-
-    public function test_question_list_exposes_only_ids_and_labels(): void
-    {
-        $response = $this->getJson('/api/customer/security-questions')->assertOk();
-        $response->assertJsonStructure(['questions' => [['id', 'label']]]);
-        $this->assertSame(
-            ['first_pet', 'birth_city', 'elementary_school', 'favorite_teacher', 'childhood_nickname'],
-            array_column($response->json('questions'), 'id')
-        );
     }
 
     protected function tearDown(): void

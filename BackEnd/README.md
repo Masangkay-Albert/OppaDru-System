@@ -55,13 +55,13 @@ The legacy `/api/customer/forgot-password` and `/api/customer/reset-password` en
 
 ### Customer password recovery without email
 
-Verified customers can recover access using their account email plus either their registered Philippine phone number or a saved security question. The one-time reset token expires after 10 minutes, is stored hashed, and is held only in frontend component state. Customers can add or update a security question in **Customer Settings → Security**; the answer is normalized and hashed.
+Verified customers can recover access using their account email and registered Philippine phone number. The one-time reset token expires after 10 minutes, is stored hashed, and is held only in frontend component state. Phone numbers accept Philippine local and international formats.
 
-The fixed question keys and labels are in `config/customer_security_questions.php`. The additive migrations create the standard `password_reset_tokens` table, the customer security-question columns, and the Laravel `cache`/`cache_locks` tables needed by the database cache store.
+The additive migrations create the standard `password_reset_tokens` table and the Laravel `cache`/`cache_locks` tables needed by the database cache store. An idempotent cleanup migration removes security-question columns left by the removed implementation.
 
 Rate limiting uses Laravel's configured cache store. `config/cache.php` defaults `CACHE_STORE` to `database`; on Render, keep `CACHE_STORE=database` and point all backend instances at the same Supabase database so email/IP limits are persistent and shared. Do not use the `array` store or instance-local `file` store for production rate limits.
 
-Manual smoke test: set a question in customer settings, then visit `/forgot-password` and verify once with the registered phone and once with the saved question. Complete each reset with a compliant password, confirm the prior password no longer logs in, and confirm the new password does. Three failed identity checks for one email should cause subsequent attempts to return the 15-minute lockout response. No reset email or SMS should be sent.
+Manual smoke test: visit `/forgot-password`, verify with the account email and registered phone, then complete a reset with a compliant password. Confirm the prior password no longer logs in and the new password does. Three failed identity checks for one email should cause subsequent attempts to return the 15-minute lockout response. No reset email or SMS should be sent.
 
 ### Improve inbox placement
 
