@@ -20,6 +20,7 @@ class AdminAuthLoginTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('admin.email', 'admin@oppadru.com');
+        $response->assertJsonPath('admin.role', 'system_administrator');
         $response->assertJsonStructure(['token', 'admin']);
     }
 

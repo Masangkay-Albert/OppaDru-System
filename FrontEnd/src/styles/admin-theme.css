@@ -248,11 +248,13 @@ body {
 }
 
 .products-table th {
-  height: 44px;
+  height: 48px;
 }
 
 .products-table thead th {
-  background: color-mix(in srgb, var(--oppa-green-soft) 72%, var(--oppa-surface));
+  background: color-mix(in srgb, var(--oppa-green-soft) 82%, var(--oppa-surface));
+  color: var(--oppa-green-dark);
+  font-weight: 700;
 }
 
 .products-table thead {
@@ -262,6 +264,18 @@ body {
 
 .products-table tbody tr {
   transition: background-color 200ms ease-out;
+}
+
+.products-table tbody tr:not(:last-child) {
+  border-bottom: 1px solid color-mix(in srgb, var(--oppa-border) 72%, transparent);
+}
+
+.products-table tbody tr:hover {
+  background-color: color-mix(in srgb, var(--oppa-green-soft) 42%, var(--oppa-surface));
+}
+
+[data-theme='dark'] .products-table thead th {
+  color: var(--oppa-highlight-text);
 }
 
 .products-page-toolbar > header > div > p {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Archive, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Eye, Image as ImageIcon, ImagePlus, LayoutGrid, List, PackageOpen, PlusSquare, Trash2, X } from 'lucide-react';
+import { Archive, ChevronDown, ChevronUp, Eye, Image as ImageIcon, ImagePlus, LayoutGrid, List, PackageOpen, PlusSquare, Trash2, X } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { getAllProducts, toggleAvailability, deleteProduct, updateProduct, addProduct } from '../../../services/adminProductService';
 import { productService } from '../../../services/productService';
@@ -83,8 +83,6 @@ const AdminProductsPage: React.FC = () => {
     }
   });
   const [detailsProduct, setDetailsProduct] = useState<Product | null>(null);
-  const [categoryTabsOverflow, setCategoryTabsOverflow] = useState(false);
-  const categoryTabsRef = useRef<HTMLDivElement>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const mobileSelectAllRef = useRef<HTMLInputElement>(null);
   const [pendingAvailability, setPendingAvailability] = useState<string[]>([]);
@@ -120,6 +118,13 @@ const AdminProductsPage: React.FC = () => {
   };
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
+  const categoryFilterOptions = categoryOptions.map((option) => {
+    const count = products.filter((product) => (
+      isArchived(product) === showArchived
+      && (option.value === 'all' || product.category === option.value)
+    )).length;
+    return { ...option, label: `${option.label} (${count})` };
+  });
 
   const filteredProducts = products
     .filter((product) => {
@@ -153,20 +158,6 @@ const AdminProductsPage: React.FC = () => {
     if (selectAllRef.current) selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
     if (mobileSelectAllRef.current) mobileSelectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
   }, [someVisibleSelected, allVisibleSelected]);
-
-  useEffect(() => {
-    const tabs = categoryTabsRef.current;
-    if (!tabs) return;
-    const updateOverflow = () => setCategoryTabsOverflow(tabs.scrollWidth > tabs.clientWidth + 1);
-    updateOverflow();
-    const observer = new ResizeObserver(updateOverflow);
-    observer.observe(tabs);
-    return () => observer.disconnect();
-  }, [products]);
-
-  const scrollCategoryTabs = (direction: -1 | 1) => {
-    categoryTabsRef.current?.scrollBy({ left: direction * 220, behavior: 'smooth' });
-  };
 
   const handleToggle = async (id: string) => {
     const current = products.find((product) => product.id === id);
@@ -384,62 +375,37 @@ const AdminProductsPage: React.FC = () => {
           </button>
         } />
 
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <SearchInput
-            aria-label="Search products"
-            value={searchTerm}
-            onChange={(value) => { setSearchTerm(value); setPage(1); }}
-            placeholder="Search products..."
-            wrapperClassName="w-full shrink-0 lg:max-w-xs lg:flex-1"
-          />
-
-          <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative min-w-0 flex-1">
-              {categoryTabsOverflow && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-[var(--oppa-cream)] to-transparent" />}
-              {categoryTabsOverflow && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[var(--oppa-cream)] to-transparent" />}
-              {categoryTabsOverflow && <button type="button" aria-label="Scroll categories left" onClick={() => scrollCategoryTabs(-1)} className="absolute left-0 top-1/2 z-20 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-sm transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><ChevronLeft size={15} /></button>}
-              <div ref={categoryTabsRef} onScroll={() => {
-                const tabs = categoryTabsRef.current;
-                if (tabs) setCategoryTabsOverflow(tabs.scrollWidth > tabs.clientWidth + 1);
-              }} className="admin-scrollbar flex min-w-0 gap-2 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2.5">
-              {categoryOptions.map((option) => {
-                const count = option.value === 'all' ? products.length : products.filter((product) => product.category === option.value).length;
-                return (
-              <button
-                type="button"
-                aria-pressed={activeCategory === option.value}
-                key={option.value}
-                onClick={() => { setActiveCategory(option.value); setPage(1); }}
-                className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${
-                  activeCategory === option.value
-                    ? 'border-green-700 bg-green-700 text-white shadow-sm'
-                    : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)] active:scale-[0.98]'
-                }`}
-              >
-                {option.label}<span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${activeCategory === option.value ? 'bg-white/20 text-white' : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)]'}`}>{count}</span>
+        <div className="mt-5 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+            <SearchInput
+              aria-label="Search products"
+              value={searchTerm}
+              onChange={(value) => { setSearchTerm(value); setPage(1); }}
+              placeholder="Search products..."
+              wrapperClassName="w-full sm:min-w-[220px] sm:max-w-sm sm:flex-1"
+              className="!h-11 !rounded-xl"
+            />
+            <Select
+              aria-label="Filter products by category"
+              value={activeCategory}
+              onChange={(value) => { setActiveCategory(value); setPage(1); }}
+              options={categoryFilterOptions}
+              className="w-full shrink-0 sm:w-52"
+              triggerClassName="h-11 rounded-xl"
+            />
+            <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setSelectedIds([]); setPage(1); }} className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${showArchived ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><Archive size={15} />{showArchived ? 'Showing archived' : `Archived (${archivedIds.length})`}</button>
+          </div>
+          <div className="flex items-center justify-between gap-3 xl:justify-end">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-sm font-medium text-[var(--oppa-text-muted)]">Sort by</span>
+              <Select aria-label="Sort by" value={sortBy} onChange={(value) => { const sort = value as typeof sortBy; setSortBy(sort); setSortDirection(sort === 'newest' ? 'desc' : 'asc'); setPage(1); }} options={[{ value: 'name', label: 'Name' }, { value: 'price', label: 'Price' }, { value: 'category', label: 'Category' }, { value: 'newest', label: 'Newest' }]} className="w-32" triggerClassName="h-11 rounded-xl" />
+              <button type="button" aria-label={sortDirection === 'asc' ? 'Sort ascending' : 'Sort descending'} title={sortDirection === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc')} className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
+                {sortDirection === 'asc' ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
               </button>
-                );
-              })}
             </div>
-              {categoryTabsOverflow && <button type="button" aria-label="Scroll categories right" onClick={() => scrollCategoryTabs(1)} className="absolute right-0 top-1/2 z-20 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-sm transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><ChevronRight size={15} /></button>}
-            </div>
-          </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setSelectedIds([]); setPage(1); }} className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${showArchived ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><Archive size={14} />{showArchived ? 'Showing archived' : `Archived (${archivedIds.length})`}</button>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Select aria-label="Sort products" value={sortBy} onChange={(value) => { const sort = value as typeof sortBy; setSortBy(sort); setSortDirection(sort === 'newest' ? 'desc' : 'asc'); setPage(1); }} options={[{ value: 'name', label: 'Name' }, { value: 'price', label: 'Price' }, { value: 'category', label: 'Category' }, { value: 'newest', label: 'Newest' }]} className="w-36" />
-                <button type="button" aria-label={sortDirection === 'asc' ? 'Sort ascending' : 'Sort descending'} title={sortDirection === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc')} className="inline-flex size-9 items-center justify-center rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
-                  {sortDirection === 'asc' ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
-                </button>
-              </div>
-              <div role="group" aria-label="Product view" className="inline-flex h-9 items-center rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-0.5">
-                <button type="button" aria-label="Table view" aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')} className={`inline-flex size-8 items-center justify-center rounded-md transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 ${viewMode === 'table' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><List size={16} /></button>
-                <button type="button" aria-label="Card view" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} className={`inline-flex size-8 items-center justify-center rounded-md transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 ${viewMode === 'grid' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><LayoutGrid size={16} /></button>
-              </div>
+            <div role="group" aria-label="Product view" className="inline-flex h-11 shrink-0 items-center rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-1">
+              <button type="button" aria-label="Table view" aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')} className={`inline-flex size-9 items-center justify-center rounded-lg transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 ${viewMode === 'table' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><List size={16} /></button>
+              <button type="button" aria-label="Card view" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} className={`inline-flex size-9 items-center justify-center rounded-lg transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 ${viewMode === 'grid' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><LayoutGrid size={16} /></button>
             </div>
           </div>
         </div>
@@ -470,7 +436,7 @@ const AdminProductsPage: React.FC = () => {
       {isLoading && <div role="status" aria-label="Loading products" aria-busy="true" className="mt-4 min-h-64" />}
       {!isLoading && filteredProducts.length === 0 && (
         <div className="admin-card mt-4">
-          <EmptyState icon={<PackageOpen size={23} />} title={searchTerm ? 'No products match your search' : 'No products in this category'} description={searchTerm ? 'Try another product name or clear your search.' : 'Add a product to start building your menu.'} action={<button type="button" onClick={openAddModal} className="mt-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Add product</button>} />
+          <EmptyState icon={<PackageOpen size={23} />} title={normalizedSearch || activeCategory !== 'all' ? 'No products match these filters' : showArchived ? 'No archived products' : 'No products yet'} description={normalizedSearch || activeCategory !== 'all' || showArchived ? 'Try changing your search or category selection.' : 'Add a product to start building your menu.'} action={normalizedSearch || activeCategory !== 'all' || showArchived ? <button type="button" onClick={() => { setSearchTerm(''); setActiveCategory('all'); setShowArchived(false); setSelectedIds([]); setPage(1); }} className="mt-2 rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-semibold text-[var(--oppa-text)] transition-colors hover:bg-[var(--oppa-green-soft)]">Clear filters</button> : <button type="button" onClick={openAddModal} className="mt-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Add product</button>} />
         </div>
       )}
 
@@ -500,7 +466,7 @@ const AdminProductsPage: React.FC = () => {
               </div>
 
               <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--oppa-border)] pt-3">
-                <div className="inline-flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]"><AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Unavailable" disabled={pendingAvailability.includes(product.id)} onChange={() => void handleToggle(product.id)} /><span>{isAvailable(product) ? 'Available' : 'Unavailable'}</span></div>
+                <div className="inline-flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]"><AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Unavailable" disabled={pendingAvailability.includes(product.id)} onChange={() => void handleToggle(product.id)} /><span className={isAvailable(product) ? 'font-medium text-[var(--oppa-available-text)]' : 'text-[var(--oppa-text-muted)]'}>{isAvailable(product) ? 'Available' : 'Unavailable'}</span></div>
                 <div className="flex items-center gap-1">
                   {!isArchived(product) && <>
                     <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-100 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100">Edit</button>
@@ -515,7 +481,7 @@ const AdminProductsPage: React.FC = () => {
       )}
 
       {!isLoading && filteredProducts.length > 0 && viewMode === 'table' && (
-        <div className="admin-scrollbar mt-4 hidden overflow-x-auto overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm md:block">
+        <div className="admin-scrollbar mt-4 hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm md:block">
           <table className="admin-table products-table w-full min-w-[780px] table-fixed text-sm">
             <colgroup>
               <col style={{ width: '4%' }} /><col style={{ width: activeCategory === 'all' ? '34%' : '49%' }} />

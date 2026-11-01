@@ -124,7 +124,7 @@
 
 .franchise-report-toolbar {
   position: sticky;
-  top: 64px;
+  top: 120px;
   z-index: 20;
   display: flex;
   flex-wrap: wrap;
@@ -171,7 +171,7 @@
 
 .franchise-account-nav {
   position: sticky;
-  top: 58px;
+  top: 68px;
   z-index: 15;
   display: flex;
   overflow-x: auto;
@@ -183,7 +183,7 @@
 .franchise-account-nav a { min-height: 42px; display: inline-flex; flex: 0 0 auto; align-items: center; border-radius: 10px; padding: 0 14px; color: var(--oppa-text-muted); font-size: 13px; font-weight: 650; }
 .franchise-account-nav a:hover { background: var(--oppa-green-soft); color: var(--oppa-green-dark); }
 .franchise-soft-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
-.franchise-soft-table thead { position: sticky; top: 0; z-index: 2; background: var(--oppa-surface, #fff); }
+.franchise-soft-table thead { background: var(--oppa-surface, #fff); }
 .franchise-soft-table th { border-bottom: 1px solid var(--oppa-border); padding: 10px 8px; color: var(--oppa-text-muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .franchise-soft-table td { border-bottom: 1px solid var(--oppa-border); padding: 12px 8px; vertical-align: middle; }
 .franchise-soft-table tbody tr:hover { background: var(--oppa-cream); }
@@ -222,11 +222,11 @@
   .franchise-kpi-card { min-height: 96px; flex-wrap: wrap; gap: 8px; padding: 11px; }
   .franchise-kpi-icon { width: 34px; height: 34px; flex-basis: 34px; }
   .franchise-kpi-card .franchise-trend { margin-left: 0; }
-  .franchise-report-toolbar { top: 56px; padding: 12px; }
+  .franchise-report-toolbar { top: 120px; padding: 12px; }
   .franchise-report-controls { flex-wrap: nowrap; align-items: center; }
   .franchise-date-chips { max-width: 100%; }
   .franchise-report-select { max-width: 150px; }
-  .franchise-account-nav { top: 51px; }
+  .franchise-account-nav { top: 68px; }
   .franchise-soft-table-wrap { display: none; }
   .franchise-mobile-row { display: grid; gap: 8px; }
   .franchise-status-donut { width: 126px; height: 126px; }

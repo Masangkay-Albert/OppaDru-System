@@ -54,6 +54,7 @@ Route::get('/storage/{path}', function (string $path) {
 
 Route::get('/settings/pricing', [SettingController::class, 'index']);
 Route::get('/promos', [PromoController::class, 'index']);
+Route::get('/promos/{id}/image', [PromoController::class, 'image']);
 Route::post('/promos/validate', [PromoController::class, 'validatePromo']);
 Route::get('/reports/popular-meals', [PopularMealsController::class, 'getMostPopularThisMonth']);
 Route::get('/announcements', [AnnouncementController::class, 'publicList']);
@@ -259,8 +260,6 @@ Route::middleware(['admin.access'])->prefix('admin')->group(function () {
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
     Route::patch('/products/{id}/toggle', [ProductController::class, 'toggleAvailability']);
 
-    Route::delete('/customers/{id}', [AdminController::class, 'destroyCustomer']);
-    Route::get('/list', [AdminController::class, 'index']);
     Route::get('/count', [AdminController::class, 'count']);
     Route::get('/discount-verifications', [DiscountVerificationController::class, 'index']);
     Route::patch('/discount-verifications/{id}', [DiscountVerificationController::class, 'updateStatus']);
@@ -300,12 +299,23 @@ Route::middleware(['admin.access'])->prefix('admin')->group(function () {
     Route::get('/franchise-accounts/{id}/report', [FranchiseAccountController::class, 'report']);
     Route::get('/franchise-accounts/{id}/detailed-report', [FranchiseAccountController::class, 'detailedReport']);
     Route::put('/franchise-accounts/{id}', [FranchiseAccountController::class, 'update']);
+    Route::delete('/franchise-accounts/{id}', [FranchiseAccountController::class, 'destroy']);
     Route::post('/franchise-accounts/{id}/locations', [FranchiseAccountController::class, 'storeLocation']);
     Route::post('/franchise-accounts/{id}/managers', [FranchiseAccountController::class, 'storeManager']);
+
+    Route::delete('/customers/{id}', [AdminController::class, 'destroyCustomer']);
+    Route::get('/me', [AdminController::class, 'showCurrent']);
+    Route::middleware('system.administrator')->group(function () {
+        Route::get('/list', [AdminController::class, 'index']);
+        Route::post('/register', [AdminController::class, 'store']);
+        Route::put('/admins/{id}', [AdminController::class, 'update']);
+        Route::patch('/admins/{id}/role', [AdminController::class, 'updateRole']);
+        Route::put('/admins/{id}/reset-password', [AdminController::class, 'resetPassword']);
+        Route::delete('/admins/{id}', [AdminController::class, 'destroy']);
+    });
 });
 
 Route::prefix('admin')->group(function () {
-    Route::post('/register', [AdminController::class, 'store']);
     Route::post('/login', [AdminAuthController::class, 'login']);
     Route::post('/logout', [AdminAuthController::class, 'logout']);
 });

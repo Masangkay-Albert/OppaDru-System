@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle, X, Eye, Package, CalendarDays, Copy, Globe2, Store } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { AdminDate, Avatar, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
-import { getAllOrders, markOrderServed, type AdminOrder } from '../../../services/adminOrderService';
+import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
 import { formatCurrency } from '../../../utils/formatters';
 import { getScheduledOrderDetails } from '../../../utils/orderUtils';
 import Select from '../../../components/ui/Select';
@@ -67,16 +67,6 @@ const AdminOrdersPage: React.FC = () => {
       window.clearInterval(interval);
     };
   }, [loadOrders]);
-
-  const handleMarkDelivered = async (order: AdminOrder) => {
-    try {
-      await markOrderServed(order.id, order.channel);
-      await loadOrders();
-    } catch (error) {
-      console.error('Could not mark order delivered:', error);
-      setNotice('Could not update the order status.');
-    }
-  };
 
   const getOrderTimestamp = (order: AdminOrder): number => {
     const raw = order.created_at || order.timestamp;
@@ -298,7 +288,6 @@ const AdminOrdersPage: React.FC = () => {
             </thead>
             <tbody>
               {paginatedOrders.map((order) => {
-                const isDelivered = order.status === 'delivered';
                 const itemsSummary = getOrderItemsSummary(order.items);
                 const fullItemsSummary = getFullItemsSummary(order.items);
                 const orderDate = getOrderDate(order);
@@ -307,12 +296,7 @@ const AdminOrdersPage: React.FC = () => {
                 return (
                   <tr
                     key={order.id}
-                    tabIndex={0}
-                    onClick={(event) => {
-                      if (!(event.target instanceof Element) || !event.target.closest('button, a')) setSelectedOrder(order);
-                    }}
-                    onKeyDown={(event) => { if (event.key === 'Enter' && event.target === event.currentTarget) setSelectedOrder(order); }}
-                    className="group cursor-pointer border-b border-[var(--oppa-border)]/60 last:border-0 transition hover:bg-[var(--oppa-cream)]/50"
+                    className="group border-b border-[var(--oppa-border)]/60 last:border-0 transition hover:bg-[var(--oppa-cream)]/50"
                   >
                     <td data-label="Order ID" className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-[var(--oppa-text)]" title={orderId}>
                       <span className="inline-block max-w-full truncate align-bottom">{orderId}</span>
@@ -364,17 +348,6 @@ const AdminOrdersPage: React.FC = () => {
                     </td>
                     <td data-label="View" className="px-2 py-2.5 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5 justify-end">
-                        {order.channel === 'onsite' && !isDelivered && (
-                          <button
-                            type="button"
-                            onClick={() => void handleMarkDelivered(order)}
-                            title="Mark Delivered"
-                            className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2 py-1 text-[11px] font-medium text-green-700 transition hover:bg-green-100"
-                          >
-                            <CheckCircle size={12} />
-                            <span className="hidden xl:inline">Serve</span>
-                          </button>
-                        )}
                         <button
                           type="button"
                           onClick={() => setSelectedOrder(order)}

@@ -150,7 +150,7 @@ const AdminReportsPage: React.FC = () => {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [filters, setFilters] = useState<ReportFilters>({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
   const [quickRange, setQuickRange] = useState<QuickRange>('custom');
-  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(true);
   const [timelineStyle, setTimelineStyle] = useState<'line' | 'bar'>('line');
   const [savedGoal, setSavedGoal] = useState(0);
   const [goalInput, setGoalInput] = useState('');
@@ -292,11 +292,13 @@ const AdminReportsPage: React.FC = () => {
 
   const clearFilters = () => {
     setQuickRange('custom');
+    setMoreFiltersOpen(true);
     setFilters({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
   };
 
   const applyQuickRange = (range: QuickRange) => {
     setQuickRange(range);
+    if (range === 'custom') setMoreFiltersOpen(true);
     setFilters({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
   };
 

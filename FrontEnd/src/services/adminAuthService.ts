@@ -5,15 +5,17 @@ export interface AdminUser {
   id: string;
   fullName: string;
   email: string;
-  role: 'admin';
+  role: AdminRole;
 }
+
+export type AdminRole = 'admin' | 'system_administrator';
 
 export interface StoredAccount {
   id: string;
   fullName: string;
   email: string;
-  password: string;
-  role: 'customer' | 'employee' | 'admin';
+  password?: string;
+  role: 'customer' | 'employee' | AdminRole;
   contactNumber?: string;
   address?: string;
   position?: string; 
@@ -70,8 +72,7 @@ const refreshAdminSession = async (): Promise<string | null> => {
   localStorage.removeItem(STORAGE_KEYS.ADMIN_TOKEN);
   const storedAdmin = getCurrentAdmin();
   if (storedAdmin) {
-    const { token: _staleToken, ...adminWithoutToken } = storedAdmin as AdminUser & { token?: string };
-    setCurrentAdmin(adminWithoutToken);
+    setCurrentAdmin(storedAdmin);
   }
 
   if (!adminSessionRefresh) {
@@ -113,13 +114,14 @@ export const getCurrentAdmin = (): AdminUser | null => {
   const stored = localStorage.getItem(STORAGE_KEYS.ADMIN_CURRENT);
   if (!stored) return null;
   try {
-    const parsed = JSON.parse(stored) as any;
+    const parsed = JSON.parse(stored) as Record<string, unknown>;
     if (!parsed) return null;
+    const role = parsed.role === 'system_administrator' ? 'system_administrator' : 'admin';
     return {
       id: String(parsed.id || 'admin-001'),
-      fullName: parsed.fullName || parsed.full_name || parsed.name || 'System Administrator',
-      email: parsed.email || 'admin@oppadru.com',
-      role: 'admin',
+      fullName: String(parsed.fullName || parsed.full_name || parsed.name || 'Administrator'),
+      email: String(parsed.email || 'admin@oppadru.com'),
+      role,
     };
   } catch {
     return null;
@@ -190,28 +192,52 @@ export const addEmployeeAccount = (data: {
 };
 
 // API-backed admin operations
-export const apiRegisterAdmin = async (data: { full_name: string; email: string; password: string; password_confirmation: string }) => {
-  // Use FormData to avoid backend JSON parsing issues in some environments
-  const form = new FormData();
-  form.append('full_name', data.full_name);
-  form.append('email', data.email);
-  form.append('password', data.password);
-  form.append('password_confirmation', data.password_confirmation);
-
-  const res = await fetch(`${API_URL}/admin/register`, {
-    method: 'POST',
-    body: form,
-  });
-
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    if (body && body.errors) {
-      const msgs = Object.values(body.errors).flat().join(' ');
-      throw new Error(msgs || 'Validation failed');
-    }
-    throw new Error((body && body.message) || 'Failed to register admin');
+const parseAdminResponse = async (response: Response) => {
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errors = body?.errors ? Object.values(body.errors).flat().join(' ') : '';
+    throw new Error(errors || body?.message || `Administrator request failed (${response.status}).`);
   }
   return body;
+};
+
+const apiAdminRequest = async (path: string, method: string, data?: Record<string, unknown>) => {
+  const response = await fetchWithAdminAuth(`${API_URL}${path}`, {
+    method,
+    body: data ? JSON.stringify(data) : undefined,
+  });
+  return parseAdminResponse(response);
+};
+
+export const apiRegisterAdmin = async (data: {
+  full_name: string;
+  email: string;
+  password: string;
+  password_confirmation: string;
+  role?: AdminRole;
+}) => apiAdminRequest('/admin/register', 'POST', data);
+
+export const apiUpdateAdmin = async (id: string, data: { full_name: string; email: string }) =>
+  apiAdminRequest(`/admin/admins/${encodeURIComponent(id)}`, 'PUT', data);
+
+export const apiUpdateAdminRole = async (id: string, role: AdminRole) =>
+  apiAdminRequest(`/admin/admins/${encodeURIComponent(id)}/role`, 'PATCH', { role });
+
+export const apiResetAdminPassword = async (id: string, password: string, password_confirmation: string) =>
+  apiAdminRequest(`/admin/admins/${encodeURIComponent(id)}/reset-password`, 'PUT', { password, password_confirmation });
+
+export const apiDeleteAdmin = async (id: string) =>
+  apiAdminRequest(`/admin/admins/${encodeURIComponent(id)}`, 'DELETE');
+
+export const apiGetCurrentAdmin = async (): Promise<AdminUser> => {
+  const body = await apiAdminRequest('/admin/me', 'GET');
+  const rawAdmin = body.admin;
+  return {
+    id: String(rawAdmin.id),
+    fullName: rawAdmin.full_name || rawAdmin.fullName || '',
+    email: rawAdmin.email,
+    role: rawAdmin.role === 'system_administrator' ? 'system_administrator' : 'admin',
+  };
 };
 
 export const apiAdminLogin = async (email: string, password: string) => {
@@ -220,20 +246,18 @@ export const apiAdminLogin = async (email: string, password: string) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || 'Invalid admin credentials');
-  }
-
-  return res.json();
+  return parseAdminResponse(res);
 };
 
-export const apiGetAdmins = async (): Promise<StoredAccount[] | null> => {
-  const res = await fetchWithAdminAuth(`${API_URL}/admin/list`);
-  if (!res.ok) return null;
-  const body = await res.json();
-  return (body.data || []).map((a: any) => ({ id: String(a.id), fullName: a.full_name || a.fullName || '', email: a.email, role: 'admin', dateRegistered: a.created_at }));
+export const apiGetAdmins = async (): Promise<StoredAccount[]> => {
+  const body = await apiAdminRequest('/admin/list', 'GET');
+  return (body.data || []).map((account: Record<string, unknown>) => ({
+    id: String(account.id),
+    fullName: String(account.full_name || account.fullName || ''),
+    email: String(account.email || ''),
+    role: account.role === 'system_administrator' ? 'system_administrator' : 'admin',
+    dateRegistered: String(account.created_at || ''),
+  }));
 };
 
 export const apiGetAdminCount = async (): Promise<number> => {

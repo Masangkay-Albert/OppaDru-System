@@ -151,7 +151,7 @@ function App() {
                       <Route path="/admin/customers" element={<ProtectedAdminRoute><AdminCustomersPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/employees" element={<ProtectedAdminRoute><AdminEmployeesPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/reports" element={<ProtectedAdminRoute><AdminReportsPage /></ProtectedAdminRoute>} />
-                      <Route path="/admin/admins" element={<ProtectedAdminRoute><AdminAdminsPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/admins" element={<ProtectedAdminRoute systemAdministratorOnly><AdminAdminsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/franchises" element={<ProtectedAdminRoute><AdminFranchisesPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/franchise-accounts/:id" element={<ProtectedAdminRoute><AdminFranchiseAccountDetailPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/franchises/:id" element={<ProtectedAdminRoute><AdminFranchiseDetailPage /></ProtectedAdminRoute>} />

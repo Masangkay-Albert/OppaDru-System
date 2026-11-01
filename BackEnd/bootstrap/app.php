@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'franchise.role' => \App\Http\Middleware\EnsureFranchiseRole::class,
             'employee.access' => \App\Http\Middleware\EnsureEmployeeAccess::class,
             'admin.access' => \App\Http\Middleware\EnsureAdminAccess::class,
+            'system.administrator' => \App\Http\Middleware\RequireSystemAdministrator::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

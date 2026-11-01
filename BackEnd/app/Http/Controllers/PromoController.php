@@ -3,13 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Promo;
+use App\Support\DatabaseImage;
 use App\Support\HttpCacheResponse;
 use App\Traits\AdminAuthTrait;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Validator as LaravelValidator;
 
 class PromoController extends Controller
 {
@@ -98,6 +101,7 @@ class PromoController extends Controller
             'max_discount_amount' => 'nullable|numeric|min:0',
             'usage_limit' => 'nullable|integer|min:1',
         ]);
+        $validator->after(fn (LaravelValidator $validator) => $this->validatePromoDateYears($validator, $request));
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -108,8 +112,7 @@ class PromoController extends Controller
         $data['is_active'] = $request->boolean('is_active', true);
 
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('promos', 'public');
-            $data['image'] = $path;
+            $data['image'] = DatabaseImage::fromUploadedFile($request->file('image'));
         }
 
         $promo = Promo::create($data);
@@ -125,6 +128,18 @@ class PromoController extends Controller
         $promo = Promo::where('id', $id)->orWhere('code', strtoupper($id))->firstOrFail();
 
         return response()->json($this->formatPromo($promo));
+    }
+
+    public function image(string $id)
+    {
+        $promo = Promo::select(['id', 'image'])->findOrFail($id);
+        $imageData = $promo->getRawOriginal('image');
+
+        if (! is_string($imageData) || ! str_starts_with($imageData, 'data:image/')) {
+            abort(404, 'Promo image not found.');
+        }
+
+        return DatabaseImage::response($imageData);
     }
 
     public function update(Request $request, string $id)
@@ -154,6 +169,7 @@ class PromoController extends Controller
             'max_discount_amount' => 'nullable|numeric|min:0',
             'usage_limit' => 'nullable|integer|min:1',
         ]);
+        $validator->after(fn (LaravelValidator $validator) => $this->validatePromoDateYears($validator, $request));
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -166,11 +182,13 @@ class PromoController extends Controller
         }
 
         if ($request->hasFile('image')) {
-            if ($promo->image) {
+            $existingImage = $promo->getRawOriginal('image');
+            if (is_string($existingImage) && $existingImage !== ''
+                && ! str_starts_with($existingImage, 'data:image/')
+                && ! preg_match('/\Ahttps?:\/\//i', $existingImage)) {
                 Storage::disk('public')->delete($promo->image);
             }
-            $path = $request->file('image')->store('promos', 'public');
-            $data['image'] = $path;
+            $data['image'] = DatabaseImage::fromUploadedFile($request->file('image'));
         }
 
         $promo->update($data);
@@ -296,16 +314,16 @@ class PromoController extends Controller
 
     private function formatPromo(Promo $promo): array
     {
-        $baseUrl = (function_exists('request') && request()?->hasHeader('host'))
-            ? rtrim(request()->root(), '/')
-            : rtrim(config('app.url'), '/');
-
+        $image = $promo->getRawOriginal('image');
         $imageUrl = null;
-        if (!empty($promo->image)) {
-            if (str_starts_with($promo->image, 'http://') || str_starts_with($promo->image, 'https://')) {
-                $imageUrl = $promo->image;
+        if (is_string($image) && $image !== '') {
+            if (str_starts_with($image, 'data:image/')) {
+                $version = substr(hash('sha256', $image), 0, 16);
+                $imageUrl = url('/api/promos/'.$promo->id.'/image').'?v='.$version;
+            } elseif (preg_match('/\Ahttps?:\/\//i', $image)) {
+                $imageUrl = $image;
             } else {
-                $imageUrl = $baseUrl . '/storage/' . ltrim($promo->image, '/');
+                $imageUrl = url('/api/storage/'.ltrim($image, '/'));
             }
         }
 
@@ -327,7 +345,7 @@ class PromoController extends Controller
             'is_active' => (bool) $promo->is_active,
             'is_expired' => (bool) $isExpired,
             'is_effective_active' => (bool) $effectiveActive,
-            'image' => $promo->image,
+            'image' => $image,
             'image_url' => $imageUrl,
             'applicable_categories' => $promo->applicable_categories ?: [],
             'applicable_products' => $promo->applicable_products ?: [],
@@ -338,6 +356,20 @@ class PromoController extends Controller
             'created_at' => $promo->created_at?->toISOString(),
             'updated_at' => $promo->updated_at?->toISOString(),
         ];
+    }
+
+    private function validatePromoDateYears(LaravelValidator $validator, Request $request): void
+    {
+        $currentYear = now('Asia/Manila')->year;
+        foreach (['start_date', 'end_date'] as $field) {
+            if (! $request->filled($field) || $validator->errors()->has($field)) {
+                continue;
+            }
+
+            if (Carbon::parse($request->input($field), 'Asia/Manila')->year > $currentYear) {
+                $validator->errors()->add($field, "Promo dates cannot be later than {$currentYear}.");
+            }
+        }
     }
 
     private function decodeJsonInputs(Request $request): void

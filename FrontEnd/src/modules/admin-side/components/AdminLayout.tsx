@@ -71,7 +71,13 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return () => window.removeEventListener('keydown', handleShortcut);
   }, []);
 
-  const allNav = useMemo(() => navGroups.flatMap((group) => group.items), []);
+  const visibleNavGroups = useMemo(() => navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.to !== '/admin/admins' || admin?.role === 'system_administrator'),
+    }))
+    .filter((group) => group.items.length > 0), [admin?.role]);
+  const allNav = useMemo(() => visibleNavGroups.flatMap((group) => group.items), [visibleNavGroups]);
   const matches = allNav.filter((item) => item.label.toLowerCase().includes(query.toLowerCase())).slice(0, 6);
   const pageName = allNav.find((item) => item.to === location.pathname)?.label || 'Admin';
   const adminInitial = (admin?.fullName || 'A').trim().charAt(0).toUpperCase();
@@ -90,7 +96,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <button aria-label="Close navigation" onClick={() => setMobileOpen(false)} className="ml-auto rounded-lg p-2 text-white hover:bg-white/10 md:hidden"><X size={18} /></button>
         </div>
         <nav ref={navRef} aria-label="Admin navigation" onScroll={(event) => { adminSidebarScrollTop = event.currentTarget.scrollTop; }} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4">
-          {navGroups.map((group) => (
+          {visibleNavGroups.map((group) => (
             <section key={group.title}>
               <h2 className={`mb-1 px-3 text-[11px] font-bold uppercase tracking-[.14em] text-white/70 ${collapsed ? 'md:sr-only' : ''}`}>{group.title}</h2>
               <div className="space-y-1">
@@ -144,12 +150,12 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <div className="relative">
             <button aria-label="Open admin profile menu" aria-expanded={menu === 'profile'} onClick={() => setMenu(menu === 'profile' ? null : 'profile')} className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-[var(--oppa-cream)]">
               <span className="flex size-9 items-center justify-center rounded-full bg-[var(--oppa-green)] text-sm font-bold text-white">{adminInitial}</span>
-              <span className="hidden max-w-28 text-left leading-tight lg:block"><span className="block truncate text-xs font-semibold text-[var(--oppa-text)]">{admin?.fullName || 'Administrator'}</span><span className="block truncate text-[10px] capitalize text-[var(--oppa-text-muted)]">{admin?.role || 'Admin'}</span></span>
+              <span className="hidden max-w-36 text-left leading-tight lg:block"><span className="block truncate text-xs font-semibold text-[var(--oppa-text)]">{admin?.fullName || 'Administrator'}</span><span className="block truncate text-[10px] text-[var(--oppa-text-muted)]">{admin?.role === 'system_administrator' ? 'System Administrator' : 'Admin'}</span></span>
               <ChevronDown size={15} className="hidden text-[var(--oppa-text-muted)] sm:block" />
             </button>
             {menu === 'profile' && <div className="absolute right-0 top-12 w-60 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-2 shadow-xl">
               <div className="border-b border-[var(--oppa-border)] px-3 py-2"><p className="truncate text-sm font-semibold text-[var(--oppa-text)]">{admin?.fullName || 'Administrator'}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{admin?.email || 'Admin account'}</p></div>
-              <Link to="/admin/admins" onClick={() => setMenu(null)} className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Profile</Link>
+              {admin?.role === 'system_administrator' && <Link to="/admin/admins" onClick={() => setMenu(null)} className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Registered Admins</Link>}
               <Link to="/admin/settings/pricing" onClick={() => setMenu(null)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Settings</Link>
               <button onClick={handleExit} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"><LogOut size={15} />Exit</button>
             </div>}

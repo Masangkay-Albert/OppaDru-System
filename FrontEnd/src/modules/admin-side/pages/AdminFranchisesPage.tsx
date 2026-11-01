@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Building2, CheckCircle2, DollarSign, Loader2, MapPin, Phone, Plus, Users } from 'lucide-react';
+import { Building2, CheckCircle2, DollarSign, Loader2, MapPin, Phone, Plus, Trash2, Users } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import { ConfirmDialog } from '../components/AdminUI';
 import Select from '../../../components/ui/Select';
 import SearchInput from '../../../components/ui/SearchInput';
-import { createFranchiseAccount, getFranchiseAccounts, updateFranchiseAccount } from '../../../services/franchiseAdminService';
+import { createFranchiseAccount, deleteFranchiseAccount, getFranchiseAccounts, updateFranchiseAccount } from '../../../services/franchiseAdminService';
 import type { FranchiseAccount, FranchiseSummary } from '../../../services/franchiseAdminService';
 import { formatCurrency } from '../../../utils/formatters';
+import { useToast } from '../../customer-side/components/ToastProvider';
 
 const AdminFranchisesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -20,6 +22,9 @@ const AdminFranchisesPage: React.FC = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [workingId, setWorkingId] = useState<string | null>(null);
+  const [accountToDelete, setAccountToDelete] = useState<FranchiseAccount | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const { showToast } = useToast();
 
   const load = async () => {
     setLoading(true);
@@ -88,6 +93,21 @@ const AdminFranchisesPage: React.FC = () => {
     }
   };
 
+  const removeAccount = async () => {
+    if (!accountToDelete) return;
+    setDeleting(true);
+    try {
+      await deleteFranchiseAccount(accountToDelete.id);
+      setAccounts((current) => current.filter((account) => account.id !== accountToDelete.id));
+      showToast(`${accountToDelete.name} was permanently deleted.`, 'success');
+      setAccountToDelete(null);
+    } catch (deleteError) {
+      showToast(deleteError instanceof Error ? deleteError.message : 'Unable to delete franchise.', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const activeCount = accounts.filter((account) => account.status === 'active').length;
   const locationCount = accounts.reduce((sum, account) => sum + Number(account.locations_count || 0), 0);
   const managerCount = accounts.reduce((sum, account) => sum + Number(account.managers_count || 0), 0);
@@ -150,6 +170,15 @@ const AdminFranchisesPage: React.FC = () => {
                   <button onClick={() => void toggleStatus(account)} disabled={workingId === account.id} className={`rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50 ${account.status === 'active' ? 'border border-red-200 text-red-700 hover:bg-red-50' : 'bg-[var(--oppa-green)] text-white hover:bg-[var(--oppa-green-dark)]'}`}>
                     {workingId === account.id ? 'Saving…' : account.status === 'active' ? 'Deactivate' : 'Activate'}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountToDelete(account)}
+                    disabled={Boolean(account.locations_count || account.managers_count)}
+                    title={account.locations_count || account.managers_count ? 'Only franchises without locations or managers can be permanently deleted.' : 'Permanently delete franchise'}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    <Trash2 size={13} /> Delete
+                  </button>
                 </div>
               </div>
             </article>
@@ -167,6 +196,14 @@ const AdminFranchisesPage: React.FC = () => {
           <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowCreate(false)} className="rounded-xl border px-4 py-2 text-sm">Cancel</button><button disabled={saving} className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Creating…' : 'Create franchise'}</button></div>
         </form>
       </div>}
+      {accountToDelete && <ConfirmDialog
+        title="Permanently delete franchise?"
+        description={`Delete “${accountToDelete.name}” (${accountToDelete.id})? This cannot be undone. Franchises with linked locations, managers, orders, or applications cannot be deleted.`}
+        confirmLabel="Delete franchise"
+        onConfirm={() => { void removeAccount(); }}
+        onCancel={() => { if (!deleting) setAccountToDelete(null); }}
+        busy={deleting}
+      />}
     </AdminLayout>
   );
 };

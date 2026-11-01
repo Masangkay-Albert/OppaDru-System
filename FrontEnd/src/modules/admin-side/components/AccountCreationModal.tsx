@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BriefcaseBusiness, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, User, X } from 'lucide-react';
 import Select from '../../../components/ui/Select';
+import type { AdminRole } from '../../../services/adminAuthService';
 
 export type AccountCreationMode = 'admin' | 'employee' | 'branch-staff';
 
@@ -9,6 +10,7 @@ export interface AccountCreationValues {
   email: string;
   password: string;
   confirmPassword: string;
+  role?: AdminRole;
   position?: string;
   phone?: string;
   vehicle_type?: string;
@@ -31,6 +33,7 @@ const defaultValues: AccountCreationValues = {
   email: '',
   password: '',
   confirmPassword: '',
+  role: 'admin',
   position: 'cashier',
   phone: '',
   vehicle_type: '',
@@ -130,6 +133,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
       fullName: form.fullName.trim(),
       email: form.email.trim(),
       position: mode === 'admin' ? undefined : form.position || 'cashier',
+      role: mode === 'admin' ? form.role || 'admin' : undefined,
       phone: isBranchStaff ? form.phone?.trim() || '' : undefined,
       vehicle_type: isBranchStaff && form.position === 'driver' ? form.vehicle_type?.trim() || '' : undefined,
     });
@@ -185,6 +189,19 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4" noValidate>
           {extraFields}
+          {mode === 'admin' && (
+            <Select
+              id="account-admin-role"
+              name="role"
+              label="Role"
+              value={form.role || 'admin'}
+              onChange={(role) => setForm((current) => ({ ...current, role }))}
+              options={[
+                { value: 'admin', label: 'Admin' },
+                { value: 'system_administrator', label: 'System Administrator' },
+              ]}
+            />
+          )}
           {isBranchStaff && (
             <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-3 py-2.5 text-sm text-[var(--oppa-text-muted)]">
               <span className="font-semibold text-[var(--oppa-text)]">Adding to:</span> {branchName || 'Current branch'}

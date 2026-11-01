@@ -77,6 +77,11 @@ const errorMessage = (error: unknown, fallback: string): string => (
 );
 
 const localDateTimeTimestamp = (value: string): number => new Date(value).getTime();
+const getPromoCurrentYear = (): number => Number(new Intl.DateTimeFormat('en', {
+  timeZone: PROMO_TIME_ZONE,
+  year: 'numeric',
+}).format(new Date()));
+const getDateTimeLocalMax = (): string => `${getPromoCurrentYear()}-12-31T23:59`;
 
 const statusLabel = (promo: Promo): string => (
   promo.is_expired ? 'expired' : promo.is_active ? 'active' : 'inactive'
@@ -108,17 +113,7 @@ function PromoDetails({ promo }: PromoDetailsProps) {
 
   return (
     <div className="flex min-w-0 items-center gap-3">
-      {promo.image_url ? (
-        <img
-          src={promo.image_url}
-          alt=""
-          className="size-11 shrink-0 rounded-xl border border-[var(--oppa-border)] object-cover"
-        />
-      ) : (
-        <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-[var(--oppa-green-soft)] bg-[var(--oppa-green-soft)]/60 text-[var(--oppa-green)]">
-          <LuSparkles size={20} aria-hidden="true" />
-        </span>
-      )}
+      <PromoImage src={promo.image_url} className="size-11 rounded-xl border border-[var(--oppa-border)]" />
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h3 className="min-w-0 truncate font-display text-sm font-semibold text-[var(--oppa-text)]">{title}</h3>
@@ -137,6 +132,20 @@ function PromoDetails({ promo }: PromoDetailsProps) {
         )}
       </div>
     </div>
+  );
+}
+
+function PromoImage({ src, className = '' }: { src?: string | null; className?: string }) {
+  const [failedSrc, setFailedSrc] = useState('');
+
+  return (
+    <span className={`grid shrink-0 place-items-center overflow-hidden bg-[var(--oppa-green-soft)]/60 text-[var(--oppa-green)] ${className}`}>
+      {src && failedSrc !== src ? (
+        <img src={src} alt="" onError={() => setFailedSrc(src)} className="size-full object-cover" />
+      ) : (
+        <LuSparkles size={20} aria-hidden="true" />
+      )}
+    </span>
   );
 }
 
@@ -456,9 +465,20 @@ export default function AdminPromosPage() {
   const validateDates = (): boolean => {
     resetDateErrors();
     const nowWithTolerance = Date.now() - 60_000;
+    const currentYear = getPromoCurrentYear();
     let valid = true;
     const startWasEdited = startDate !== initialStartDate;
     const endWasEdited = endDate !== initialEndDate;
+
+    if (startDate && Number(startDate.slice(0, 4)) > currentYear) {
+      setStartDateError(`Promo dates cannot be later than ${currentYear}.`);
+      valid = false;
+    }
+
+    if (endDate && Number(endDate.slice(0, 4)) > currentYear) {
+      setEndDateError(`Promo dates cannot be later than ${currentYear}.`);
+      valid = false;
+    }
 
     if (startDate && startWasEdited && localDateTimeTimestamp(startDate) < nowWithTolerance) {
       setStartDateError('Start date cannot be in the past.');
@@ -479,11 +499,11 @@ export default function AdminPromosPage() {
 
   const handleStartDateChange = (value: string) => {
     setStartDate(value);
-    setStartDateError(value
-      && value !== initialStartDate
-      && localDateTimeTimestamp(value) < Date.now() - 60_000
-      ? 'Start date cannot be in the past.'
-      : '');
+    setStartDateError(value && Number(value.slice(0, 4)) > getPromoCurrentYear()
+      ? `Promo dates cannot be later than ${getPromoCurrentYear()}.`
+      : value && value !== initialStartDate && localDateTimeTimestamp(value) < Date.now() - 60_000
+        ? 'Start date cannot be in the past.'
+        : '');
     setEndDateError('');
     if (value && endDate && localDateTimeTimestamp(endDate) <= localDateTimeTimestamp(value)) {
       setEndDate('');
@@ -492,7 +512,9 @@ export default function AdminPromosPage() {
 
   const handleEndDateChange = (value: string) => {
     setEndDate(value);
-    if (value && value !== initialEndDate && localDateTimeTimestamp(value) < Date.now()) {
+    if (value && Number(value.slice(0, 4)) > getPromoCurrentYear()) {
+      setEndDateError(`Promo dates cannot be later than ${getPromoCurrentYear()}.`);
+    } else if (value && value !== initialEndDate && localDateTimeTimestamp(value) < Date.now()) {
       setEndDateError('End date cannot be in the past.');
     } else if (value && startDate && localDateTimeTimestamp(value) <= localDateTimeTimestamp(startDate)) {
       setEndDateError('End date must be after the start date.');
@@ -609,6 +631,7 @@ export default function AdminPromosPage() {
     && endDate < endDateMin
     ? undefined
     : endDateMin;
+  const dateTimeMax = getDateTimeLocalMax();
   const modalFooter = (
     <div className="grid grid-cols-2 gap-3 sm:flex sm:justify-end">
       <button
@@ -876,12 +899,13 @@ export default function AdminPromosPage() {
                     type="datetime-local"
                     step={60}
                     min={startDateMin}
+                    max={dateTimeMax}
                     value={startDate}
                     onChange={(event) => handleStartDateChange(event.target.value)}
                     className={`${inputClass(Boolean(startDateError))} cursor-pointer pl-10 [font-family:inherit]`}
                   />
                 </div>
-                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Choose now or a future start time.</p>
+                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Choose now or a future start time this year.</p>
               </FormField>
               <FormField error={endDateError}>
                 <FieldLabel htmlFor="promo-end-date">End date & time (optional)</FieldLabel>
@@ -892,12 +916,13 @@ export default function AdminPromosPage() {
                     type="datetime-local"
                     step={60}
                     min={endDateInputMin}
+                    max={dateTimeMax}
                     value={endDate}
                     onChange={(event) => handleEndDateChange(event.target.value)}
                     className={`${inputClass(Boolean(endDateError))} cursor-pointer pl-10 [font-family:inherit]`}
                   />
                 </div>
-                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Must be after the start time.</p>
+                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Must be after the start time and within this year.</p>
               </FormField>
             </div>
 
@@ -932,8 +957,8 @@ export default function AdminPromosPage() {
               <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Optional promo banner image</p>
               <div className="flex flex-col gap-3 rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/50 p-3 sm:flex-row sm:items-center">
                 {imagePreview ? (
-                  <div className="relative size-16 shrink-0 overflow-hidden rounded-xl border border-[var(--oppa-border)]">
-                    <img src={imagePreview} alt="Promo banner preview" className="size-full object-cover" />
+                  <div className="relative">
+                    <PromoImage src={imagePreview} className="size-16 rounded-xl border border-[var(--oppa-border)]" />
                     <button
                       type="button"
                       aria-label="Remove banner image"

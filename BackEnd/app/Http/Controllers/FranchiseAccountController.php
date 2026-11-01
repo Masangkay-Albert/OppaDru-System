@@ -6,6 +6,7 @@ use App\Models\Driver;
 use App\Models\Employee;
 use App\Models\Franchise;
 use App\Models\FranchiseAccount;
+use App\Models\FranchiseApplication;
 use App\Models\FranchiseUser;
 use App\Models\Order;
 use App\Services\BranchRoutingService;
@@ -550,6 +551,34 @@ class FranchiseAccountController extends Controller
         $account->save();
 
         return response()->json(['data' => $account->load('locations')]);
+    }
+
+    public function destroy(Request $request, string $id)
+    {
+        if (! $this->checkAdminAuth($request)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        return DB::transaction(function () use ($id) {
+            $account = FranchiseAccount::query()->lockForUpdate()->findOrFail($id);
+            $hasLocations = $account->locations()->lockForUpdate()->exists();
+            $hasManagers = $account->managers()->lockForUpdate()->exists();
+            $hasOrders = Order::query()->where('franchise_account_id', $id)->lockForUpdate()->exists();
+            $hasApplications = FranchiseApplication::query()
+                ->where('franchise_account_id', $id)
+                ->lockForUpdate()
+                ->exists();
+
+            if ($hasLocations || $hasManagers || $hasOrders || $hasApplications) {
+                return response()->json([
+                    'message' => 'This franchise has linked locations, managers, orders, or applications and cannot be permanently deleted. Deactivate it instead.',
+                ], 409);
+            }
+
+            $account->delete();
+
+            return response()->json(['message' => 'Franchise account deleted successfully.']);
+        });
     }
 
     public function storeLocation(Request $request, string $id, GeocodingService $geocoding)

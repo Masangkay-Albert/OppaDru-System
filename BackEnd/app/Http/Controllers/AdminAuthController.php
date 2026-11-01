@@ -17,6 +17,10 @@ class AdminAuthController extends Controller
     {
         $admin = Admin::where('email', DEFAULT_ADMIN_EMAIL)->first();
         if ($admin) {
+            if ($admin->role !== Admin::ROLE_SYSTEM_ADMINISTRATOR) {
+                $admin->role = Admin::ROLE_SYSTEM_ADMINISTRATOR;
+                $admin->save();
+            }
             return $admin;
         }
 
@@ -25,6 +29,7 @@ class AdminAuthController extends Controller
             'email' => DEFAULT_ADMIN_EMAIL,
             'password' => Hash::make(DEFAULT_ADMIN_PASSWORD),
             'api_token' => null,
+            'role' => Admin::ROLE_SYSTEM_ADMINISTRATOR,
         ]);
     }
 

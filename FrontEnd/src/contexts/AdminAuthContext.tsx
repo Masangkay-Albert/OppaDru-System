@@ -1,5 +1,5 @@
 // src/contexts/AdminAuthContext.tsx
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import * as adminAuthService from '../services/adminAuthService';
 import type { AdminUser } from '../services/adminAuthService';
 
@@ -8,6 +8,7 @@ interface AdminAuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
+  refreshAdmin: () => Promise<void>;
 }
 
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined);
@@ -21,12 +22,57 @@ export const useAdminAuth = () => {
 };
 
 export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [hasStoredSession] = useState(() => Boolean(adminAuthService.getStoredAdminToken()));
   const [admin, setAdmin] = useState<AdminUser | null>(() => {
     if (adminAuthService.getStoredAdminToken()) return adminAuthService.getCurrentAdmin();
     adminAuthService.removeCurrentAdmin();
     return null;
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(hasStoredSession);
+
+  const refreshAdmin = useCallback(async () => {
+    if (!adminAuthService.getStoredAdminToken()) {
+      setAdmin(null);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const currentAdmin = await adminAuthService.apiGetCurrentAdmin();
+      adminAuthService.setCurrentAdmin(currentAdmin);
+      setAdmin((previousAdmin) => (
+        previousAdmin?.id === currentAdmin.id
+        && previousAdmin.fullName === currentAdmin.fullName
+        && previousAdmin.email === currentAdmin.email
+        && previousAdmin.role === currentAdmin.role
+          ? previousAdmin
+          : currentAdmin
+      ));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown session refresh error.';
+      if (message.includes('(401)')) {
+        adminAuthService.removeCurrentAdmin();
+        setAdmin(null);
+      } else {
+        console.error('Unable to refresh administrator permissions.', error);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!admin) return undefined;
+    const initialTimeout = window.setTimeout(() => { void refreshAdmin(); }, 0);
+    const intervalId = window.setInterval(() => { void refreshAdmin(); }, 30_000);
+    const onFocus = () => { void refreshAdmin(); };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(intervalId);
+      window.clearTimeout(initialTimeout);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [admin, refreshAdmin]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
@@ -39,10 +85,9 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           id: String(rawAdmin.id ?? 'admin-001'),
           fullName: rawAdmin.full_name || rawAdmin.fullName || rawAdmin.name || email.split('@')[0] || 'Admin',
           email: rawAdmin.email || email,
-          role: 'admin',
+          role: rawAdmin.role === 'system_administrator' ? 'system_administrator' : 'admin',
         };
-        const adminWithToken = token ? { ...normalizedAdmin, token } : normalizedAdmin;
-        adminAuthService.setCurrentAdmin(adminWithToken as any);
+        adminAuthService.setCurrentAdmin(normalizedAdmin);
         if (token) {
           adminAuthService.setStoredAdminToken(token);
           localStorage.setItem('adminToken', token);
@@ -51,8 +96,9 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setIsLoading(false);
         return true;
       }
-    } catch (err) {
-      // fallthrough
+    } catch {
+      setIsLoading(false);
+      return false;
     }
     setIsLoading(false);
     return false;
@@ -65,7 +111,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   return (
-    <AdminAuthContext.Provider value={{ admin, isLoading, login, logout }}>
+    <AdminAuthContext.Provider value={{ admin, isLoading, login, logout, refreshAdmin }}>
       {children}
     </AdminAuthContext.Provider>
   );

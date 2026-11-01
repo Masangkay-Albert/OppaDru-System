@@ -1,59 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight, Clock3, CookingPot, CupSoda, Drumstick, GlassWater,
   MapPin, Phone, Sandwich, Soup, Truck, Utensils,
 } from 'lucide-react';
 import { BrandFooter, BrandNavbar } from '../../shared/components/BrandChrome';
-import { promoService, type Promo } from '../../../services/promoService';
+import { getProductImage } from '../../../data/productImages';
 import '../../../styles/LandingPage.css';
 import oppaLogo from '../../../assets/oppadrulogo.jpg';
-import chickenHero from '../../../assets/ChickenMeal/original-chicken.jpg';
-import lemonadePhoto from '../../../assets/Lemonade/classic-lemon.jpg';
-import noodlePhoto from '../../../assets/Noodles/samyang.jpg';
-import sodaPhoto from '../../../assets/SodaMilk/strawberry-soda.jpg';
-import snackPhoto from '../../../assets/Snacks/tteokkboki.jpg';
-import chickenPhoto from '../../../assets/ChickenMeal/yangneomgarlic-chicken.jpg';
-import ricePhoto from '../../../assets/RiceMeal/original-rice.jpg';
-import classicChicken from '../../../assets/ChickenMeal/classicbbq-chicken.jpg';
-import soyGarlicChicken from '../../../assets/ChickenMeal/soygarlic-chicken.jpg';
-import yangnyeomChicken from '../../../assets/ChickenMeal/yangyneom-chicken.jpg';
-import tteokbokkiPhoto from '../../../assets/Snacks/tteokkboki.jpg';
 
 const categoryCards = [
-  { name: 'Non-Coffee', text: 'Refreshing drinks for every mood.', photo: lemonadePhoto, icon: GlassWater },
-  { name: 'Noodles', text: 'Comforting noodles with Korean-inspired flavor.', photo: noodlePhoto, icon: Soup },
-  { name: 'Fruity Soda', text: 'Colorful, cool sips to pair with your meal.', photo: sodaPhoto, icon: CupSoda },
-  { name: 'Snacks', text: 'Shareable bites for any time of day.', photo: snackPhoto, icon: Sandwich },
-  { name: 'Chicken Meal', text: 'Crispy Korean fried chicken with bold sauces.', photo: chickenPhoto, icon: Drumstick },
-  { name: 'Rice Meal', text: 'Satisfying meals served with rice.', photo: ricePhoto, icon: CookingPot },
+  { name: 'Non-Coffee', text: 'Refreshing drinks for every mood.', photo: getProductImage('classic-lemon.jpg'), icon: GlassWater },
+  { name: 'Noodles', text: 'Comforting noodles with Korean-inspired flavor.', photo: getProductImage('samyang.jpg'), icon: Soup },
+  { name: 'Fruity Soda', text: 'Colorful, cool sips to pair with your meal.', photo: getProductImage('strawberry-soda.jpg'), icon: CupSoda },
+  { name: 'Snacks', text: 'Shareable bites for any time of day.', photo: getProductImage('tteokkboki.jpg'), icon: Sandwich },
+  { name: 'Chicken Meal', text: 'Crispy Korean fried chicken with bold sauces.', photo: getProductImage('yangneomgarlic-chicken.jpg'), icon: Drumstick },
+  { name: 'Rice Meal', text: 'Satisfying meals served with rice.', photo: getProductImage('original-rice.jpg'), icon: CookingPot },
 ];
 
 const featuredProducts = [
-  { name: 'Yangnyeom Boneless Chicken', description: 'Korean-style sweet and spicy yangnyeom boneless chicken.', price: '₱438', photo: yangnyeomChicken },
-  { name: 'Soy Garlic Boneless Chicken', description: 'Boneless chicken glazed with soy garlic sauce.', price: '₱428', photo: soyGarlicChicken },
-  { name: 'Classic BBQ Boneless Chicken', description: 'Boneless chicken tossed in classic BBQ sauce.', price: '₱428', photo: classicChicken },
-  { name: 'Tteokkboki (Ricecake + Fishcake)', description: 'Korean rice cakes and fishcake in spicy sauce.', price: '₱139', photo: tteokbokkiPhoto },
+  { name: 'Yangnyeom Boneless Chicken', description: 'Korean-style sweet and spicy yangnyeom boneless chicken.', price: '₱438', photo: getProductImage('yangyneom-chicken.jpg') },
+  { name: 'Soy Garlic Boneless Chicken', description: 'Boneless chicken glazed with soy garlic sauce.', price: '₱428', photo: getProductImage('soygarlic-chicken.jpg') },
+  { name: 'Classic BBQ Boneless Chicken', description: 'Boneless chicken tossed in classic BBQ sauce.', price: '₱428', photo: getProductImage('classicbbq-chicken.jpg') },
+  { name: 'Tteokkboki (Ricecake + Fishcake)', description: 'Korean rice cakes and fishcake in spicy sauce.', price: '₱139', photo: getProductImage('tteokkboki.jpg') },
 ];
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const goToLogin = () => navigate('/login');
-  const [promos, setPromos] = useState<Promo[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    promoService.getActivePromos()
-      .then((data) => {
-        if (active && Array.isArray(data)) {
-          setPromos(data);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     const sections = document.querySelectorAll<HTMLElement>('[data-reveal]');
@@ -93,7 +67,7 @@ const LandingPage: React.FC = () => {
             </div>
           </div>
           <div className="oppa-hero-art">
-            <div className="oppa-hero-photo"><img src={chickenHero} alt="Crispy Oppa Dru Korean fried chicken" /></div>
+            <div className="oppa-hero-photo"><img src={getProductImage('original-chicken.jpg')} alt="Crispy Oppa Dru Korean fried chicken" /></div>
             <div className="oppa-mascot-sticker"><img src={oppaLogo} alt="Oppa Dru mascot" /></div>
           </div>
         </div>
@@ -136,48 +110,10 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        <section id="promos" className="oppa-landing-section oppa-landing-container" data-reveal>
-          <SectionHeading eyebrow="Limited-time favorites" title="Special offers" text="A few satisfying combinations to make your next meal even better." />
-          <div className="oppa-promo-grid">
-            {promos.length > 0 ? (
-              promos.map((promo, idx) => {
-                const tones = ['light', 'dark', 'yellow'];
-                const tone = tones[idx % tones.length];
-                const discountText = promo.discount_type === 'percent'
-                  ? `${promo.discount_value}% OFF`
-                  : `₱${promo.discount_value} OFF`;
-                return (
-                  <article className={`oppa-promo-card tone-${tone}`} key={promo.id || promo.code}>
-                    <div className="oppa-promo-top">
-                      <span className="oppa-promo-tag">CODE: {promo.code}</span>
-                      <span className="oppa-promo-decoration" aria-hidden="true"><Drumstick size={48} /></span>
-                    </div>
-                    <div>
-                      <h3>{promo.title}</h3>
-                      <p>{promo.description}</p>
-                      <strong>{discountText}</strong>
-                    </div>
-                    <button type="button" onClick={goToLogin} className="oppa-promo-order">
-                      Order Now <ArrowRight size={15} />
-                    </button>
-                  </article>
-                );
-              })
-            ) : (
-              <div className="col-span-full text-center py-10 bg-white/70 rounded-2xl border border-[var(--oppa-border)]">
-                <p className="text-gray-600 font-medium">Check our menu for everyday Korean fried chicken favorites and seasonal combos!</p>
-                <button type="button" onClick={goToLogin} className="oppa-promo-order mt-4 mx-auto inline-flex">
-                  Explore Menu <ArrowRight size={15} />
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
-
         <section id="about" className="oppa-landing-container oppa-about-section" data-reveal>
           <div className="oppa-about-card">
             <div className="oppa-about-art"><span className="oppa-about-shape" /><img src={oppaLogo} alt="Oppa Dru mascot" /></div>
-            <div className="oppa-about-copy"><p className="oppa-eyebrow">A little about us</p><h2>Meet Oppa Dru.</h2>
+            <div className="oppa-about-copy"><p className="oppa-eyebrow">A little about us</p><h2>Meet Oppa Dru Korean Fried Chicken.</h2>
               <p>We serve Korean-style fried chicken with crisp textures, bold sauces, and a menu made for everyday cravings. Find your favorite, share a meal, and enjoy it fresh.</p>
               <div className="oppa-about-highlights">
                 <span><strong>Since 2018</strong><small>Serving our community</small></span>
