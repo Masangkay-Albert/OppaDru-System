@@ -251,7 +251,7 @@ const AdminProductsPage: React.FC = () => {
       setToastMessage(productToDelete ? 'Product deleted' : 'Selected products deleted');
     } catch (error) {
       console.error('Failed to delete product:', error);
-      setActionError('Could not delete the selected product(s).');
+      setActionError(error instanceof Error ? error.message : 'Could not delete the selected product(s).');
     } finally {
       setProductToDelete(null);
       setConfirmBulkDelete(false);
@@ -432,7 +432,17 @@ const AdminProductsPage: React.FC = () => {
         </div>
       </div>
 
-      {(productToDelete || confirmBulkDelete) && <ConfirmDialog title={productToDelete ? `Delete "${productToDelete.name}"?` : `Delete ${selectedIds.length} selected products?`} description="This action cannot be undone." confirmLabel="Delete" onCancel={() => { setProductToDelete(null); setConfirmBulkDelete(false); }} onConfirm={() => void confirmDeleteProduct()} />}
+      {(productToDelete || confirmBulkDelete) && <ConfirmDialog
+        title={productToDelete
+          ? `${showArchived ? 'Permanently delete' : 'Archive'} "${productToDelete.name}"?`
+          : `${showArchived ? 'Permanently delete' : 'Archive'} ${selectedIds.length} selected products?`}
+        description={showArchived
+          ? 'This permanently removes archived products and cannot be undone.'
+          : 'This removes products from the customer menu. You can restore them later from Archived.'}
+        confirmLabel={showArchived ? 'Delete permanently' : 'Archive'}
+        onCancel={() => { setProductToDelete(null); setConfirmBulkDelete(false); }}
+        onConfirm={() => void confirmDeleteProduct()}
+      />}
       {detailsProduct && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailsProduct(null); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="product-details-title" className="w-full max-w-lg rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-2xl sm:p-6">
           <div className="mb-4 flex items-start justify-between gap-3">

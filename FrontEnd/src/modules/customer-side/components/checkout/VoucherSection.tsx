@@ -100,18 +100,18 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
 
   if (appliedCode) {
     return (
-      <div className="mb-4 rounded-xl border border-emerald-700/20 bg-emerald-50 p-3.5 dark:border-emerald-300/20 dark:bg-emerald-950/30">
+      <div className="checkout-applied-promo mb-4 rounded-xl p-3.5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white">
               <Check size={16} aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-emerald-900 dark:text-emerald-200">Promo {appliedCode} applied</p>
-              <p className="text-xs text-emerald-800 dark:text-emerald-300">You save {formatPeso(appliedDiscount)}</p>
+              <p className="checkout-applied-promo-title truncate text-sm font-bold">Promo {appliedCode} applied</p>
+              <p className="checkout-applied-promo-savings text-xs">You save {formatPeso(appliedDiscount)}</p>
             </div>
           </div>
-          <button type="button" onClick={handleRemove} className="min-h-10 shrink-0 rounded-lg px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 dark:text-red-300 dark:hover:bg-red-950/40">Remove</button>
+          <button type="button" onClick={handleRemove} className="checkout-applied-promo-remove min-h-10 shrink-0 rounded-lg px-3 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50">Remove</button>
         </div>
       </div>
     );
@@ -122,7 +122,7 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Tag className="w-4 h-4 text-[var(--oppa-green)]" />
-          <h3 className="font-bold text-gray-800 text-sm dark:text-gray-100">Have a promo code?</h3>
+          <h3 className="checkout-voucher-heading text-sm font-bold">Have a promo code?</h3>
         </div>
       </div>
 
@@ -156,7 +156,7 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
           <span>{isValidating ? 'Checking...' : 'Apply'}</span>
         </button>
       </div>
-      {voucherError && <p id="promo-code-error" className="mt-2 flex items-start gap-1.5 text-xs text-red-700 dark:text-red-300" aria-live="polite"><X size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{voucherError}</p>}
+      {voucherError && <p id="promo-code-error" className="checkout-voucher-error mt-2 flex items-start gap-1.5" role="status" aria-live="polite"><X size={14} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{voucherError}</span></p>}
     </div>
   );
 };

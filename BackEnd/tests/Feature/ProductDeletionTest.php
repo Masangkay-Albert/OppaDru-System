@@ -76,4 +76,38 @@ class ProductDeletionTest extends TestCase
         $this->assertNotSoftDeleted('products', ['id' => $product->id]);
         $this->getJson('/api/products/available')->assertOk()->assertJsonFragment(['id' => $product->id]);
     }
+
+    public function test_admin_can_permanently_delete_a_product_from_the_archived_list(): void
+    {
+        $login = $this->postJson('/api/admin/login', [
+            'email' => 'admin@oppadru.com',
+            'password' => 'Admin@123',
+        ])->assertOk();
+
+        $product = Product::create([
+            'name' => 'Archived drink to delete',
+            'description' => 'No longer offered',
+            'price' => 89,
+            'category' => 'fruity-soda-milk',
+            'image' => 'archived-drink.jpg',
+            'is_available' => true,
+        ]);
+        $group = AddonGroup::create([
+            'name' => 'Archived drink options',
+            'selection_type' => 'single',
+            'supports_quantity' => false,
+            'applicable_categories' => ['fruity-soda-milk'],
+            'is_active' => true,
+        ]);
+        $product->addonGroups()->attach($group->id);
+        $headers = ['Authorization' => 'Bearer '.$login->json('token')];
+
+        $this->patchJson('/api/admin/products/'.$product->id.'/archive', [], $headers)->assertOk();
+        $this->deleteJson('/api/admin/products/'.$product->id, [], $headers)
+            ->assertOk()
+            ->assertJsonPath('message', 'Archived product permanently deleted.');
+
+        $this->assertDatabaseMissing('products', ['id' => $product->id]);
+        $this->assertDatabaseMissing('product_addon_groups', ['product_id' => $product->id]);
+    }
 }

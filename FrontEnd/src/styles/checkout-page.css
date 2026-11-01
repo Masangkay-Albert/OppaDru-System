@@ -701,6 +701,96 @@
   border-color: transparent;
 }
 
+.checkout-voucher-heading {
+  color: #214b35 !important;
+  line-height: 1.4;
+}
+
+.checkout-voucher-error {
+  padding: 8px 10px;
+  color: #8f211b !important;
+  background: #fff1ef;
+  border: 1px solid #e8b8b2;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.checkout-voucher-error svg {
+  color: #a52e26;
+}
+
+.checkout-summary .checkout-applied-promo {
+  color: #173d28 !important;
+  background: #e8f4eb !important;
+  border: 1px solid #a9cdb2 !important;
+  border-radius: 12px;
+}
+
+.checkout-summary .checkout-applied-promo-title {
+  color: #173d28 !important;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.checkout-summary .checkout-applied-promo-savings {
+  margin-top: 2px;
+  color: #315d3e !important;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.checkout-summary .checkout-applied-promo-remove {
+  color: #8f2823 !important;
+  background: #fff !important;
+  border: 1px solid #e2b9b5;
+}
+
+.checkout-summary .checkout-applied-promo-remove:hover {
+  color: #701b17 !important;
+  background: #fff0ee !important;
+}
+
+.dark .checkout-summary .checkout-applied-promo {
+  color: #e6f4e9 !important;
+  background: #173a28 !important;
+  border-color: #467957 !important;
+}
+
+.dark .checkout-summary .checkout-applied-promo-title {
+  color: #e6f4e9 !important;
+}
+
+.dark .checkout-summary .checkout-applied-promo-savings {
+  color: #c1e3ca !important;
+}
+
+.dark .checkout-summary .checkout-applied-promo-remove {
+  color: #ffd2cc !important;
+  background: #482824 !important;
+  border-color: #875047;
+}
+
+.dark .checkout-summary .checkout-applied-promo-remove:hover {
+  color: #fff0ed !important;
+  background: #61332e !important;
+}
+
+.dark .checkout-voucher-heading {
+  color: #c8ead2 !important;
+}
+
+.dark .checkout-voucher-error {
+  color: #ffd2cc !important;
+  background: #3b211f;
+  border-color: #78413a;
+}
+
+.dark .checkout-voucher-error svg {
+  color: #ffaaa0;
+}
+
 .checkout-voucher-apply {
   min-width: 62px;
   min-height: 46px;

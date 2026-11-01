@@ -3,7 +3,11 @@
 namespace App\Http\Controllers\Product;
 
 use App\Models\Product;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -50,7 +54,7 @@ trait ProductAdminActions
         }
 
         $product = Product::withTrashed()->findOrFail($id);
-        if (! $product->trashed()) {
+        if (!$product->trashed()) {
             $product->delete();
         }
 
@@ -175,9 +179,41 @@ trait ProductAdminActions
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        Product::findOrFail($id)->delete();
+        $product = Product::withTrashed()->findOrFail($id);
+        if (! $product->trashed()) {
+            $product->delete();
 
-        return response()->json(['message' => 'Product deleted successfully!']);
+            return response()->json(['message' => 'Product archived successfully.']);
+        }
+
+        try {
+            DB::transaction(function () use ($product) {
+                if (Schema::hasTable('product_addon_groups')) {
+                    DB::table('product_addon_groups')->where('product_id', $product->id)->delete();
+                }
+                if (Schema::hasTable('franchise_inventory')) {
+                    DB::table('franchise_inventory')->where('product_id', $product->id)->delete();
+                }
+                if (Schema::hasTable('order_items') && Schema::hasColumn('order_items', 'product_id')) {
+                    DB::table('order_items')
+                        ->where('product_id', $product->id)
+                        ->update(['product_id' => null]);
+                }
+
+                $product->forceDelete();
+            });
+        } catch (QueryException $exception) {
+            Log::warning('Archived product could not be permanently deleted because it is still referenced.', [
+                'product_id' => $product->id,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'This archived product is still referenced by system records and cannot be permanently deleted.',
+            ], 409);
+        }
+
+        return response()->json(['message' => 'Archived product permanently deleted.']);
     }
 
     public function toggleAvailability(Request $request, $id)
