@@ -167,7 +167,7 @@ class PaymentService {
     amount: number;
     items: Array<{ id: string; quantity: number; selectedSize?: string; selectedAddons?: Array<{ id: string; price: number; quantity?: number }> }>;
     deliveryType: 'standard' | 'priority' | 'scheduled';
-    voucherDiscount: number;
+    promoCode?: string | null;
     discountRate: number;
     deliveryCoordinates?: { lat: number; lng: number };
     franchiseId?: string | null;
@@ -194,7 +194,7 @@ class PaymentService {
             })) || [],
           })),
           delivery_type: data.deliveryType,
-          voucher_discount: data.voucherDiscount,
+          promo_code: data.promoCode || undefined,
           discount_rate: data.discountRate,
           delivery_coordinates: data.deliveryCoordinates,
           franchise_id: data.franchiseId || null,

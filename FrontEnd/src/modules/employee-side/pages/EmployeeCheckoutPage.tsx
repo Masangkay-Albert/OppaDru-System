@@ -72,9 +72,14 @@ const EmployeeCheckoutPage: React.FC = () => {
     setPromoError('');
 
     try {
-      const result = await validateVoucherAsync(promoCode, subtotal);
+      const result = await validateVoucherAsync(promoCode, cartItems.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        selected_size: item.selectedSize,
+        selected_addons: (item.selectedAddons || []).map((addon) => ({ id: addon.id, quantity: addon.quantity || 1 })),
+      })), 'cashier');
       if (result.isValid) {
-        setAppliedPromo(result.promo || null);
+        setAppliedPromo(null);
         setPromoDiscount(result.discount);
         setPromoError('');
         showToast(`Promo ${promoCode.toUpperCase()} applied successfully!`, 'success');
@@ -264,8 +269,11 @@ const EmployeeCheckoutPage: React.FC = () => {
         amount={finalTotal}
         items={cartItems}
         deliveryType="onsite"
-        voucherDiscount={promoDiscount}
         discountRate={discountRate}
+        promoCode={promoDiscount > 0 ? promoCode : null}
+        cashierMode
+        discountType={discountType}
+        discountIdNumber={discountType ? discountIdNumber : undefined}
         onPaymentComplete={handleGCashPaymentComplete}
         onPaymentCreated={(ref) => setPaymentReference(ref)}
       />

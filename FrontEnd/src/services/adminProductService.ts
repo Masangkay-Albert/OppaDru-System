@@ -109,6 +109,20 @@ export const getAllProducts = async (): Promise<Product[]> => {
   return request;
 };
 
+export const getArchivedProducts = async (): Promise<Product[]> => (
+  productService.getArchivedAdminProducts()
+);
+
+export const archiveProduct = async (productId: string): Promise<void> => {
+  await productService.archiveAdminProduct(productId);
+  notifyProductsUpdated();
+};
+
+export const restoreProduct = async (productId: string): Promise<void> => {
+  await productService.restoreAdminProduct(productId);
+  notifyProductsUpdated();
+};
+
 export const toggleAvailability = async (productId: string): Promise<void> => {
   try {
     await productService.toggleAvailability(productId);

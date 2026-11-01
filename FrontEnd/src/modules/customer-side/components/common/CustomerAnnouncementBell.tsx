@@ -15,7 +15,6 @@ import {
   X,
 } from 'lucide-react';
 import { announcementService } from '../../../../services/announcementService';
-import { promoService, type Promo } from '../../../../services/promoService';
 import type { Announcement, AnnouncementPriority } from '../../../../types/announcement.types';
 import NotificationItem from './NotificationItem';
 import type { UnifiedNotification } from './notificationTypes';
@@ -53,7 +52,6 @@ interface CustomerAnnouncementBellProps {
 
 export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> = ({ className = '' }) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [promos, setPromos] = useState<Promo[]>([]);
   const [completedIds, setCompletedIds] = useState<string[]>(() => getStoredIds(COMPLETED_STORAGE_KEY));
   const [deletedIds, setDeletedIds] = useState<string[]>(() => getStoredIds(DELETED_STORAGE_KEY));
 
@@ -62,7 +60,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [undoDeletedItem, setUndoDeletedItem] = useState<string | null>(null);
-  const [notificationFilter, setNotificationFilter] = useState<'all' | 'unread' | 'promos'>('all');
+  const [notificationFilter, setNotificationFilter] = useState<'all' | 'unread'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isClosingDropdown, setIsClosingDropdown] = useState(false);
 
@@ -87,15 +85,11 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
     setIsOpenDropdown(true);
   };
 
-  // Load active announcements & promos
+  // Load public announcements, excluding promo announcements.
   const fetchAllData = async () => {
     try {
-      const [annList, promoList] = await Promise.all([
-        announcementService.getCustomerAnnouncements().catch(() => []),
-        promoService.getActivePromos().catch(() => []),
-      ]);
-      setAnnouncements(annList);
-      setPromos(promoList);
+      const annList = await announcementService.getCustomerAnnouncements().catch(() => []);
+      setAnnouncements(annList.filter((item) => item.priority !== 'promo'));
     } catch {
       // Fallback
     } finally {
@@ -114,11 +108,10 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
       fetchAllData();
     };
 
-    // 3. Storage event listener when another tab updates announcements or promos
+    // 3. Storage event listener when another tab updates announcements.
     const handleStorageChange = (e: StorageEvent) => {
       if (
         e.key === 'oppadru_announcements_cache_v2' ||
-        e.key === 'oppadru_promos_cache' ||
         e.key === COMPLETED_STORAGE_KEY ||
         e.key === DELETED_STORAGE_KEY
       ) {
@@ -215,37 +208,6 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
       });
     });
 
-    // Map active promos
-    promos.forEach((p) => {
-      const promoId = `promo-${p.id}`;
-      const isCompleted = completedIds.includes(promoId);
-      const discountText =
-        p.discount_type === 'percent'
-          ? `${p.discount_value}% OFF`
-          : `₱${p.discount_value.toLocaleString()} OFF`;
-
-      const codeNotice = p.code ? ` Use voucher code [${p.code}] at checkout.` : '';
-      const minSpendNotice = p.min_order_amount ? ` Minimum spend ₱${p.min_order_amount.toLocaleString()}.` : '';
-
-      items.push({
-        id: promoId,
-        type: 'promo',
-        title: p.title || `Special Offer: ${discountText}`,
-        content: (p.description ? p.description + '\n\n' : '') + `Enjoy ${discountText}!${codeNotice}${minSpendNotice}`,
-        image_url: p.image_url || null,
-        priority: 'promo',
-        date: p.created_at || p.start_date || new Date().toISOString(),
-        isCompleted,
-        rawPromo: p,
-        promoCode: p.code,
-        discountType: p.discount_type,
-        discountValue: p.discount_value,
-        minOrderAmount: p.min_order_amount,
-        maxDiscountAmount: p.max_discount_amount,
-        endDate: p.end_date,
-      });
-    });
-
     // Filter out deleted items
     const nonDeleted = items.filter((item) => !deletedIds.includes(item.id));
 
@@ -254,7 +216,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
       const dateB = Date.parse(b.date);
       return (Number.isFinite(dateB) ? dateB : 0) - (Number.isFinite(dateA) ? dateA : 0);
     });
-  }, [announcements, promos, completedIds, deletedIds]);
+  }, [announcements, completedIds, deletedIds]);
 
   // Unread / Incomplete counter
   const unreadCount = unifiedNotifications.filter((item) => !item.isCompleted).length;
@@ -368,7 +330,6 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
   const visibleNotifications = unifiedNotifications.filter((item) => (
     notificationFilter === 'all'
     || (notificationFilter === 'unread' && !item.isCompleted)
-    || (notificationFilter === 'promos' && item.type === 'promo')
   ));
   const newNotifications = visibleNotifications.filter((item) => !item.isCompleted);
   const earlierNotifications = visibleNotifications.filter((item) => item.isCompleted);
@@ -380,9 +341,9 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
         type="button"
         onClick={() => (isOpenDropdown ? closeDropdown() : openDropdown())}
         className="relative flex items-center justify-center p-2 rounded-full !text-white hover:text-white hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-cream)]/70"
-        aria-label="Announcements, promos, and alerts"
+        aria-label="Announcements and alerts"
         aria-expanded={isOpenDropdown}
-        title="Promos & Announcements"
+        title="Announcements"
       >
         <Bell
           size={20}
@@ -417,7 +378,6 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
               {([
                 ['all', 'All'],
                 ['unread', 'Unread'],
-                ['promos', 'Promos'],
               ] as const).map(([filter, label]) => (
                 <button key={filter} type="button" role="tab" aria-selected={notificationFilter === filter} onClick={() => setNotificationFilter(filter)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 ${notificationFilter === filter ? 'bg-green-800 text-white shadow-sm dark:bg-emerald-700' : 'bg-white text-gray-600 hover:bg-green-50 hover:text-green-900 dark:bg-[#142219] dark:text-gray-300 dark:hover:bg-green-950/60 dark:hover:text-emerald-200'}`}>{label}</button>
               ))}
@@ -445,7 +405,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
               <div className="px-6 py-10 text-center">
                 <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-green-50 text-green-800 dark:bg-green-950/60 dark:text-emerald-300"><Bell size={22} /></div>
                 <p className="font-serif text-sm font-semibold text-gray-900 dark:text-gray-50">You're all caught up</p>
-                <p className="mx-auto mt-1 max-w-[250px] text-xs leading-5 text-gray-600 dark:text-gray-300">New promos and announcements will show up here.</p>
+                <p className="mx-auto mt-1 max-w-[250px] text-xs leading-5 text-gray-600 dark:text-gray-300">New announcements will show up here.</p>
                 {deletedIds.length > 0 && <button type="button" onClick={handleRestoreDeleted} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-green-800 hover:underline dark:text-emerald-300"><RotateCcw size={12} />Restore dismissed notifications</button>}
               </div>
             ) : (

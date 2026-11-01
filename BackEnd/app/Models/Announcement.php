@@ -50,10 +50,12 @@ class Announcement extends Model
 
         static::saved(function () {
             \Illuminate\Support\Facades\Cache::forget('announcements_public_list');
+            \Illuminate\Support\Facades\Cache::forget('announcements_public_nonpromo_list_v1');
         });
 
         static::deleted(function () {
             \Illuminate\Support\Facades\Cache::forget('announcements_public_list');
+            \Illuminate\Support\Facades\Cache::forget('announcements_public_nonpromo_list_v1');
         });
     }
 

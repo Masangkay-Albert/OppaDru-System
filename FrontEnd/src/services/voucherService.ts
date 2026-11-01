@@ -1,79 +1,56 @@
-// src/services/voucherService.ts
-import { promoService, type Promo } from './promoService';
-import { VOUCHERS } from '../utils/constants';
-import { formatCurrency } from '../utils/formatters';
+import { promoService, type PromoCartItem, type PromoValidationResult } from './promoService';
 
 export interface VoucherResult {
   isValid: boolean;
   discount: number;
-  promo?: Promo;
+  code?: string;
   error?: string;
-  message?: string;
+  errorCode?: string;
 }
 
-/**
- * Validates a promo/voucher code asynchronously with the database API.
- */
-export const validateVoucherAsync = async (
-  code: string,
-  subtotal: number,
-  items?: Array<{ id: number; price: number; quantity: number }>
-): Promise<VoucherResult> => {
-  const cleanCode = code.trim().toUpperCase();
-  if (!cleanCode) {
-    return { isValid: false, discount: 0, error: 'Please enter a voucher code' };
-  }
-
-  try {
-    const res = await promoService.validatePromo(cleanCode, subtotal, items || []);
-
-    if (res.isValid) {
-      return {
-        isValid: true,
-        discount: Number(res.discount || 0),
-        promo: res.promo,
-        message: res.message || 'Promo applied successfully!',
-      };
-    }
-
-    return {
-      isValid: false,
-      discount: 0,
-      error: res.message || 'Invalid or inactive promo code',
-    };
-  } catch (err: any) {
-    const errMsg = err?.response?.data?.message || err?.message;
-    if (errMsg) {
-      return { isValid: false, discount: 0, error: errMsg };
-    }
-
-    // Offline fallback to legacy constants
-    return validateAndApplyVoucher(cleanCode, subtotal);
+const errorMessage = (result: PromoValidationResult): string => {
+  switch (result.errorCode) {
+    case 'PROMO_REQUIRED':
+      return 'Please enter a promo code.';
+    case 'PROMO_INVALID':
+      return "This promo code isn't valid. Please check and try again.";
+    case 'PROMO_EXPIRED':
+      return 'This promo code has expired.';
+    case 'PROMO_NOT_STARTED':
+      return "This promo code isn't active yet.";
+    case 'PROMO_NO_APPLICABLE_ITEMS':
+      return "This promo doesn't apply to the items in your cart.";
+    case 'PROMO_MIN_ORDER':
+      return `Add ₱${(result.amountRemaining || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} more to use this promo.`;
+    case 'PROMO_USAGE_LIMIT':
+      return 'This promo code has reached its usage limit.';
+    case 'PROMO_RATE_LIMITED':
+      return 'Too many attempts. Please wait a minute and try again.';
+    case 'PROMO_CHANGED':
+      return 'This promo is no longer available. Please apply the code again.';
+    case 'PROMO_INVALID_REQUEST':
+      return 'Please check the promo code and cart, then try again.';
+    default:
+      return 'Something went wrong. Please try again.';
   }
 };
 
-/**
- * Synchronous validation fallback.
- */
-export const validateAndApplyVoucher = (code: string, subtotal: number): VoucherResult => {
-  const upperCode = code.trim().toUpperCase();
-
-  if (upperCode === VOUCHERS.OPPA10.code) {
-    const discount = Math.round(subtotal * 0.10);
-    return { isValid: true, discount };
+export const validateVoucherAsync = async (
+  code: string,
+  items: PromoCartItem[],
+  channel: 'customer' | 'cashier' = 'customer',
+): Promise<VoucherResult> => {
+  if (!code.trim()) {
+    return { isValid: false, discount: 0, errorCode: 'PROMO_REQUIRED', error: 'Please enter a promo code.' };
   }
 
-  if (upperCode === VOUCHERS.OPPA20.code) {
-    if (subtotal >= VOUCHERS.OPPA20.minOrder) {
-      const discount = Math.round(subtotal * 0.20);
-      return { isValid: true, discount };
-    }
-    return {
-      isValid: false,
-      discount: 0,
-      error: `Minimum order of ${formatCurrency(VOUCHERS.OPPA20.minOrder)} required`,
-    };
+  try {
+    const result = await promoService.validatePromo(code, items, channel);
+    return result.isValid
+      ? { isValid: true, discount: result.discount, code: result.code }
+      : { isValid: false, discount: 0, errorCode: result.errorCode, error: errorMessage(result) };
+  } catch (error: unknown) {
+    console.error('Promo validation request failed.', error);
+    return { isValid: false, discount: 0, errorCode: 'PROMO_NETWORK_ERROR', error: 'Something went wrong. Please try again.' };
   }
-
-  return { isValid: false, discount: 0, error: 'Invalid voucher code' };
 };

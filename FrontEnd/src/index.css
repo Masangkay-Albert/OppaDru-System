@@ -61,5 +61,5 @@
 }
 
 .promo-table-row:hover {
-  background-color: color-mix(in srgb, var(--oppa-green-soft) 55%, transparent);
+  background-color: color-mix(in srgb, var(--oppa-green-soft) 20%, transparent);
 }

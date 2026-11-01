@@ -27,6 +27,50 @@ trait ProductAdminActions
         return response()->json(['data' => $this->productQuery()->get()]);
     }
 
+    public function getArchivedForAdmin(Request $request)
+    {
+        if (! $this->checkAdminAuth($request)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $products = Product::withTrashed()
+            ->whereNotNull('deleted_at')
+            ->withCatalogColumns()
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json(['data' => $products]);
+    }
+
+    public function archive(Request $request, $id)
+    {
+        if (! $this->checkAdminAuth($request)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $product = Product::withTrashed()->findOrFail($id);
+        if (! $product->trashed()) {
+            $product->delete();
+        }
+
+        return response()->json(['message' => 'Product archived successfully.']);
+    }
+
+    public function restore(Request $request, $id)
+    {
+        if (! $this->checkAdminAuth($request)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $product = Product::withTrashed()->findOrFail($id);
+        if ($product->trashed()) {
+            $product->restore();
+        }
+
+        return response()->json(['product' => $product, 'message' => 'Product restored successfully.']);
+    }
+
     public function uploadImage(Request $request)
     {
         if (! $this->checkAdminAuth($request)) {

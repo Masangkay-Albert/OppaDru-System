@@ -123,9 +123,6 @@
 .franchise-trend-neutral { color: #626c64; background: #f1f2ef; }
 
 .franchise-report-toolbar {
-  position: sticky;
-  top: 120px;
-  z-index: 20;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -222,7 +219,7 @@
   .franchise-kpi-card { min-height: 96px; flex-wrap: wrap; gap: 8px; padding: 11px; }
   .franchise-kpi-icon { width: 34px; height: 34px; flex-basis: 34px; }
   .franchise-kpi-card .franchise-trend { margin-left: 0; }
-  .franchise-report-toolbar { top: 120px; padding: 12px; }
+  .franchise-report-toolbar { padding: 12px; }
   .franchise-report-controls { flex-wrap: nowrap; align-items: center; }
   .franchise-date-chips { max-width: 100%; }
   .franchise-report-select { max-width: 150px; }

@@ -45,6 +45,7 @@ export interface Product {
   addonGroups?: AddonGroup[];
   created_at?: string;
   updated_at?: string;
+  deleted_at?: string | null;
 }
 
 export interface Category {

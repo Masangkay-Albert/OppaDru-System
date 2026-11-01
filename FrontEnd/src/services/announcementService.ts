@@ -360,7 +360,7 @@ export const announcementService = {
       if (res.ok) {
         const data = await res.json();
         if (data.announcements && Array.isArray(data.announcements)) {
-          const valid = data.announcements.filter((a: Announcement) => !a.id.startsWith('ann-DEMO'));
+          const valid = data.announcements.filter((a: Announcement) => !a.id.startsWith('ann-DEMO') && a.priority !== 'promo');
           saveStoredAnnouncements(valid);
           return valid;
         }
@@ -373,6 +373,7 @@ export const announcementService = {
     return list.filter(
       (a) =>
         !a.id.startsWith('ann-DEMO') &&
+        a.priority !== 'promo' &&
         a.status === 'published' &&
         (a.target_audience === 'customers' ||
           a.target_audience === 'all' ||

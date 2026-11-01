@@ -6,6 +6,8 @@ use App\Models\Addon;
 use App\Models\Franchise;
 use App\Models\Payment;
 use App\Services\FranchiseInventoryService;
+use App\Services\PromoRedemptionException;
+use App\Services\PromoRedemptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -17,6 +19,7 @@ trait PaymentCheckoutActions
     {
         $validator = Validator::make($request->all(), [
             'amount' => 'required|numeric|min:0.01',
+            'promo_code' => 'nullable|string|max:50',
             'franchise_id' => 'nullable|string|exists:franchises,id',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|string|exists:products,id',
@@ -50,10 +53,29 @@ trait PaymentCheckoutActions
         if ($unavailable !== []) return ['success' => false, 'message' => 'One or more items are unavailable at the assigned branch.', 'status' => 422];
 
         try {
+            $promoDiscount = 0.0;
+            $promoCode = trim((string) $request->input('promo_code', ''));
+            if ($promoCode !== '') {
+                $userId = $request->user()?->getAuthIdentifier();
+                $retryAfter = app(PromoRedemptionService::class)->rateLimitRetryAfter($request, $userId);
+                if ($retryAfter !== null) {
+                    return [
+                        'success' => false,
+                        'message' => 'Too many attempts. Please wait a minute and try again.',
+                        'error_code' => 'PROMO_RATE_LIMITED',
+                        'status' => 429,
+                    ];
+                }
+                $promoDiscount = app(PromoRedemptionService::class)->evaluate(
+                    $promoCode,
+                    $request->input('items', []),
+                    $userId,
+                )['discount'];
+            }
             $pricing = $this->pricingService->calculate(
                 $request->items,
                 $request->input('delivery_type', 'standard'),
-                (float) $request->input('voucher_discount', 0),
+                $promoDiscount,
                 (float) $request->input('discount_rate', 0),
                 $request->input('delivery_coordinates'),
                 ['lat' => (float) $branchResolution['branch']->latitude, 'lng' => (float) $branchResolution['branch']->longitude],
@@ -63,6 +85,21 @@ trait PaymentCheckoutActions
             }
 
             return ['success' => true, 'amount' => $pricing['total'], 'franchise_id' => $franchiseId, 'branch' => $branchResolution['branch'], 'distance_km' => $branchResolution['distance_km']];
+        } catch (PromoRedemptionException $exception) {
+            if ($promoCode !== '') {
+                app(PromoRedemptionService::class)->recordInvalidAttempt(
+                    $request,
+                    $request->user()?->getAuthIdentifier(),
+                    strtoupper((string) preg_replace('/\s+/', '', $promoCode)),
+                    $exception->errorCode,
+                );
+            }
+            return [
+                'success' => false,
+                'message' => $exception->getMessage(),
+                'error_code' => $exception->errorCode,
+                'status' => 422,
+            ];
         } catch (\InvalidArgumentException $exception) {
             return ['success' => false, 'message' => $exception->getMessage(), 'status' => 422];
         }
@@ -72,7 +109,11 @@ trait PaymentCheckoutActions
     {
         $validated = $this->validateAmount($request);
         if (($validated['success'] ?? false) === false) {
-            return response()->json(['success' => false, 'message' => $validated['message']], $validated['status'] ?? 422);
+            return response()->json([
+                'success' => false,
+                'message' => $validated['message'],
+                'error_code' => $validated['error_code'] ?? null,
+            ], $validated['status'] ?? 422);
         }
 
         $amount = $validated['amount'];
@@ -208,7 +249,11 @@ trait PaymentCheckoutActions
 
         $pricing = $this->validateAmount($request);
         if (($pricing['success'] ?? false) === false) {
-            return response()->json(['success' => false, 'message' => $pricing['message']], $pricing['status'] ?? 422);
+            return response()->json([
+                'success' => false,
+                'message' => $pricing['message'],
+                'error_code' => $pricing['error_code'] ?? null,
+            ], $pricing['status'] ?? 422);
         }
 
         $secretKey = config('services.paymongo.secret_key');

@@ -31,6 +31,7 @@ class Promo extends Model
         'min_order_amount',
         'max_discount_amount',
         'usage_limit',
+        'per_customer_limit',
         'times_used',
     ];
 
@@ -44,6 +45,7 @@ class Promo extends Model
         'applicable_categories' => 'array',
         'applicable_products' => 'array',
         'usage_limit' => 'integer',
+        'per_customer_limit' => 'integer',
         'times_used' => 'integer',
     ];
 

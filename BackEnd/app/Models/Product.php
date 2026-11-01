@@ -54,6 +54,10 @@ class Product extends Model
      */
     public function scopeWithCatalogColumns($query)
     {
+        $imageColumn = \Illuminate\Support\Facades\DB::getDriverName() === 'sqlite'
+            ? 'image'
+            : \Illuminate\Support\Facades\DB::raw("CASE WHEN image LIKE 'data:image%' THEN CONCAT('/api/products/', id, '/image?v=', SUBSTRING(MD5(image), 1, 16)) ELSE image END AS image");
+
         return $query->select([
             'id',
             'franchise_id',
@@ -64,7 +68,8 @@ class Product extends Model
             'is_available',
             'created_at',
             'updated_at',
-            \Illuminate\Support\Facades\DB::raw("CASE WHEN image LIKE 'data:image%' THEN CONCAT('/api/products/', id, '/image?v=', SUBSTRING(MD5(image), 1, 16)) ELSE image END AS image")
+            'deleted_at',
+            $imageColumn,
         ]);
     }
 

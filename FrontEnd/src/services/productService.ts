@@ -221,6 +221,21 @@ class ProductService {
     return this.parseProducts(await response.json());
   }
 
+  async getArchivedAdminProducts(): Promise<Product[]> {
+    const result = await this.adminRequestWithRetry<{ data?: unknown }>('/admin/products/archived');
+    return this.parseProducts(result.data ?? []);
+  }
+
+  async archiveAdminProduct(id: string): Promise<void> {
+    await this.adminRequestWithRetry(`/admin/products/${id}/archive`, { method: 'PATCH' });
+    const cachedProducts = this.getCachedProducts().filter((product) => product.id !== id);
+    this.saveCachedProducts(cachedProducts);
+  }
+
+  async restoreAdminProduct(id: string): Promise<void> {
+    await this.adminRequestWithRetry(`/admin/products/${id}/restore`, { method: 'PATCH' });
+  }
+
   async getAvailableProducts(franchiseId?: string | null): Promise<Product[]> {
     if (franchiseId) {
       const params = new URLSearchParams({ franchise_id: franchiseId });

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Archive, ChevronDown, ChevronUp, Eye, Image as ImageIcon, ImagePlus, LayoutGrid, List, PackageOpen, PlusSquare, Trash2, X } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
-import { getAllProducts, toggleAvailability, deleteProduct, updateProduct, addProduct } from '../../../services/adminProductService';
+import { getAllProducts, getArchivedProducts, archiveProduct, restoreProduct, toggleAvailability, deleteProduct, updateProduct, addProduct } from '../../../services/adminProductService';
 import { productService } from '../../../services/productService';
 import type { Product, ProductCategory } from '../../../types/product.types';
 import { formatCurrency } from '../../../utils/formatters';
@@ -74,14 +74,6 @@ const AdminProductsPage: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [showArchived, setShowArchived] = useState(false);
-  const [archivedIds, setArchivedIds] = useState<string[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('adminArchivedProducts') || '[]');
-      return Array.isArray(saved) ? saved : [];
-    } catch {
-      return [];
-    }
-  });
   const [detailsProduct, setDetailsProduct] = useState<Product | null>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const mobileSelectAllRef = useRef<HTMLInputElement>(null);
@@ -89,19 +81,41 @@ const AdminProductsPage: React.FC = () => {
   const [bulkCategorySelectKey, setBulkCategorySelectKey] = useState(0);
 
   const isAvailable = (product: Product) => product.isAvailable ?? product.is_available;
-  const isArchived = (product: Product) => archivedIds.includes(product.id);
-
-  const updateArchivedIds = (nextIds: string[]) => {
-    setArchivedIds(nextIds);
-    localStorage.setItem('adminArchivedProducts', JSON.stringify(nextIds));
-  };
+  const isArchived = (product: Product) => Boolean(product.deleted_at);
 
   const refresh = async () => {
     try {
-      const result = await getAllProducts();
-      setProducts(Array.isArray(result) ? result : []);
+      let [activeProducts, archivedProducts] = await Promise.all([getAllProducts(), getArchivedProducts()]);
+      const activeIds = new Set(activeProducts.map((product) => product.id));
+      const archivedIds = new Set(archivedProducts.map((product) => product.id));
+      let legacyIds: string[] = [];
+      try {
+        const saved = JSON.parse(localStorage.getItem('adminArchivedProducts') || '[]');
+        if (Array.isArray(saved)) legacyIds = saved.filter((id): id is string => typeof id === 'string');
+      } catch (error) {
+        console.warn('Could not read locally saved archived products.', error);
+      }
+
+      const legacyToArchive = legacyIds.filter((id) => activeIds.has(id) && !archivedIds.has(id));
+      const archiveResults = await Promise.allSettled(legacyToArchive.map((id) => archiveProduct(id)));
+      const failedLegacyIds = legacyToArchive.filter((_, index) => archiveResults[index].status === 'rejected');
+      if (failedLegacyIds.length) {
+        setActionError('Some previously archived products could not be synchronized. Try archiving them again.');
+      }
+      const legacyIdsToKeep = legacyIds.filter((id) => failedLegacyIds.includes(id) || (!activeIds.has(id) && !archivedIds.has(id)));
+      if (legacyIdsToKeep.length) {
+        localStorage.setItem('adminArchivedProducts', JSON.stringify(legacyIdsToKeep));
+      } else {
+        localStorage.removeItem('adminArchivedProducts');
+      }
+
+      if (archiveResults.some((result) => result.status === 'fulfilled')) {
+        [activeProducts, archivedProducts] = await Promise.all([getAllProducts(), getArchivedProducts()]);
+      }
+      setProducts([...activeProducts, ...archivedProducts]);
     } catch (error) {
       console.error('Failed to load products:', error);
+      setActionError('Could not load products. Please try again.');
       setProducts([]);
     } finally {
       setIsLoading(false);
@@ -235,7 +249,6 @@ const AdminProductsPage: React.FC = () => {
       setPage(1);
       setActionError('');
       setToastMessage(productToDelete ? 'Product deleted' : 'Selected products deleted');
-      updateArchivedIds(archivedIds.filter((id) => !selectedIds.includes(id) && id !== productToDelete?.id));
     } catch (error) {
       console.error('Failed to delete product:', error);
       setActionError('Could not delete the selected product(s).');
@@ -264,17 +277,25 @@ const AdminProductsPage: React.FC = () => {
     }
   };
 
-  const toggleArchive = (product: Product) => {
-    const next = isArchived(product)
-      ? archivedIds.filter((id) => id !== product.id)
-      : [...archivedIds, product.id];
-    updateArchivedIds(next);
-    setToastMessage(isArchived(product) ? 'Product restored' : 'Product archived');
+  const toggleArchive = async (product: Product) => {
+    try {
+      if (isArchived(product)) {
+        await restoreProduct(product.id);
+      } else {
+        await archiveProduct(product.id);
+      }
+      await refresh();
+      setToastMessage(isArchived(product) ? 'Product restored' : 'Product archived');
+      setActionError('');
+    } catch (error) {
+      console.error('Failed to update product archive status:', error);
+      setActionError('Could not update the product archive status. Please try again.');
+    }
   };
 
   const actionItems = (product: Product) => [
     { label: 'Delete product', destructive: true, onSelect: () => void handleDelete(product.id) },
-    { label: isArchived(product) ? 'Restore product' : 'Archive product', onSelect: () => toggleArchive(product) },
+    { label: isArchived(product) ? 'Restore product' : 'Archive product', onSelect: () => void toggleArchive(product) },
     { label: 'View details', onSelect: () => setDetailsProduct(product) },
   ];
 
@@ -393,7 +414,7 @@ const AdminProductsPage: React.FC = () => {
               className="w-full shrink-0 sm:w-52"
               triggerClassName="h-11 rounded-xl"
             />
-            <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setSelectedIds([]); setPage(1); }} className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${showArchived ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><Archive size={15} />{showArchived ? 'Showing archived' : `Archived (${archivedIds.length})`}</button>
+            <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setSelectedIds([]); setPage(1); }} className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${showArchived ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><Archive size={15} />{showArchived ? 'Showing archived' : `Archived (${products.filter(isArchived).length})`}</button>
           </div>
           <div className="flex items-center justify-between gap-3 xl:justify-end">
             <div className="flex min-w-0 items-center gap-2">

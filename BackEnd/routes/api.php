@@ -53,9 +53,8 @@ Route::get('/storage/{path}', function (string $path) {
 })->where('path', '.*');
 
 Route::get('/settings/pricing', [SettingController::class, 'index']);
-Route::get('/promos', [PromoController::class, 'index']);
-Route::get('/promos/{id}/image', [PromoController::class, 'image']);
-Route::post('/promos/validate', [PromoController::class, 'validatePromo']);
+Route::post('/promos/validate', [PromoController::class, 'validatePromo'])
+    ->middleware(['auth:api', 'throttle:30,1,promo-validation']);
 Route::get('/reports/popular-meals', [PopularMealsController::class, 'getMostPopularThisMonth']);
 Route::get('/announcements', [AnnouncementController::class, 'publicList']);
 Route::get('/franchise-opportunities', [FranchiseApplicationController::class, 'opportunities']);
@@ -113,6 +112,8 @@ Route::prefix('franchise')->group(function () {
 Route::post('/employee/login', [EmployeeAuthController::class, 'login']);
 Route::post('/employee/logout', [EmployeeAuthController::class, 'logout']);
 Route::middleware(['employee.access:cashier'])->group(function () {
+    Route::get('/employee/pos/promos', [PromoController::class, 'employeeIndex']);
+    Route::post('/employee/pos/promos/validate', [PromoController::class, 'validateEmployeePromo'])->middleware('throttle:30,1,promo-validation');
     Route::get('/employee/pos/products', [FranchiseController::class, 'employeePosProducts']);
     Route::get('/employee/pos/orders', [FranchiseController::class, 'employeePosOrders']);
     Route::get('/employee/pos/top-products', [FranchiseController::class, 'employeePosTopProducts']);
@@ -156,7 +157,6 @@ Route::get('/products/{id}/image', [ProductController::class, 'image']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
 Route::get('/addon-groups', [AddonController::class, 'index']);
 
-Route::post('/orders/onsite', [OrderController::class, 'storeOnsite']);
 Route::patch('/orders/{id}/status-update', [OrderController::class, 'updateStatusOnsite']);
 
 
@@ -180,7 +180,6 @@ Route::get('/discount-verifications/{id}/proof-image', [ProofImageController::cl
 
 Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByReference']);
 Route::post('/payment/confirm/{reference}', [PaymentController::class, 'confirmPaymentFromMobile']);
-Route::post('/payment/gcash/create', [PaymentController::class, 'createGCashPayment']);
 Route::post('/payment/gcash/webhook', [PaymentController::class, 'webhook']);
 Route::get('/payment/status/{reference}', [PaymentController::class, 'getPaymentStatus']);
 
@@ -209,6 +208,7 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
 
     Route::post('/payment/gcash/request-otp', [PaymentController::class, 'requestGCashOTP']);
     Route::post('/payment/gcash/verify', [PaymentController::class, 'verifyGCash']);
+    Route::post('/payment/gcash/create', [PaymentController::class, 'createGCashPayment']);
     Route::post('/payment/card/process', [PaymentController::class, 'processCard']);
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 
@@ -239,6 +239,7 @@ Route::middleware(['admin.access'])->prefix('admin')->group(function () {
     Route::get('/facebook/status', [AnnouncementController::class, 'getFacebookStatus']);
 
     Route::get('/promos', [PromoController::class, 'adminIndex']);
+    Route::get('/promos/{id}/image', [PromoController::class, 'image']);
     Route::post('/promos', [PromoController::class, 'store']);
     Route::get('/promos/{id}', [PromoController::class, 'show']);
     Route::put('/promos/{id}', [PromoController::class, 'update']);
@@ -253,12 +254,15 @@ Route::middleware(['admin.access'])->prefix('admin')->group(function () {
     Route::delete('/addons/{addon}', [AddonController::class, 'destroy']);
     Route::put('/products/{product}/addon-groups', [AddonController::class, 'assignProduct']);
     Route::get('/products', [ProductController::class, 'getAllForAdmin']);
+    Route::get('/products/archived', [ProductController::class, 'getArchivedForAdmin']);
     Route::get('/products/count', [ProductController::class, 'count']);
     Route::post('/products/upload-image', [ProductController::class, 'uploadImage']);
     Route::post('/products', [ProductController::class, 'store']);
     Route::put('/products/{id}', [ProductController::class, 'update']);
     Route::delete('/products/{id}', [ProductController::class, 'destroy']);
     Route::patch('/products/{id}/toggle', [ProductController::class, 'toggleAvailability']);
+    Route::patch('/products/{id}/archive', [ProductController::class, 'archive']);
+    Route::patch('/products/{id}/restore', [ProductController::class, 'restore']);
 
     Route::get('/count', [AdminController::class, 'count']);
     Route::get('/discount-verifications', [DiscountVerificationController::class, 'index']);

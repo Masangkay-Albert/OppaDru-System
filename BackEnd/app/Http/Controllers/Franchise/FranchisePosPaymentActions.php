@@ -10,6 +10,8 @@ use App\Models\Product;
 use App\Services\FranchiseInventoryService;
 use App\Services\Payment\PaymentHelperService;
 use App\Services\PricingService;
+use App\Services\PromoRedemptionException;
+use App\Services\PromoRedemptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
@@ -33,6 +35,7 @@ trait FranchisePosPaymentActions
             'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'discount_type' => 'nullable|string|in:PWD,Senior Citizen',
             'discount_id_number' => 'required_with:discount_type|nullable|string|max:100',
+            'promo_code' => 'nullable|string|max:50',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -106,7 +109,40 @@ trait FranchisePosPaymentActions
         }
         $subtotal = max(0, round($pricing['subtotal']));
         $posTotals = app(PricingService::class)->calculatePosDiscount($subtotal, $request->filled('discount_type'));
-        $amount = $posTotals['total'];
+        $promoCode = trim((string) $request->input('promo_code', ''));
+        $promoDiscount = 0.0;
+        if ($promoCode !== '') {
+            $redemptionService = app(PromoRedemptionService::class);
+            $retryAfter = $redemptionService->rateLimitRetryAfter($request, (string) $user->getAuthIdentifier());
+            if ($retryAfter !== null) {
+                return response()->json([
+                    'message' => 'Too many attempts. Please wait a minute and try again.',
+                    'error_code' => 'PROMO_RATE_LIMITED',
+                ], 429);
+            }
+            try {
+                $promoDiscount = $redemptionService->evaluate(
+                    $promoCode,
+                    $items,
+                    null,
+                    false,
+                    'cashier',
+                )['discount'];
+            } catch (PromoRedemptionException $exception) {
+                $redemptionService->recordInvalidAttempt(
+                    $request,
+                    (string) $user->getAuthIdentifier(),
+                    strtoupper((string) preg_replace('/\s+/', '', $promoCode)),
+                    $exception->errorCode,
+                );
+
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                    'error_code' => $exception->errorCode,
+                ], 422);
+            }
+        }
+        $amount = max(0, round($posTotals['total'] - $promoDiscount));
 
         $reference = app(PaymentHelperService::class)->generateReferenceNumber();
         $posPath = $user instanceof Employee ? '/cashier/pos' : '/franchise/pos';
@@ -127,6 +163,7 @@ trait FranchisePosPaymentActions
                 'franchise_user_id' => $user instanceof FranchiseUser ? $user->id : null,
                 'source_status' => 'pending',
                 'checkout_url' => $checkoutUrl,
+                'promo_code' => $promoCode !== '' ? strtoupper((string) preg_replace('/\s+/', '', $promoCode)) : null,
             ],
         ]);
 

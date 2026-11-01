@@ -71,7 +71,7 @@ const CheckoutPage: React.FC = () => {
     voucherDiscount,
     setVoucherDiscount,
   } = useCheckoutForm();
-  const [appliedPromo, setAppliedPromo] = useState<any>(null);
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string } | null>(null);
 
   const buildFullDeliveryAddress = () => {
     const parts: string[] = [];
@@ -244,7 +244,6 @@ const CheckoutPage: React.FC = () => {
         discountType,
         discountProof,
         branchResolution.branch.id,
-        appliedPromo?.id || null,
         appliedPromo?.code || null
       );
 
@@ -416,7 +415,7 @@ const CheckoutPage: React.FC = () => {
               onPlaceOrder={handlePlaceOrder}
               onVoucherApply={(discount, promo) => {
                 setVoucherDiscount(discount);
-                setAppliedPromo(promo || null);
+                setAppliedPromo(promo ? { code: promo.code } : null);
               }}
               voucherDiscount={voucherDiscount}
             deliveryCoordinates={deliveryCoordinates || undefined}
@@ -472,7 +471,7 @@ const CheckoutPage: React.FC = () => {
         amount={total}
         items={cartItems}
         deliveryType={deliveryType}
-        voucherDiscount={voucherDiscount}
+        promoCode={appliedPromo?.code || null}
         discountRate={activeDiscount.discountRate}
         deliveryCoordinates={deliveryCoordinates || undefined}
         franchiseId={branchResolution?.branch.id || null}
@@ -486,7 +485,7 @@ const CheckoutPage: React.FC = () => {
         amount={total}
         items={cartItems}
         deliveryType={deliveryType}
-        voucherDiscount={voucherDiscount}
+        promoCode={appliedPromo?.code || null}
         discountRate={activeDiscount.discountRate}
         deliveryCoordinates={deliveryCoordinates || undefined}
         franchiseId={branchResolution?.branch.id || null}

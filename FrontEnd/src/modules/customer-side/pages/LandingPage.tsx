@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight, Clock3, CookingPot, CupSoda, Drumstick, GlassWater,
@@ -6,19 +6,21 @@ import {
 } from 'lucide-react';
 import { BrandFooter, BrandNavbar } from '../../shared/components/BrandChrome';
 import { getProductImage } from '../../../data/productImages';
+import { productService, type Product } from '../../../services/productService';
+import { formatCurrency } from '../../../utils/formatters';
 import '../../../styles/LandingPage.css';
 import oppaLogo from '../../../assets/oppadrulogo.jpg';
 
 const categoryCards = [
-  { name: 'Non-Coffee', text: 'Refreshing drinks for every mood.', photo: getProductImage('classic-lemon.jpg'), icon: GlassWater },
-  { name: 'Noodles', text: 'Comforting noodles with Korean-inspired flavor.', photo: getProductImage('samyang.jpg'), icon: Soup },
-  { name: 'Fruity Soda', text: 'Colorful, cool sips to pair with your meal.', photo: getProductImage('strawberry-soda.jpg'), icon: CupSoda },
-  { name: 'Snacks', text: 'Shareable bites for any time of day.', photo: getProductImage('tteokkboki.jpg'), icon: Sandwich },
-  { name: 'Chicken Meal', text: 'Crispy Korean fried chicken with bold sauces.', photo: getProductImage('yangneomgarlic-chicken.jpg'), icon: Drumstick },
-  { name: 'Rice Meal', text: 'Satisfying meals served with rice.', photo: getProductImage('original-rice.jpg'), icon: CookingPot },
+  { name: 'Non-Coffee', text: 'Refreshing drinks for every mood.', fallbackPhoto: getProductImage('blueberry-milk.jpg'), icon: GlassWater },
+  { name: 'Noodles', text: 'Comforting noodles with Korean-inspired flavor.', fallbackPhoto: getProductImage('samyang.jpg'), icon: Soup },
+  { name: 'Fruity Soda', text: 'Colorful, cool sips to pair with your meal.', fallbackPhoto: getProductImage('strawberry-soda.jpg'), icon: CupSoda },
+  { name: 'Snacks', text: 'Shareable bites for any time of day.', fallbackPhoto: getProductImage('tteokkboki.jpg'), icon: Sandwich },
+  { name: 'Chicken Meal', text: 'Crispy Korean fried chicken with bold sauces.', fallbackPhoto: getProductImage('yangneomgarlic-chicken.jpg'), icon: Drumstick },
+  { name: 'Rice Meal', text: 'Satisfying meals served with rice.', fallbackPhoto: getProductImage('original-rice.jpg'), icon: CookingPot },
 ];
 
-const featuredProducts = [
+const fallbackFeaturedProducts = [
   { name: 'Yangnyeom Boneless Chicken', description: 'Korean-style sweet and spicy yangnyeom boneless chicken.', price: '₱438', photo: getProductImage('yangyneom-chicken.jpg') },
   { name: 'Soy Garlic Boneless Chicken', description: 'Boneless chicken glazed with soy garlic sauce.', price: '₱428', photo: getProductImage('soygarlic-chicken.jpg') },
   { name: 'Classic BBQ Boneless Chicken', description: 'Boneless chicken tossed in classic BBQ sauce.', price: '₱428', photo: getProductImage('classicbbq-chicken.jpg') },
@@ -27,7 +29,18 @@ const featuredProducts = [
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const [products, setProducts] = useState<Product[]>([]);
   const goToLogin = () => navigate('/login');
+
+  useEffect(() => {
+    let active = true;
+    productService.getAvailableProducts().then((availableProducts) => {
+      if (active) setProducts(availableProducts);
+    }).catch((error: unknown) => {
+      console.error('Unable to load current menu products for the landing page.', error);
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const sections = document.querySelectorAll<HTMLElement>('[data-reveal]');
@@ -46,6 +59,43 @@ const LandingPage: React.FC = () => {
     sections.forEach((section) => observer.observe(section));
     return () => observer.disconnect();
   }, []);
+
+  const featuredProducts = useMemo(() => {
+    if (!products.length) return fallbackFeaturedProducts;
+
+    const normalize = (value: string) => value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const preferredNames = ['yangnyeom boneless', 'soy garlic boneless', 'classic bbq boneless', 'tteokkboki'];
+    const selected = preferredNames
+      .map((keyword) => products.find((product) => normalize(product.name).includes(keyword)))
+      .filter((product): product is Product => Boolean(product));
+    const chosenIds = new Set(selected.map((product) => product.id));
+    const featured = [...selected, ...products.filter((product) => !chosenIds.has(product.id))]
+      .slice(0, 4)
+      .map((product) => ({
+        name: product.name,
+        description: product.description,
+        price: formatCurrency(product.price),
+        photo: product.image,
+      }));
+
+    return featured.length ? featured : fallbackFeaturedProducts;
+  }, [products]);
+
+  const getCategoryPhoto = (categoryName: string, fallbackPhoto: string) => {
+    const normalizedCategory = categoryName.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '');
+    const match = products.find((product) => {
+      const category = product.category.toLocaleLowerCase().replace(/[^a-z0-9]+/g, '');
+      const name = product.name.toLocaleLowerCase();
+      if (normalizedCategory === 'noncoffee') {
+        return category.includes('noncoffee') || (category.includes('beverage') && !name.includes('soda'));
+      }
+      if (normalizedCategory === 'fruitysoda') {
+        return category.includes('fruitysoda') || name.includes('soda');
+      }
+      return category.includes(normalizedCategory.replace('meal', '')) || name.includes(normalizedCategory.replace('meal', ''));
+    });
+    return match?.image || fallbackPhoto;
+  };
 
   return (
     <div className="oppa-landing-page">
@@ -67,7 +117,7 @@ const LandingPage: React.FC = () => {
             </div>
           </div>
           <div className="oppa-hero-art">
-            <div className="oppa-hero-photo"><img src={getProductImage('original-chicken.jpg')} alt="Crispy Oppa Dru Korean fried chicken" /></div>
+            <div className="oppa-hero-photo"><img src={featuredProducts[0]?.photo || getProductImage('original-chicken.jpg')} alt="Crispy Oppa Dru Korean fried chicken" /></div>
             <div className="oppa-mascot-sticker"><img src={oppaLogo} alt="Oppa Dru mascot" /></div>
           </div>
         </div>
@@ -83,10 +133,10 @@ const LandingPage: React.FC = () => {
         <section id="menu" className="oppa-landing-section oppa-landing-container" data-reveal>
           <SectionHeading eyebrow="Explore the menu" title="Find your kind of delicious." text="From crispy chicken to refreshing drinks, there is something for every craving." />
           <div className="oppa-category-grid">
-            {categoryCards.map(({ name, text, photo, icon: Icon }) => (
+            {categoryCards.map(({ name, text, fallbackPhoto, icon: Icon }) => (
               <article className="oppa-category-card" key={name}>
                 <button type="button" className="oppa-category-image" onClick={goToLogin} aria-label={`View ${name} items`}>
-                  <img src={photo} alt="" /><span className="oppa-category-icon"><Icon size={20} /></span>
+                  <img src={getCategoryPhoto(name, fallbackPhoto)} alt="" /><span className="oppa-category-icon"><Icon size={20} /></span>
                 </button>
                 <div className="oppa-category-copy"><h3>{name}</h3><p>{text}</p>
                   <button type="button" onClick={goToLogin} className="oppa-text-link">View items <ArrowRight size={15} /></button>

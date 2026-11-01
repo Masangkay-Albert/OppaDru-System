@@ -48,4 +48,32 @@ class ProductDeletionTest extends TestCase
         $this->getJson('/api/admin/products', $headers)->assertOk()->assertJsonMissing(['id' => $product->id]);
         $this->assertSame(1, DB::table('product_addon_groups')->where('product_id', $product->id)->count());
     }
+
+    public function test_archiving_hides_product_from_customer_catalog_and_admin_can_restore_it(): void
+    {
+        $login = $this->postJson('/api/admin/login', [
+            'email' => 'admin@oppadru.com',
+            'password' => 'Admin@123',
+        ])->assertOk();
+
+        $product = Product::create([
+            'name' => 'Archived menu item',
+            'description' => 'Temporarily unavailable',
+            'price' => 129,
+            'category' => 'chicken',
+            'image' => 'archived-menu-item.jpg',
+            'is_available' => true,
+        ]);
+        $headers = ['Authorization' => 'Bearer '.$login->json('token')];
+
+        $this->patchJson('/api/admin/products/'.$product->id.'/archive', [], $headers)->assertOk();
+        $this->assertSoftDeleted('products', ['id' => $product->id]);
+        $this->getJson('/api/products/available')->assertOk()->assertJsonMissing(['id' => $product->id]);
+        $this->getJson('/api/admin/products', $headers)->assertOk()->assertJsonMissing(['id' => $product->id]);
+        $this->getJson('/api/admin/products/archived', $headers)->assertOk()->assertJsonFragment(['id' => $product->id]);
+
+        $this->patchJson('/api/admin/products/'.$product->id.'/restore', [], $headers)->assertOk();
+        $this->assertNotSoftDeleted('products', ['id' => $product->id]);
+        $this->getJson('/api/products/available')->assertOk()->assertJsonFragment(['id' => $product->id]);
+    }
 }

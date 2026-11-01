@@ -1,48 +1,70 @@
 // src/modules/customer-side/components/checkout/VoucherSection.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { validateVoucherAsync } from '../../../../services/voucherService';
-import { promoService, type Promo } from '../../../../services/promoService';
+import type { CartItem } from '../../../../types/product.types';
 import { formatPeso } from '../../../../utils/formatters';
-import { Tag, Check, Sparkles, Loader2 } from 'lucide-react';
+import { Tag, Check, Loader2, X } from 'lucide-react';
 
 interface VoucherSectionProps {
-  subtotal: number;
-  onVoucherApplied: (discount: number, promo?: Promo) => void;
+  cartItems: CartItem[];
+  onVoucherApplied: (discount: number, promo?: { code: string }) => void;
   onVoucherRemoved: () => void;
 }
 
-const VoucherSection: React.FC<VoucherSectionProps> = ({ 
-  subtotal, 
+const VoucherSection: React.FC<VoucherSectionProps> = ({
+  cartItems,
   onVoucherApplied, 
   onVoucherRemoved 
 }) => {
   const [voucherCode, setVoucherCode] = useState('');
   const [voucherError, setVoucherError] = useState('');
-  const [hasAppliedVoucher, setHasAppliedVoucher] = useState(false);
-  const [appliedPromo, setAppliedPromo] = useState<Promo | null>(null);
+  const [appliedCode, setAppliedCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
   const [isValidating, setIsValidating] = useState(false);
-  const [availablePromos, setAvailablePromos] = useState<Promo[]>([]);
-  const [showPromoList, setShowPromoList] = useState(false);
+  const requestId = useRef(0);
+  const callbacksRef = useRef({ onVoucherApplied, onVoucherRemoved });
+  const validatedCartSignature = useRef('');
+  const promoItems = useMemo(() => cartItems.map((item) => ({
+    id: item.id,
+    quantity: item.quantity,
+    selected_size: item.selectedSize,
+    selected_addons: (item.selectedAddons || []).map((addon) => ({ id: addon.id, quantity: addon.quantity || 1 })),
+  })), [cartItems]);
+  const cartSignature = JSON.stringify(promoItems);
 
   useEffect(() => {
+    callbacksRef.current = { onVoucherApplied, onVoucherRemoved };
+  }, [onVoucherApplied, onVoucherRemoved]);
+
+  useEffect(() => {
+    if (!appliedCode) return undefined;
+    if (validatedCartSignature.current === cartSignature) return undefined;
+    validatedCartSignature.current = cartSignature;
+    const currentRequestId = ++requestId.current;
     let active = true;
-    promoService.getActivePromos()
-      .then((data) => {
-        if (active && Array.isArray(data)) {
-          setAvailablePromos(data);
-        }
-      })
-      .catch(() => {});
+    void validateVoucherAsync(appliedCode, promoItems).then((result) => {
+      if (!active || requestId.current !== currentRequestId) return;
+      if (result.isValid) {
+        setAppliedDiscount(result.discount);
+        callbacksRef.current.onVoucherApplied(result.discount, { code: result.code || appliedCode });
+      } else {
+        setAppliedCode('');
+        setAppliedDiscount(0);
+        setVoucherCode(appliedCode);
+        setVoucherError(result.error || 'Something went wrong. Please try again.');
+        callbacksRef.current.onVoucherRemoved();
+      }
+    });
     return () => {
       active = false;
     };
-  }, []);
+  }, [cartSignature, appliedCode, promoItems]);
 
-  const handleApplyCode = async (codeToApply: string) => {
-    const code = codeToApply.trim();
+  const handleApplyCode = async () => {
+    if (isValidating) return;
+    const code = voucherCode.trim().replace(/\s+/g, '').toUpperCase();
     if (!code) {
-      setVoucherError('Please enter a voucher code');
+      setVoucherError('Please enter a promo code.');
       return;
     }
 
@@ -50,55 +72,47 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
     setVoucherError('');
 
     try {
-      const result = await validateVoucherAsync(code, subtotal);
+      const result = await validateVoucherAsync(code, promoItems);
       if (result.isValid) {
-        setHasAppliedVoucher(true);
-        setAppliedPromo(result.promo || null);
+        const applied = result.code || code;
+        validatedCartSignature.current = cartSignature;
+        setAppliedCode(applied);
         setAppliedDiscount(result.discount);
-        onVoucherApplied(result.discount, result.promo);
-        setVoucherCode(code.toUpperCase());
+        onVoucherApplied(result.discount, { code: applied });
         setVoucherError('');
-        setShowPromoList(false);
       } else {
         setVoucherError(result.error || 'Invalid voucher code');
       }
-    } catch {
-      setVoucherError('Failed to validate promo code.');
     } finally {
       setIsValidating(false);
     }
   };
 
   const handleRemove = () => {
-    setHasAppliedVoucher(false);
-    setAppliedPromo(null);
+    requestId.current += 1;
+    validatedCartSignature.current = '';
+    setAppliedCode('');
     setAppliedDiscount(0);
     setVoucherCode('');
+    setVoucherError('');
     onVoucherRemoved();
   };
 
-  if (hasAppliedVoucher) {
+  if (appliedCode) {
     return (
-      <div className="mb-4 p-3.5 bg-[#d8f3dc] border border-[#2d6a4f]/30 rounded-xl flex justify-between items-center animate-fadeIn">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-[#2d6a4f] text-white flex items-center justify-center">
-            <Check size={16} />
+      <div className="mb-4 rounded-xl border border-emerald-700/20 bg-emerald-50 p-3.5 dark:border-emerald-300/20 dark:bg-emerald-950/30">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white">
+              <Check size={16} aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-emerald-900 dark:text-emerald-200">Promo {appliedCode} applied</p>
+              <p className="text-xs text-emerald-800 dark:text-emerald-300">You save {formatPeso(appliedDiscount)}</p>
+            </div>
           </div>
-          <div>
-            <p className="font-bold text-[#2d6a4f] text-sm">
-              {appliedPromo?.title || 'Promo Code Applied'}
-            </p>
-            <p className="text-xs text-gray-600">
-              Code: <span className="font-mono font-bold uppercase">{voucherCode}</span> · Saved {formatPeso(appliedDiscount)}
-            </p>
-          </div>
+          <button type="button" onClick={handleRemove} className="min-h-10 shrink-0 rounded-lg px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 dark:text-red-300 dark:hover:bg-red-950/40">Remove</button>
         </div>
-        <button
-          onClick={handleRemove}
-          className="text-red-500 hover:text-red-700 text-xs font-semibold px-2 py-1 rounded hover:bg-red-50 transition"
-        >
-          Remove
-        </button>
       </div>
     );
   }
@@ -108,89 +122,41 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Tag className="w-4 h-4 text-[var(--oppa-green)]" />
-          <h3 className="font-bold text-gray-800 text-sm">Vouchers & Promos</h3>
+          <h3 className="font-bold text-gray-800 text-sm dark:text-gray-100">Have a promo code?</h3>
         </div>
-        {availablePromos.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowPromoList(!showPromoList)}
-            className="text-xs text-[var(--oppa-green)] hover:underline font-semibold flex items-center gap-1"
-          >
-            <Sparkles size={12} />
-            {showPromoList ? 'Hide available promos' : `View promos (${availablePromos.length})`}
-          </button>
-        )}
       </div>
 
-      {showPromoList && availablePromos.length > 0 && (
-        <div className="mb-3 space-y-2 max-h-48 overflow-y-auto pr-1">
-          {availablePromos.map((p) => {
-            const discountLabel = p.discount_type === 'percent'
-              ? `${p.discount_value}% OFF`
-              : `${formatPeso(p.discount_value)} OFF`;
-            return (
-              <div
-                key={p.id || p.code}
-                onClick={() => handleApplyCode(p.code)}
-                className="p-2.5 rounded-xl border border-gray-200 hover:border-[var(--oppa-green)] bg-gray-50 hover:bg-emerald-50/50 cursor-pointer transition flex items-center justify-between"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--oppa-green)] px-1.5 py-0.5 bg-emerald-100 rounded">
-                      {p.code}
-                    </span>
-                    <span className="text-xs font-semibold text-gray-800">{p.title}</span>
-                  </div>
-                  {p.description && (
-                    <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-1">{p.description}</p>
-                  )}
-                  {Number(p.min_order_amount) > 0 && (
-                    <p className="text-[10px] text-gray-400">Min. spend: {formatPeso(Number(p.min_order_amount))}</p>
-                  )}
-                </div>
-                <div className="text-right pl-2">
-                  <span className="text-xs font-bold text-[#e76f51]">{discountLabel}</span>
-                  <button
-                    type="button"
-                    className="block text-[10px] font-semibold text-[var(--oppa-green)] mt-0.5 hover:underline"
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      
       <div className="checkout-voucher-control flex gap-2">
         <input 
           type="text" 
           value={voucherCode}
           onChange={(e) => {
-            setVoucherCode(e.target.value.toUpperCase());
+            setVoucherCode(e.target.value.replace(/\s+/g, '').toUpperCase());
             if (voucherError) setVoucherError('');
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
-              void handleApplyCode(voucherCode);
+              void handleApplyCode();
             }
           }}
-          placeholder="Enter promo code (e.g. OPPA10, WEEKEND15)"
-          className="checkout-voucher-input flex-1 px-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)] uppercase"
+          aria-label="Promo code"
+          aria-invalid={Boolean(voucherError)}
+          aria-describedby={voucherError ? 'promo-code-error' : undefined}
+          placeholder="Enter promo code"
+          className="checkout-voucher-input min-h-11 flex-1 px-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)] uppercase"
         />
         <button 
           type="button"
-          disabled={isValidating || !voucherCode.trim()}
-          onClick={() => void handleApplyCode(voucherCode)}
-          className="checkout-voucher-apply px-4 py-2 bg-[#2d6a4f] text-white rounded-xl text-sm font-medium hover:bg-[#1b4d3e] transition-colors disabled:opacity-50 flex items-center gap-1.5"
+          disabled={isValidating}
+          onClick={() => void handleApplyCode()}
+          className="checkout-voucher-apply min-h-11 px-4 py-2 bg-[#2d6a4f] text-white rounded-xl text-sm font-medium hover:bg-[#1b4d3e] transition-colors disabled:opacity-50 flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/50"
         >
           {isValidating && <Loader2 size={14} className="animate-spin" />}
           <span>{isValidating ? 'Checking...' : 'Apply'}</span>
         </button>
       </div>
-      {voucherError && <p className="text-red-500 text-xs mt-2">{voucherError}</p>}
+      {voucherError && <p id="promo-code-error" className="mt-2 flex items-start gap-1.5 text-xs text-red-700 dark:text-red-300" aria-live="polite"><X size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{voucherError}</p>}
     </div>
   );
 };

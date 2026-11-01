@@ -120,7 +120,7 @@ class PricingService
             $priorityFee = strtolower($deliveryType) === 'priority' ? 99.0 : 0.0;
         }
         $discountAmount = round(($subtotal + $deliveryFee + $serviceFee + $priorityFee) * max(0, $discountRate));
-        $roundedVoucherDiscount = round(max(0, $voucherDiscount));
+        $roundedVoucherDiscount = round(max(0, $voucherDiscount), 2);
         $afterDiscount = max(0, $subtotal + $deliveryFee + $serviceFee + $priorityFee - $discountAmount - $roundedVoucherDiscount);
         $vat = round($subtotal * $settings['vat_rate'] / (1 + $settings['vat_rate']));
         $total = round($afterDiscount);

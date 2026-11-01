@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, ReactNode } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { promoService, type Promo } from '../../../services/promoService';
+import { promoService, PromoRequestError, type Promo } from '../../../services/promoService';
+import { fetchWithAdminAuth } from '../../../services/adminAuthService';
 import { formatCurrency } from '../../../utils/formatters';
 import { categories } from '../../../data/mockData';
 import { PageContainer, PageHeader } from '../../../components/ui/AdminPage';
+import CategoryPills from '../../../components/ui/CategoryPills';
 import Select from '../../../components/ui/Select';
 import SearchInput from '../../../components/ui/SearchInput';
 import {
-  CategoryBadge,
   DiscountBadge,
   FieldLabel,
   IconButton,
@@ -30,6 +31,7 @@ import {
   LuPencil,
   LuPercent,
   LuPlus,
+  LuRefreshCw,
   LuSparkles,
   LuTag,
   LuTrash2,
@@ -137,11 +139,41 @@ function PromoDetails({ promo }: PromoDetailsProps) {
 
 function PromoImage({ src, className = '' }: { src?: string | null; className?: string }) {
   const [failedSrc, setFailedSrc] = useState('');
+  const [authenticatedImage, setAuthenticatedImage] = useState<{ source: string; url: string } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl = '';
+    if (!src?.includes('/api/admin/promos/')) return undefined;
+    void fetchWithAdminAuth(src)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Promo image request failed (${response.status}).`);
+        return response.blob();
+      })
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        if (active) setAuthenticatedImage({ source: src, url: objectUrl });
+        else URL.revokeObjectURL(objectUrl);
+      })
+      .catch((error: unknown) => {
+        console.error('Unable to load promo image.', error);
+        if (active) setFailedSrc(src);
+      });
+
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [src]);
+  const isAdminImage = Boolean(src?.includes('/api/admin/promos/'));
+  const displaySrc = isAdminImage
+    ? (authenticatedImage?.source === src ? authenticatedImage.url : '')
+    : (src || '');
 
   return (
     <span className={`grid shrink-0 place-items-center overflow-hidden bg-[var(--oppa-green-soft)]/60 text-[var(--oppa-green)] ${className}`}>
-      {src && failedSrc !== src ? (
-        <img src={src} alt="" onError={() => setFailedSrc(src)} className="size-full object-cover" />
+      {displaySrc && failedSrc !== src ? (
+        <img src={displaySrc} alt="" onError={() => setFailedSrc(src || '')} className="size-full object-cover" />
       ) : (
         <LuSparkles size={20} aria-hidden="true" />
       )}
@@ -150,32 +182,7 @@ function PromoImage({ src, className = '' }: { src?: string | null; className?: 
 }
 
 function ApplicableCategories({ promo }: { promo: Promo }) {
-  const categoriesForPromo = promo.applicable_categories || [];
-  if (!categoriesForPromo.length) return <CategoryBadge neutral>All Categories</CategoryBadge>;
-  const visible = categoriesForPromo.slice(0, 3);
-  const remaining = categoriesForPromo.slice(3);
-
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {visible.map((category) => <CategoryBadge key={category}>{category.replaceAll('-', ' ')}</CategoryBadge>)}
-      {remaining.length > 0 && (
-        <details className="group relative">
-          <summary
-            aria-label={`Show ${remaining.length} more applicable categories`}
-            title={remaining.map((category) => category.replaceAll('-', ' ')).join(', ')}
-            className="inline-flex cursor-pointer list-none rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-2.5 py-1 text-xs font-semibold text-[var(--oppa-text-muted)] transition-colors hover:border-[var(--oppa-green)] hover:text-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/40 [&::-webkit-details-marker]:hidden"
-          >
-            +{remaining.length} more
-          </summary>
-          <div className="absolute left-0 top-full z-20 mt-2 min-w-40 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-2 shadow-lg">
-            <ul className="space-y-1">
-              {remaining.map((category) => <li key={category}><CategoryBadge>{category.replaceAll('-', ' ')}</CategoryBadge></li>)}
-            </ul>
-          </div>
-        </details>
-      )}
-    </div>
-  );
+  return <CategoryPills categories={promo.applicable_categories || []} max={2} />;
 }
 
 function PromoValidity({ promo }: { promo: Promo }) {
@@ -214,26 +221,28 @@ interface PromoRowProps {
 
 function PromoRow({ promo, onEdit, onDelete, onToggle, toggling = false }: PromoRowProps) {
   return (
-      <tr className="promo-table-row transition-colors duration-150">
-        <td className="min-w-[320px] px-5 py-4"><PromoDetails promo={promo} /></td>
-        <td className="w-40 px-4 py-4">
-          <DiscountBadge type={promo.discount_type} value={Number(promo.discount_value)} />
+      <tr className="promo-table-row h-[76px] transition-colors duration-150">
+        <td className="min-w-0 px-5 py-3 align-middle"><PromoDetails promo={promo} /></td>
+        <td className="px-4 py-3 text-center align-middle">
+          <div className="flex justify-center">
+            <DiscountBadge type={promo.discount_type} value={Number(promo.discount_value)} />
+          </div>
           {Number(promo.min_order_amount) > 0 && (
             <p className="mt-1.5 text-xs text-[var(--oppa-text-muted)]">
               Min. order: {formatCurrency(Number(promo.min_order_amount))}
             </p>
           )}
         </td>
-        <td className="w-44 px-4 py-4">
+        <td className="px-4 py-3 align-middle">
           <ApplicableCategories promo={promo} />
         </td>
-        <td className="w-44 px-4 py-4 text-sm">
+        <td className="px-4 py-3 text-sm align-middle">
           <PromoValidity promo={promo} />
         </td>
-        <td className="w-32 px-4 py-4">
+        <td className="px-4 py-3 align-middle">
           <Toggle checked={promo.is_active} onChange={onToggle} label={`${promo.is_active ? 'Deactivate' : 'Activate'} ${stripEmoji(promo.title)}`} disabled={toggling} />
         </td>
-        <td className="w-24 px-4 py-4">
+        <td className="px-4 py-3 align-middle">
           <div className="flex items-center justify-end gap-1">
             <IconButton icon={LuPencil} label={`Edit ${stripEmoji(promo.title)}`} onClick={onEdit} />
             <IconButton icon={LuTrash2} label={`Delete ${stripEmoji(promo.title)}`} onClick={onDelete} tone="danger" />
@@ -317,6 +326,7 @@ export default function AdminPromosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPromo, setEditingPromo] = useState<Promo | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [codeError, setCodeError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [title, setTitle] = useState('');
   const [code, setCode] = useState('');
@@ -325,6 +335,8 @@ export default function AdminPromosPage() {
   const [discountValue, setDiscountValue] = useState<number | ''>(10);
   const [minOrderAmount, setMinOrderAmount] = useState<number | ''>(0);
   const [maxDiscountAmount, setMaxDiscountAmount] = useState<number | ''>('');
+  const [usageLimit, setUsageLimit] = useState<number | ''>('');
+  const [perCustomerLimit, setPerCustomerLimit] = useState<number | ''>('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isActive, setIsActive] = useState(true);
@@ -341,6 +353,7 @@ export default function AdminPromosPage() {
   const [initialEndDate, setInitialEndDate] = useState('');
   const searchRef = useRef(search);
   const loadRequestSequence = useRef(0);
+  const promoCodeInputRef = useRef<HTMLInputElement>(null);
 
   const loadPromos = useCallback(async () => {
     const requestSequence = loadRequestSequence.current + 1;
@@ -397,6 +410,8 @@ export default function AdminPromosPage() {
     setDiscountValue(10);
     setMinOrderAmount(0);
     setMaxDiscountAmount('');
+    setUsageLimit('');
+    setPerCustomerLimit('');
     setStartDate('');
     setEndDate('');
     setInitialStartDate('');
@@ -409,6 +424,7 @@ export default function AdminPromosPage() {
     setImagePreview(null);
     setImageInputKey((key) => key + 1);
     setFormError(null);
+    setCodeError('');
     resetDateErrors();
     setIsModalOpen(true);
   };
@@ -425,6 +441,8 @@ export default function AdminPromosPage() {
     setDiscountValue(promo.discount_value);
     setMinOrderAmount(promo.min_order_amount ?? 0);
     setMaxDiscountAmount(promo.max_discount_amount ?? '');
+    setUsageLimit(promo.usage_limit ?? '');
+    setPerCustomerLimit(promo.per_customer_limit ?? '');
     setStartDate(savedStartDate);
     setEndDate(savedEndDate);
     setInitialStartDate(savedStartDate);
@@ -437,6 +455,7 @@ export default function AdminPromosPage() {
     setImagePreview(promo.image_url || null);
     setImageInputKey((key) => key + 1);
     setFormError(null);
+    setCodeError('');
     resetDateErrors();
     setIsModalOpen(true);
   };
@@ -526,6 +545,7 @@ export default function AdminPromosPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
+    setCodeError('');
     if (!title.trim()) {
       setFormError('Please enter a promo title.');
       return;
@@ -547,6 +567,8 @@ export default function AdminPromosPage() {
       formData.append('discount_value', String(discountValue));
       formData.append('min_order_amount', String(minOrderAmount || 0));
       if (maxDiscountAmount !== '') formData.append('max_discount_amount', String(maxDiscountAmount));
+      if (usageLimit !== '') formData.append('usage_limit', String(usageLimit));
+      if (perCustomerLimit !== '') formData.append('per_customer_limit', String(perCustomerLimit));
       if (startDate) formData.append('start_date', toPromoApiDateTime(startDate));
       if (endDate) formData.append('end_date', toPromoApiDateTime(endDate));
       formData.append('is_active', isActive ? '1' : '0');
@@ -563,7 +585,17 @@ export default function AdminPromosPage() {
       setIsModalOpen(false);
       await loadPromos();
     } catch (error: unknown) {
-      setFormError(errorMessage(error, 'Failed to save promo.'));
+      if (error instanceof PromoRequestError && error.fieldErrors.code?.length) {
+        const message = error.fieldErrors.code.join(' ');
+        setCodeError(message);
+        setFormError('Please fix the highlighted field before saving.');
+        window.setTimeout(() => {
+          promoCodeInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          promoCodeInputRef.current?.focus({ preventScroll: true });
+        }, 0);
+      } else {
+        setFormError(errorMessage(error, 'Failed to save promo.'));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -660,7 +692,7 @@ export default function AdminPromosPage() {
           icon={LuTag}
           title="Promos & Discounts"
           subtitle="Create, schedule, and manage database-driven promotions across Customer and Cashier POS."
-          iconClassName="size-12 rounded-2xl bg-gradient-to-br from-[var(--oppa-green-soft)] to-[var(--oppa-surface)] ring-1 ring-[var(--oppa-green)]/15 shadow-sm"
+          iconClassName="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[var(--oppa-green-soft)] to-[var(--oppa-surface)] text-[var(--oppa-green)] ring-1 ring-[var(--oppa-green)]/15 shadow-sm"
           action={(
             <button
               type="button"
@@ -703,8 +735,8 @@ export default function AdminPromosPage() {
                 icon={<LuFilter size={16} aria-hidden="true" />}
                 options={[
                   { value: 'all', label: 'All channels' },
-                  { value: 'online', label: 'Online' },
-                  { value: 'onsite', label: 'Onsite' },
+                  { value: 'online', label: 'Customer' },
+                  { value: 'onsite', label: 'Cashier POS' },
                 ]}
                 className="w-full shrink-0 sm:w-44"
               />
@@ -753,19 +785,19 @@ export default function AdminPromosPage() {
           ) : (
             <>
               <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[1080px] table-fixed text-left">
+                <table className="w-full min-w-[1100px] table-fixed text-left">
                   <colgroup>
                     <col />
                     <col className="w-40" />
-                    <col className="w-44" />
-                    <col className="w-44" />
-                    <col className="w-32" />
+                    <col className="w-[270px]" />
+                    <col className="w-48" />
+                    <col className="w-28" />
                     <col className="w-24" />
                   </colgroup>
                   <thead className="sticky top-0 z-10 bg-[var(--oppa-green-soft)]/80 text-[11px] uppercase tracking-[0.06em] text-[var(--oppa-text-muted)]">
                     <tr>
                       <th scope="col" className="px-5 py-3.5 font-semibold">Promo details</th>
-                      <th scope="col" className="px-4 py-3.5 font-semibold">Discount</th>
+                      <th scope="col" className="px-4 py-3.5 text-center font-semibold">Discount</th>
                       <th scope="col" className="px-4 py-3.5 font-semibold">Applicable to</th>
                       <th scope="col" className="px-4 py-3.5 font-semibold">Validity</th>
                       <th scope="col" className="px-4 py-3.5 font-semibold">Active</th>
@@ -825,7 +857,38 @@ export default function AdminPromosPage() {
               </div>
               <div className="sm:col-span-5">
                 <FieldLabel htmlFor="promo-code">Promo code (voucher)</FieldLabel>
-                <input id="promo-code" type="text" placeholder="e.g. OPPA10, WEEKEND50" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className={`${inputClass()} font-mono uppercase`} />
+                <input
+                  ref={promoCodeInputRef}
+                  id="promo-code"
+                  type="text"
+                  placeholder="Custom code or generate one"
+                  value={code}
+                  aria-invalid={Boolean(codeError)}
+                  aria-describedby={codeError ? 'promo-code-error' : undefined}
+                  onChange={(event) => {
+                    setCode(event.target.value.toUpperCase());
+                    if (codeError) {
+                      setCodeError('');
+                      setFormError(null);
+                    }
+                  }}
+                  className={`${inputClass(Boolean(codeError))} font-mono uppercase`}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                    const bytes = new Uint8Array(10);
+                    window.crypto.getRandomValues(bytes);
+                    setCode(Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join(''));
+                    setCodeError('');
+                    setFormError(null);
+                  }}
+                  className="mt-1.5 inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--oppa-green)] transition hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/40"
+                >
+                  <LuRefreshCw size={13} aria-hidden="true" /> Generate random code
+                </button>
+                {codeError && <p id="promo-code-error" role="alert" className="mt-1.5 flex items-start gap-1.5 text-xs font-medium text-[var(--promo-danger-text)]"><LuX size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{codeError}</p>}
               </div>
               <div className="sm:col-span-4">
                 <Select
@@ -834,8 +897,8 @@ export default function AdminPromosPage() {
                   onChange={(value) => setChannel(value as typeof channel)}
                   options={[
                     { value: 'all', label: 'All channels' },
-                    { value: 'online', label: 'Online' },
-                    { value: 'onsite', label: 'Onsite' },
+                    { value: 'online', label: 'Customer' },
+                    { value: 'onsite', label: 'Cashier POS' },
                   ]}
                 />
               </div>
@@ -852,7 +915,7 @@ export default function AdminPromosPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Discount type <span className="text-[var(--promo-danger-text)]">*</span></p>
                 <div className="grid h-11 grid-cols-2 gap-1 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-1" role="group" aria-label="Discount type">
@@ -886,6 +949,14 @@ export default function AdminPromosPage() {
               <div>
                 <FieldLabel htmlFor="promo-min-order">Min. order spend (P)</FieldLabel>
                 <input id="promo-min-order" type="number" step="any" min="0" placeholder="0" value={minOrderAmount} onChange={(event) => setMinOrderAmount(event.target.value === '' ? '' : Number(event.target.value))} className={inputClass()} />
+              </div>
+              <div>
+                <FieldLabel htmlFor="promo-usage-limit">Total usage limit</FieldLabel>
+                <input id="promo-usage-limit" type="number" min="1" placeholder="Unlimited" value={usageLimit} onChange={(event) => setUsageLimit(event.target.value === '' ? '' : Number(event.target.value))} className={inputClass()} />
+              </div>
+              <div>
+                <FieldLabel htmlFor="promo-per-customer-limit">Uses per customer</FieldLabel>
+                <input id="promo-per-customer-limit" type="number" min="1" placeholder="Unlimited" value={perCustomerLimit} onChange={(event) => setPerCustomerLimit(event.target.value === '' ? '' : Number(event.target.value))} className={inputClass()} />
               </div>
             </div>
 

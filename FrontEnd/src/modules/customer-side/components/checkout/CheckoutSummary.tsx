@@ -12,7 +12,7 @@ interface CheckoutSummaryProps {
   cartItems: CartItem[];
   deliveryType: 'standard' | 'priority' | 'scheduled';
   onPlaceOrder: () => void;
-  onVoucherApply: (discount: number, promo?: any) => void;
+  onVoucherApply: (discount: number, promo?: { code: string }) => void;
   voucherDiscount: number;
   deliveryCoordinates?: { lat: number; lng: number };
   branchCoordinates?: { lat: number; lng: number };
@@ -116,7 +116,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         + Add more items
       </button>
 
-      <VoucherSection subtotal={subtotal} onVoucherApplied={onVoucherApply} onVoucherRemoved={() => onVoucherApply(0)} />
+      <VoucherSection cartItems={cartItems} onVoucherApplied={onVoucherApply} onVoucherRemoved={() => onVoucherApply(0)} />
 
       <div className="checkout-fees border-t border-gray-100 pt-4 space-y-2 text-sm">
         <div className="flex justify-between">
@@ -148,7 +148,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         )}
         {voucherDiscount > 0 && (
           <div className="flex justify-between text-[#2d6a4f]">
-            <span>Voucher discount</span>
+            <span>Promo discount</span>
             <span>- {formatCurrency(voucherDiscount)}</span>
           </div>
         )}

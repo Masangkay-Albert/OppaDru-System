@@ -7,7 +7,7 @@ const PromoBanner: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
-    promoService.getActivePromos().then((data) => {
+    promoService.getEmployeePromos().then((data) => {
       if (isMounted) {
         setPromos(data.filter(p => !p.is_expired && p.is_active));
       }

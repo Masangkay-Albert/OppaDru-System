@@ -59,11 +59,6 @@ const Navbar: React.FC = () => {
               </a>
             </li>
             <li>
-              <a href="#promos" onClick={(e) => handleNavClick(e, "promos")} className="text-white font-medium text-sm hover:text-[#fcd34d] transition-colors tracking-wide">
-                Promos
-              </a>
-            </li>
-            <li>
               <a href="#about" onClick={(e) => handleNavClick(e, "about")} className="text-white font-medium text-sm hover:text-[#fcd34d] transition-colors tracking-wide">
                 About
               </a>

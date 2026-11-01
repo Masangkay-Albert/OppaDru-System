@@ -374,8 +374,9 @@ class AnnouncementController extends Controller
      */
     public function publicList(Request $request)
     {
-        $data = Cache::remember('announcements_public_list', 300, function () {
+        $data = Cache::remember('announcements_public_nonpromo_list_v1', 300, function () {
             $announcements = Announcement::published()
+                ->where('priority', '!=', 'promo')
                 ->where(function ($q) {
                     $q->where('target_audience', 'customers')
                       ->orWhere('target_audience', 'all')

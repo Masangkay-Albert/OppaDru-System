@@ -12,6 +12,8 @@ use App\Models\Product;
 use App\Services\FranchiseInventoryService;
 use App\Services\Order\OrderDataService;
 use App\Services\PricingService;
+use App\Services\PromoRedemptionException;
+use App\Services\PromoRedemptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -158,31 +160,51 @@ trait FranchisePosOrderActions
         $discountAmount = $posTotals['discountAmount'];
         $promo = null;
         $promoDiscount = 0.0;
+        $promoCode = trim((string) $request->input('promo_code', ''));
+        $promoRedemptionService = app(PromoRedemptionService::class);
         if ($request->filled('promo_id') || $request->filled('promo_code')) {
-            $promoQuery = Promo::active();
-            $promo = $promoQuery
-                ->where(function ($query) use ($request) {
-                    if ($request->filled('promo_id')) {
-                        $query->where('id', $request->input('promo_id'));
-                    }
-                    if ($request->filled('promo_code')) {
-                        $method = $request->filled('promo_id') ? 'orWhere' : 'where';
-                        $query->{$method}('code', strtoupper(trim((string) $request->input('promo_code'))));
-                    }
-                })
-                ->first();
-            if (! $promo) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'The selected promo is no longer available.',
-                ], $employeePosRequest ? 400 : 422);
-            }
-            $promoDiscount = $promo->calculateDiscount($subtotal, $items);
-            if ($promoDiscount <= 0) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'The selected promo does not apply to this order.',
-                ], $employeePosRequest ? 400 : 422);
+            if ($promoCode !== '') {
+                $retryAfter = $promoRedemptionService->rateLimitRetryAfter($request, (string) $user->getAuthIdentifier());
+                if ($retryAfter !== null) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Too many attempts. Please wait a minute and try again.',
+                        'error_code' => 'PROMO_RATE_LIMITED',
+                    ], 429);
+                }
+                try {
+                    $promoResult = $promoRedemptionService->evaluate($promoCode, $items, null, false, 'cashier');
+                    $promo = $promoResult['promo'];
+                    $promoDiscount = $promoResult['discount'];
+                } catch (PromoRedemptionException $exception) {
+                    $promoRedemptionService->recordInvalidAttempt(
+                        $request,
+                        (string) $user->getAuthIdentifier(),
+                        strtoupper((string) preg_replace('/\s+/', '', $promoCode)),
+                        $exception->errorCode,
+                    );
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => $exception->getMessage(),
+                        'error_code' => $exception->errorCode,
+                    ], $employeePosRequest ? 400 : 422);
+                }
+            } else {
+                $promo = Promo::active()->find($request->input('promo_id'));
+                if (! $promo || ! in_array($promo->channel ?? 'all', ['all', 'onsite', 'cashier'], true)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'The selected promo is no longer available.',
+                    ], $employeePosRequest ? 400 : 422);
+                }
+                $promoDiscount = $promo->calculateDiscount($subtotal, $items);
+                if ($promoDiscount <= 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'The selected promo does not apply to this order.',
+                    ], $employeePosRequest ? 400 : 422);
+                }
             }
         }
         $total = max(0, round($posTotals['total'] - $promoDiscount));
@@ -245,6 +267,8 @@ trait FranchisePosOrderActions
                 $subtotal,
                 $promo,
                 $promoDiscount,
+                $promoCode,
+                $promoRedemptionService,
                 $gatewayPayment,
                 $cashTendered,
                 $cashierEmployeeId,
@@ -252,9 +276,33 @@ trait FranchisePosOrderActions
             ) {
                 $inventoryService->consume((string) $user->franchise_id, $items);
                 if ($promo) {
-                    $promo = Promo::whereKey($promo->id)->lockForUpdate()->first();
-                    if (! $promo || ! $promo->isValidForSubtotal($subtotal)) {
-                        throw new \InvalidArgumentException('The selected promo is no longer available.');
+                    if ($promoCode !== '') {
+                        $lockedPromoResult = $promoRedemptionService->evaluate(
+                            $promoCode,
+                            $items,
+                            null,
+                            true,
+                            'cashier',
+                        );
+                        if (
+                            $lockedPromoResult['promo']->id !== $promo->id
+                            || round($lockedPromoResult['discount'], 2) !== round($promoDiscount, 2)
+                        ) {
+                            throw new PromoRedemptionException(
+                                'PROMO_CHANGED',
+                                'This promo is no longer available. Please apply the code again.',
+                            );
+                        }
+                        $promo = $lockedPromoResult['promo'];
+                    } else {
+                        $promo = Promo::whereKey($promo->id)->lockForUpdate()->first();
+                        if (
+                            ! $promo
+                            || ! $promo->isValidForSubtotal($subtotal)
+                            || ! in_array($promo->channel ?? 'all', ['all', 'onsite', 'cashier'], true)
+                        ) {
+                            throw new \InvalidArgumentException('The selected promo is no longer available.');
+                        }
                     }
                     $promo->increment('times_used');
                 }
@@ -322,6 +370,19 @@ trait FranchisePosOrderActions
             return response()->json([
                 'success' => false,
                 'message' => $exception->getMessage(),
+            ], $employeePosRequest ? 400 : 422);
+        } catch (PromoRedemptionException $exception) {
+            $promoRedemptionService->recordInvalidAttempt(
+                $request,
+                (string) $user->getAuthIdentifier(),
+                strtoupper((string) preg_replace('/\s+/', '', $promoCode)),
+                $exception->errorCode,
+            );
+
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+                'error_code' => $exception->errorCode,
             ], $employeePosRequest ? 400 : 422);
         }
 

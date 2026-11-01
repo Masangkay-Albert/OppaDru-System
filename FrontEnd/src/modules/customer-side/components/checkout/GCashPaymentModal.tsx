@@ -14,7 +14,10 @@ interface GCashPaymentModalProps {
   amount: number;
   items: CartItem[];
   deliveryType?: 'standard' | 'priority' | 'scheduled' | 'onsite';
-  voucherDiscount?: number;
+  promoCode?: string | null;
+  cashierMode?: boolean;
+  discountType?: 'PWD' | 'Senior Citizen' | null;
+  discountIdNumber?: string;
   discountRate?: number;
   deliveryCoordinates?: { lat: number; lng: number } | null;
   franchiseId?: string | null;
@@ -29,7 +32,10 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
   amount,
   items,
   deliveryType = 'onsite',
-  voucherDiscount = 0,
+  promoCode,
+  cashierMode = false,
+  discountType,
+  discountIdNumber,
   discountRate = 0,
   deliveryCoordinates,
   franchiseId,
@@ -38,6 +44,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
 }) => {
   const {
     step,
+    paymentAmount,
     referenceNumber,
     timeRemaining,
     isCopied,
@@ -52,7 +59,10 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
     amount,
     items,
     deliveryType,
-    voucherDiscount,
+    promoCode,
+    cashierMode,
+    discountType,
+    discountIdNumber,
     discountRate,
     deliveryCoordinates,
     franchiseId,
@@ -115,7 +125,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
         <div className="p-6">
           <div className="bg-gray-50 rounded-xl p-4 text-center mb-4 border border-gray-100">
             <p className="text-sm text-gray-500">Amount to Pay</p>
-            <p className="text-3xl font-bold text-[#2d6a4f]">{formatCurrency(amount)}</p>
+            <p className="text-3xl font-bold text-[#2d6a4f]">{formatCurrency(paymentAmount)}</p>
           </div>
 
           <div className="flex flex-col items-center">
@@ -151,7 +161,7 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
             
             {referenceNumber && (
               <a
-                href={`/payment/confirm/${referenceNumber}?amount=${amount}&returnUrl=${encodeURIComponent(window.location.pathname)}`}
+                href={`/payment/confirm/${referenceNumber}?amount=${paymentAmount}&returnUrl=${encodeURIComponent(window.location.pathname)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-3 inline-flex items-center justify-center gap-1.5 w-full py-2.5 px-3 rounded-xl bg-blue-50 text-blue-800 hover:bg-blue-100 text-xs font-bold transition border border-blue-200 shadow-2xs"

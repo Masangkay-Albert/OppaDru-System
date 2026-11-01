@@ -8,6 +8,8 @@ use App\Models\Franchise;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\PricingService;
+use App\Services\PromoRedemptionException;
+use App\Services\PromoRedemptionService;
 use App\Support\DatabaseImage;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -125,6 +127,7 @@ trait OrderPlacementActions
             'schedule_display' => 'nullable|string',
             'schedule_window' => 'nullable|string',
             'voucher_discount' => 'nullable|numeric|min:0',
+            'promo_code' => 'nullable|string|max:50',
             'discount_rate' => 'nullable|numeric|min:0|max:1',
             'delivery_coordinates' => 'nullable|array',
             'delivery_coordinates.lat' => 'required_with:delivery_coordinates|numeric|between:-90,90',
@@ -222,12 +225,48 @@ trait OrderPlacementActions
 
         $discountType = trim((string) $request->input('discount_type', ''));
         $discountRate = $discountType !== '' ? (float) $request->input('discount_rate', 0.20) : 0.0;
+        $promoCode = strtoupper((string) preg_replace('/\s+/', '', trim((string) $request->input('promo_code', ''))));
+        $promoDiscount = 0.0;
+        $promoId = null;
+        $promoRedemptionService = app(PromoRedemptionService::class);
+        if ($promoCode !== '') {
+            $retryAfter = $promoRedemptionService->rateLimitRetryAfter($request, (string) $request->user()->id);
+            if ($retryAfter !== null) {
+                return response()->json([
+                    'error_code' => 'PROMO_RATE_LIMITED',
+                    'message' => 'Too many attempts. Please wait a minute and try again.',
+                    'retry_after' => $retryAfter,
+                ], 429);
+            }
+            try {
+                $promoResult = $promoRedemptionService->evaluate(
+                    $promoCode,
+                    $request->input('items', []),
+                    (string) $request->user()->id,
+                );
+                $promoDiscount = $promoResult['discount'];
+                $promoId = $promoResult['promo']->id;
+                $promoCode = $promoResult['code'];
+            } catch (PromoRedemptionException $exception) {
+                $promoRedemptionService->recordInvalidAttempt(
+                    $request,
+                    (string) $request->user()->id,
+                    $promoCode,
+                    $exception->errorCode,
+                );
+                return response()->json([
+                    'error_code' => $exception->errorCode,
+                    'message' => $exception->getMessage(),
+                    'amount_remaining' => $exception->amountRemaining,
+                ], 422);
+            }
+        }
 
         try {
             $pricing = app(PricingService::class)->calculate(
                 $request->items,
                 $request->input('delivery_type', 'standard'),
-                (float) $request->input('voucher_discount', 0),
+                $promoDiscount,
                 $discountRate,
                 $request->input('delivery_coordinates'),
                 ['lat' => (float) $branchResolution['branch']->latitude, 'lng' => (float) $branchResolution['branch']->longitude],
@@ -274,17 +313,6 @@ trait OrderPlacementActions
         $userId = $user->id;
         $userEmail = $user->email;
 
-        $promoCode = $request->input('promo_code');
-        $promoDiscount = (float) $request->input('promo_discount', $request->input('voucher_discount', 0));
-        $promoId = $request->input('promo_id');
-        if (empty($promoId) && !empty($promoCode)) {
-            $promo = \App\Models\Promo::where('code', strtoupper(trim($promoCode)))->first();
-            if ($promo) {
-                $promoId = $promo->id;
-                $promo->increment('times_used');
-            }
-        }
-
         $discountAmount = 0;
         $discountProofData = null;
 
@@ -314,7 +342,25 @@ trait OrderPlacementActions
                 $promoId,
                 $promoCode,
                 $promoDiscount,
+                $promoRedemptionService,
             ) {
+                $lockedPromo = null;
+                if ($promoCode !== '') {
+                    $lockedResult = $promoRedemptionService->evaluate(
+                        $promoCode,
+                        $request->input('items', []),
+                        (string) $userId,
+                        true,
+                    );
+                    if (
+                        $lockedResult['promo']->id !== $promoId
+                        || round($lockedResult['discount'], 2) !== round($promoDiscount, 2)
+                    ) {
+                        throw new PromoRedemptionException('PROMO_CHANGED', 'This promo is no longer available. Please apply the code again.');
+                    }
+                    $lockedPromo = $lockedResult['promo'];
+                }
+
                 $franchiseId = $request->input('franchise_id');
                 if ($franchiseId) {
                     $this->franchiseInventoryService->consume((string) $franchiseId, $request->input('items'));
@@ -385,6 +431,9 @@ trait OrderPlacementActions
                     'discount_reviewed_at' => null,
                 ]);
 
+                if ($lockedPromo) {
+                    $lockedPromo->increment('times_used');
+                }
                 $this->orderDataService->syncOrderItems($order, $orderItems);
                 if ($payment) {
                     $lockedPayment->update(['order_id' => $order->id]);
@@ -392,6 +441,20 @@ trait OrderPlacementActions
 
                 return $order;
             });
+        } catch (PromoRedemptionException $exception) {
+            if ($promoCode !== '') {
+                $promoRedemptionService->recordInvalidAttempt(
+                    $request,
+                    (string) $userId,
+                    $promoCode,
+                    $exception->errorCode,
+                );
+            }
+            return response()->json([
+                'error_code' => $exception->errorCode,
+                'message' => $exception->getMessage(),
+                'amount_remaining' => $exception->amountRemaining,
+            ], 422);
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }

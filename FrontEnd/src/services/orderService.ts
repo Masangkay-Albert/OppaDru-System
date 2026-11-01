@@ -21,9 +21,7 @@ export interface CreateOrderData {
     delivery_coordinates?: { lat: number; lng: number };
     payment_reference?: string;
     voucher_discount?: number;
-    promo_id?: string | null;
     promo_code?: string | null;
-    promo_discount?: number;
     discount_rate?: number;
     discount_type?: 'PWD' | 'Senior Citizen';
     proof_image?: File | null;
@@ -148,10 +146,7 @@ class OrderService {
                 formData.append('delivery_coordinates[lng]', String(data.delivery_coordinates.lng));
             }
             if (data.payment_reference) formData.append('payment_reference', data.payment_reference);
-            if (typeof data.voucher_discount !== 'undefined') formData.append('voucher_discount', String(data.voucher_discount));
-            if (data.promo_id) formData.append('promo_id', data.promo_id);
             if (data.promo_code) formData.append('promo_code', data.promo_code);
-            if (typeof data.promo_discount !== 'undefined') formData.append('promo_discount', String(data.promo_discount));
             if (typeof data.discount_rate !== 'undefined') formData.append('discount_rate', String(data.discount_rate));
             if (data.discount_type) formData.append('discount_type', data.discount_type);
             if (data.proof_image) formData.append('proof_image', data.proof_image);

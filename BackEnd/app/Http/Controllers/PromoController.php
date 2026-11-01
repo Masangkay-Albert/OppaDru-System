@@ -3,12 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Promo;
+use App\Services\PromoRedemptionException;
+use App\Services\PromoRedemptionService;
 use App\Support\DatabaseImage;
-use App\Support\HttpCacheResponse;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -17,16 +17,6 @@ use Illuminate\Validation\Validator as LaravelValidator;
 class PromoController extends Controller
 {
     use AdminAuthTrait;
-    use HttpCacheResponse;
-
-    public function index(Request $request)
-    {
-        $promos = Cache::remember('promos_active_list', 600, function () {
-            return Promo::active()->orderBy('created_at', 'desc')->get()->map(fn (Promo $promo) => $this->formatPromo($promo))->values();
-        });
-
-        return $this->cachedJsonResponse($request, $promos, 300);
-    }
 
     public function adminIndex(Request $request)
     {
@@ -76,6 +66,17 @@ class PromoController extends Controller
         return response()->json($promos->map(fn (Promo $promo) => $this->formatPromo($promo)));
     }
 
+    public function employeeIndex()
+    {
+        return response()->json(
+            Promo::active()->whereIn('channel', ['all', 'onsite'])
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(fn (Promo $promo) => $this->formatPromo($promo))
+                ->values()
+        );
+    }
+
     public function store(Request $request)
     {
         if (!$this->checkAdminAuth($request)) {
@@ -100,6 +101,7 @@ class PromoController extends Controller
             'min_order_amount' => 'nullable|numeric|min:0',
             'max_discount_amount' => 'nullable|numeric|min:0',
             'usage_limit' => 'nullable|integer|min:1',
+            'per_customer_limit' => 'nullable|integer|min:1',
         ]);
         $validator->after(fn (LaravelValidator $validator) => $this->validatePromoDateYears($validator, $request));
 
@@ -125,13 +127,21 @@ class PromoController extends Controller
 
     public function show(Request $request, string $id)
     {
+        if (! $this->checkAdminAuth($request)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
         $promo = Promo::where('id', $id)->orWhere('code', strtoupper($id))->firstOrFail();
 
         return response()->json($this->formatPromo($promo));
     }
 
-    public function image(string $id)
+    public function image(Request $request, string $id)
     {
+        if (! $this->checkAdminAuth($request)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
         $promo = Promo::select(['id', 'image'])->findOrFail($id);
         $imageData = $promo->getRawOriginal('image');
 
@@ -168,6 +178,7 @@ class PromoController extends Controller
             'min_order_amount' => 'nullable|numeric|min:0',
             'max_discount_amount' => 'nullable|numeric|min:0',
             'usage_limit' => 'nullable|integer|min:1',
+            'per_customer_limit' => 'nullable|integer|min:1',
         ]);
         $validator->after(fn (LaravelValidator $validator) => $this->validatePromoDateYears($validator, $request));
 
@@ -232,84 +243,72 @@ class PromoController extends Controller
         ]);
     }
 
-    public function validatePromo(Request $request)
+    public function validatePromo(Request $request, PromoRedemptionService $redemptionService)
+    {
+        return $this->validateCodeForChannel($request, $redemptionService, 'customer');
+    }
+
+    public function validateEmployeePromo(Request $request, PromoRedemptionService $redemptionService)
+    {
+        return $this->validateCodeForChannel($request, $redemptionService, 'cashier');
+    }
+
+    private function validateCodeForChannel(Request $request, PromoRedemptionService $redemptionService, string $channel)
     {
         $validator = Validator::make($request->all(), [
-            'code' => 'required|string',
-            'subtotal' => 'required|numeric|min:0',
-            'items' => 'nullable|array',
+            'code' => 'required|string|max:50',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required_without:items.*.id|string',
+            'items.*.id' => 'required_without:items.*.product_id|string',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
+            'items.*.selected_addons' => 'nullable|array',
+            'items.*.selected_addons.*.id' => 'required|string',
+            'items.*.selected_addons.*.quantity' => 'nullable|integer|min:1',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'isValid' => false,
                 'discount' => 0,
-                'message' => $validator->errors()->first(),
+                'error_code' => 'PROMO_INVALID_REQUEST',
+                'message' => 'Please check the promo code and cart, then try again.',
             ], 422);
         }
 
-        $code = strtoupper(trim((string) $request->code));
-        $subtotal = (float) $request->subtotal;
-        $items = (array) $request->input('items', []);
-
-        $promo = Promo::where('code', $code)->first();
-
-        if (!$promo) {
+        $code = strtoupper((string) preg_replace('/\s+/', '', trim((string) $request->input('code'))));
+        $userId = $request->user()?->getAuthIdentifier();
+        $retryAfter = $redemptionService->rateLimitRetryAfter($request, $userId);
+        if ($retryAfter !== null) {
             return response()->json([
                 'isValid' => false,
                 'discount' => 0,
-                'message' => 'Invalid promo code.',
-            ], 200);
+                'error_code' => 'PROMO_RATE_LIMITED',
+                'message' => 'Too many attempts. Please wait a minute and try again.',
+                'retry_after' => $retryAfter,
+            ], 429);
         }
 
-        if (!$promo->is_active) {
+        try {
+            $result = $redemptionService->evaluate($code, $request->input('items', []), $userId, false, $channel);
+        } catch (PromoRedemptionException $exception) {
+            $redemptionService->recordInvalidAttempt($request, $userId, $code, $exception->errorCode);
+
             return response()->json([
                 'isValid' => false,
                 'discount' => 0,
-                'message' => 'This promo is currently inactive.',
-            ], 200);
-        }
-
-        if ($promo->start_date && $promo->start_date->isFuture()) {
-            return response()->json([
-                'isValid' => false,
-                'discount' => 0,
-                'message' => 'This promo has not started yet.',
-            ], 200);
-        }
-
-        if ($promo->end_date && $promo->end_date->isPast()) {
-            return response()->json([
-                'isValid' => false,
-                'discount' => 0,
-                'message' => 'This promo has expired.',
-            ], 200);
-        }
-
-        if ($subtotal < (float) $promo->min_order_amount) {
-            return response()->json([
-                'isValid' => false,
-                'discount' => 0,
-                'message' => "Minimum order of ₱" . number_format((float) $promo->min_order_amount, 2) . " required.",
-            ], 200);
-        }
-
-        $discount = $promo->calculateDiscount($subtotal, $items);
-
-        if ($discount <= 0) {
-            return response()->json([
-                'isValid' => false,
-                'discount' => 0,
-                'message' => 'This promo does not apply to the selected items.',
-            ], 200);
+                'error_code' => $exception->errorCode,
+                'message' => $exception->getMessage(),
+                'amount_remaining' => $exception->amountRemaining,
+            ]);
         }
 
         return response()->json([
             'isValid' => true,
-            'discount' => $discount,
-            'promo' => $this->formatPromo($promo),
+            'discount' => $result['discount'],
+            'code' => $result['code'],
             'message' => 'Promo applied successfully!',
-        ], 200);
+        ]);
     }
 
     private function formatPromo(Promo $promo): array
@@ -319,7 +318,7 @@ class PromoController extends Controller
         if (is_string($image) && $image !== '') {
             if (str_starts_with($image, 'data:image/')) {
                 $version = substr(hash('sha256', $image), 0, 16);
-                $imageUrl = url('/api/promos/'.$promo->id.'/image').'?v='.$version;
+                $imageUrl = url('/api/admin/promos/'.$promo->id.'/image').'?v='.$version;
             } elseif (preg_match('/\Ahttps?:\/\//i', $image)) {
                 $imageUrl = $image;
             } else {
@@ -352,6 +351,7 @@ class PromoController extends Controller
             'min_order_amount' => (float) $promo->min_order_amount,
             'max_discount_amount' => $promo->max_discount_amount !== null ? (float) $promo->max_discount_amount : null,
             'usage_limit' => $promo->usage_limit,
+            'per_customer_limit' => $promo->per_customer_limit,
             'times_used' => (int) $promo->times_used,
             'created_at' => $promo->created_at?->toISOString(),
             'updated_at' => $promo->updated_at?->toISOString(),
