@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { BrandFooter, BrandNavbar } from '../../shared/components/BrandChrome';
 import { getProductImage } from '../../../data/productImages';
+import { getLandingHeroImage } from '../../../data/landingHeroImage';
 import { productService, type Product } from '../../../services/productService';
 import { formatCurrency } from '../../../utils/formatters';
 import '../../../styles/LandingPage.css';
@@ -117,7 +118,7 @@ const LandingPage: React.FC = () => {
             </div>
           </div>
           <div className="oppa-hero-art">
-            <div className="oppa-hero-photo"><img src={featuredProducts[0]?.photo || getProductImage('original-chicken.jpg')} alt="Crispy Oppa Dru Korean fried chicken" /></div>
+            <div className="oppa-hero-photo"><img src={getLandingHeroImage(products)} alt="Crispy Oppa Dru Korean fried chicken" /></div>
             <div className="oppa-mascot-sticker"><img src={oppaLogo} alt="Oppa Dru mascot" /></div>
           </div>
         </div>

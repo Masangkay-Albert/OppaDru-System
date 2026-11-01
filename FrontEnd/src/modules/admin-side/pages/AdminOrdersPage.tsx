@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle, X, Eye, Package, CalendarDays, Copy, Globe2, Store } from 'lucide-react';
+import { CheckCircle, X, Eye, Package, CalendarDays, Copy, Globe2, Store, RotateCcw } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { AdminDate, Avatar, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
@@ -31,9 +31,11 @@ const AdminOrdersPage: React.FC = () => {
   const [dateFilter, setDateFilter] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [copiedOrderId, setCopiedOrderId] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [sortBy, setSortBy] = useState<'date' | 'total'>('date');
   const [notice, setNotice] = useState('');
   const routeOrderId = useRef((location.state as { orderId?: string } | null)?.orderId);
 
@@ -43,6 +45,7 @@ const AdminOrdersPage: React.FC = () => {
       const allOrders = await getAllOrders(forceRefresh);
       const freshOrders = Array.isArray(allOrders) ? allOrders : [];
       setOrders(freshOrders);
+      setLoadError(false);
       setSelectedOrder((current) => current
         ? freshOrders.find((order) => order.id === current.id) || current
         : freshOrders.find((order) => order.id === routeOrderId.current) || null
@@ -52,7 +55,10 @@ const AdminOrdersPage: React.FC = () => {
         navigate(location.pathname, { replace: true, state: null });
       }
     } catch {
-      if (showLoading) setOrders([]);
+      if (showLoading) {
+        setOrders([]);
+        setLoadError(true);
+      }
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -138,11 +144,11 @@ const AdminOrdersPage: React.FC = () => {
     });
 
     return filtered.sort((a, b) => {
-      const timeA = getOrderTimestamp(a);
-      const timeB = getOrderTimestamp(b);
-      return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+      const valueA = sortBy === 'total' ? Number(a.total || 0) : getOrderTimestamp(a);
+      const valueB = sortBy === 'total' ? Number(b.total || 0) : getOrderTimestamp(b);
+      return sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
     });
-  }, [orders, channelFilter, statusFilter, dateFilter, sortOrder, searchTerm]);
+  }, [orders, channelFilter, statusFilter, dateFilter, sortOrder, searchTerm, sortBy]);
 
   const statusTabs = [
     { label: 'All', value: 'all' },
@@ -153,7 +159,7 @@ const AdminOrdersPage: React.FC = () => {
   ];
   const statusCounts = (status: string) => orders.filter((order) => status === 'all' || String(order.status).toLowerCase() === status).length;
 
-  const hasActiveFilters = channelFilter !== 'all' || dateFilter !== '' || searchTerm !== '';
+  const hasActiveFilters = channelFilter !== 'all' || dateFilter !== '' || searchTerm !== '' || statusFilter !== 'all';
   const paginatedOrders = filteredOrders.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
   const pageCount = Math.max(1, Math.ceil(filteredOrders.length / rowsPerPage));
 
@@ -165,14 +171,21 @@ const AdminOrdersPage: React.FC = () => {
     void navigator.clipboard.writeText(orderId).then(() => { setCopiedOrderId(orderId); setNotice('Order ID copied.'); }).catch((error: unknown) => { console.error('Failed to copy order ID:', error); setNotice('Could not copy order ID.'); });
   };
 
-  const getOrderItemsSummary = (items: Array<{ quantity?: number; product_name?: string; name?: string }> | undefined) => {
-    if (!items || items.length === 0) return 'No items';
-    const first = `${items[0].quantity || 1}x ${items[0].product_name || items[0].name || 'Item'}`;
-    return items.length > 1 ? `${first} +${items.length - 1} more` : first;
-  };
+  const getFirstOrderItemSummary = (items: Array<{ quantity?: number; product_name?: string; name?: string }> | undefined) =>
+    !items?.length ? 'No items' : `${items[0].quantity || 1}x ${items[0].product_name || items[0].name || 'Item'}`;
 
   const getFullItemsSummary = (items: Array<{ quantity?: number; product_name?: string; name?: string }> | undefined) =>
     !items?.length ? 'No items' : items.map((item) => `${item.quantity || 1}x ${item.product_name || item.name || 'Item'}`).join(', ');
+
+  const getCompactOrderId = (value: string) => value.length > 22 ? `${value.slice(0, 15)}…${value.slice(-6)}` : value;
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setChannelFilter('all');
+    setStatusFilter('all');
+    setDateFilter('');
+    setCurrentPage(1);
+  };
 
   const formatPrice = (price: number | string) => {
     const num = Number(price);
@@ -243,52 +256,74 @@ const AdminOrdersPage: React.FC = () => {
 
   return (
     <AdminLayout>
+      <div className="admin-orders-page">
       {notice && <Toast message={notice} tone={notice.startsWith('Could') || notice.startsWith('Copying') ? 'error' : 'success'} onDismiss={() => setNotice('')} />}
       <PageHeader title="Orders" subtitle="Track online and onsite orders in real time." />
 
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-      <div role="tablist" aria-label="Filter orders by status" className="relative flex gap-2 overflow-x-auto pb-1">
-        {statusTabs.map((tab) => <button key={tab.value} type="button" role="tab" aria-selected={statusFilter === tab.value} onClick={() => { setStatusFilter(tab.value); setCurrentPage(1); }} className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${statusFilter === tab.value ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]'}`}>{tab.label}<span className={`rounded-full px-1.5 py-0.5 text-[10px] ${statusFilter === tab.value ? 'bg-white/20' : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]'}`}>{statusCounts(tab.value)}</span></button>)}
-      </div>
-      <span className="text-xs text-[var(--oppa-text-muted)]">Showing <strong className="tabular-nums text-[var(--oppa-text)]">{filteredOrders.length}</strong> of <strong className="tabular-nums text-[var(--oppa-text)]">{orders.length}</strong> orders</span></div>
-
-      <div className="mb-4 space-y-2">
-        <div className="flex flex-col gap-2 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 shadow-sm sm:flex-row">
-          <SearchInput aria-label="Search orders by ID, customer, or email" value={searchTerm} onChange={(value) => { setSearchTerm(value); setCurrentPage(1); }} placeholder="Search order ID, customer, email…" wrapperClassName="min-w-0 flex-1" />
-          <Select aria-label="Filter by channel" value={channelFilter} onChange={(value) => { setChannelFilter(value as 'all' | 'online' | 'onsite'); setCurrentPage(1); }} options={[{ value: 'all', label: 'All channels' }, { value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} className="min-w-36" />
-          <input aria-label="Filter by exact date" type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setCurrentPage(1); }} className="h-11 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" />
+      <section className="admin-orders-controls">
+        <div className="admin-orders-tabs-row">
+          <div role="tablist" aria-label="Filter orders by status" className="admin-orders-tabs">
+            {statusTabs.map((tab) => <button key={tab.value} type="button" role="tab" aria-selected={statusFilter === tab.value} onClick={() => { setStatusFilter(tab.value); setCurrentPage(1); }} className={`admin-orders-tab ${statusFilter === tab.value ? 'is-active' : ''}`}>
+              <span>{tab.label}</span><span className="admin-orders-tab-count">{statusCounts(tab.value)}</span>
+            </button>)}
+          </div>
+          <span className="admin-orders-result-count">Showing <strong>{filteredOrders.length}</strong> of <strong>{orders.length}</strong> orders</span>
         </div>
-        {(searchTerm || dateFilter) && <div className="flex flex-wrap gap-2 text-xs">{searchTerm && <span className="rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 text-[var(--oppa-green-dark)]">Search: {searchTerm}</span>}{dateFilter && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-800">Date: {dateFilter}</span>}</div>}
-      </div>
+
+        <div className="admin-orders-filterbar">
+          <div className="admin-orders-search">
+            <SearchInput aria-label="Search orders by ID, customer, or email" value={searchTerm} onChange={(value) => { setSearchTerm(value); setCurrentPage(1); }} placeholder="Search order ID, customer, email…" wrapperClassName="min-w-0 flex-1" />
+          </div>
+          <Select aria-label="Filter by channel" value={channelFilter} onChange={(value) => { setChannelFilter(value as 'all' | 'online' | 'onsite'); setCurrentPage(1); }} options={[{ value: 'all', label: 'All channels' }, { value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} className="admin-orders-channel-filter" />
+          <label className="admin-orders-date-filter">
+            <CalendarDays size={16} aria-hidden="true" />
+            <input aria-label="Filter by exact date" type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setCurrentPage(1); }} />
+          </label>
+          {hasActiveFilters && <button type="button" onClick={clearFilters} className="admin-orders-clear-filters">Clear filters</button>}
+        </div>
+      </section>
 
       {loading ? (
-        <div role="status" aria-label="Loading orders" aria-busy="true" className="min-h-64" />
+        <div role="status" aria-label="Loading orders" aria-busy="true" className="admin-orders-skeleton">
+          {Array.from({ length: 6 }, (_, index) => <div key={index} className="admin-orders-skeleton-row" />)}
+        </div>
+      ) : loadError ? (
+        <div className="admin-card">
+          <EmptyState icon={<Package size={23} />} title="Could not load orders" description="Please check your connection and try again." action={<button type="button" onClick={() => void loadOrders(true)} className="admin-orders-retry"><RotateCcw size={14} />Retry</button>} />
+        </div>
       ) : filteredOrders.length === 0 ? (
         <div className="admin-card">
-          <EmptyState icon={<Package size={23} />} title={hasActiveFilters ? 'No orders match these filters' : 'No orders yet'} description={hasActiveFilters ? 'Try adjusting your filters.' : 'New orders will appear here as customers place them.'} />
+          <EmptyState icon={<Package size={23} />} title={hasActiveFilters ? 'No orders match these filters' : 'No orders yet'} description={hasActiveFilters ? 'Try adjusting your filters.' : 'New orders will appear here as customers place them.'} action={hasActiveFilters ? <button type="button" onClick={clearFilters} className="admin-orders-retry">Clear filters</button> : undefined} />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">
-          <div className="overflow-x-auto">
-          <table className="admin-table w-full min-w-full table-fixed text-left text-sm md:min-w-[1100px]">
+        <div className="admin-orders-table-shell">
+          <div className="admin-orders-table-scroll">
+          <table className="admin-table admin-orders-table w-full table-fixed text-left text-sm">
+            <caption className="sr-only">Customer orders. Select a row or use View to inspect order details.</caption>
+            <colgroup>
+              <col className="order-id-column" /><col className="customer-column" /><col className="channel-column" />
+              <col className="branch-column" /><col className="items-column" /><col className="total-column" />
+              <col className="status-column" /><col className="date-column" /><col className="action-column" />
+            </colgroup>
             <thead>
-              <tr className="sticky top-0 border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
-                <th className="w-[13%] px-3 py-3 font-semibold">Order ID</th>
-                <th className="w-[15%] px-3 py-3 font-semibold">Customer</th>
-                <th className="w-[8%] px-3 py-3 font-semibold">Channel</th>
-                <th className="w-[12%] px-3 py-3 font-semibold">Branch</th>
-                <th className="w-[17%] px-3 py-3 font-semibold">Items</th>
-                <th className="w-[8%] px-3 py-3 text-right font-semibold">Total</th>
-                <th className="w-[11%] px-3 py-3 font-semibold">Status</th>
-                <th className="w-[9%] px-3 py-3 font-semibold">
-                  <button type="button" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')} className="inline-flex items-center gap-1 font-semibold hover:text-[var(--oppa-green-dark)]" aria-label={`Sort date ${sortOrder === 'desc' ? 'oldest first' : 'newest first'}`}>Date <span aria-hidden="true">{sortOrder === 'desc' ? '↓' : '↑'}</span></button>
+              <tr>
+                <th scope="col">Order ID</th>
+                <th scope="col">Customer</th>
+                <th scope="col" className="channel-column">Channel</th>
+                <th scope="col" className="branch-column">Branch</th>
+                <th scope="col">Items</th>
+                <th scope="col" className="total-heading" aria-sort={sortBy === 'total' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button type="button" onClick={() => { setSortBy('total'); setSortOrder(sortBy === 'total' && sortOrder === 'desc' ? 'asc' : 'desc'); }} aria-label={`Sort total ${sortBy === 'total' && sortOrder === 'desc' ? 'ascending' : 'descending'}`}>Total <span aria-hidden="true">{sortBy === 'total' ? (sortOrder === 'desc' ? '↓' : '↑') : '↕'}</span></button>
                 </th>
-                <th className="w-[7%] min-w-[88px] px-2 py-3 text-right font-semibold">View</th>
+                <th scope="col">Status</th>
+                <th scope="col" aria-sort={sortBy === 'date' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button type="button" onClick={() => { setSortBy('date'); setSortOrder(sortBy === 'date' && sortOrder === 'desc' ? 'asc' : 'desc'); }} aria-label={`Sort date ${sortBy === 'date' && sortOrder === 'desc' ? 'oldest first' : 'newest first'}`}>Date <span aria-hidden="true">{sortBy === 'date' ? (sortOrder === 'desc' ? '↓' : '↑') : '↕'}</span></button>
+                </th>
+                <th scope="col" className="action-heading">View</th>
               </tr>
             </thead>
             <tbody>
               {paginatedOrders.map((order) => {
-                const itemsSummary = getOrderItemsSummary(order.items);
                 const fullItemsSummary = getFullItemsSummary(order.items);
                 const orderDate = getOrderDate(order);
                 const orderId = String(order.order_number || order.id || '');
@@ -296,68 +331,74 @@ const AdminOrdersPage: React.FC = () => {
                 return (
                   <tr
                     key={order.id}
-                    className="group border-b border-[var(--oppa-border)]/60 last:border-0 transition hover:bg-[var(--oppa-cream)]/50"
+                    className="admin-orders-row group"
+                    tabIndex={0}
+                    aria-label={`View order ${orderId}`}
+                    onClick={() => setSelectedOrder(order)}
+                    onKeyDown={(event) => {
+                      if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                        event.preventDefault();
+                        setSelectedOrder(order);
+                      }
+                    }}
                   >
-                    <td data-label="Order ID" className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-[var(--oppa-text)]" title={orderId}>
-                      <span className="inline-block max-w-full truncate align-bottom">{orderId}</span>
-                      <button type="button" aria-label={`Copy order ID ${orderId}`} title={copiedOrderId === orderId ? 'Copied' : 'Copy order ID'} onClick={(event) => { event.stopPropagation(); copyOrderId(orderId); }} className="ml-1 inline-flex rounded-md p-1 text-[var(--oppa-text-muted)] opacity-0 transition-opacity hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-green-dark)] group-hover:opacity-100 focus-visible:opacity-100"><Copy size={13} /></button>
+                    <td data-label="Order ID" className="order-id-cell" title={orderId}>
+                      <span>{getCompactOrderId(orderId)}</span>
+                      <button type="button" aria-label={`Copy order ID ${orderId}`} title={copiedOrderId === orderId ? 'Copied' : 'Copy order ID'} onClick={(event) => { event.stopPropagation(); copyOrderId(orderId); }} className="admin-order-copy"><Copy size={14} /></button>
                     </td>
-                    <td data-label="Customer" className="px-3 py-2.5 min-w-0">
-                      <div className="flex min-w-0 items-center gap-2" title={order.customerName || order.email || 'Guest'}>
-                        <Avatar name={order.customerName || order.email || 'Guest'} className="size-8" />
-                        <div className="min-w-0"><p className="truncate font-medium text-xs text-[var(--oppa-text)]">
+                    <td data-label="Customer" className="customer-cell">
+                      <div className="admin-order-customer" title={order.customerName || order.email || 'Guest'}>
+                        <Avatar name={order.customerName || order.email || 'Guest'} className="size-9" />
+                        <div className="min-w-0"><p className="customer-name">
                           {(order.customerName || order.email || 'Guest').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}
                         </p>
                         {order.email && order.customerName && (
-                          <p className="truncate text-[11px] text-[var(--oppa-text-muted)]">{order.email}</p>
+                          <p className="customer-email" title={order.email}>{order.email}</p>
                         )}
                         </div>
                       </div>
                     </td>
-                    <td data-label="Channel" className="px-3 py-2.5">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                        order.channel === 'onsite' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'
-                      }`}>
-                        {order.channel === 'onsite' ? <Store size={12} /> : <Globe2 size={12} />}{order.channel === 'onsite' ? 'Onsite' : 'Online'}
+                    <td data-label="Channel" className="channel-cell channel-column">
+                      <span className={`admin-order-channel ${order.channel === 'onsite' ? 'is-onsite' : 'is-online'}`}>
+                        {order.channel === 'onsite' ? <Store size={13} /> : <Globe2 size={13} />}{order.channel === 'onsite' ? 'Onsite' : 'Online'}
                       </span>
                     </td>
-                    <td data-label="Branch" className="px-3 py-2.5">
-                      <span className="block truncate text-xs font-medium text-[var(--oppa-text)]" title={order.branchName || 'Unassigned branch'}>{order.branchName || 'Unassigned branch'}</span>
+                    <td data-label="Branch" className="branch-cell branch-column">
+                      <span title={order.branchName || 'Unassigned branch'}>{order.branchName || 'Unassigned branch'}</span>
                     </td>
-                    <td data-label="Items" className="px-3 py-2.5 min-w-0">
-                      <p className="truncate text-xs text-[var(--oppa-text-muted)]" title={fullItemsSummary}>
-                        {itemsSummary}
-                      </p>
+                    <td data-label="Items" className="items-cell" title={fullItemsSummary}>
+                      <span className="admin-order-items-summary">
+                        <span className="admin-order-items-first">{getFirstOrderItemSummary(order.items)}</span>
+                        {order.items && order.items.length > 1 && <span className="admin-order-items-more">+{order.items.length - 1} more</span>}
+                      </span>
                     </td>
-                    <td data-label="Total" className="tabular-nums whitespace-nowrap px-7 py-2.5 text-right text-xs font-semibold text-[var(--oppa-text)]">
-                      <div className="mr-5">{formatCurrency(order.total || 0)}</div>
+                    <td data-label="Total" className="total-cell">
+                      <span>{formatCurrency(order.total || 0)}</span>
                     </td>
-                    <td data-label="Status" className="px-7 py-2.5">
-                      <div className="ml-5 flex flex-col gap-1 items-start">
+                    <td data-label="Status" className="status-cell">
+                      <div>
                         <StatusBadge status={statusLabels[order.status] || order.status} />
                         {isScheduledOrder(order) && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 whitespace-nowrap" title={getScheduledDisplay(order)}>
-                            <CalendarDays className="h-2.5 w-2.5 flex-shrink-0" />
+                          <span className="admin-order-scheduled" title={getScheduledDisplay(order)}>
+                            <CalendarDays size={12} />
                             Scheduled
                           </span>
                         )}
                       </div>
                     </td>
-                    <td data-label="Date" className="px-3 py-2.5 whitespace-nowrap text-xs">
+                    <td data-label="Date" className="date-cell">
                       <AdminDate value={orderDate} />
                     </td>
-                    <td data-label="View" className="px-2 py-2.5 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1.5 justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedOrder(order)}
-                          title="View order details"
-                          className="inline-flex items-center gap-1 rounded-lg border border-[var(--oppa-border)]/60 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-700 transition hover:bg-gray-100"
-                        >
-                          <Eye size={12} />
-                          <span>View</span>
-                        </button>
-                      </div>
+                    <td data-label="View" className="action-cell">
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); setSelectedOrder(order); }}
+                        title="View order details"
+                        className="admin-order-view"
+                      >
+                        <Eye size={14} aria-hidden="true" />
+                        <span>View</span>
+                      </button>
                     </td>
                   </tr>
                 );
@@ -365,10 +406,42 @@ const AdminOrdersPage: React.FC = () => {
             </tbody>
           </table>
           </div>
-          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--oppa-border)] px-4 py-3 text-xs text-[var(--oppa-text-muted)]">
-            <span>Showing <strong className="tabular-nums text-[var(--oppa-text)]">{filteredOrders.length ? (currentPage - 1) * rowsPerPage + 1 : 0}-{Math.min(currentPage * rowsPerPage, filteredOrders.length)}</strong> of <strong className="tabular-nums text-[var(--oppa-text)]">{filteredOrders.length}</strong></span>
-            <div className="flex items-center gap-2"><span>Rows</span><Select aria-label="Orders per page" value={rowsPerPage} onChange={(value) => { setRowsPerPage(Number(value)); setCurrentPage(1); }} options={[{ value: 10, label: '10' }, { value: 20, label: '20' }, { value: 50, label: '50' }]} className="w-24" />
-              <button type="button" disabled={currentPage <= 1} onClick={() => setCurrentPage((page) => page - 1)} className="rounded-lg border border-[var(--oppa-border)] px-2.5 py-1.5 disabled:opacity-40">Prev</button><span className="tabular-nums">{currentPage} / {pageCount}</span><button type="button" disabled={currentPage >= pageCount} onClick={() => setCurrentPage((page) => page + 1)} className="rounded-lg border border-[var(--oppa-border)] px-2.5 py-1.5 disabled:opacity-40">Next</button>
+          <div className="admin-orders-mobile-list">
+            {paginatedOrders.map((order) => {
+              const orderId = String(order.order_number || order.id || '');
+              const fullItemsSummary = getFullItemsSummary(order.items);
+              return (
+                <article key={order.id} className="admin-order-card">
+                  <div className="admin-order-card-heading">
+                    <span className="admin-order-card-id" title={orderId}>{getCompactOrderId(orderId)}</span>
+                    <StatusBadge status={statusLabels[order.status] || order.status} />
+                  </div>
+                  <div className="admin-order-card-customer">
+                    <Avatar name={order.customerName || order.email || 'Guest'} className="size-9" />
+                    <div className="min-w-0">
+                      <p className="customer-name">{order.customerName || order.email || 'Guest'}</p>
+                      {order.email && order.customerName && <p className="customer-email" title={order.email}>{order.email}</p>}
+                    </div>
+                  </div>
+                  <p className="admin-order-card-items" title={fullItemsSummary}>
+                    <span>{getFirstOrderItemSummary(order.items)}</span>
+                    {order.items && order.items.length > 1 && <span className="admin-order-items-more">+{order.items.length - 1} more</span>}
+                  </p>
+                  <div className="admin-order-card-footer">
+                    <div><span className="admin-order-card-label">Total</span><strong>{formatCurrency(order.total || 0)}</strong></div>
+                    <div><span className="admin-order-card-label">Date</span><AdminDate value={getOrderDate(order)} /></div>
+                  </div>
+                  <button type="button" onClick={() => setSelectedOrder(order)} className="admin-order-view admin-order-card-view">
+                    <Eye size={14} aria-hidden="true" /> View order
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+          <footer className="admin-orders-pagination">
+            <span>Showing <strong>{filteredOrders.length ? (currentPage - 1) * rowsPerPage + 1 : 0}-{Math.min(currentPage * rowsPerPage, filteredOrders.length)}</strong> of <strong>{filteredOrders.length}</strong></span>
+            <div className="admin-orders-page-controls"><span>Rows</span><Select aria-label="Orders per page" value={rowsPerPage} onChange={(value) => { setRowsPerPage(Number(value)); setCurrentPage(1); }} options={[{ value: 10, label: '10' }, { value: 20, label: '20' }, { value: 50, label: '50' }]} className="w-24" />
+              <button type="button" disabled={currentPage <= 1} onClick={() => setCurrentPage((page) => page - 1)}>Prev</button><span className="tabular-nums">{currentPage} / {pageCount}</span><button type="button" disabled={currentPage >= pageCount} onClick={() => setCurrentPage((page) => page + 1)}>Next</button>
             </div>
           </footer>
         </div>
@@ -532,7 +605,8 @@ const AdminOrdersPage: React.FC = () => {
         </div>,
         document.body,
       )}
-    </AdminLayout>
+      </div>
+            </AdminLayout>
   );
 };
 

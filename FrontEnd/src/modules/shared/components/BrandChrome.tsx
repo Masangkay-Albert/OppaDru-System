@@ -15,7 +15,6 @@ type BrandNavbarProps = {
 const navItems = [
   { label: 'Home', href: '/#home', section: 'home' },
   { label: 'Menu', href: '/#menu', section: 'menu' },
-  { label: 'Promos', href: '/#promos', section: 'promos' },
   { label: 'Franchise', href: '/franchise-opportunities', section: 'franchise' },
   { label: 'About', href: '/#about', section: 'about' },
 ];
@@ -149,7 +148,6 @@ export const BrandFooter: React.FC<BrandFooterProps> = ({ variant = 'customer' }
             <>
               <a href="/#home">Home</a>
               <a href="/#menu">Menu</a>
-              <a href="/#promos">Promos</a>
               <Link to="/franchise-opportunities">Franchise</Link>
               <a href="/#about">About</a>
             </>

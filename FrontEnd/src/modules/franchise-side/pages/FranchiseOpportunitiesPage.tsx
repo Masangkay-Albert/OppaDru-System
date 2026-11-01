@@ -8,7 +8,8 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
 import { API_URL } from '../../../services/apiConfig';
-import chickenPhoto from '../../../assets/ChickenMeal/original-chicken.jpg';
+import { productService, type Product } from '../../../services/productService';
+import { getLandingHeroImage } from '../../../data/landingHeroImage';
 import oppaLogo from '../../../assets/oppadrulogo.jpg';
 import { BrandFooter, BrandNavbar } from '../../shared/components/BrandChrome';
 import '../../../styles/FranchiseOpportunitiesPage.css';
@@ -116,6 +117,7 @@ const FranchiseOpportunitiesPage: React.FC = () => {
   const navigate = useNavigate();
   const { applicant, isLoading: isAuthLoading, logout } = useFranchiseApplicantAuth();
   const [info, setInfo] = useState<FranchiseOpportunityInfo | null>(null);
+  const [heroImage, setHeroImage] = useState(() => getLandingHeroImage([]));
   const [error, setError] = useState('');
   const [isStartingApplication, setIsStartingApplication] = useState(false);
 
@@ -131,6 +133,16 @@ const FranchiseOpportunitiesPage: React.FC = () => {
         if (!cancelled) setError('Unable to load franchise information. Please try again later or contact the franchise team.');
       });
     return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    productService.getAvailableProducts().then((products: Product[]) => {
+      if (active) setHeroImage(getLandingHeroImage(products));
+    }).catch((loadError: unknown) => {
+      console.error('Unable to load the landing hero product image for the franchise page.', loadError);
+    });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -188,7 +200,7 @@ const FranchiseOpportunitiesPage: React.FC = () => {
           </div>
           <div className="franchise-hero-visual">
             <div className="franchise-photo-frame">
-              <img src={chickenPhoto} alt="Crispy Korean fried chicken from Oppa Dru" />
+              <img src={heroImage} alt="Crispy Korean fried chicken from Oppa Dru" />
             </div>
             <span className="franchise-hero-stamp"><img src={oppaLogo} alt="Oppa Dru mascot logo" /></span>
           </div>
