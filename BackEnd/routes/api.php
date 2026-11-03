@@ -83,7 +83,7 @@ Route::prefix('franchise')->group(function () {
         Route::get('/dashboard', [FranchiseController::class, 'dashboard']);
         Route::get('/summary', [FranchiseController::class, 'branchSummary']);
         Route::get('/inventory', [FranchiseController::class, 'inventorySummary']);
-        Route::patch('/inventory/{productId}', [FranchiseController::class, 'updateInventory']);
+        Route::patch('/inventory/{productId}', [FranchiseController::class, 'updateInventory'])->middleware('franchise.role:owner,manager');
         Route::get('/fulfillment', [FranchiseController::class, 'fulfillmentSummary']);
         Route::get('/reports', [FranchiseController::class, 'branchReports'])->middleware('franchise.role:owner,manager');
         Route::get('/users', [FranchiseController::class, 'branchUsers'])->middleware('franchise.role:owner,manager');
@@ -95,11 +95,16 @@ Route::prefix('franchise')->group(function () {
         Route::get('/settings', [FranchiseController::class, 'branchSettings'])->middleware('franchise.role:owner');
         Route::put('/settings', [FranchiseController::class, 'updateBranchSettings'])->middleware('franchise.role:owner');
         Route::get('/addon-groups', [AddonController::class, 'index']);
+        Route::get('/products/archived', [ProductController::class, 'franchiseArchivedIndex'])->middleware('franchise.role:owner,manager');
         Route::get('/products', [FranchiseController::class, 'products']);
         Route::post('/products', [ProductController::class, 'franchiseStore'])->middleware('franchise.role:owner,manager');
         Route::post('/products/upload-image', [ProductController::class, 'franchiseUploadImage'])->middleware('franchise.role:owner,manager');
+        Route::patch('/products/{id}/archive', [ProductController::class, 'franchiseArchive'])->middleware('franchise.role:owner,manager');
+        Route::patch('/products/{id}/restore', [ProductController::class, 'franchiseRestore'])->middleware('franchise.role:owner,manager');
+        Route::delete('/products/{id}', [ProductController::class, 'franchiseDestroy'])->middleware('franchise.role:owner,manager');
+        Route::put('/products/{id}', [ProductController::class, 'franchiseUpdate'])->middleware('franchise.role:owner,manager');
         // Franchise users can change branch availability/stock; product creation is branch-scoped.
-        Route::patch('/products/{id}/toggle', [ProductController::class, 'franchiseToggleAvailability']);
+        Route::patch('/products/{id}/toggle', [ProductController::class, 'franchiseToggleAvailability'])->middleware('franchise.role:owner,manager');
         Route::get('/orders', [FranchiseController::class, 'orders']);
         Route::get('/orders/{id}', [FranchiseController::class, 'showOrder']);
         Route::post('/pos/orders', [FranchiseController::class, 'storePosOrder']);

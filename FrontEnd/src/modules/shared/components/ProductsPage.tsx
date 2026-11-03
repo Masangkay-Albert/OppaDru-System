@@ -1,0 +1,779 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Archive, ChevronDown, ChevronUp, Eye, Image as ImageIcon, ImagePlus, LayoutGrid, List, PackageOpen, PlusSquare, Trash2, X } from 'lucide-react';
+import type { Product, ProductCategory } from '../../../types/product.types';
+import type { ProductPermission } from '../../../services/franchiseProductPermissions';
+import { formatCurrency } from '../../../utils/formatters';
+import { categories } from '../../../data/mockData';
+import { AvailabilitySwitch, ConfirmDialog, EmptyState, PageHeader, ProductThumbnail, RowActionsMenu, Toast } from '../../admin-side/components/AdminUI';
+import Select from '../../../components/ui/Select';
+import SearchInput from '../../../components/ui/SearchInput';
+
+export type { ProductPermission } from '../../../services/franchiseProductPermissions';
+
+export interface ProductPageAdapter {
+  list: () => Promise<Product[]>;
+  listArchived: () => Promise<Product[]>;
+  create: (product: Omit<Product, 'id' | 'created_at' | 'updated_at'>) => Promise<Product>;
+  update: (id: string, changes: Partial<Product>, imageFile?: File) => Promise<void>;
+  toggleAvailability: (product: Product, available: boolean) => Promise<void>;
+  archive: (id: string) => Promise<void>;
+  restore: (id: string) => Promise<void>;
+  delete: (id: string) => Promise<void>;
+  uploadImage: (file: File, category: string) => Promise<string>;
+}
+
+export interface ProductsPageConfig {
+  subtitle: string;
+  adapter: ProductPageAdapter;
+  permissions: {
+    add: boolean;
+    bulkAvailability: boolean;
+    bulkCategory: boolean;
+    bulkDelete: boolean;
+    forProduct: (product: Product, permission: ProductPermission) => boolean;
+  };
+  migrateLegacyArchives?: boolean;
+}
+
+const categoryOptions: Array<{ value: ProductCategory | 'all'; label: string }> = [
+  { value: 'all', label: 'All' },
+  ...categories.filter((c) => c.id !== 'all').map((c) => ({ value: c.id, label: c.name })),
+];
+
+const categoryBadgeStyles: Record<string, string> = {
+  'rice-meals': 'bg-[var(--product-category-rice-bg)] text-[var(--product-category-rice-text)]',
+  chicken: 'bg-[var(--product-category-chicken-bg)] text-[var(--product-category-chicken-text)]',
+  snacks: 'bg-[var(--product-category-snacks-bg)] text-[var(--product-category-snacks-text)]',
+  'fruity-soda-milk': 'bg-[var(--product-category-fruity-bg)] text-[var(--product-category-fruity-text)]',
+  noodles: 'bg-[var(--product-category-noodles-bg)] text-[var(--product-category-noodles-text)]',
+  'fresh-lemonade': 'bg-[var(--product-category-lemonade-bg)] text-[var(--product-category-lemonade-text)]',
+};
+
+type ProductFormState = {
+  name: string;
+  description: string;
+  price: string;
+  category: ProductCategory;
+  image: string;
+  isAvailable: boolean;
+};
+
+const ProductImage: React.FC<{ src?: string; name: string; className?: string }> = (props) => (
+  <ProductThumbnail
+    {...props}
+    overlay={<span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 bg-black/65 text-[10px] font-semibold text-white opacity-0 transition-opacity group-hover/product-image:opacity-100 group-focus-within/product-image:opacity-100">
+      <ImagePlus size={13} aria-hidden="true" /> Add photo
+    </span>}
+  />
+);
+
+const createEmptyForm = (): ProductFormState => ({
+  name: '',
+  description: '',
+  price: '',
+  category: 'chicken',
+  image: '',
+  isAvailable: true,
+});
+
+const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [activeCategory, setActiveCategory] = useState<ProductCategory | 'all'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [form, setForm] = useState<ProductFormState>(createEmptyForm());
+  const [imagePreview, setImagePreview] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [saveError, setSaveError] = useState('');
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [sortBy, setSortBy] = useState<'category' | 'name' | 'price' | 'newest'>('category');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [showArchived, setShowArchived] = useState(false);
+  const [detailsProduct, setDetailsProduct] = useState<Product | null>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const mobileSelectAllRef = useRef<HTMLInputElement>(null);
+  const [pendingAvailability, setPendingAvailability] = useState<string[]>([]);
+  const [bulkCategorySelectKey, setBulkCategorySelectKey] = useState(0);
+  const dialogRef = useRef<HTMLElement | null>(null);
+
+  const isAvailable = (product: Product) => product.isAvailable ?? product.is_available;
+  const isArchived = (product: Product) => Boolean(product.deleted_at);
+  const allowed = (product: Product, permission: ProductPermission) => config.permissions.forProduct(product, permission);
+  const canToggleAvailability = (product: Product) => !isArchived(product) && allowed(product, 'availability');
+
+  const refresh = useCallback(async () => {
+    try {
+      let [activeProducts, archivedProducts] = await Promise.all([config.adapter.list(), config.adapter.listArchived()]);
+      if (config.migrateLegacyArchives) {
+        const activeIds = new Set(activeProducts.map((product) => product.id));
+        const archivedIds = new Set(archivedProducts.map((product) => product.id));
+        let legacyIds: string[] = [];
+        try {
+          const saved = JSON.parse(localStorage.getItem('adminArchivedProducts') || '[]');
+          if (Array.isArray(saved)) legacyIds = saved.filter((id): id is string => typeof id === 'string');
+        } catch (error) {
+          console.warn('Could not read locally saved archived products.', error);
+        }
+        const legacyToArchive = legacyIds.filter((id) => activeIds.has(id) && !archivedIds.has(id));
+        const archiveResults = await Promise.allSettled(legacyToArchive.map((id) => config.adapter.archive(id)));
+        const failedLegacyIds = legacyToArchive.filter((_, index) => archiveResults[index].status === 'rejected');
+        if (failedLegacyIds.length) {
+          setActionError('Some previously archived products could not be synchronized. Try archiving them again.');
+        }
+        const legacyIdsToKeep = legacyIds.filter((id) => failedLegacyIds.includes(id) || (!activeIds.has(id) && !archivedIds.has(id)));
+        if (legacyIdsToKeep.length) localStorage.setItem('adminArchivedProducts', JSON.stringify(legacyIdsToKeep));
+        else localStorage.removeItem('adminArchivedProducts');
+        if (archiveResults.some((result) => result.status === 'fulfilled')) {
+          [activeProducts, archivedProducts] = await Promise.all([config.adapter.list(), config.adapter.listArchived()]);
+        }
+      }
+      setProducts([...activeProducts, ...archivedProducts]);
+      setActionError('');
+    } catch (error) {
+      console.error('Failed to load products:', error);
+      setActionError('Could not load products. Please try again.');
+      setProducts([]);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [config.adapter, config.migrateLegacyArchives]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => { void refresh().catch(() => undefined); }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [refresh]);
+
+  const getCategoryLabel = (category: string) => {
+    return categories.find((item) => item.id === category)?.name || category.replace('-', ' ');
+  };
+
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const categoryFilterOptions = categoryOptions.map((option) => {
+    const count = products.filter((product) => (
+      isArchived(product) === showArchived
+      && (option.value === 'all' || product.category === option.value)
+    )).length;
+    return { ...option, label: `${option.label} (${count})` };
+  });
+
+  const filteredProducts = products
+    .filter((product) => {
+      const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
+      const matchesArchiveStatus = isArchived(product) === showArchived;
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        String(product.name || '').toLowerCase().includes(normalizedSearch) ||
+        String(product.description || '').toLowerCase().includes(normalizedSearch) ||
+        getCategoryLabel(product.category).toLowerCase().includes(normalizedSearch);
+
+      return matchesCategory && matchesArchiveStatus && matchesSearch;
+    })
+    .sort((a, b) => {
+      const result = sortBy === 'price'
+        ? Number(a.price) - Number(b.price)
+        : sortBy === 'name'
+          ? a.name.localeCompare(b.name)
+          : sortBy === 'newest'
+            ? new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+            : a.category.localeCompare(b.category) || a.name.localeCompare(b.name);
+      return result * (sortDirection === 'asc' ? 1 : -1);
+    });
+  const pageCount = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const visibleProducts = filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const selectableVisibleProducts = visibleProducts.filter((product) => allowed(product, 'bulk-select'));
+  const allVisibleSelected = selectableVisibleProducts.length > 0 && selectableVisibleProducts.every((product) => selectedIds.includes(product.id));
+  const someVisibleSelected = selectableVisibleProducts.some((product) => selectedIds.includes(product.id));
+
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+    if (mobileSelectAllRef.current) mobileSelectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+  }, [someVisibleSelected, allVisibleSelected]);
+
+  const handleToggle = async (id: string) => {
+    const current = products.find((product) => product.id === id);
+    if (!current || !canToggleAvailability(current) || pendingAvailability.includes(id)) return;
+    const nextAvailability = !isAvailable(current);
+    setProducts((currentProducts) => currentProducts.map((product) => product.id === id
+      ? { ...product, is_available: nextAvailability, isAvailable: nextAvailability }
+      : product));
+    setPendingAvailability((currentIds) => [...currentIds, id]);
+    try {
+      await config.adapter.toggleAvailability(current, nextAvailability);
+      await refresh();
+      setActionError('');
+      setToastMessage(nextAvailability ? 'Marked as available' : 'Marked as unavailable');
+    } catch (error) {
+      console.error('Failed to update product availability:', error);
+      setProducts((currentProducts) => currentProducts.map((product) => product.id === id
+        ? { ...product, is_available: !nextAvailability, isAvailable: !nextAvailability }
+        : product));
+      setActionError('Could not update product availability.');
+    } finally {
+      setPendingAvailability((currentIds) => currentIds.filter((productId) => productId !== id));
+    }
+  };
+
+  const toggleSelected = (id: string) => {
+    const product = products.find((item) => item.id === id);
+    if (!product || !allowed(product, 'bulk-select')) return;
+    setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  };
+
+  const handleBulkAvailability = async (available: boolean) => {
+    const targets = products.filter((product) => selectedIds.includes(product.id)
+      && canToggleAvailability(product)
+      && isAvailable(product) !== available);
+    setProducts((currentProducts) => currentProducts.map((product) => selectedIds.includes(product.id) && canToggleAvailability(product)
+      ? { ...product, is_available: available, isAvailable: available }
+      : product));
+    try {
+      for (const product of targets) await config.adapter.toggleAvailability(product, available);
+      await refresh();
+      setSelectedIds([]);
+      setActionError('');
+      setToastMessage(`Marked ${targets.length} ${targets.length === 1 ? 'product' : 'products'} as ${available ? 'available' : 'unavailable'}`);
+    } catch (error) {
+      console.error('Failed to update selected product availability:', error);
+      setActionError('Could not update availability for the selected products.');
+      await refresh().catch(() => undefined);
+    }
+  };
+
+  const handleBulkCategory = async (category: ProductCategory) => {
+    const targets = products.filter((product) => selectedIds.includes(product.id)
+      && allowed(product, 'bulk-category')
+      && product.category !== category);
+    try {
+      for (const product of targets) await config.adapter.update(product.id, { category });
+      await refresh();
+      setSelectedIds([]);
+      setActionError('');
+      setToastMessage(`Category updated for ${targets.length} ${targets.length === 1 ? 'product' : 'products'}`);
+    } catch (error) {
+      console.error('Failed to update selected product categories:', error);
+      setActionError('Could not change the category for the selected products.');
+      await refresh().catch(() => undefined);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    const product = products.find((item) => item.id === id);
+    if (!product || !allowed(product, 'delete')) return;
+    setProductToDelete({ id, name: product.name });
+  };
+
+  const confirmDeleteProduct = async () => {
+    try {
+      if (productToDelete) await config.adapter.delete(productToDelete.id);
+      else if (confirmBulkDelete) {
+        for (const product of products.filter((item) => selectedIds.includes(item.id) && allowed(item, 'delete'))) {
+          if (!config.permissions.bulkDelete) continue;
+          if (showArchived) await config.adapter.delete(product.id);
+          else await config.adapter.archive(product.id);
+        }
+      } else return;
+      await refresh();
+      setSelectedIds([]);
+      setPage(1);
+      setActionError('');
+      setToastMessage(productToDelete ? 'Product deleted' : 'Selected products deleted');
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+      setActionError(error instanceof Error ? error.message : 'Could not delete the selected product(s).');
+    } finally {
+      setProductToDelete(null);
+      setConfirmBulkDelete(false);
+    }
+  };
+
+  const duplicateProduct = async (product: Product) => {
+    try {
+      await config.adapter.create({
+        name: `${product.name} (copy)`,
+        description: product.description,
+        price: product.price,
+        category: product.category as ProductCategory,
+        image: product.image,
+        is_available: isAvailable(product),
+        isAvailable: isAvailable(product),
+      });
+      await refresh();
+      setToastMessage('Product duplicated');
+    } catch (error) {
+      console.error('Failed to duplicate product:', error);
+      setActionError('Could not duplicate this product.');
+    }
+  };
+
+  const toggleArchive = async (product: Product) => {
+    try {
+      if (isArchived(product)) {
+        if (!allowed(product, 'restore')) return;
+        await config.adapter.restore(product.id);
+      } else {
+        if (!allowed(product, 'archive')) return;
+        await config.adapter.archive(product.id);
+      }
+      await refresh();
+      setToastMessage(isArchived(product) ? 'Product restored' : 'Product archived');
+      setActionError('');
+    } catch (error) {
+      console.error('Failed to update product archive status:', error);
+      setActionError('Could not update the product archive status. Please try again.');
+    }
+  };
+
+  const actionItems = (product: Product) => [
+    ...(isArchived(product) && allowed(product, 'delete')
+      ? [{ label: 'Delete permanently', destructive: true, onSelect: () => void handleDelete(product.id) }]
+      : []),
+    ...(isArchived(product)
+      ? (allowed(product, 'restore') ? [{ label: 'Restore product', onSelect: () => void toggleArchive(product) }] : [])
+      : (allowed(product, 'archive') ? [{ label: 'Archive product', onSelect: () => void toggleArchive(product) }] : [])),
+    ...(allowed(product, 'details') ? [{ label: 'View details', onSelect: () => setDetailsProduct(product) }] : []),
+  ];
+
+  const openAddModal = () => {
+    setModalMode('add');
+    setSelectedProductId(null);
+    setForm(createEmptyForm());
+    setImagePreview('');
+    setSelectedFile(null);
+    setSaveError('');
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (product: Product) => {
+    setModalMode('edit');
+    setSelectedProductId(product.id);
+    setForm({
+      name: product.name,
+      description: product.description,
+      price: String(product.price),
+      category: product.category as ProductCategory,
+      image: product.image || '',
+      isAvailable: product.isAvailable ?? product.is_available,
+    });
+    setImagePreview(product.image || '');
+    setSelectedFile(null);
+    setSaveError('');
+    setIsModalOpen(true);
+  };
+
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedProductId(null);
+    setForm(createEmptyForm());
+    setImagePreview('');
+    setSelectedFile(null);
+    setSaveError('');
+  }, []);
+
+  useEffect(() => {
+    if (!isModalOpen && !detailsProduct) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      if (event.key === 'Escape') {
+        if (isModalOpen) closeModal();
+        else setDetailsProduct(null);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ));
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    (dialog?.querySelector<HTMLElement>('[data-dialog-initial-focus]')
+      || dialog?.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])')
+      || dialog)?.focus();
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      previousFocus?.focus();
+    };
+  }, [isModalOpen, detailsProduct, closeModal]);
+
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setSelectedFile(null);
+      setImagePreview(form.image);
+      return;
+    }
+
+    setSelectedFile(file);
+    
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImagePreview(typeof reader.result === 'string' ? reader.result : '');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaveError('');
+
+    try {
+      const payload = {
+        name: form.name,
+        description: form.description,
+        price: Number(form.price) || 0,
+        category: form.category,
+        is_available: form.isAvailable,
+        isAvailable: form.isAvailable,
+      };
+
+      if (modalMode === 'edit' && selectedProductId) {
+        await config.adapter.update(selectedProductId, payload, selectedFile || undefined);
+      } else {
+        const image = selectedFile
+          ? await config.adapter.uploadImage(selectedFile, form.category)
+          : form.image;
+        await config.adapter.create({ ...payload, image });
+      }
+
+      closeModal();
+      await refresh();
+    } catch (error) {
+      console.error('Failed to save product:', error);
+      setSaveError(error instanceof Error ? error.message : 'Unable to save the product.');
+    }
+  };
+
+  return (
+    <div>
+      <div className="products-page-toolbar -mx-4 border-b border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-4 pb-3 pt-3 sm:-mx-6 sm:px-6">
+        <PageHeader title="Products" subtitle={config.subtitle} actions={
+          config.permissions.add && <button
+            type="button"
+            onClick={openAddModal}
+            className="bg-oppa-gradient inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 ease-out hover:brightness-95 hover:shadow-md active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"
+          >
+            <PlusSquare size={16} /> Add Product
+          </button>
+        } />
+
+        <div className="mt-5 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+            <SearchInput
+              aria-label="Search products"
+              value={searchTerm}
+              onChange={(value) => { setSearchTerm(value); setPage(1); }}
+              placeholder="Search products..."
+              wrapperClassName="w-full sm:min-w-[220px] sm:max-w-sm sm:flex-1"
+              className="!h-11 !rounded-xl"
+            />
+            <Select
+              aria-label="Filter products by category"
+              value={activeCategory}
+              onChange={(value) => { setActiveCategory(value); setPage(1); }}
+              options={categoryFilterOptions}
+              className="w-full shrink-0 sm:w-52"
+              triggerClassName="h-11 rounded-xl"
+            />
+            <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setSelectedIds([]); setPage(1); }} className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${showArchived ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><Archive size={15} />{showArchived ? 'Showing archived' : `Archived (${products.filter(isArchived).length})`}</button>
+          </div>
+          <div className="flex items-center justify-between gap-3 xl:justify-end">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-sm font-medium text-[var(--oppa-text-muted)]">Sort by</span>
+              <Select aria-label="Sort by" value={sortBy} onChange={(value) => { const sort = value as typeof sortBy; setSortBy(sort); setSortDirection(sort === 'newest' ? 'desc' : 'asc'); setPage(1); }} options={[{ value: 'name', label: 'Name' }, { value: 'price', label: 'Price' }, { value: 'category', label: 'Category' }, { value: 'newest', label: 'Newest' }]} className="w-32" triggerClassName="h-11 rounded-xl" />
+              <button type="button" aria-label={sortDirection === 'asc' ? 'Sort ascending' : 'Sort descending'} title={sortDirection === 'asc' ? 'Ascending' : 'Descending'} onClick={() => setSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc')} className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
+                {sortDirection === 'asc' ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+              </button>
+            </div>
+            <div role="group" aria-label="Product view" className="inline-flex h-11 shrink-0 items-center rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-1">
+              <button type="button" aria-label="Table view" aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')} className={`inline-flex size-9 items-center justify-center rounded-lg transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 ${viewMode === 'table' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><List size={16} /></button>
+              <button type="button" aria-label="Card view" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} className={`inline-flex size-9 items-center justify-center rounded-lg transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 ${viewMode === 'grid' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><LayoutGrid size={16} /></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {(productToDelete || confirmBulkDelete) && <ConfirmDialog
+        title={productToDelete
+          ? `${showArchived ? 'Permanently delete' : 'Archive'} "${productToDelete.name}"?`
+          : `${showArchived ? 'Permanently delete' : 'Archive'} ${selectedIds.length} selected products?`}
+        description={showArchived
+          ? 'This permanently removes archived products and cannot be undone.'
+          : 'This removes products from the customer menu. You can restore them later from Archived.'}
+        confirmLabel={showArchived ? 'Delete permanently' : 'Archive'}
+        onCancel={() => { setProductToDelete(null); setConfirmBulkDelete(false); }}
+        onConfirm={() => void confirmDeleteProduct()}
+      />}
+      {detailsProduct && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailsProduct(null); }}>
+        <section ref={(element) => { dialogRef.current = element; }} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="product-details-title" className="w-full max-w-lg rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-2xl sm:p-6">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div><h2 id="product-details-title" className="font-serif text-xl font-semibold text-[var(--oppa-text)]">Product details</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Menu item information</p></div>
+            <button type="button" data-dialog-initial-focus aria-label="Close product details" onClick={() => setDetailsProduct(null)} className="rounded-lg p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]"><X size={18} /></button>
+          </div>
+          <div className="flex items-center gap-4">
+            <ProductImage src={detailsProduct.image} name={detailsProduct.name} className="size-16 rounded-2xl" />
+            <div className="min-w-0"><h3 className="truncate font-semibold text-[var(--oppa-text)]">{detailsProduct.name}</h3><p className="text-sm text-[var(--oppa-text-muted)]">{getCategoryLabel(detailsProduct.category)}</p></div>
+          </div>
+          <p className="mt-4 text-sm leading-6 text-[var(--oppa-text-muted)]">{detailsProduct.description || 'No description provided.'}</p>
+          <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-[var(--oppa-cream)] p-4 text-sm">
+            <div><dt className="text-xs text-[var(--oppa-text-muted)]">Price</dt><dd className="mt-1 font-semibold text-[var(--oppa-text)]">{formatCurrency(detailsProduct.price)}</dd></div>
+            <div><dt className="text-xs text-[var(--oppa-text-muted)]">Availability</dt><dd className="mt-1 font-semibold text-[var(--oppa-text)]">{isAvailable(detailsProduct) ? 'Available' : 'Unavailable'}</dd></div>
+          </dl>
+          {allowed(detailsProduct, 'edit') && <div className="mt-5 flex justify-end"><button type="button" onClick={() => { setDetailsProduct(null); openEditModal(detailsProduct); }} className="rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Edit product</button></div>}
+        </section>
+      </div>}
+      {toastMessage && <Toast key={toastMessage} message={toastMessage} onDismiss={() => setToastMessage('')} />}
+      {actionError && <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"><span>{actionError}</span><button type="button" onClick={() => void refresh().catch(() => undefined)} className="shrink-0 font-semibold underline">Retry</button></div>}
+
+      {isLoading && <div role="status" aria-label="Loading products" aria-busy="true" className="mt-4 min-h-64" />}
+      {!isLoading && filteredProducts.length === 0 && (
+        <div className="admin-card mt-4">
+          <EmptyState icon={<PackageOpen size={23} />} title={normalizedSearch || activeCategory !== 'all' ? 'No products match these filters' : showArchived ? 'No archived products' : 'No products yet'} description={normalizedSearch || activeCategory !== 'all' || showArchived ? 'Try changing your search or category selection.' : 'Add a product to start building your menu.'} action={normalizedSearch || activeCategory !== 'all' || showArchived ? <button type="button" onClick={() => { setSearchTerm(''); setActiveCategory('all'); setShowArchived(false); setSelectedIds([]); setPage(1); }} className="mt-2 rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-semibold text-[var(--oppa-text)] transition-colors hover:bg-[var(--oppa-green-soft)]">Clear filters</button> : <button type="button" onClick={openAddModal} className="mt-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Add product</button>} />
+        </div>
+      )}
+
+      {!isLoading && filteredProducts.length > 0 && <div className={`mt-4 flex items-center gap-2 text-xs text-[var(--oppa-text-muted)] ${viewMode === 'grid' ? '' : 'md:hidden'}`}>
+        <input ref={mobileSelectAllRef} type="checkbox" aria-label="Select all visible products" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? current.filter((id) => !selectableVisibleProducts.some((product) => product.id === id)) : [...new Set([...current, ...selectableVisibleProducts.map((product) => product.id)])])} className="size-4 cursor-pointer rounded accent-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2" />
+        <span>Select all on this page</span>
+      </div>}
+      {!isLoading && filteredProducts.length > 0 && (
+        <div className={`mt-4 gap-3 ${viewMode === 'grid' ? 'grid sm:grid-cols-2 xl:grid-cols-3' : 'grid md:hidden'}`}>
+          {visibleProducts.map((product) => (
+            <div key={product.id} className={`admin-card group p-4 transition-colors hover:border-[var(--oppa-green)]/40 ${isAvailable(product) ? '' : 'opacity-70'}`}>
+              <div className="flex items-start gap-3">
+                {allowed(product, 'bulk-select') && <input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} className="mt-4 size-4 cursor-pointer rounded accent-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2" />}
+                <ProductImage src={product.image} name={product.name} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="truncate font-medium text-[var(--oppa-text)]">{product.name}</p>
+                    {allowed(product, 'details') && <button type="button" aria-label={`View details for ${product.name}`} onClick={() => setDetailsProduct(product)} className="rounded-md p-1 text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><Eye size={16} /></button>}
+                  </div>
+                  <p className="mt-0.5 line-clamp-2 text-xs text-[var(--oppa-text-muted)]">{product.description}</p>
+                  <div className="mt-2 flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]">
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${categoryBadgeStyles[product.category] || 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]'}`}>{getCategoryLabel(product.category)}</span>
+                    <span>•</span>
+                    <span className="tabular-nums ml-auto text-right font-semibold text-[var(--oppa-text)]">{formatCurrency(product.price)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--oppa-border)] pt-3">
+                <div className="inline-flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]">{canToggleAvailability(product) && <AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Unavailable" disabled={pendingAvailability.includes(product.id)} onChange={() => void handleToggle(product.id)} />}<span className={isAvailable(product) ? 'font-medium text-[var(--oppa-available-text)]' : 'text-[var(--oppa-text-muted)]'}>{isAvailable(product) ? 'Available' : 'Unavailable'}</span></div>
+                <div className="flex items-center gap-1">
+                  {!isArchived(product) && <>
+                    {allowed(product, 'edit') && <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-100 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100">Edit</button>}
+                    {allowed(product, 'duplicate') && <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-100 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100">Duplicate</button>}
+                  </>}
+                  {actionItems(product).length > 0 && <RowActionsMenu label={product.name} items={actionItems(product)} />}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!isLoading && filteredProducts.length > 0 && viewMode === 'table' && (
+        <div className="admin-scrollbar mt-4 hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm md:block">
+          <table className="admin-table products-table w-full min-w-[780px] table-fixed text-sm">
+            <colgroup>
+              <col style={{ width: '4%' }} /><col style={{ width: activeCategory === 'all' ? '34%' : '49%' }} />
+              {activeCategory === 'all' && <col style={{ width: '15%' }} />}
+              <col style={{ width: '12%' }} /><col style={{ width: '22%' }} /><col style={{ width: '13%' }} />
+            </colgroup>
+            <thead>
+              <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                <th scope="col" className="col-center"><input ref={selectAllRef} type="checkbox" aria-label="Select all visible products" checked={allVisibleSelected} onChange={() => setSelectedIds((current) => allVisibleSelected ? current.filter((id) => !selectableVisibleProducts.some((product) => product.id === id)) : [...new Set([...current, ...selectableVisibleProducts.map((product) => product.id)])])} className="size-4 cursor-pointer rounded accent-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2" /></th>
+                <th scope="col" className="col-left">Item</th>
+                {activeCategory === 'all' && <th scope="col" className="col-left">Category</th>}
+                <th scope="col" className="col-right">Price</th>
+                <th scope="col" className="col-left">Availability</th>
+                <th scope="col" className="col-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleProducts.map((product) => (
+                <tr key={product.id} className={`group border-b border-[var(--oppa-border)]/70 last:border-0 transition-colors hover:bg-[var(--oppa-green-soft)]/45 ${isAvailable(product) ? '' : 'opacity-70'}`}>
+                  <td data-label="Select" className="col-center">{allowed(product, 'bulk-select') && <input type="checkbox" aria-label={`Select ${product.name}`} checked={selectedIds.includes(product.id)} onChange={() => toggleSelected(product.id)} className="size-4 cursor-pointer rounded accent-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2" />}</td>
+                  <td data-label="Item" className="col-left">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <ProductImage src={product.image} name={product.name} className="rounded-xl ring-1 ring-black/5 shadow-sm" />
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-[var(--oppa-text)]">{product.name}</p>
+                        <p className="line-clamp-1 text-xs text-[var(--oppa-text-muted)]">{product.description}</p>
+                      </div>
+                    </div>
+                  </td>
+                  {activeCategory === 'all' && <td data-label="Category" className="col-left"><span title={getCategoryLabel(product.category)} className={`inline-block max-w-full truncate rounded-full px-3 py-1 align-middle text-xs font-medium capitalize ${categoryBadgeStyles[product.category] || 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]'}`}>{getCategoryLabel(product.category)}</span></td>}
+                  <td data-label="Price" className="col-right tabular-nums font-semibold text-[var(--oppa-text)]">{formatCurrency(product.price)}</td>
+                  <td data-label="Availability" className="col-left"><div className="inline-flex items-center gap-2 whitespace-nowrap text-xs">{canToggleAvailability(product) && <AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Unavailable" disabled={pendingAvailability.includes(product.id)} onChange={() => void handleToggle(product.id)} />}<span className={isAvailable(product) ? 'font-medium text-[var(--oppa-available-text)]' : 'text-[var(--oppa-text-muted)]'}>{isAvailable(product) ? 'Available' : 'Unavailable'}</span></div></td>
+                  <td data-label="Actions" className="col-right"><div className="flex items-center justify-end gap-1">
+                    {!isArchived(product) && <>
+                      {allowed(product, 'edit') && <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-0 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 group-hover:opacity-100 group-focus-within:opacity-100">Edit</button>}
+                      {allowed(product, 'duplicate') && <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-0 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 group-hover:opacity-100 group-focus-within:opacity-100">Duplicate</button>}
+                    </>}
+                    {actionItems(product).length > 0 && <RowActionsMenu label={product.name} items={actionItems(product)} />}
+                  </div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!isLoading && filteredProducts.length > 0 && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--oppa-text-muted)]">
+        <div className="flex items-center gap-3">
+          <span>Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredProducts.length)} of {filteredProducts.length}</span>
+          <div className="flex items-center gap-2 text-xs"><span>Rows</span>
+            <Select aria-label="Rows per page" value={pageSize} onChange={(value) => { setPageSize(Number(value)); setPage(1); }} options={[{ value: 10, label: '10' }, { value: 20, label: '20' }, { value: 50, label: '50' }]} className="w-24" />
+          </div>
+        </div>
+        <nav aria-label="Product pages" className="flex items-center gap-1">
+          <button type="button" disabled={currentPage === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-[var(--oppa-text)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Prev</button>
+          {Array.from({ length: pageCount }, (_, index) => index + 1).slice(Math.max(0, Math.min(currentPage - 2, pageCount - 3)), Math.max(0, Math.min(currentPage - 2, pageCount - 3)) + 3).map((pageNumber) => <button key={pageNumber} type="button" aria-current={currentPage === pageNumber ? 'page' : undefined} onClick={() => setPage(pageNumber)} className={`size-9 rounded-lg border text-sm transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${currentPage === pageNumber ? 'border-green-700 bg-green-700 text-white shadow-sm' : 'border-[var(--oppa-border)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]'}`}>{pageNumber}</button>)}
+          <button type="button" disabled={currentPage >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-[var(--oppa-text)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Next</button>
+        </nav>
+      </div>}
+
+      <div className={`fixed bottom-5 left-1/2 z-[90] flex max-w-[calc(100vw-24px)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-4 py-3 shadow-2xl transition-all duration-200 ${selectedIds.length ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-6 opacity-0'}`}>
+        <span className="whitespace-nowrap text-sm font-semibold text-[var(--oppa-text)]">{selectedIds.length} selected</span>
+        {config.permissions.bulkAvailability && <><button type="button" disabled={!products.some((product) => selectedIds.includes(product.id) && canToggleAvailability(product) && !isAvailable(product))} onClick={() => void handleBulkAvailability(true)} className="whitespace-nowrap rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-50">Mark available</button>
+        <button type="button" disabled={!products.some((product) => selectedIds.includes(product.id) && canToggleAvailability(product) && isAvailable(product))} onClick={() => void handleBulkAvailability(false)} className="whitespace-nowrap rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] disabled:cursor-not-allowed disabled:opacity-50">Mark unavailable</button></>}
+        {config.permissions.bulkCategory && products.some((product) => selectedIds.includes(product.id) && allowed(product, 'bulk-category')) && <><label className="sr-only" htmlFor="bulk-product-category">Change category for selected products</label>
+        <Select key={bulkCategorySelectKey} aria-label="Change category for selected products" defaultValue="" placeholder="Change category" onChange={(value) => { setBulkCategorySelectKey((key) => key + 1); void handleBulkCategory(value as ProductCategory); }} options={categoryOptions.filter((option) => option.value !== 'all')} className="w-40" /></>}
+        {config.permissions.bulkDelete && products.some((product) => selectedIds.includes(product.id) && allowed(product, 'delete')) && <button type="button" onClick={() => setConfirmBulkDelete(true)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"><Trash2 size={14} />{showArchived ? 'Delete permanently' : 'Archive'}</button>}
+        <button type="button" aria-label="Clear product selection" onClick={() => setSelectedIds([])} className="rounded-lg p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]"><X size={16} /></button>
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
+          <div
+            ref={(element) => { dialogRef.current = element; }}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-form-title"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl sm:p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 id="product-form-title" className="font-serif text-xl font-semibold text-[var(--oppa-text)]">
+                  {modalMode === 'add' ? 'Add Product' : 'Edit Product'}
+                </h2>
+                <p className="text-sm text-[var(--oppa-text-muted)]">
+                  {modalMode === 'add' ? 'Create a new menu item for the shop.' : 'Update the selected product details.'}
+                </p>
+              </div>
+              <button type="button" data-dialog-initial-focus aria-label="Close product form" onClick={closeModal} className="rounded-lg p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {saveError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">Image upload failed: {saveError}</p>}
+
+              <div>
+                <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Product Name</label>
+                <input
+                  required
+                  value={form.name}
+                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                  className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Description</label>
+                <textarea
+                  value={form.description}
+                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+                  className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Price (₱)</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    step="0.01"
+                    value={form.price}
+                    onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
+                    className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
+                  />
+                </div>
+                <div>
+                  <Select
+                    label="Category"
+                    value={form.category}
+                    onChange={(category) => setForm((prev) => ({ ...prev, category: category as ProductCategory }))}
+                    options={categoryOptions.filter((option) => option.value !== 'all')}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Food Image</label>
+                <input type="file" accept="image/*" onChange={handleImageChange} className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" />
+                  {(imagePreview || (form.image && form.image !== '/oppadrulogo.jpg')) ? <img src={imagePreview || form.image} alt="Product preview" className="mt-3 h-28 w-full rounded-xl object-cover" /> : <div className="mt-3 flex h-28 items-center justify-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]"><ImageIcon size={32} aria-hidden="true" /></div>}
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-[var(--oppa-text-muted)]">
+                <input
+                  type="checkbox"
+                  checked={form.isAvailable}
+                  onChange={(event) => setForm((prev) => ({ ...prev, isAvailable: event.target.checked }))}
+                />
+                Available for ordering
+              </label>
+
+              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="bg-oppa-gradient rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+                  {modalMode === 'add' ? 'Save Product' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ProductsPage;

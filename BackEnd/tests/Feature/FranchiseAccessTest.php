@@ -14,7 +14,6 @@ use App\Services\FranchiseInventoryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
@@ -215,13 +214,107 @@ class FranchiseAccessTest extends TestCase
             'Authorization' => 'Bearer '.$southLogin->json('token'),
         ])->assertOk()->assertJsonMissing(['id' => $productId]);
 
-        Storage::fake('public');
         $imageResponse = $this->post('/api/franchise/products/upload-image', [
             'image' => UploadedFile::fake()->create('branch-product.jpg', 1, 'image/jpeg'),
         ], $northHeaders)->assertOk();
-        $imagePath = $imageResponse->json('path');
-        $this->assertTrue(Storage::disk('public')->exists($imagePath));
-        $this->assertStringStartsWith('products/franchise/'.$franchiseA->id.'/', $imagePath);
+        $imageUrl = $imageResponse->json('url');
+        $this->assertIsString($imageUrl);
+        $this->assertStringStartsWith('data:image/', $imageUrl);
+    }
+
+    public function test_franchise_archived_products_and_mutations_are_scoped_to_authenticated_branch(): void
+    {
+        $north = Franchise::create(['name' => 'North Branch', 'status' => 'active']);
+        $south = Franchise::create(['name' => 'South Branch', 'status' => 'active']);
+        FranchiseUser::create([
+            'franchise_id' => $north->id,
+            'full_name' => 'North Manager',
+            'email' => 'north.archive@example.com',
+            'phone' => '09170000013',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+            'role' => 'manager',
+        ]);
+        FranchiseUser::create([
+            'franchise_id' => $south->id,
+            'full_name' => 'South Manager',
+            'email' => 'south.archive@example.com',
+            'phone' => '09170000014',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+            'role' => 'manager',
+        ]);
+        FranchiseUser::create([
+            'franchise_id' => $north->id,
+            'full_name' => 'North Staff',
+            'email' => 'north.staff@example.com',
+            'phone' => '09170000015',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+            'role' => 'staff',
+        ]);
+        $northProduct = Product::create([
+            'name' => 'North Archived Product',
+            'description' => 'North branch only',
+            'price' => 100,
+            'category' => 'chicken',
+            'franchise_id' => $north->id,
+            'image' => '',
+            'is_available' => true,
+        ]);
+        $southProduct = Product::create([
+            'name' => 'South Archived Product',
+            'description' => 'South branch only',
+            'price' => 110,
+            'category' => 'chicken',
+            'franchise_id' => $south->id,
+            'image' => '',
+            'is_available' => true,
+        ]);
+        $southActiveProduct = Product::create([
+            'name' => 'South Active Product',
+            'description' => 'South branch only',
+            'price' => 115,
+            'category' => 'chicken',
+            'franchise_id' => $south->id,
+            'image' => '',
+            'is_available' => true,
+        ]);
+
+        $northLogin = $this->postJson('/api/franchise/login', [
+            'email' => 'north.archive@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $northHeaders = ['Authorization' => 'Bearer '.$northLogin->json('token')];
+        $southProduct->delete();
+
+        $this->getJson('/api/franchise/products/archived', $northHeaders)
+            ->assertOk()
+            ->assertJsonMissing(['id' => $southProduct->id])
+            ->assertJsonMissing(['id' => $northProduct->id]);
+        $this->putJson('/api/franchise/products/'.$northProduct->id, ['price' => 125], $northHeaders)
+            ->assertOk();
+        $this->assertDatabaseHas('products', ['id' => $northProduct->id, 'price' => 125]);
+        $this->patchJson('/api/franchise/products/'.$northProduct->id.'/archive', [], $northHeaders)->assertOk();
+        $this->getJson('/api/franchise/products/archived', $northHeaders)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $northProduct->id])
+            ->assertJsonMissing(['id' => $southProduct->id]);
+
+        $this->putJson('/api/franchise/products/'.$southActiveProduct->id, ['price' => 1], $northHeaders)->assertNotFound();
+        $this->patchJson('/api/franchise/products/'.$southActiveProduct->id.'/archive', [], $northHeaders)->assertNotFound();
+        $this->patchJson('/api/franchise/products/'.$southProduct->id.'/restore', [], $northHeaders)->assertNotFound();
+        $this->deleteJson('/api/franchise/products/'.$southActiveProduct->id, [], $northHeaders)->assertNotFound();
+        $this->patchJson('/api/franchise/inventory/'.$southActiveProduct->id, ['is_available' => false], $northHeaders)
+            ->assertNotFound();
+        $this->assertDatabaseHas('products', ['id' => $southActiveProduct->id, 'is_available' => true]);
+        $staffLogin = $this->postJson('/api/franchise/login', [
+            'email' => 'north.staff@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $this->patchJson('/api/franchise/inventory/'.$northProduct->id, ['is_available' => false], [
+            'Authorization' => 'Bearer '.$staffLogin->json('token'),
+        ])->assertForbidden();
     }
 
     public function test_franchise_user_cannot_access_another_franchise_scope(): void

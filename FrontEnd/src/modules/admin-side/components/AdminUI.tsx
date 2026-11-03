@@ -62,21 +62,65 @@ export const ConfirmDialog: React.FC<{
   onConfirm: () => void;
   onCancel: () => void;
   busy?: boolean;
-}> = ({ title, description, confirmLabel = 'Delete', onConfirm, onCancel, busy = false }) => (
-  <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => {
-    if (event.target === event.currentTarget) onCancel();
-  }}>
-    <section role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description" onKeyDown={(event) => { if (event.key === 'Escape' && !busy) onCancel(); }} className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl">
-      <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-red-50 text-red-600"><AlertCircle size={22} aria-hidden="true" /></div>
-      <h2 id="confirm-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">{title}</h2>
-      <p id="confirm-description" className="mt-2 text-sm text-[var(--oppa-text-muted)]">{description}</p>
-      <div className="mt-6 flex justify-end gap-2">
-        <button type="button" onClick={onCancel} disabled={busy} className="rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Cancel</button>
-        <button type="button" onClick={onConfirm} disabled={busy} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">{busy ? 'Removing…' : confirmLabel}</button>
-      </div>
-    </section>
-  </div>
-);
+}> = ({ title, description, confirmLabel = 'Delete', onConfirm, onCancel, busy = false }) => {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const cancelStateRef = useRef({ onCancel, busy });
+
+  useEffect(() => {
+    cancelStateRef.current = { onCancel, busy };
+  }, [onCancel, busy]);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !cancelStateRef.current.busy) {
+        cancelStateRef.current.onCancel();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ));
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onCancel();
+    }}>
+      <section ref={(element) => { dialogRef.current = element; }} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description" className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl">
+        <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-red-50 text-red-600"><AlertCircle size={22} aria-hidden="true" /></div>
+        <h2 id="confirm-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">{title}</h2>
+        <p id="confirm-description" className="mt-2 text-sm text-[var(--oppa-text-muted)]">{description}</p>
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} disabled={busy} className="rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Cancel</button>
+          <button type="button" onClick={onConfirm} disabled={busy} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">{busy ? 'Removing…' : confirmLabel}</button>
+        </div>
+      </section>
+    </div>
+  );
+};
 
 const badgeMap: Record<string, { label: string; style: string }> = {
   active: { label: 'Active', style: 'bg-emerald-100 text-emerald-800' },

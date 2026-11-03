@@ -35,10 +35,6 @@ const getOverrides = (): Overrides => {
   }
 };
 
-const saveOverrides = (overrides: Overrides): void => {
-  localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
-};
-
 const getCustomProducts = (): Product[] => {
   try {
     const products = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]');
@@ -74,7 +70,6 @@ export const getAllProducts = async (): Promise<Product[]> => {
   if (productsCache && productsCache.expiresAt > Date.now()) return productsCache.promise;
 
   const request = (async () => {
-   try {
     const deletedProductIds = new Set(getDeletedProducts());
     const overrides = getOverrides();
 
@@ -95,18 +90,15 @@ export const getAllProducts = async (): Promise<Product[]> => {
       if (a.category > b.category) return 1;
       return a.name.localeCompare(b.name);
     });
-    } catch {
-    const custom = getCustomProducts();
-    return custom.sort((a, b) => {
-      if (a.category < b.category) return -1;
-      if (a.category > b.category) return 1;
-      return a.name.localeCompare(b.name);
-    });
-   }
   })();
 
   productsCache = { expiresAt: Date.now() + CACHE_TTL, promise: request };
-  return request;
+  try {
+    return await request;
+  } catch (error) {
+    if (productsCache?.promise === request) productsCache = null;
+    throw error;
+  }
 };
 
 export const getArchivedProducts = async (): Promise<Product[]> => (
@@ -120,27 +112,15 @@ export const archiveProduct = async (productId: string): Promise<void> => {
 
 export const restoreProduct = async (productId: string): Promise<void> => {
   await productService.restoreAdminProduct(productId);
+  const deleted = new Set(getDeletedProducts());
+  deleted.delete(productId);
+  saveDeletedProducts(Array.from(deleted));
   notifyProductsUpdated();
 };
 
 export const toggleAvailability = async (productId: string): Promise<void> => {
-  try {
-    await productService.toggleAvailability(productId);
-    notifyProductsUpdated();
-  } catch {
-    const all = await getAllProducts();
-    const product = all.find((p) => p.id === productId);
-    if (!product) return;
-    const overrides = getOverrides();
-    const nextAvailability = !product.isAvailable;
-    overrides[productId] = {
-      ...overrides[productId],
-      is_available: nextAvailability,
-      isAvailable: nextAvailability,
-    };
-    saveOverrides(overrides);
-    notifyProductsUpdated();
-  }
+  await productService.toggleAvailability(productId);
+  notifyProductsUpdated();
 };
 
 export const updateProduct = async (productId: string, changes: Partial<Product>, imageFile?: File): Promise<void> => {

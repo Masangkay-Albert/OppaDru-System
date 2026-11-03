@@ -34,6 +34,7 @@ export interface AddonGroup {
 
 export interface Product {
   id: string;
+  franchise_id?: string | null;
   name: string;
   description: string;
   price: number;

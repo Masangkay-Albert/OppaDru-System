@@ -47,7 +47,7 @@ trait ProductAdminActions
         return response()->json(['data' => $products]);
     }
 
-    public function archive(Request $request, $id)
+    public function archive(Request $request, string $id)
     {
         if (! $this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
@@ -61,7 +61,7 @@ trait ProductAdminActions
         return response()->json(['message' => 'Product archived successfully.']);
     }
 
-    public function restore(Request $request, $id)
+    public function restore(Request $request, string $id)
     {
         if (! $this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
@@ -112,7 +112,7 @@ trait ProductAdminActions
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $payload = $request->all();
+        $payload = $request->except('franchise_id');
         $payload['image'] = $this->normalizeProductImage($request->input('image'));
 
         $validator = Validator::make($payload, [
@@ -130,7 +130,9 @@ trait ProductAdminActions
 
         $name = trim((string) $request->name);
         $normalizedName = strtolower(preg_replace('/\s+/', ' ', $name));
-        $product = Product::whereRaw('LOWER(TRIM(name)) = ?', [$normalizedName])->first();
+        $product = Product::whereNull('franchise_id')
+            ->whereRaw('LOWER(TRIM(name)) = ?', [$normalizedName])
+            ->first();
 
         if ($product) {
             $product->update($payload);
@@ -142,14 +144,14 @@ trait ProductAdminActions
         return response()->json(['product' => $product, 'message' => 'Product created/updated successfully!'], 201);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         if (! $this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
         $product = Product::findOrFail($id);
-        $payload = $request->all();
+        $payload = $request->except('franchise_id');
 
         if ($request->has('image')) {
             $payload['image'] = $this->normalizeProductImage($request->input('image'));
@@ -173,7 +175,7 @@ trait ProductAdminActions
         return response()->json(['product' => $product, 'message' => 'Product updated successfully!']);
     }
 
-    public function destroy(Request $request, $id)
+    public function destroy(Request $request, string $id)
     {
         if (! $this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
@@ -216,7 +218,7 @@ trait ProductAdminActions
         return response()->json(['message' => 'Archived product permanently deleted.']);
     }
 
-    public function toggleAvailability(Request $request, $id)
+    public function toggleAvailability(Request $request, string $id)
     {
         if (! $this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);

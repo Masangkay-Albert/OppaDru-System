@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Product;
 
 use App\Models\Product;
+use App\Services\FranchiseInventoryService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use App\Services\FranchiseInventoryService;
 
 trait ProductFranchiseActions
 {
@@ -21,6 +24,54 @@ trait ProductFranchiseActions
         return response()->json($this->franchiseProductQuery($request)->get());
     }
 
+    public function franchiseArchivedIndex(Request $request)
+    {
+        $franchiseUser = $this->franchiseUser($request);
+        if (! $franchiseUser) {
+            return response()->json(['message' => 'Franchise access required'], 403);
+        }
+
+        $products = Product::withTrashed()
+            ->where('franchise_id', $franchiseUser->franchise_id)
+            ->whereNotNull('deleted_at')
+            ->withCatalogColumns()
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json(['data' => $products]);
+    }
+
+    public function franchiseArchive(Request $request, string $id)
+    {
+        $franchiseUser = $this->franchiseUser($request);
+        if (! $franchiseUser) {
+            return response()->json(['message' => 'Franchise access required'], 403);
+        }
+
+        $product = Product::where('franchise_id', $franchiseUser->franchise_id)->findOrFail($id);
+        $product->delete();
+
+        return response()->json(['message' => 'Branch product archived successfully.']);
+    }
+
+    public function franchiseRestore(Request $request, string $id)
+    {
+        $franchiseUser = $this->franchiseUser($request);
+        if (! $franchiseUser) {
+            return response()->json(['message' => 'Franchise access required'], 403);
+        }
+
+        $product = Product::withTrashed()
+            ->where('franchise_id', $franchiseUser->franchise_id)
+            ->findOrFail($id);
+        if ($product->trashed()) {
+            $product->restore();
+        }
+
+        return response()->json(['product' => $product, 'message' => 'Branch product restored successfully.']);
+    }
+
     public function franchiseStore(Request $request, FranchiseInventoryService $inventoryService)
     {
         $franchiseUser = $this->franchiseUser($request);
@@ -28,7 +79,7 @@ trait ProductFranchiseActions
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
-        $payload = $request->all();
+        $payload = $request->except('franchise_id');
         $payload['franchise_id'] = $franchiseUser->franchise_id;
         $payload['image'] = $this->normalizeProductImage($request->input('image'));
 
@@ -96,7 +147,7 @@ trait ProductFranchiseActions
         return response()->json($uploadedImage);
     }
 
-    public function franchiseUpdate(Request $request, $id)
+    public function franchiseUpdate(Request $request, string $id)
     {
         $franchiseUser = $this->franchiseUser($request);
         if (! $franchiseUser) {
@@ -104,7 +155,7 @@ trait ProductFranchiseActions
         }
 
         $product = Product::where('franchise_id', $franchiseUser->franchise_id)->findOrFail($id);
-        $payload = $request->all();
+        $payload = $request->except('franchise_id');
 
         if ($request->has('image')) {
             $payload['image'] = $this->normalizeProductImage($request->input('image'));
@@ -128,20 +179,55 @@ trait ProductFranchiseActions
         return response()->json(['product' => $product, 'message' => 'Franchise product updated successfully!']);
     }
 
-    public function franchiseDestroy(Request $request, $id)
+    public function franchiseDestroy(Request $request, string $id)
     {
         $franchiseUser = $this->franchiseUser($request);
         if (! $franchiseUser) {
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
-        $product = Product::where('franchise_id', $franchiseUser->franchise_id)->findOrFail($id);
-        $product->delete();
+        $product = Product::withTrashed()
+            ->where('franchise_id', $franchiseUser->franchise_id)
+            ->findOrFail($id);
 
-        return response()->json(['message' => 'Franchise product deleted successfully!']);
+        if (! $product->trashed()) {
+            $product->delete();
+
+            return response()->json(['message' => 'Branch product archived successfully.']);
+        }
+
+        try {
+            DB::transaction(function () use ($product) {
+                if (Schema::hasTable('product_addon_groups')) {
+                    DB::table('product_addon_groups')->where('product_id', $product->id)->delete();
+                }
+                if (Schema::hasTable('franchise_inventory')) {
+                    DB::table('franchise_inventory')->where('product_id', $product->id)->delete();
+                }
+                if (Schema::hasTable('order_items') && Schema::hasColumn('order_items', 'product_id')) {
+                    DB::table('order_items')
+                        ->where('product_id', $product->id)
+                        ->update(['product_id' => null]);
+                }
+
+                $product->forceDelete();
+            });
+        } catch (QueryException $exception) {
+            Log::warning('Archived branch product could not be permanently deleted because it is still referenced.', [
+                'product_id' => $product->id,
+                'franchise_id' => $product->franchise_id,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'This archived product is still referenced by system records and cannot be permanently deleted.',
+            ], 409);
+        }
+
+        return response()->json(['message' => 'Archived branch product permanently deleted.']);
     }
 
-    public function franchiseToggleAvailability(Request $request, $id)
+    public function franchiseToggleAvailability(Request $request, string $id)
     {
         $franchiseUser = $this->franchiseUser($request);
         if (! $franchiseUser) {

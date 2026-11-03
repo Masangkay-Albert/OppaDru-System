@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AddonGroup;
+use App\Models\Franchise;
 use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +48,32 @@ class ProductDeletionTest extends TestCase
         $this->getJson('/api/products/available')->assertOk()->assertJsonMissing(['id' => $product->id]);
         $this->getJson('/api/admin/products', $headers)->assertOk()->assertJsonMissing(['id' => $product->id]);
         $this->assertSame(1, DB::table('product_addon_groups')->where('product_id', $product->id)->count());
+    }
+
+    public function test_admin_products_list_includes_products_from_all_branches(): void
+    {
+        $login = $this->postJson('/api/admin/login', [
+            'email' => 'admin@oppadru.com',
+            'password' => 'Admin@123',
+        ])->assertOk();
+        $branch = Franchise::create([
+            'name' => 'Branch Product Scope',
+            'status' => 'active',
+        ]);
+        $product = Product::create([
+            'name' => 'Branch-owned admin listing product',
+            'description' => 'Visible in the admin catalog',
+            'price' => 100,
+            'category' => 'chicken',
+            'franchise_id' => $branch->id,
+            'image' => '',
+            'is_available' => true,
+        ]);
+        $headers = ['Authorization' => 'Bearer '.$login->json('token')];
+
+        $this->getJson('/api/admin/products', $headers)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $product->id]);
     }
 
     public function test_archiving_hides_product_from_customer_catalog_and_admin_can_restore_it(): void
