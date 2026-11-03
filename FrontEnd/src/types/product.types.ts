@@ -66,4 +66,9 @@ export interface CartItem extends Product {
   selectedSize?: ProductSize;
   cartIssue?: 'unavailable' | 'price-changed';
   currentBranchPrice?: number;
+  priceUpdateNotice?: {
+    previousPrice: number;
+    currentPrice: number;
+    removedOptions: boolean;
+  };
 }

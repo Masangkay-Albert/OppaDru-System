@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search, UserPlus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import AccountCreationModal, { type AccountCreationValues } from '../../admin-side/components/AccountCreationModal';
 import { AdminDate, Avatar, DataTable, EmptyState, PageHeader, RowActionsMenu, StatusBadge } from '../../admin-side/components/AdminUI';
 import { RoleBadge } from '../components/FranchisePortalUI';
@@ -237,10 +237,13 @@ const FranchiseUsersPage: React.FC = () => {
       </section>}
 
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-        <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]">
-          <Search size={17} aria-hidden="true" />
-          <SearchInput aria-label="Search branch users by name or email" value={search} onChange={setSearch} placeholder="Search name or email..." />
-        </label>
+        <SearchInput
+          aria-label="Search branch users by name or email"
+          value={search}
+          onChange={setSearch}
+          placeholder="Search name or email..."
+          wrapperClassName="min-w-0 flex-1"
+        />
         <Select<string> aria-label="Filter branch users by position" value={positionFilter} onChange={setPositionFilter} options={positionOptions} className="w-full sm:w-48" />
       </div>
 

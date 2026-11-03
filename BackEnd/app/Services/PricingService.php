@@ -6,6 +6,8 @@ use App\Models\Product;
 use App\Models\Addon;
 use App\Models\AddonGroup;
 use App\Models\SystemSetting;
+use App\Services\FranchiseInventoryService;
+use App\Support\ProductOptionRules;
 
 class PricingService
 {
@@ -63,16 +65,28 @@ class PricingService
         });
     }
 
-    public function calculate(array $items, string $deliveryType = 'standard', float $voucherDiscount = 0, float $discountRate = 0, ?array $deliveryCoordinates = null, ?array $originCoordinates = null): array
+    public function calculate(
+        array $items,
+        string $deliveryType = 'standard',
+        float $voucherDiscount = 0,
+        float $discountRate = 0,
+        ?array $deliveryCoordinates = null,
+        ?array $originCoordinates = null,
+        ?string $franchiseId = null,
+    ): array
     {
         $productIds = collect($items)->pluck('product_id')->filter()->unique();
         $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
+        $branchPrices = $franchiseId
+            ? app(FranchiseInventoryService::class)->branchPriceOverrides($franchiseId, $productIds->all())
+            : [];
         $subtotal = 0;
         foreach ($items as $item) {
             $product = $products->get($item['product_id'] ?? null);
             if (!$product || (int) ($item['quantity'] ?? 0) < 1) {
                 throw new \InvalidArgumentException('One or more order items are invalid.');
             }
+            ProductOptionRules::validateSelections($product, $item);
             $allowedGroupIds = AddonGroup::where('is_active', true)
                 ->where(function ($query) use ($product) {
                     $query->whereJsonContains('applicable_categories', $product->category)
@@ -90,15 +104,7 @@ class PricingService
                 $quantity = max(1, (int) ($addon['quantity'] ?? 1));
                 return (float) $selectedAddons->get($addon['id'])->price * $quantity;
             });
-            $unitPrice = (float) $product->price;
-            $selectedSize = $item['selected_size'] ?? null;
-            if (in_array(strtolower((string) $product->category), ['fruity-soda-milk', 'fresh-lemonade'], true)) {
-                $unitPrice += match ($selectedSize) {
-                    'Small' => -10,
-                    'Large' => 20,
-                    default => 0,
-                };
-            }
+            $unitPrice = $branchPrices[$product->id] ?? (float) $product->price;
             $subtotal += ($unitPrice + $addons) * (int) $item['quantity'];
         }
         $subtotal = round($subtotal);

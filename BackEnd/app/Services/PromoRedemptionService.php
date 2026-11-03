@@ -6,6 +6,8 @@ use App\Models\Addon;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Promo;
+use App\Services\FranchiseInventoryService;
+use App\Support\ProductOptionRules;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -42,7 +44,14 @@ class PromoRedemptionService
     /**
      * @return array{promo: Promo, code: string, discount: float}
      */
-    public function evaluate(string $code, array $items, ?string $userId = null, bool $lock = false, string $channel = 'customer'): array
+    public function evaluate(
+        string $code,
+        array $items,
+        ?string $userId = null,
+        bool $lock = false,
+        string $channel = 'customer',
+        ?string $franchiseId = null,
+    ): array
     {
         $normalizedCode = strtoupper((string) preg_replace('/\s+/', '', trim($code)));
         $query = Promo::query()->whereRaw('UPPER(code) = ?', [$normalizedCode]);
@@ -66,6 +75,9 @@ class PromoRedemptionService
         $productIds = collect($items)->map(fn (array $item) => (string) ($item['product_id'] ?? $item['id'] ?? ''))
             ->filter()->unique()->values();
         $products = Product::query()->whereIn('id', $productIds)->get()->keyBy('id');
+        $branchPrices = $franchiseId
+            ? app(FranchiseInventoryService::class)->branchPriceOverrides($franchiseId, $productIds->all())
+            : [];
         $categories = array_map('strtolower', $promo->applicable_categories ?? []);
         if (array_intersect($categories, ['all', 'all_categories']) !== []) {
             $categories = [];
@@ -83,14 +95,8 @@ class PromoRedemptionService
                 continue;
             }
 
-            $unitPrice = (float) $product->price;
-            if (in_array(strtolower((string) $product->category), ['fruity-soda-milk', 'fresh-lemonade'], true)) {
-                $unitPrice += match ($item['selected_size'] ?? null) {
-                    'Small' => -10,
-                    'Large' => 20,
-                    default => 0,
-                };
-            }
+            ProductOptionRules::validateSelections($product, $item);
+            $unitPrice = $branchPrices[$product->id] ?? (float) $product->price;
             $addonIds = collect($item['selected_addons'] ?? $item['selectedAddons'] ?? [])
                 ->pluck('id')->filter()->unique();
             $addons = Addon::query()->whereIn('id', $addonIds)->get()->keyBy('id');

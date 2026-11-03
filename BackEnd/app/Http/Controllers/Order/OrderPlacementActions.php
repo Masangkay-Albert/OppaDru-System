@@ -243,6 +243,9 @@ trait OrderPlacementActions
                     $promoCode,
                     $request->input('items', []),
                     (string) $request->user()->id,
+                    false,
+                    'customer',
+                    (string) $branchResolution['branch']->id,
                 );
                 $promoDiscount = $promoResult['discount'];
                 $promoId = $promoResult['promo']->id;
@@ -270,6 +273,7 @@ trait OrderPlacementActions
                 $discountRate,
                 $request->input('delivery_coordinates'),
                 ['lat' => (float) $branchResolution['branch']->latitude, 'lng' => (float) $branchResolution['branch']->longitude],
+                (string) $branchResolution['branch']->id,
             );
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
@@ -307,7 +311,10 @@ trait OrderPlacementActions
             }
         }
 
-        $orderItems = $this->orderDataService->buildOrderItems($request->items);
+        $orderItems = $this->orderDataService->buildOrderItems(
+            $request->items,
+            (string) $branchResolution['branch']->id,
+        );
 
         $user = $request->user();
         $userId = $user->id;
@@ -351,6 +358,8 @@ trait OrderPlacementActions
                         $request->input('items', []),
                         (string) $userId,
                         true,
+                        'customer',
+                        (string) $branchResolution['branch']->id,
                     );
                     if (
                         $lockedResult['promo']->id !== $promoId

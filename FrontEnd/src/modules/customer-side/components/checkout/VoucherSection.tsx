@@ -7,12 +7,14 @@ import { Tag, Check, Loader2, X } from 'lucide-react';
 
 interface VoucherSectionProps {
   cartItems: CartItem[];
+  branchId?: string | null;
   onVoucherApplied: (discount: number, promo?: { code: string }) => void;
   onVoucherRemoved: () => void;
 }
 
 const VoucherSection: React.FC<VoucherSectionProps> = ({
   cartItems,
+  branchId,
   onVoucherApplied, 
   onVoucherRemoved 
 }) => {
@@ -30,7 +32,7 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
     selected_size: item.selectedSize,
     selected_addons: (item.selectedAddons || []).map((addon) => ({ id: addon.id, quantity: addon.quantity || 1 })),
   })), [cartItems]);
-  const cartSignature = JSON.stringify(promoItems);
+  const cartSignature = JSON.stringify({ branchId, items: promoItems });
 
   useEffect(() => {
     callbacksRef.current = { onVoucherApplied, onVoucherRemoved };
@@ -42,7 +44,7 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
     validatedCartSignature.current = cartSignature;
     const currentRequestId = ++requestId.current;
     let active = true;
-    void validateVoucherAsync(appliedCode, promoItems).then((result) => {
+    void validateVoucherAsync(appliedCode, promoItems, 'customer', branchId).then((result) => {
       if (!active || requestId.current !== currentRequestId) return;
       if (result.isValid) {
         setAppliedDiscount(result.discount);
@@ -58,7 +60,7 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
     return () => {
       active = false;
     };
-  }, [cartSignature, appliedCode, promoItems]);
+  }, [cartSignature, appliedCode, branchId, promoItems]);
 
   const handleApplyCode = async () => {
     if (isValidating) return;
@@ -72,7 +74,7 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
     setVoucherError('');
 
     try {
-      const result = await validateVoucherAsync(code, promoItems);
+      const result = await validateVoucherAsync(code, promoItems, 'customer', branchId);
       if (result.isValid) {
         const applied = result.code || code;
         validatedCartSignature.current = cartSignature;

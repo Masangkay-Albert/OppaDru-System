@@ -77,14 +77,18 @@ trait FranchisePosOrderActions
             return response()->json(['message' => 'One or more items are unavailable at this branch.'], 422);
         }
 
-        $items = collect($request->input('items'))->map(function (array $item) use ($products) {
+        $branchPrices = app(FranchiseInventoryService::class)->branchPriceOverrides(
+            (string) $user->franchise_id,
+            $productIds->all(),
+        );
+        $items = collect($request->input('items'))->map(function (array $item) use ($products, $branchPrices) {
             $product = $products->get($item['product_id']);
 
             return [
                 'product_id' => $product->id,
                 'product_name' => $product->name,
                 'category' => $product->category,
-                'product_price' => (float) $product->price,
+                'product_price' => $branchPrices[$product->id] ?? (float) $product->price,
                 'quantity' => (int) $item['quantity'],
                 'selected_addons' => $item['selected_addons'] ?? [],
                 'selected_size' => $item['selected_size'] ?? null,
@@ -131,29 +135,20 @@ trait FranchisePosOrderActions
             return response()->json(['message' => 'One or more items are unavailable at this branch.'], 422);
         }
 
-        foreach ($items as $index => $item) {
-            $product = $products->get($item['product_id']);
-            if (in_array(strtolower($product->category), ['fruity-soda-milk', 'fresh-lemonade'], true)
-                && empty($item['selected_size'])) {
-                return response()->json(['message' => 'Select a size for each drink before placing the order.'], 422);
-            }
-        }
-
         try {
-            $pricing = app(PricingService::class)->calculate($items);
+            $pricing = app(PricingService::class)->calculate(
+                $items,
+                'onsite',
+                0,
+                0,
+                null,
+                null,
+                (string) $user->franchise_id,
+            );
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
         $subtotal = max(0, round($pricing['subtotal']));
-        foreach ($items as $index => $item) {
-            $basePrice = (float) $products->get($item['product_id'])->price;
-            $sizeAdjustment = match ($item['selected_size']) {
-                'Small' => -10,
-                'Large' => 20,
-                default => 0,
-            };
-            $items[$index]['product_price'] = max(0, $basePrice + $sizeAdjustment);
-        }
         $discountType = $request->input('discount_type');
         $discountRate = $discountType ? 0.20 : 0;
         $posTotals = app(PricingService::class)->calculatePosDiscount($subtotal, (bool) $discountType);
@@ -173,7 +168,14 @@ trait FranchisePosOrderActions
                     ], 429);
                 }
                 try {
-                    $promoResult = $promoRedemptionService->evaluate($promoCode, $items, null, false, 'cashier');
+                    $promoResult = $promoRedemptionService->evaluate(
+                        $promoCode,
+                        $items,
+                        null,
+                        false,
+                        'cashier',
+                        (string) $user->franchise_id,
+                    );
                     $promo = $promoResult['promo'];
                     $promoDiscount = $promoResult['discount'];
                 } catch (PromoRedemptionException $exception) {
@@ -243,13 +245,7 @@ trait FranchisePosOrderActions
         }
 
         $orderDataService = app(OrderDataService::class);
-        $orderItems = collect($orderDataService->buildOrderItems($items))
-            ->map(function (array $orderItem, int $index) use ($items) {
-                $orderItem['product_price'] = $items[$index]['product_price'];
-
-                return $orderItem;
-            })
-            ->all();
+        $orderItems = $orderDataService->buildOrderItems($items, (string) $user->franchise_id);
         try {
             $order = DB::transaction(function () use (
                 $inventoryService,
@@ -283,6 +279,7 @@ trait FranchisePosOrderActions
                             null,
                             true,
                             'cashier',
+                            (string) $user->franchise_id,
                         );
                         if (
                             $lockedPromoResult['promo']->id !== $promo->id

@@ -39,13 +39,14 @@ export const validateVoucherAsync = async (
   code: string,
   items: PromoCartItem[],
   channel: 'customer' | 'cashier' = 'customer',
+  franchiseId?: string | null,
 ): Promise<VoucherResult> => {
   if (!code.trim()) {
     return { isValid: false, discount: 0, errorCode: 'PROMO_REQUIRED', error: 'Please enter a promo code.' };
   }
 
   try {
-    const result = await promoService.validatePromo(code, items, channel);
+    const result = await promoService.validatePromo(code, items, channel, franchiseId);
     return result.isValid
       ? { isValid: true, discount: result.discount, code: result.code }
       : { isValid: false, discount: 0, errorCode: result.errorCode, error: errorMessage(result) };

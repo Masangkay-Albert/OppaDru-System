@@ -44,11 +44,42 @@ export const useGCashPaymentFlow = ({
   const [isCopied, setIsCopied] = useState(false);
   const [result, setResult] = useState<PaymentResult | null>(null);
   const [paymentAmount, setPaymentAmount] = useState(amount);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const completionHandledRef = useRef(false);
   const paymentCreationRef = useRef<Promise<void> | null>(null);
+  const latestPropsRef = useRef({
+    amount,
+    items,
+    deliveryType,
+    promoCode,
+    cashierMode,
+    discountType,
+    discountIdNumber,
+    discountRate,
+    deliveryCoordinates,
+    franchiseId,
+    onPaymentComplete,
+    onPaymentCreated,
+  });
+  useEffect(() => {
+    latestPropsRef.current = {
+      amount,
+      items,
+      deliveryType,
+      promoCode,
+      cashierMode,
+      discountType,
+      discountIdNumber,
+      discountRate,
+      deliveryCoordinates,
+      franchiseId,
+      onPaymentComplete,
+      onPaymentCreated,
+    };
+  });
 
   const handleClose = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -59,6 +90,7 @@ export const useGCashPaymentFlow = ({
     setIsCopied(false);
     setResult(null);
     setPaymentAmount(amount);
+    setRetryAttempt(0);
   }, [amount]);
 
   const handleRetry = useCallback(() => {
@@ -68,6 +100,7 @@ export const useGCashPaymentFlow = ({
     setReferenceNumber('');
     setIsCopied(false);
     setPaymentAmount(amount);
+    setRetryAttempt((attempt) => attempt + 1);
   }, [amount]);
 
   const handleCopyReference = useCallback(async () => {
@@ -91,14 +124,15 @@ export const useGCashPaymentFlow = ({
   useEffect(() => {
     if (!isOpen) return;
 
+    const current = latestPropsRef.current;
     completionHandledRef.current = false;
 
     if (paymentCreationRef.current) return;
 
-    const token = cashierMode
+    const token = current.cashierMode
       ? sessionStorage.getItem('employee_token')
       : localStorage.getItem('auth_token');
-    const paymentUrl = cashierMode
+    const paymentUrl = current.cashierMode
       ? `${API_URL}/employee/pos/payments/gcash`
       : `${API_URL}/payment/gcash/create`;
     paymentCreationRef.current = fetch(paymentUrl, {
@@ -110,17 +144,17 @@ export const useGCashPaymentFlow = ({
           : {}),
       },
       body: JSON.stringify({
-        amount,
-        delivery_type: deliveryType,
-        promo_code: promoCode || undefined,
-        ...(cashierMode ? {
-          discount_type: discountType || undefined,
-          discount_id_number: discountIdNumber || undefined,
+        amount: current.amount,
+        delivery_type: current.deliveryType,
+        promo_code: current.promoCode || undefined,
+        ...(current.cashierMode ? {
+          discount_type: current.discountType || undefined,
+          discount_id_number: current.discountIdNumber || undefined,
         } : {}),
-        discount_rate: discountRate,
-        delivery_coordinates: deliveryCoordinates,
-        franchise_id: franchiseId || null,
-        items: items.map((item) => ({
+        discount_rate: current.discountRate,
+        delivery_coordinates: current.deliveryCoordinates,
+        franchise_id: current.franchiseId || null,
+        items: current.items.map((item) => ({
           product_id: item.id,
           quantity: item.quantity,
           selected_size: item.selectedSize,
@@ -133,29 +167,29 @@ export const useGCashPaymentFlow = ({
       }),
     }).then(async (response) => {
       const data = await response.json();
-      const payment = cashierMode ? data.data : data;
+      const payment = current.cashierMode ? data.data : data;
       if (!response.ok || !data.success || !payment?.reference) {
         setResult({
           success: false,
           message: data.message || 'Unable to start GCash payment.',
           timestamp: new Date().toISOString(),
           paymentMethod: 'gcash',
-          amount,
+          amount: current.amount,
         });
         setStep('result');
         return;
       }
 
-      setPaymentAmount(Number(payment.amount) || amount);
+      setPaymentAmount(Number(payment.amount) || current.amount);
       setReferenceNumber(payment.reference);
-      onPaymentCreated?.(payment.reference);
+      current.onPaymentCreated?.(payment.reference);
     }).catch(() => {
       setResult({
         success: false,
         message: 'Unable to connect to the payment server.',
         timestamp: new Date().toISOString(),
         paymentMethod: 'gcash',
-        amount,
+        amount: current.amount,
       });
       setStep('result');
     }).finally(() => {
@@ -166,7 +200,7 @@ export const useGCashPaymentFlow = ({
       if (pollRef.current) clearInterval(pollRef.current);
       if (autoCloseRef.current) clearTimeout(autoCloseRef.current);
     };
-  }, [amount, cashierMode, deliveryCoordinates, deliveryType, discountIdNumber, discountRate, discountType, franchiseId, isOpen, items, onPaymentCreated, promoCode]);
+  }, [isOpen, retryAttempt]);
 
   useEffect(() => {
     if (!isOpen || !referenceNumber) return;

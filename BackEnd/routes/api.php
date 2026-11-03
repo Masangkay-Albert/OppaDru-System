@@ -187,6 +187,7 @@ Route::get('/payment/order/{reference}', [PaymentController::class, 'getOrderByR
 Route::post('/payment/confirm/{reference}', [PaymentController::class, 'confirmPaymentFromMobile']);
 Route::post('/payment/gcash/webhook', [PaymentController::class, 'webhook']);
 Route::get('/payment/status/{reference}', [PaymentController::class, 'getPaymentStatus']);
+Route::post('/payment/gcash/create', [PaymentController::class, 'createGCashPayment'])->middleware('throttle:10,1');
 
 Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::get('/orders/user', [OrderController::class, 'getUserOrders']);
@@ -213,7 +214,6 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
 
     Route::post('/payment/gcash/request-otp', [PaymentController::class, 'requestGCashOTP']);
     Route::post('/payment/gcash/verify', [PaymentController::class, 'verifyGCash']);
-    Route::post('/payment/gcash/create', [PaymentController::class, 'createGCashPayment']);
     Route::post('/payment/card/process', [PaymentController::class, 'processCard']);
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 

@@ -70,6 +70,9 @@ trait PaymentCheckoutActions
                     $promoCode,
                     $request->input('items', []),
                     $userId,
+                    false,
+                    'customer',
+                    $franchiseId,
                 )['discount'];
             }
             $pricing = $this->pricingService->calculate(
@@ -79,6 +82,7 @@ trait PaymentCheckoutActions
                 (float) $request->input('discount_rate', 0),
                 $request->input('delivery_coordinates'),
                 ['lat' => (float) $branchResolution['branch']->latitude, 'lng' => (float) $branchResolution['branch']->longitude],
+                $franchiseId,
             );
             if (round((float) $request->amount) !== $pricing['total']) {
                 return ['success' => false, 'message' => 'The checkout total has changed. Please review your order.', 'status' => 422];

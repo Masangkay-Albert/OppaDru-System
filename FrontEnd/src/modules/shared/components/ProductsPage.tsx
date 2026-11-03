@@ -3,6 +3,7 @@ import { Archive, ChevronDown, ChevronUp, Eye, Image as ImageIcon, ImagePlus, La
 import type { Product, ProductCategory } from '../../../types/product.types';
 import type { ProductPermission } from '../../../services/franchiseProductPermissions';
 import { formatCurrency } from '../../../utils/formatters';
+import { isFixedPriceBeverage } from '../../../services/productOptionRules';
 import { categories } from '../../../data/mockData';
 import { AvailabilitySwitch, ConfirmDialog, EmptyState, PageHeader, ProductThumbnail, RowActionsMenu, Toast } from '../../admin-side/components/AdminUI';
 import Select from '../../../components/ui/Select';
@@ -807,7 +808,11 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                   <Select
                     label="Category"
                     value={form.category}
-                    onChange={(category) => setForm((prev) => ({ ...prev, category: category as ProductCategory }))}
+                    onChange={(category) => setForm((prev) => ({
+                      ...prev,
+                      category: category as ProductCategory,
+                      ...(modalMode === 'add' && isFixedPriceBeverage(category) ? { price: '99' } : {}),
+                    }))}
                     options={categoryOptions.filter((option) => option.value !== 'all')}
                   />
                 </div>

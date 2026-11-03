@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderItemAddon;
 use App\Models\Product;
+use App\Services\FranchiseInventoryService;
 
 class OrderDataService
 {
@@ -145,13 +146,22 @@ class OrderDataService
         return $baseUrl . '/storage/' . ltrim($image, '/');
     }
 
-    public function buildOrderItems(array $items): array
+    public function buildOrderItems(array $items, ?string $franchiseId = null): array
     {
         $orderItems = [];
+        $productIds = collect($items)
+            ->map(fn (array $item) => $item['product_id'] ?? $item['id'] ?? null)
+            ->filter()
+            ->unique()
+            ->values();
+        $products = Product::query()->whereIn('id', $productIds)->get()->keyBy('id');
+        $branchPrices = $franchiseId
+            ? app(FranchiseInventoryService::class)->branchPriceOverrides($franchiseId, $productIds->all())
+            : [];
 
         foreach ($items as $item) {
             $rawProductId = $item['product_id'] ?? ($item['id'] ?? null);
-            $product = $rawProductId ? Product::find($rawProductId) : null;
+            $product = $rawProductId ? $products->get($rawProductId) : null;
             $addonList = $item['selected_addons'] ?? ($item['selectedAddons'] ?? []);
             $addonIds = collect($addonList)->pluck('id')->filter();
             $addons = Addon::whereIn('id', $addonIds)->get()->keyBy('id');
@@ -182,7 +192,9 @@ class OrderDataService
             $orderItems[] = [
                 'product_id' => $product?->id ?? $rawProductId,
                 'product_name' => $product?->name ?? ($item['product_name'] ?? ($item['name'] ?? 'Item')),
-                'product_price' => $product?->price ?? (float) ($item['product_price'] ?? ($item['price'] ?? 0)),
+                'product_price' => $product
+                    ? ($branchPrices[$product->id] ?? (float) $product->price)
+                    : (float) ($item['product_price'] ?? ($item['price'] ?? 0)),
                 'quantity' => max(1, (int) ($item['quantity'] ?? 1)),
                 'selected_addons' => $selectedAddons,
                 'selected_size' => $item['selected_size'] ?? null,

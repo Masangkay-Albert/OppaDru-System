@@ -1083,7 +1083,7 @@ class FranchiseAccessTest extends TestCase
             ->assertJsonPath('data.total_orders', 1);
     }
 
-    public function test_franchise_pos_validates_branch_addons_and_prices_drink_sizes_server_side(): void
+    public function test_franchise_pos_validates_branch_addons_and_preserves_other_category_addons(): void
     {
         $branch = Franchise::create([
             'name' => 'Options Branch',
@@ -1108,10 +1108,10 @@ class FranchiseAccessTest extends TestCase
             'can_process_pos' => true,
         ]);
         $drink = Product::create([
-            'name' => 'Branch Lemonade',
-            'description' => 'Customizable branch drink',
+            'name' => 'Branch Chicken Meal',
+            'description' => 'Customizable branch meal',
             'price' => 100,
-            'category' => 'fresh-lemonade',
+            'category' => 'chicken',
             'image' => '',
             'franchise_id' => $branch->id,
             'is_available' => true,
@@ -1122,7 +1122,7 @@ class FranchiseAccessTest extends TestCase
             'selection_type' => 'multiple',
             'supports_quantity' => false,
             'max_selections' => 2,
-            'applicable_categories' => ['fresh-lemonade'],
+            'applicable_categories' => ['chicken'],
             'is_active' => true,
         ]);
         $branchAddon = Addon::create([
@@ -1136,7 +1136,7 @@ class FranchiseAccessTest extends TestCase
             'name' => 'Other branch topping',
             'selection_type' => 'multiple',
             'supports_quantity' => false,
-            'applicable_categories' => ['fresh-lemonade'],
+            'applicable_categories' => ['chicken'],
             'is_active' => true,
         ]);
         $otherAddon = Addon::create([
@@ -1152,7 +1152,7 @@ class FranchiseAccessTest extends TestCase
         ])->assertOk();
         $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
 
-        $this->getJson('/api/franchise/addon-groups?category=fresh-lemonade&product_id=' . $drink->id, $headers)
+        $this->getJson('/api/franchise/addon-groups?category=chicken&product_id=' . $drink->id, $headers)
             ->assertOk()
             ->assertJsonFragment(['name' => 'Branch toppings'])
             ->assertJsonMissing(['name' => 'Other branch topping']);
@@ -1161,7 +1161,6 @@ class FranchiseAccessTest extends TestCase
             'items' => [[
                 'product_id' => $drink->id,
                 'quantity' => 1,
-                'selected_size' => 'Large',
                 'selected_addons' => [['id' => $branchAddon->id, 'quantity' => 1]],
             ]],
             'dining_option' => 'takeout',
@@ -1169,16 +1168,15 @@ class FranchiseAccessTest extends TestCase
             'cash_tendered' => 200,
         ], $headers)->assertCreated();
 
-        $this->assertSame(135.0, (float) $response->json('order.total'));
-        $this->assertSame('Large', $response->json('order.items.0.selected_size'));
-        $this->assertSame(120.0, (float) $response->json('order.items.0.product_price'));
+        $this->assertSame(115.0, (float) $response->json('order.total'));
+        $this->assertNull($response->json('order.items.0.selected_size'));
+        $this->assertSame(100.0, (float) $response->json('order.items.0.product_price'));
         $this->assertSame(15.0, (float) $response->json('order.items.0.selected_addons.0.price'));
 
         $paymentPayload = [
             'items' => [[
                 'product_id' => $drink->id,
                 'quantity' => 1,
-                'selected_size' => 'Large',
                 'selected_addons' => [['id' => $branchAddon->id, 'quantity' => 1]],
             ]],
             'dining_option' => 'takeout',
@@ -1189,7 +1187,7 @@ class FranchiseAccessTest extends TestCase
         $payment = Payment::create([
             'reference' => 'GATEWAY-POS-REFERENCE',
             'provider' => 'paymongo',
-            'amount' => 135,
+            'amount' => 115,
             'status' => 'paid',
             'paid_at' => now(),
             'metadata' => [
@@ -1211,7 +1209,6 @@ class FranchiseAccessTest extends TestCase
             'items' => [[
                 'product_id' => $drink->id,
                 'quantity' => 1,
-                'selected_size' => 'Medium',
                 'selected_addons' => [['id' => $otherAddon->id, 'quantity' => 1]],
             ]],
             'dining_option' => 'takeout',
@@ -1239,7 +1236,7 @@ class FranchiseAccessTest extends TestCase
         ]);
         $product = Product::create([
             'name' => 'Payment Branch Drink',
-            'description' => 'Drink whose size is priced by the server',
+            'description' => 'Fixed-price drink',
             'price' => 100,
             'category' => 'fresh-lemonade',
             'image' => '',
@@ -1273,18 +1270,17 @@ class FranchiseAccessTest extends TestCase
             'items' => [[
                 'product_id' => $product->id,
                 'quantity' => 1,
-                'selected_size' => 'Large',
                 'selected_addons' => [],
             ]],
             'payment_method' => 'gcash',
         ], $headers)->assertCreated();
 
         $reference = $response->json('data.reference');
-        $this->assertSame(120.0, (float) $response->json('data.amount'));
+        $this->assertSame(100.0, (float) $response->json('data.amount'));
         $this->assertSame('https://paymongo.test/checkout', $response->json('data.checkout_url'));
         $this->assertDatabaseHas('payments', [
             'reference' => $reference,
-            'amount' => 120,
+            'amount' => 100,
             'status' => 'pending',
         ]);
         $this->assertSame('franchise_pos', data_get(Payment::where('reference', $reference)->first()->metadata, 'purpose'));

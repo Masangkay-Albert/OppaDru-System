@@ -149,8 +149,7 @@ const AdminReportsPage: React.FC = () => {
   const { admin } = useAdminAuth();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [filters, setFilters] = useState<ReportFilters>({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
-  const [quickRange, setQuickRange] = useState<QuickRange>('custom');
-  const [moreFiltersOpen, setMoreFiltersOpen] = useState(true);
+  const [quickRange, setQuickRange] = useState<QuickRange>('year');
   const [timelineStyle, setTimelineStyle] = useState<'line' | 'bar'>('line');
   const [savedGoal, setSavedGoal] = useState(0);
   const [goalInput, setGoalInput] = useState('');
@@ -292,13 +291,11 @@ const AdminReportsPage: React.FC = () => {
 
   const clearFilters = () => {
     setQuickRange('custom');
-    setMoreFiltersOpen(true);
     setFilters({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
   };
 
   const applyQuickRange = (range: QuickRange) => {
     setQuickRange(range);
-    if (range === 'custom') setMoreFiltersOpen(true);
     setFilters({ year: ALL_YEARS, month: ALL_FILTER, week: ALL_FILTER, day: ALL_FILTER, date: '', channel: ALL_CHANNELS });
   };
 
@@ -433,11 +430,10 @@ const AdminReportsPage: React.FC = () => {
           ] as const).map(([range, label]) => <button key={range} type="button" aria-pressed={quickRange === range} onClick={() => applyQuickRange(range)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${quickRange === range ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:border-[var(--oppa-green)] hover:text-[var(--oppa-green-dark)]'}`}>{label}</button>)}
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" aria-expanded={moreFiltersOpen} onClick={() => setMoreFiltersOpen((open) => !open)} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">{moreFiltersOpen ? 'Hide filters' : 'More filters'}</button>
           <button onClick={clearFilters} className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">Clear filters</button>
         </div>
       </div>
-      {moreFiltersOpen && <div className="mt-3 grid gap-3 border-t border-[var(--oppa-border)] pt-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {quickRange === 'custom' && <div className="mt-3 grid gap-3 border-t border-[var(--oppa-border)] pt-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <FilterSelect label="Year" value={filters.year} onChange={(value) => updateFilter('year', value)} options={[{ value: ALL_YEARS, label: 'All years' }, ...years.map((year) => ({ value: String(year), label: String(year) }))]} />
         <FilterSelect label="Month" value={filters.month} onChange={(value) => updateFilter('month', value)} options={[{ value: ALL_FILTER, label: 'All months' }, ...['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((label, index) => ({ value: String(index), label }))]} />
         <FilterSelect label="Week of month" value={filters.week} onChange={(value) => updateFilter('week', value)} options={[{ value: ALL_FILTER, label: 'All weeks' }, ...weekOptions]} />

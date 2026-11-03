@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, Copy, Eye, Globe2, Search, Store, X } from 'lucide-react';
+import { CheckCircle2, Copy, Eye, Globe2, Store, X } from 'lucide-react';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
 import { AdminDate, PageHeader, StatusBadge } from '../../admin-side/components/AdminUI';
-import Select from '../../../components/ui/Select';
-import SearchInput from '../../../components/ui/SearchInput';
+import OrdersFilterBar from '../../shared/components/OrdersFilterBar';
 
 interface OrderItem {
   id?: string;
@@ -58,6 +57,8 @@ const STATUS_TABS: Array<{ label: string; value: StatusFilter }> = [
 
 const getChannel = (order: BranchOrder): Exclude<ChannelFilter, 'all'> =>
   order.delivery_type?.toLowerCase() === 'onsite' ? 'onsite' : 'online';
+
+const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
 
 const getCustomerName = (order: BranchOrder) =>
   order.user?.full_name || order.customer_name || order.email || order.user?.email || 'Walk-in customer';
@@ -184,36 +185,37 @@ const FranchiseOrdersPage: React.FC = () => {
     || selectedOrder?.scheduled_at;
 
   return (
-    <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
+    <main className="admin-orders-page min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="mx-auto max-w-[1500px]">
         <PageHeader title="Orders" subtitle="Track this branch’s online and onsite orders. Statuses update as authorized kitchen and delivery roles process each order." />
 
         {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="font-semibold underline">Retry</button></div>}
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <div role="tablist" aria-label="Filter orders by status" className="flex gap-2 overflow-x-auto pb-1">
+        <section className="admin-orders-controls">
+        <div className="admin-orders-tabs-row">
+          <div role="tablist" aria-label="Filter orders by status" className="admin-orders-tabs">
             {STATUS_TABS.map((tab) => <button
               key={tab.value}
               type="button"
               role="tab"
               aria-selected={status === tab.value}
               onClick={() => setStatus(tab.value)}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${status === tab.value ? 'border-[var(--oppa-green)] bg-[var(--oppa-green)] text-white shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]'}`}
-            >{tab.label}<span className={`rounded-full px-1.5 py-0.5 text-[10px] ${status === tab.value ? 'bg-white/20' : 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]'}`}>{statusCount(tab.value)}</span></button>)}
+              className={`admin-orders-tab ${status === tab.value ? 'is-active' : ''}`}
+            ><span>{tab.label}</span><span className="admin-orders-tab-count">{statusCount(tab.value)}</span></button>)}
           </div>
-          <span className="text-xs text-[var(--oppa-text-muted)]">Showing <strong className="tabular-nums text-[var(--oppa-text)]">{filteredOrders.length}</strong> of <strong className="tabular-nums text-[var(--oppa-text)]">{orders.length}</strong> orders</span>
+          <span className="admin-orders-result-count">Showing <strong>{filteredOrders.length}</strong> of <strong>{orders.length}</strong> orders</span>
         </div>
 
-        <div className="mb-4 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 shadow-sm">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <label className="franchise-search-field flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-[var(--oppa-text-muted)]">
-              <Search size={16} aria-hidden="true" />
-              <SearchInput aria-label="Search orders by ID, customer, or email" value={search} onChange={setSearch} placeholder="Search order ID, customer, email..." wrapperClassName="min-w-0 flex-1" />
-            </label>
-            <Select aria-label="Filter by channel" value={channel} onChange={(value) => setChannel(value as ChannelFilter)} options={[{ value: 'all', label: 'All channels' }, { value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} className="min-w-36" />
-            <label className="flex h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)]"><span className="whitespace-nowrap">Date</span><input aria-label="Filter by date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-[145px] border-0 bg-transparent p-0 text-[var(--oppa-text)] outline-none ring-0 shadow-none focus:border-0 focus:outline-none focus:ring-0" /></label>
-            {hasFilters && <button type="button" onClick={clearFilters} className="h-11 shrink-0 rounded-xl px-3 text-sm font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">Clear filters</button>}
-          </div>
-        </div>
+        <OrdersFilterBar
+          search={search}
+          onSearchChange={setSearch}
+          channel={channel}
+          onChannelChange={setChannel}
+          date={date}
+          onDateChange={(value) => setDate(value <= TODAY ? value : TODAY)}
+          dateMax={TODAY}
+          onClear={hasFilters ? clearFilters : undefined}
+        />
+        </section>
 
         {loading ? (
           <div aria-label="Loading orders" aria-busy="true" className="admin-card space-y-3 p-5">{[0, 1, 2, 3].map((row) => <div key={row} className="h-14 animate-pulse rounded-xl bg-[var(--oppa-green-soft)]" />)}</div>

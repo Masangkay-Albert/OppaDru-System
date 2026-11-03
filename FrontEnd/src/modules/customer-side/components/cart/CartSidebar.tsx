@@ -134,7 +134,6 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
           initialQuantity={editingItem.quantity}
           initialAddons={editingItem.selectedAddons}
           initialInstructions={editingItem.specialInstructions}
-          initialSize={editingItem.selectedSize}
           onClose={() => setEditingItem(null)}
         />
       )}

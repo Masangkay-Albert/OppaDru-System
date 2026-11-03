@@ -468,6 +468,7 @@ const CheckoutPage: React.FC = () => {
                 setAppliedPromo(promo ? { code: promo.code } : null);
               }}
               voucherDiscount={voucherDiscount}
+              branchId={branchResolution?.branch.id || activeBranchId}
             deliveryCoordinates={deliveryCoordinates || undefined}
             branchCoordinates={branchResolution ? { lat: branchResolution.branch.latitude, lng: branchResolution.branch.longitude } : undefined}
             branchName={selectedBranchName}

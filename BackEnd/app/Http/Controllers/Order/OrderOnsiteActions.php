@@ -93,7 +93,10 @@ trait OrderOnsiteActions
         }
 
         $branch = $employee?->franchise ?? Franchise::where('is_main', true)->first();
-        $orderItems = $this->orderDataService->buildOrderItems($request->items);
+        $orderItems = $this->orderDataService->buildOrderItems(
+            $request->items,
+            $branch?->id ? (string) $branch->id : null,
+        );
 
         $order = Order::create([
             'franchise_id' => $branch?->id,

@@ -5,9 +5,13 @@ namespace Tests\Unit;
 use App\Models\Product;
 use App\Models\Addon;
 use App\Models\AddonGroup;
+use App\Models\Franchise;
+use App\Models\FranchiseInventory;
 use App\Models\SystemSetting;
 use App\Services\PricingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PricingServiceTest extends TestCase
@@ -18,7 +22,7 @@ class PricingServiceTest extends TestCase
     {
         SystemSetting::create(['key' => 'delivery_base_fee', 'value' => '75.00']);
         $queries = 0;
-        \DB::listen(function ($query) use (&$queries) {
+        DB::listen(function ($query) use (&$queries) {
             if (str_contains(strtolower($query->sql), 'system_settings')) {
                 $queries++;
             }
@@ -31,13 +35,14 @@ class PricingServiceTest extends TestCase
         $this->assertSame(1, $queries);
     }
 
-    public function test_settings_reflect_database_updates_on_the_next_read(): void
+    public function test_settings_reflect_database_updates_after_cache_invalidation(): void
     {
         SystemSetting::create(['key' => 'delivery_base_fee', 'value' => '75.00']);
         $service = app(PricingService::class);
         $this->assertSame(75.0, $service->settings()['delivery_base_fee']);
 
         SystemSetting::where('key', 'delivery_base_fee')->update(['value' => '80.00']);
+        Cache::forget('system_pricing_settings');
 
         $this->assertSame(80.0, $service->settings()['delivery_base_fee']);
     }
@@ -129,18 +134,38 @@ class PricingServiceTest extends TestCase
         $this->assertSame($standard['vat'], $priority['vat']);
     }
 
-    public function test_size_and_addon_quantities_are_included_in_the_server_total(): void
+    public function test_fixed_price_beverage_total_uses_its_price_times_quantity(): void
     {
-        $sizedProduct = Product::create([
-            'name' => 'Sized drink',
+        $product = Product::create([
+            'name' => 'Fixed price drink',
             'description' => 'Drink',
-            'price' => 100,
+            'price' => 99,
+            'category' => 'fruity-soda-milk',
+            'image' => '',
+            'is_available' => true,
+        ]);
+
+        $pricing = app(PricingService::class)->calculate([[
+            'product_id' => $product->id,
+            'quantity' => 3,
+        ]], 'onsite');
+
+        $this->assertSame(297.0, $pricing['subtotal']);
+        $this->assertSame(297.0, $pricing['total']);
+    }
+
+    public function test_fixed_price_beverages_reject_size_and_addon_selections(): void
+    {
+        $product = Product::create([
+            'name' => 'Fixed price drink options',
+            'description' => 'Drink',
+            'price' => 99,
             'category' => 'fruity-soda-milk',
             'image' => '',
             'is_available' => true,
         ]);
         $addonGroup = AddonGroup::create([
-            'name' => 'Extra topping',
+            'name' => 'Drink options',
             'selection_type' => 'multiple',
             'supports_quantity' => true,
             'applicable_categories' => ['fruity-soda-milk'],
@@ -148,20 +173,66 @@ class PricingServiceTest extends TestCase
         ]);
         $addon = Addon::create([
             'addon_group_id' => $addonGroup->id,
-            'name' => 'Jelly',
-            'price' => 11,
+            'name' => 'Soda',
+            'price' => 120,
             'is_active' => true,
         ]);
 
-        $pricing = app(PricingService::class)->calculate([[
-            'product_id' => $sizedProduct->id,
-            'quantity' => 3,
-            'selected_size' => 'Small',
-            'selected_addons' => [['id' => $addon->id, 'quantity' => 2]],
-        ]]);
+        $this->expectException(\InvalidArgumentException::class);
+        app(PricingService::class)->calculate([[
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'selected_addons' => [['id' => $addon->id]],
+        ]], 'onsite');
+    }
 
-        $this->assertSame(336.0, $pricing['subtotal']);
-        $this->assertSame(400.0, $pricing['total']);
+    public function test_fixed_price_beverage_rejects_legacy_size_selection(): void
+    {
+        $product = Product::create([
+            'name' => 'Legacy sized drink',
+            'description' => 'Drink',
+            'price' => 99,
+            'category' => 'fresh-lemonade',
+            'image' => '',
+            'is_available' => true,
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        app(PricingService::class)->calculate([[
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'selected_size' => 'Medium',
+        ]], 'onsite');
+    }
+
+    public function test_branch_price_override_is_used_for_product_totals(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'Branch price test',
+            'status' => 'active',
+        ]);
+        $product = Product::create([
+            'name' => 'Overridden drink',
+            'description' => 'Drink',
+            'price' => 99,
+            'category' => 'fruity-soda-milk',
+            'image' => '',
+            'is_available' => true,
+        ]);
+        FranchiseInventory::create([
+            'franchise_id' => $branch->id,
+            'product_id' => $product->id,
+            'is_available' => true,
+            'branch_price' => 125,
+        ]);
+
+        $pricing = app(PricingService::class)->calculate([[
+            'product_id' => $product->id,
+            'quantity' => 2,
+        ]], 'onsite', 0, 0, null, null, $branch->id);
+
+        $this->assertSame(250.0, $pricing['subtotal']);
+        $this->assertSame(250.0, $pricing['total']);
     }
 
     public function test_all_components_are_rounded_before_calculating_the_total(): void

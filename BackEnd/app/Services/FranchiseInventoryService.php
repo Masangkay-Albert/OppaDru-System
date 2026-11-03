@@ -8,6 +8,21 @@ use Illuminate\Support\Collection;
 
 class FranchiseInventoryService
 {
+    public function branchPriceOverrides(string $franchiseId, array $productIds): array
+    {
+        if ($productIds === []) {
+            return [];
+        }
+
+        return FranchiseInventory::query()
+            ->where('franchise_id', $franchiseId)
+            ->whereIn('product_id', $productIds)
+            ->whereNotNull('branch_price')
+            ->pluck('branch_price', 'product_id')
+            ->map(fn ($price) => (float) $price)
+            ->all();
+    }
+
     public function initializeBranchMenu(string $franchiseId): void
     {
         $products = Product::where(function ($query) use ($franchiseId) {

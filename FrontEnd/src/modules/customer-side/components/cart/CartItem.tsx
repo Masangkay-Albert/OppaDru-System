@@ -37,6 +37,14 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
               {item.selectedSize && (
                 <span className="text-xs font-medium text-[#7f4f24] mt-0.5 block">{item.selectedSize}</span>
               )}
+              {item.priceUpdateNotice && (
+                <span className="mt-1 block rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800" role="status">
+                  {item.priceUpdateNotice.removedOptions && 'Old size/add-on choices removed. '}
+                  {item.priceUpdateNotice.previousPrice !== item.priceUpdateNotice.currentPrice
+                    ? `Price updated from ${formatCurrency(item.priceUpdateNotice.previousPrice)} to ${formatCurrency(item.priceUpdateNotice.currentPrice)} for this branch.`
+                    : `Current price: ${formatCurrency(item.priceUpdateNotice.currentPrice)}.`}
+                </span>
+              )}
             </div>
             {item.cartIssue && (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" role="alert">

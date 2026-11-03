@@ -7,7 +7,7 @@ import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { fetchWithEmployeeAuth } from '../../../services/employeeAuth';
 import { getProductImage } from '../../../data/productImages';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
-import type { Addon, AddonGroup, ProductSize } from '../../../types/product.types';
+import type { Addon, AddonGroup } from '../../../types/product.types';
 import type { Product } from '../../../services/productService';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { formatPeso } from '../../../utils/formatters';
@@ -20,7 +20,6 @@ interface PosCartLine {
   key: string;
   product: Product;
   quantity: number;
-  selectedSize?: ProductSize;
   selectedAddons: Addon[];
   specialInstructions?: string;
 }
@@ -139,7 +138,6 @@ const FranchisePOSPage: React.FC = () => {
   const [configuringProduct, setConfiguringProduct] = useState<BranchProduct | null>(null);
   const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
-  const [selectedSize, setSelectedSize] = useState<ProductSize | null>(null);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [isLoadingAddons, setIsLoadingAddons] = useState(false);
   const [search, setSearch] = useState('');
@@ -496,7 +494,6 @@ const FranchisePOSPage: React.FC = () => {
     setConfiguringProduct(product);
     setAddonGroups([]);
     setSelectedAddons([]);
-    setSelectedSize(['fruity-soda-milk', 'fresh-lemonade'].includes(product.category.toLowerCase()) ? 'Medium' : null);
     setSpecialInstructions('');
     setError('');
     setIsLoadingAddons(true);
@@ -546,21 +543,14 @@ const FranchisePOSPage: React.FC = () => {
 
   const addConfiguredProduct = () => {
     if (!configuringProduct) return;
-    if (['fruity-soda-milk', 'fresh-lemonade'].includes(configuringProduct.category.toLowerCase()) && !selectedSize) {
-      setError('Choose a size before adding this drink.');
-      return;
-    }
-    const sizeAdjustment = selectedSize === 'Small' ? -10 : selectedSize === 'Large' ? 20 : 0;
-    const configuredProduct = { ...configuringProduct, price: Math.max(0, Number(configuringProduct.price) + sizeAdjustment) };
     const sortedAddonIds = selectedAddons.map((addon) => addon.id).sort().join(',');
-    const key = `${configuringProduct.id}:${selectedSize || ''}:${sortedAddonIds}`;
+    const key = `${configuringProduct.id}:${sortedAddonIds}`;
     setCart((current) => ({
       ...current,
       [key]: {
         key,
-        product: configuredProduct,
+        product: configuringProduct,
         quantity: (current[key]?.quantity || 0) + 1,
-        selectedSize: selectedSize || undefined,
         selectedAddons,
         specialInstructions: specialInstructions.trim() || undefined,
       },
@@ -591,10 +581,9 @@ const FranchisePOSPage: React.FC = () => {
     setCompletedOrder(null);
   };
 
-  const paymentItems = () => lines.map(({ product, quantity, selectedSize, selectedAddons, specialInstructions: itemNotes }) => ({
+  const paymentItems = () => lines.map(({ product, quantity, selectedAddons, specialInstructions: itemNotes }) => ({
     product_id: product.id,
     quantity,
-    selected_size: selectedSize,
     selected_addons: selectedAddons.map(({ id, quantity: addonQuantity }) => ({ id, quantity: addonQuantity || 1 })),
     special_instructions: itemNotes,
   }));
@@ -1039,13 +1028,12 @@ const FranchisePOSPage: React.FC = () => {
           <div className={`${showOrderDrawer ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col xl:flex`}>
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
               {lines.map((line) => {
-                const { key, product, quantity, selectedSize, selectedAddons, specialInstructions: itemNotes } = line;
+                const { key, product, quantity, selectedAddons, specialInstructions: itemNotes } = line;
                 const lineTotal = (Number(product.price) + selectedAddons.reduce((sum, addon) => sum + Number(addon.price) * Math.max(1, Number(addon.quantity || 1)), 0)) * quantity;
                 return <div key={key} className="border-b border-gray-100 pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <button type="button" title={`${quantity}× ${product.name}`} onClick={() => setEditingNotesKey(editingNotesKey === key ? null : key)} className="block min-h-8 max-w-full truncate text-left font-semibold text-gray-900">{quantity}× {product.name}</button>
-                      {selectedSize && <span className="block truncate text-xs text-gray-600">{selectedSize}</span>}
                       {selectedAddons.map((addon) => <span key={addon.id} className="block truncate text-xs text-gray-600">+ {addon.name}</span>)}
                       {itemNotes && <span className="block truncate text-xs text-gray-500" title={itemNotes}>{itemNotes}</span>}
                       <button type="button" onClick={() => setEditingNotesKey(editingNotesKey === key ? null : key)} className="mt-1 min-h-11 text-xs font-semibold text-[#1f6b45] underline underline-offset-2">{itemNotes ? 'Edit note' : 'Add note'}</button>
@@ -1095,15 +1083,6 @@ const FranchisePOSPage: React.FC = () => {
               <div><h2 className="text-xl font-semibold">{configuringProduct.name}</h2><p className="mt-1 text-sm text-gray-600">Base price {formatPeso(Number(configuringProduct.price))}</p></div>
               <button onClick={() => setConfiguringProduct(null)} aria-label="Close options" className="rounded-lg px-3 py-1 text-gray-500 hover:bg-gray-100">Close</button>
             </div>
-            {['fruity-soda-milk', 'fresh-lemonade'].includes(configuringProduct.category.toLowerCase()) && (
-              <fieldset className="mb-5">
-                <legend className="mb-2 text-sm font-semibold">Drink size</legend>
-                <div className="grid grid-cols-3 gap-2">{(['Small', 'Medium', 'Large'] as const).map((size) => {
-                  const adjustment = size === 'Small' ? -10 : size === 'Large' ? 20 : 0;
-                  return <button key={size} type="button" aria-pressed={selectedSize === size} onClick={() => setSelectedSize(size)} className={`min-h-12 rounded-xl border px-3 py-3 text-sm ${selectedSize === size ? 'border-[var(--oppa-green)] bg-[#edf5ef] font-semibold text-[var(--oppa-green)]' : 'border-gray-200'}`}>{size}<span className="mt-1 block text-xs tabular-nums">{adjustment > 0 ? `+${formatPeso(adjustment)}` : adjustment < 0 ? `−${formatPeso(Math.abs(adjustment))}` : 'Standard'}</span></button>;
-                })}</div>
-              </fieldset>
-            )}
             {isLoadingAddons ? <p className="py-4 text-sm text-gray-500">Loading available add-ons...</p> : addonGroups.map((group) => (
               <fieldset key={group.id} className="mb-5">
                 <legend className="mb-2 text-sm font-semibold">{group.name}</legend>
@@ -1124,7 +1103,7 @@ const FranchisePOSPage: React.FC = () => {
             ))}
             <label className="mb-5 block text-sm font-semibold">Special instructions<textarea value={specialInstructions} onChange={(event) => setSpecialInstructions(event.target.value)} maxLength={500} rows={2} className="mt-2 w-full rounded-xl border border-gray-200 p-3 font-normal" placeholder="Optional request for the kitchen" /></label>
             {error && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-2 text-sm text-red-700">{error}</p>}
-            <button type="button" disabled={isLoadingAddons} onClick={addConfiguredProduct} className="min-h-12 w-full rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-base font-semibold text-white disabled:opacity-50">Add to order · {formatPeso((Math.max(0, Number(configuringProduct.price) + (selectedSize === 'Small' ? -10 : selectedSize === 'Large' ? 20 : 0)) + selectedAddons.reduce((sum, addon) => sum + Number(addon.price), 0)))}</button>
+            <button type="button" disabled={isLoadingAddons} onClick={addConfiguredProduct} className="min-h-12 w-full rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-base font-semibold text-white disabled:opacity-50">Add to order · {formatPeso(Number(configuringProduct.price) + selectedAddons.reduce((sum, addon) => sum + Number(addon.price), 0))}</button>
           </section>
         </div>
       )}

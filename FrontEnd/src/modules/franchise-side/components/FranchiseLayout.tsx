@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, ChevronDown, ChevronsLeft, ChevronsRight, CircleHelp, ClipboardList, LayoutDashboard, LogOut, Menu, Megaphone, Moon, PackageCheck, ReceiptText, Settings, Store, Sun, Users, WalletCards, X } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronsLeft, ChevronsRight, CircleHelp, ClipboardList, LayoutDashboard, LogOut, Menu, Megaphone, Moon, PackageCheck, Settings, Store, Sun, Users, WalletCards, X } from 'lucide-react';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 import '../pages/FranchisePortalDesign.css';
@@ -8,12 +8,12 @@ import { RoleBadge } from './FranchisePortalUI';
 import SearchInput from '../../../components/ui/SearchInput';
 
 type Role = 'owner' | 'manager' | 'staff' | 'cashier';
-type Item = { to: string; label: string; icon: React.ElementType; roles: Role[]; feature?: 'delivery_enabled' | 'fees_enabled'; badge?: 'announcements' | 'stock' };
+type Item = { to: string; label: string; icon: React.ElementType; roles: Role[]; feature?: 'fees_enabled'; badge?: 'announcements' | 'stock' };
 type Section = { title: string; items: Item[] };
 
 const sections: Section[] = [
   { title: 'Overview', items: [{ to: '/franchise/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['owner', 'manager', 'staff', 'cashier'] }] },
-  { title: 'Operations', items: [{ to: '/franchise/orders', label: 'Orders', icon: ClipboardList, roles: ['owner', 'manager', 'staff', 'cashier'] }, { to: '/franchise/menu-availability', label: 'Products', icon: PackageCheck, roles: ['owner', 'manager'] }, { to: '/franchise/delivery', label: 'Delivery', icon: ReceiptText, roles: ['owner', 'manager'], feature: 'delivery_enabled' }] },
+  { title: 'Operations', items: [{ to: '/franchise/orders', label: 'Orders', icon: ClipboardList, roles: ['owner', 'manager', 'staff', 'cashier'] }, { to: '/franchise/menu-availability', label: 'Products', icon: PackageCheck, roles: ['owner', 'manager'] }] },
   { title: 'Business', items: [{ to: '/franchise/reports', label: 'Reports', icon: BarChart3, roles: ['owner', 'manager'] }, { to: '/franchise/fees-payments', label: 'Fees & Payments', icon: WalletCards, roles: ['owner'], feature: 'fees_enabled' }] },
   { title: 'My Franchise', items: [{ to: '/franchise/profile', label: 'Franchise Profile', icon: Store, roles: ['owner'] }, { to: '/franchise/users', label: 'Branch Users', icon: Users, roles: ['owner', 'manager'] }, { to: '/franchise/settings', label: 'Settings', icon: Settings, roles: ['owner'] }] },
   { title: 'Communication', items: [{ to: '/franchise/announcements', label: 'Announcements', icon: Megaphone, roles: ['owner', 'manager', 'staff', 'cashier'], badge: 'announcements' }, { to: '/franchise/support', label: 'Support & Resources', icon: CircleHelp, roles: ['owner', 'manager', 'staff', 'cashier'] }] },
@@ -37,9 +37,8 @@ const FranchiseLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const role = roleOf(franchiseUser?.role, franchiseUser?.can_process_pos);
   const branch = franchiseUser?.branch || franchiseUser?.franchise;
   const branchName = branch?.name || 'Franchise Branch';
-  const deliveryEnabled = Boolean(branch?.delivery_enabled);
   const feesEnabled = Boolean(branch?.fees_enabled);
-  const visibleSections = useMemo(() => sections.map((section) => ({ ...section, items: section.items.filter((item) => item.roles.includes(role) && (!item.feature || (item.feature === 'delivery_enabled' ? deliveryEnabled : feesEnabled))) })).filter((section) => section.items.length), [role, deliveryEnabled, feesEnabled]);
+  const visibleSections = useMemo(() => sections.map((section) => ({ ...section, items: section.items.filter((item) => item.roles.includes(role) && (!item.feature || feesEnabled)) })).filter((section) => section.items.length), [role, feesEnabled]);
   const visibleItems = useMemo(() => visibleSections.flatMap((section) => section.items), [visibleSections]);
   const matches = visibleItems.filter((item) => item.label.toLowerCase().includes(query.toLowerCase())).slice(0, 6);
   const pageName = visibleItems.find((item) => item.to === location.pathname)?.label || 'Franchise Portal';

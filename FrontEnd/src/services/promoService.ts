@@ -72,7 +72,12 @@ export const promoService = {
     return Array.isArray(data) ? data as Promo[] : [];
   },
 
-  async validatePromo(code: string, items: PromoCartItem[], channel: 'customer' | 'cashier' = 'customer'): Promise<PromoValidationResult> {
+  async validatePromo(
+    code: string,
+    items: PromoCartItem[],
+    channel: 'customer' | 'cashier' = 'customer',
+    franchiseId?: string | null,
+  ): Promise<PromoValidationResult> {
     const path = channel === 'cashier' ? '/employee/pos/promos/validate' : '/promos/validate';
     const init: RequestInit = {
       method: 'POST',
@@ -85,6 +90,7 @@ export const promoService = {
           ...(item.selected_size ? { selected_size: item.selected_size } : {}),
           selected_addons: item.selected_addons || [],
         })),
+        ...(franchiseId ? { franchise_id: franchiseId } : {}),
       }),
     };
     const response = channel === 'cashier'

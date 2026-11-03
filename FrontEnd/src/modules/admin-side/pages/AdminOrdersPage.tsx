@@ -8,7 +8,7 @@ import { getAllOrders, type AdminOrder } from '../../../services/adminOrderServi
 import { formatCurrency } from '../../../utils/formatters';
 import { getScheduledOrderDetails } from '../../../utils/orderUtils';
 import Select from '../../../components/ui/Select';
-import SearchInput from '../../../components/ui/SearchInput';
+import OrdersFilterBar from '../../shared/components/OrdersFilterBar';
 
 const statusLabels: Record<string, string> = {
   pending: 'Pending',
@@ -270,17 +270,15 @@ const AdminOrdersPage: React.FC = () => {
           <span className="admin-orders-result-count">Showing <strong>{filteredOrders.length}</strong> of <strong>{orders.length}</strong> orders</span>
         </div>
 
-        <div className="admin-orders-filterbar">
-          <div className="admin-orders-search">
-            <SearchInput aria-label="Search orders by ID, customer, or email" value={searchTerm} onChange={(value) => { setSearchTerm(value); setCurrentPage(1); }} placeholder="Search order ID, customer, email…" wrapperClassName="min-w-0 flex-1" />
-          </div>
-          <Select aria-label="Filter by channel" value={channelFilter} onChange={(value) => { setChannelFilter(value as 'all' | 'online' | 'onsite'); setCurrentPage(1); }} options={[{ value: 'all', label: 'All channels' }, { value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} className="admin-orders-channel-filter" />
-          <label className="admin-orders-date-filter">
-            <CalendarDays size={16} aria-hidden="true" />
-            <input aria-label="Filter by exact date" type="date" value={dateFilter} onChange={(event) => { setDateFilter(event.target.value); setCurrentPage(1); }} />
-          </label>
-          {hasActiveFilters && <button type="button" onClick={clearFilters} className="admin-orders-clear-filters">Clear filters</button>}
-        </div>
+        <OrdersFilterBar
+          search={searchTerm}
+          onSearchChange={(value) => { setSearchTerm(value); setCurrentPage(1); }}
+          channel={channelFilter}
+          onChannelChange={(value) => { setChannelFilter(value); setCurrentPage(1); }}
+          date={dateFilter}
+          onDateChange={(value) => { setDateFilter(value); setCurrentPage(1); }}
+          onClear={hasActiveFilters ? clearFilters : undefined}
+        />
       </section>
 
       {loading ? (

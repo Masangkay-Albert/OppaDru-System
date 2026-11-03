@@ -28,6 +28,7 @@ class BranchRoutingController extends Controller
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
+            'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'items.*.selected_addons' => 'nullable|array',
             'items.*.selected_addons.*.id' => 'required|exists:addons,id',
             'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
@@ -94,6 +95,7 @@ class BranchRoutingController extends Controller
                 (float) ($validated['discount_rate'] ?? 0),
                 $coordinates,
                 ['lat' => (float) $result['branch']->latitude, 'lng' => (float) $result['branch']->longitude],
+                (string) $result['branch']->id,
             );
             $branch = $result['branch'];
 

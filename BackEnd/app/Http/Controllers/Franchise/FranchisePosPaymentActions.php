@@ -91,19 +91,18 @@ trait FranchisePosPaymentActions
                     ], 422);
                 }
             }
-            $isSizeRequired = in_array(
-                strtolower($products->get($item['product_id'])->category),
-                ['fruity-soda-milk', 'fresh-lemonade'],
-                true
-            );
-            if ($isSizeRequired
-                && empty($item['selected_size'])) {
-                return response()->json(['message' => 'Select a size for each drink before paying.'], 422);
-            }
         }
 
         try {
-            $pricing = app(PricingService::class)->calculate($items);
+            $pricing = app(PricingService::class)->calculate(
+                $items,
+                'onsite',
+                0,
+                0,
+                null,
+                null,
+                (string) $user->franchise_id,
+            );
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
@@ -127,6 +126,7 @@ trait FranchisePosPaymentActions
                     null,
                     false,
                     'cashier',
+                    (string) $user->franchise_id,
                 )['discount'];
             } catch (PromoRedemptionException $exception) {
                 $redemptionService->recordInvalidAttempt(

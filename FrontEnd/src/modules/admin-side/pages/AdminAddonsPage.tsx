@@ -7,6 +7,7 @@ import type { AddonGroup } from '../../../types/product.types';
 import { categories } from '../../../data/mockData';
 import { getAddonImage } from '../../../data/productImages';
 import { formatCurrency } from '../../../utils/formatters';
+import { isFixedPriceBeverage } from '../../../services/productOptionRules';
 import Select from '../../../components/ui/Select';
 
 type AddonDraft = {
@@ -69,6 +70,7 @@ const handlePriceInput = (
 };
 
 const editableCategories = categories.filter((category) => category.id !== 'all');
+const assignableCategories = editableCategories.filter((category) => !isFixedPriceBeverage(category.id));
 
 const AddonImage: React.FC<{ image?: string; name: string; preview?: string }> = ({ image, name, preview }) => {
   const [failed, setFailed] = useState(false);
@@ -273,7 +275,7 @@ const AdminAddonsPage: React.FC = () => {
         </div>
         <div className="mt-4">
           <p className="mb-2 text-xs font-semibold text-[var(--oppa-text-muted)]">Apply to categories</p>
-          <div className="flex flex-wrap gap-2">{editableCategories.map((category) => {
+          <div className="flex flex-wrap gap-2">{assignableCategories.map((category) => {
             const selected = newGroup.categories.includes(category.id);
             return <button type="button" aria-pressed={selected} key={category.id} onClick={() => toggleCategory(category.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${selected ? 'border-green-700 bg-green-700 text-white' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:border-green-700'}`}>{selected && <Check size={13} />}{category.name}</button>;
           })}</div>
@@ -315,7 +317,7 @@ const AdminAddonsPage: React.FC = () => {
                         <Select aria-label="Selection type" value={draftGroup.selection_type} onChange={(selection_type) => setEditingGroups({ ...editingGroups, [group.id]: { ...draftGroup, selection_type } })} options={[{ value: 'single', label: 'Single selection' }, { value: 'multiple', label: 'Multiple selection' }]} />
                         <button type="button" onClick={() => void saveGroup(group.id)} disabled={!draftGroup.name.trim() || draftGroup.categories.length === 0} className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Save</button>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2">{editableCategories.map((category) => <button type="button" aria-pressed={draftGroup.categories.includes(category.id)} key={category.id} onClick={() => toggleGroupCategory(group.id, category.id)} className={`rounded-full border px-2.5 py-1 text-xs ${draftGroup.categories.includes(category.id) ? 'border-green-700 bg-green-700 text-white' : 'border-[var(--oppa-border)] bg-white text-[var(--oppa-text)]'}`}>{category.name}</button>)}</div>
+                      <div className="mt-3 flex flex-wrap gap-2">{assignableCategories.map((category) => <button type="button" aria-pressed={draftGroup.categories.includes(category.id)} key={category.id} onClick={() => toggleGroupCategory(group.id, category.id)} className={`rounded-full border px-2.5 py-1 text-xs ${draftGroup.categories.includes(category.id) ? 'border-green-700 bg-green-700 text-white' : 'border-[var(--oppa-border)] bg-white text-[var(--oppa-text)]'}`}>{category.name}</button>)}</div>
                     </div>}
 
                     {group.addons.length === 0

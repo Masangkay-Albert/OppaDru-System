@@ -264,6 +264,7 @@ class PromoController extends Controller
             'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'items.*.selected_addons' => 'nullable|array',
             'items.*.selected_addons.*.id' => 'required|string',
+            'franchise_id' => 'nullable|string|exists:franchises,id',
             'items.*.selected_addons.*.quantity' => 'nullable|integer|min:1',
         ]);
 
@@ -290,7 +291,14 @@ class PromoController extends Controller
         }
 
         try {
-            $result = $redemptionService->evaluate($code, $request->input('items', []), $userId, false, $channel);
+            $result = $redemptionService->evaluate(
+                $code,
+                $request->input('items', []),
+                $userId,
+                false,
+                $channel,
+                $request->input('franchise_id'),
+            );
         } catch (PromoRedemptionException $exception) {
             $redemptionService->recordInvalidAttempt($request, $userId, $code, $exception->errorCode);
 

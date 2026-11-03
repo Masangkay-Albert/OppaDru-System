@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Product, Addon, AddonGroup, ProductSize } from '../../../../types/product.types';
+import type { Product, Addon, AddonGroup } from '../../../../types/product.types';
 import { useCart } from '../../../../contexts/CartContext';
 import QuantitySelector from './QuantitySelector';
 import AddonsSection from '../common/AddonsSection';
 import { FiX } from 'react-icons/fi';
 import { productService } from '../../../../services/productService';
+import { calculateProductOptionsTotal } from '../../../../services/productOptionRules';
 import { formatCurrency } from '../../../../utils/formatters';
 
 interface ProductModalProps {
@@ -15,15 +16,7 @@ interface ProductModalProps {
   initialQuantity?: number;
   initialAddons?: Addon[];
   initialInstructions?: string;
-  initialSize?: ProductSize;
 }
-
-const SIZE_REQUIRED_CATEGORIES = ['fruity-soda-milk', 'fresh-lemonade'];
-const SIZE_OPTIONS: Array<{ value: ProductSize; label: string }> = [
-  { value: 'Small', label: 'Small' },
-  { value: 'Medium', label: 'Medium' },
-  { value: 'Large', label: 'Large' },
-];
 
 const ProductModal: React.FC<ProductModalProps> = ({
   product,
@@ -33,36 +26,28 @@ const ProductModal: React.FC<ProductModalProps> = ({
   initialQuantity,
   initialAddons,
   initialInstructions,
-  initialSize,
 }) => {
   const { addToCart, editCartItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
-  const [selectedSize, setSelectedSize] = useState<ProductSize | null>(initialSize ?? null);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [isClosing, setIsClosing] = useState(false);
   const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
   const [isLoadingAddons, setIsLoadingAddons] = useState(false);
   const [addonLoadError, setAddonLoadError] = useState(false);
-  const [sizeError, setSizeError] = useState('');
 
-  const requiresSizeSelection = useCallback((category?: string) => {
-    return SIZE_REQUIRED_CATEGORIES.includes(String(category || '').toLowerCase().trim());
-  }, []);
-
-  const getSizePrice = useCallback((size: ProductSize | null) => {
-    if (!product) return 0;
-    if (!requiresSizeSelection(product.category) || !size) return Number(product.price || 0);
-
-    const basePrice = Number(product.price || 0);
-    const priceAdjustments: Record<ProductSize, number> = {
-      Small: -10,
-      Medium: 0,
-      Large: 20,
-    };
-
-    return Math.round(basePrice + (priceAdjustments[size] ?? 0));
-  }, [product, requiresSizeSelection]);
+  const handleClose = useCallback(() => {
+    document.body.style.overflow = '';
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+      setQuantity(1);
+      setSelectedAddons([]);
+      setSpecialInstructions('');
+      document.body.style.overflow = '';
+    }, 180);
+  }, [onClose]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -72,7 +57,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
     };
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, []);
+  }, [handleClose]);
 
   // Safely control scroll lock
   useEffect(() => {
@@ -88,14 +73,11 @@ const ProductModal: React.FC<ProductModalProps> = ({
 
   useEffect(() => {
     if (product) {
-      const isSizeReq = requiresSizeSelection(product.category);
       setQuantity(initialQuantity ?? 1);
       setSelectedAddons(initialAddons ?? []);
       setSpecialInstructions(initialInstructions ?? '');
-      setSelectedSize(initialSize ?? (isSizeReq ? 'Medium' : null));
-      setSizeError('');
     }
-  }, [product?.id, editCartItemId, initialSize, product?.category, requiresSizeSelection]);
+  }, [product?.id, editCartItemId]);
 
   useEffect(() => {
     if (!product) return;
@@ -128,19 +110,6 @@ const ProductModal: React.FC<ProductModalProps> = ({
     };
   }, [product?.id, product?.category]);
 
-  const handleClose = () => {
-    document.body.style.overflow = '';
-    setIsClosing(true);
-    setTimeout(() => {
-      setIsClosing(false);
-      onClose();
-      setQuantity(1);
-      setSelectedAddons([]);
-      setSpecialInstructions('');
-      document.body.style.overflow = '';
-    }, 180);
-  };
-
   const handleToggleAddon = (addon: Addon) => {
     setSelectedAddons((prev) => {
       const group = addonGroups.find((g) => g.addons.some((a) => a.id === addon.id));
@@ -157,25 +126,16 @@ const ProductModal: React.FC<ProductModalProps> = ({
     });
   };
 
-  const handleSelectSize = (size: ProductSize) => {
-    setSelectedSize(size);
-    setSizeError('');
-  };
-
   const handleSave = () => {
     if (!product || !product.isAvailable) return;
 
-    const isSizeRequired = requiresSizeSelection(product.category);
-    const resolvedSize = selectedSize || (isSizeRequired ? 'Medium' : undefined);
-    const resolvedPrice = getSizePrice(resolvedSize || null);
-
     const payload = {
       ...product,
-      price: resolvedPrice,
+      price: Number(product.price || 0),
       quantity,
       selectedAddons,
       specialInstructions: specialInstructions.trim() || undefined,
-      selectedSize: resolvedSize || undefined,
+      selectedSize: undefined,
     };
 
     if (editMode && editCartItemId) {
@@ -195,10 +155,8 @@ const ProductModal: React.FC<ProductModalProps> = ({
 
   if (!product) return null;
 
-  const isSizeRequired = requiresSizeSelection(product.category);
-  const addonsTotal = selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0);
-  const currentUnitPrice = getSizePrice(selectedSize);
-  const totalPrice = (currentUnitPrice + addonsTotal) * quantity;
+  const currentUnitPrice = Number(product.price || 0);
+  const totalPrice = calculateProductOptionsTotal(currentUnitPrice, quantity, selectedAddons);
 
   return (
     <>
@@ -243,41 +201,6 @@ const ProductModal: React.FC<ProductModalProps> = ({
             </div>
             <p className="text-sm text-gray-500 mb-5 leading-relaxed">{product.description}</p>
 
-            {/* Size Selector */}
-            {isSizeRequired && (
-              <div className="mb-5">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block font-semibold text-sm text-gray-800">
-                    Choose Size <span className="text-red-500">*</span>
-                  </label>
-                  {sizeError && <span className="text-xs font-medium text-red-600">{sizeError}</span>}
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  {SIZE_OPTIONS.map((sizeOption) => {
-                    const isSelected = selectedSize === sizeOption.value;
-                    const optionPrice = getSizePrice(sizeOption.value);
-
-                    return (
-                      <button
-                        key={sizeOption.value}
-                        type="button"
-                        onClick={() => handleSelectSize(sizeOption.value)}
-                        className={`rounded-xl border px-3 py-2.5 text-left transition-all ${
-                          isSelected
-                            ? 'border-[#2d6a4f] bg-[#eaf5ef] text-[#1b4d3e] shadow-sm ring-2 ring-[#2d6a4f]/20 font-bold'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-[#2d6a4f]/40 hover:bg-[#f7faf8]'
-                        }`}
-                      >
-                        <div className="text-sm">{sizeOption.label}</div>
-                        <div className="text-xs opacity-75">{formatCurrency(optionPrice)}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             {/* Quantity Selector */}
             <div className="mb-5">
               <label className="block font-semibold text-sm text-gray-800 mb-2">Quantity</label>
@@ -289,18 +212,19 @@ const ProductModal: React.FC<ProductModalProps> = ({
             </div>
 
             {/* Addons Section */}
-            <div className="mb-5">
-              {isLoadingAddons ? (
+            {isLoadingAddons ? (
+              <div className="mb-5">
                 <div className="space-y-3 animate-pulse" aria-live="polite">
                   <div className="h-4 w-28 rounded bg-gray-200" />
                   <div className="h-12 rounded-xl bg-gray-100" />
                 </div>
-              ) : addonLoadError ? (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              </div>
+            ) : addonLoadError ? (
+              <p className="mb-5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
                   Add-ons could not be loaded. You can still add this item.
-                </p>
-              ) : addonGroups.length > 0 ? (
-                <div className="space-y-4">
+              </p>
+            ) : addonGroups.length > 0 ? (
+                <div className="mb-5 space-y-4">
                   {addonGroups.map((group) => (
                     <AddonsSection
                       key={group.id}
@@ -310,8 +234,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
                     />
                   ))}
                 </div>
-              ) : null}
-            </div>
+            ) : null}
 
             {/* Special Instructions */}
             <div className="mb-4">

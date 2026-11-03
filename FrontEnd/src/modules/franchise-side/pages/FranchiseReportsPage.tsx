@@ -27,11 +27,13 @@ interface Report {
 const money = (amount: number) => formatCurrency(amount);
 
 const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+const REPORT_YEAR_START = `${TODAY.slice(0, 4)}-01-01`;
+const REPORT_YEAR_END = `${TODAY.slice(0, 4)}-12-31`;
 
 const FranchiseReportsPage: React.FC = () => {
-  const [from, setFrom] = useState(`${TODAY.slice(0, 8)}01`);
-  const [to, setTo] = useState(TODAY);
-  const [period, setPeriod] = useState<'today' | '7days' | '30days' | 'month' | 'year' | 'custom'>('month');
+  const [from, setFrom] = useState(REPORT_YEAR_START);
+  const [to, setTo] = useState(REPORT_YEAR_END);
+  const [period, setPeriod] = useState<'today' | '7days' | '30days' | 'month' | 'year' | 'custom'>('year');
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -58,14 +60,32 @@ const FranchiseReportsPage: React.FC = () => {
   const applyPeriod = (value: typeof period) => {
     setPeriod(value);
     if (value === 'custom') return;
+    if (value === 'year') {
+      setFrom(REPORT_YEAR_START);
+      setTo(REPORT_YEAR_END);
+      return;
+    }
     const end = new Date(`${TODAY}T00:00:00Z`);
     const start = new Date(end);
     if (value === '7days') start.setUTCDate(start.getUTCDate() - 6);
     else if (value === '30days') start.setUTCDate(start.getUTCDate() - 29);
     else if (value === 'month') start.setUTCDate(1);
-    else start.setUTCMonth(0, 1);
     setFrom(start.toISOString().slice(0, 10));
     setTo(TODAY);
+  };
+
+  const updateFrom = (value: string) => {
+    const nextFrom = value < REPORT_YEAR_START ? REPORT_YEAR_START : value > REPORT_YEAR_END ? REPORT_YEAR_END : value;
+    setPeriod('custom');
+    setFrom(nextFrom);
+    if (nextFrom > to) setTo(nextFrom);
+  };
+
+  const updateTo = (value: string) => {
+    const nextTo = value < REPORT_YEAR_START ? REPORT_YEAR_START : value > REPORT_YEAR_END ? REPORT_YEAR_END : value;
+    setPeriod('custom');
+    setTo(nextTo);
+    if (nextTo < from) setFrom(nextTo);
   };
   const paymentEntries = Object.entries(report?.payment_summary || {});
   const totalPaymentSales = paymentEntries.reduce((sum, [, summary]) => sum + Number(summary.amount || 0), 0);
@@ -102,8 +122,8 @@ const FranchiseReportsPage: React.FC = () => {
             </div>
             <div className="flex flex-wrap items-end gap-2">
             <CalendarDays size={17} className="mb-2 hidden text-[var(--oppa-green)] sm:block" />
-            <label className="grid gap-1 text-xs text-[var(--oppa-text-muted)]">From<input type="date" value={from} max={to} onChange={(event) => { setPeriod('custom'); setFrom(event.target.value); }} className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-            <label className="grid gap-1 text-xs text-[var(--oppa-text-muted)]">To<input type="date" value={to} min={from} max={TODAY} onChange={(event) => { setPeriod('custom'); setTo(event.target.value); }} className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
+            <label className="grid gap-1 text-xs text-[var(--oppa-text-muted)]">From<input type="date" min={REPORT_YEAR_START} max={to} value={from} onChange={(event) => updateFrom(event.target.value)} className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
+            <label className="grid gap-1 text-xs text-[var(--oppa-text-muted)]">To<input type="date" min={from} max={REPORT_YEAR_END} value={to} onChange={(event) => updateTo(event.target.value)} className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
             </div>
           </div>
         </section>

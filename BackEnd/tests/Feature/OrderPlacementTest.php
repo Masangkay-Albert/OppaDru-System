@@ -382,7 +382,7 @@ class OrderPlacementTest extends TestCase
         $this->assertSame($response->json('order.id'), $payment->fresh()->order_id);
     }
 
-    public function test_gcash_and_card_amount_validation_accepts_size_and_addon_quantities(): void
+    public function test_gcash_and_card_amount_validation_rejects_drink_sizes_and_addons(): void
     {
         config()->set('services.paymongo.secret_key', null);
         $user = User::create([
@@ -414,23 +414,40 @@ class OrderPlacementTest extends TestCase
             'price' => 11,
             'is_active' => true,
         ]);
+        $branch = Franchise::create([
+            'name' => 'Payment Test Branch',
+            'status' => 'active',
+            'is_active' => true,
+            'latitude' => 14.3194,
+            'longitude' => 120.9943,
+        ]);
         $item = [
             'product_id' => $product->id,
             'quantity' => 3,
             'selected_size' => 'Small',
-            'selected_addons' => [['id' => $addon->id, 'quantity' => 2]],
         ];
         $pricingPayload = [
             'amount' => 400,
             'items' => [$item],
             'delivery_type' => 'standard',
+            'fulfillment_type' => 'pickup',
+            'franchise_id' => $branch->id,
             'voucher_discount' => 0,
             'discount_rate' => 0,
         ];
 
         $this->postJson('/api/payment/gcash/create', $pricingPayload)
-            ->assertCreated()
-            ->assertJsonPath('amount', 400);
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Size options are not available for this item.');
+
+        $pricingPayload['items'][0] = [
+            'product_id' => $product->id,
+            'quantity' => 3,
+            'selected_addons' => [['id' => $addon->id, 'quantity' => 2]],
+        ];
+        $this->postJson('/api/payment/gcash/create', $pricingPayload)
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Add-ons are not available for this item.');
 
         $loginResponse = $this->postJson('/api/login', [
             'email' => $user->email,
@@ -444,8 +461,27 @@ class OrderPlacementTest extends TestCase
                 'expiry_year' => (string) (now()->year + 2),
                 'cvv' => '123',
             ])
-            ->assertStatus(503)
-            ->assertJsonPath('message', 'Card sandbox payments are not configured.');
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Add-ons are not available for this item.');
+
+        $this->withHeader('Authorization', 'Bearer ' . $loginResponse->json('token'))
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 99,
+                    'quantity' => 1,
+                    'selected_size' => 'Medium',
+                ]],
+                'delivery_address' => 'Payment Test Branch',
+                'payment_method' => 'cash_on_delivery',
+                'phone' => $user->phone,
+                'fulfillment_type' => 'pickup',
+                'franchise_id' => $branch->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Size options are not available for this item.');
     }
 
     public function test_failed_payments_are_never_counted_even_for_delivered_cod_orders(): void

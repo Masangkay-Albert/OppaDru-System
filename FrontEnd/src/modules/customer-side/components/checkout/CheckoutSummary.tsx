@@ -16,6 +16,7 @@ interface CheckoutSummaryProps {
   voucherDiscount: number;
   deliveryCoordinates?: { lat: number; lng: number };
   branchCoordinates?: { lat: number; lng: number };
+  branchId?: string | null;
   branchName?: string;
   branchDistanceKm?: number;
   branchNotice?: string;
@@ -34,6 +35,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   voucherDiscount,
   deliveryCoordinates,
   branchCoordinates,
+  branchId,
   branchName = 'Select a delivery address',
   branchDistanceKm,
   branchNotice,
@@ -128,7 +130,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         + Add more items
       </button>
 
-      <VoucherSection cartItems={cartItems} onVoucherApplied={onVoucherApply} onVoucherRemoved={() => onVoucherApply(0)} />
+      <VoucherSection branchId={branchId} cartItems={cartItems} onVoucherApplied={onVoucherApply} onVoucherRemoved={() => onVoucherApply(0)} />
 
       <div className="checkout-fees border-t border-gray-100 pt-4 space-y-2 text-sm">
         <div className="flex justify-between">

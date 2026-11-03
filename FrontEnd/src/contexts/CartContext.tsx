@@ -3,6 +3,7 @@ import type { CartItem, Product } from '../types/product.types';
 import { authService } from '../services/authService';
 import { generateCartItemId } from '../services/cartService';
 import { getSelectedBranchId } from '../services/franchiseBranchService';
+import { normalizeFixedPriceBeverageCartItem } from '../services/productOptionRules';
 import {
   branchCartStorageKey,
   branchCartStoragePrefix,
@@ -232,25 +233,49 @@ const CartStateProvider: React.FC<{
     writeCart(activeCartId, (current) => ({
       ...current,
       items: current.items.map((item) => item.cartItemId === cartItemId && item.currentBranchPrice != null
-        ? { ...item, price: item.currentBranchPrice, cartIssue: undefined, currentBranchPrice: undefined }
+        ? {
+          ...item,
+          price: item.currentBranchPrice,
+          cartIssue: undefined,
+          currentBranchPrice: undefined,
+          priceUpdateNotice: undefined,
+        }
         : item),
     })), [activeCartId, writeCart]);
 
   const validateCartAgainstMenu = useCallback((products: Product[]) => {
     const currentProducts = new Map(products.map((product) => [product.id, product]));
-    writeCart(activeCartId, (current) => ({
-      ...current,
-      items: current.items.map((item) => {
+    writeCart(activeCartId, (current) => {
+      const validatedItems = current.items.map((item) => {
         const product = currentProducts.get(item.id);
         if (!product) {
           return { ...item, cartIssue: 'unavailable' as const, currentBranchPrice: undefined };
+        }
+        const normalizedItem = normalizeFixedPriceBeverageCartItem(item, product);
+        if (normalizedItem !== item) {
+          return {
+            ...normalizedItem,
+            cartItemId: generateCartItemId(
+              normalizedItem.id,
+              normalizedItem.selectedAddons,
+              normalizedItem.specialInstructions,
+              normalizedItem.selectedSize,
+            ),
+          };
         }
         if (Number(product.price) !== Number(item.price)) {
           return { ...item, cartIssue: 'price-changed' as const, currentBranchPrice: Number(product.price) };
         }
         return { ...item, cartIssue: undefined, currentBranchPrice: undefined };
-      }),
-    }));
+      });
+      const itemsById = new Map<string, CartItem>();
+      for (const item of validatedItems) {
+        const existing = itemsById.get(item.cartItemId);
+        if (existing) existing.quantity += item.quantity;
+        else itemsById.set(item.cartItemId, item);
+      }
+      return { ...current, items: [...itemsById.values()] };
+    });
   }, [activeCartId, writeCart]);
 
   const setUseCutlery = useCallback((value: boolean) =>
@@ -267,8 +292,11 @@ const CartStateProvider: React.FC<{
   }, [branchCarts, owner]);
 
   const getTotalPrice = useCallback(() => cartItems.reduce((total, item) => {
-    const addonsTotal = item.selectedAddons?.reduce((sum, addon) => sum + Number(addon.price || 0), 0) || 0;
-    return total + item.price * item.quantity + addonsTotal;
+    const addonsTotal = item.selectedAddons?.reduce(
+      (sum, addon) => sum + Number(addon.price || 0) * Math.max(1, Number(addon.quantity || 1)),
+      0,
+    ) || 0;
+    return total + (item.price + addonsTotal) * item.quantity;
   }, 0), [cartItems]);
 
   const getTotalItems = useCallback(() =>
