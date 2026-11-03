@@ -205,6 +205,10 @@ class FranchiseAccessTest extends TestCase
         $this->getJson('/api/franchise/inventory', $northHeaders)
             ->assertOk()
             ->assertJsonFragment(['id' => $productId]);
+        $caviteCatalog = $this->getJson('/api/products/available?franchise_id='.$franchiseA->id)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $productId]);
+        $this->assertStringContainsString('no-store', (string) $caviteCatalog->headers->get('Cache-Control'));
 
         $southLogin = $this->postJson('/api/franchise/login', [
             'email' => 'south.manager@example.com',
@@ -213,6 +217,9 @@ class FranchiseAccessTest extends TestCase
         $this->getJson('/api/franchise/inventory', [
             'Authorization' => 'Bearer '.$southLogin->json('token'),
         ])->assertOk()->assertJsonMissing(['id' => $productId]);
+        $this->getJson('/api/products/available?franchise_id='.$franchiseB->id)
+            ->assertOk()
+            ->assertJsonMissing(['id' => $productId]);
 
         $imageResponse = $this->post('/api/franchise/products/upload-image', [
             'image' => UploadedFile::fake()->create('branch-product.jpg', 1, 'image/jpeg'),

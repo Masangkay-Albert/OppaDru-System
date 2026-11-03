@@ -87,6 +87,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
   const [imagePreview, setImagePreview] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
   const [sortBy, setSortBy] = useState<'category' | 'name' | 'price' | 'newest'>('category');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -441,7 +442,9 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isSaving) return;
     setSaveError('');
+    setIsSaving(true);
 
     try {
       const payload = {
@@ -467,6 +470,8 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
     } catch (error) {
       console.error('Failed to save product:', error);
       setSaveError(error instanceof Error ? error.message : 'Unable to save the product.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -587,8 +592,8 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                 <div className="inline-flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]">{canToggleAvailability(product) && <AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Unavailable" disabled={pendingAvailability.includes(product.id)} onChange={() => void handleToggle(product.id)} />}<span className={isAvailable(product) ? 'font-medium text-[var(--oppa-available-text)]' : 'text-[var(--oppa-text-muted)]'}>{isAvailable(product) ? 'Available' : 'Unavailable'}</span></div>
                 <div className="flex items-center gap-1">
                   {!isArchived(product) && <>
-                    {allowed(product, 'edit') && <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-100 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100">Edit</button>}
-                    {allowed(product, 'duplicate') && <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-100 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100">Duplicate</button>}
+                    {allowed(product, 'edit') && <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">Edit</button>}
+                    {allowed(product, 'duplicate') && <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">Duplicate</button>}
                   </>}
                   {actionItems(product).length > 0 && <RowActionsMenu label={product.name} items={actionItems(product)} />}
                 </div>
@@ -634,8 +639,8 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                   <td data-label="Availability" className="col-left"><div className="inline-flex items-center gap-2 whitespace-nowrap text-xs">{canToggleAvailability(product) && <AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Unavailable" disabled={pendingAvailability.includes(product.id)} onChange={() => void handleToggle(product.id)} />}<span className={isAvailable(product) ? 'font-medium text-[var(--oppa-available-text)]' : 'text-[var(--oppa-text-muted)]'}>{isAvailable(product) ? 'Available' : 'Unavailable'}</span></div></td>
                   <td data-label="Actions" className="col-right"><div className="flex items-center justify-end gap-1">
                     {!isArchived(product) && <>
-                      {allowed(product, 'edit') && <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-0 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 group-hover:opacity-100 group-focus-within:opacity-100">Edit</button>}
-                      {allowed(product, 'duplicate') && <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] opacity-0 transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 group-hover:opacity-100 group-focus-within:opacity-100">Duplicate</button>}
+                      {allowed(product, 'edit') && <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">Edit</button>}
+                      {allowed(product, 'duplicate') && <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">Duplicate</button>}
                     </>}
                     {actionItems(product).length > 0 && <RowActionsMenu label={product.name} items={actionItems(product)} />}
                   </div></td>
@@ -696,7 +701,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {saveError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">Image upload failed: {saveError}</p>}
+              {saveError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{saveError}</p>}
 
               <div>
                 <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Product Name</label>
@@ -760,12 +765,13 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                 <button
                   type="button"
                   onClick={closeModal}
+                  disabled={isSaving}
                   className="rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]"
                 >
                   Cancel
                 </button>
-                <button type="submit" className="bg-oppa-gradient rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90">
-                  {modalMode === 'add' ? 'Save Product' : 'Save Changes'}
+                <button type="submit" disabled={isSaving} className="bg-oppa-gradient rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-wait disabled:opacity-60">
+                  {isSaving ? 'Saving…' : modalMode === 'add' ? 'Save Product' : 'Save Changes'}
                 </button>
               </div>
             </form>

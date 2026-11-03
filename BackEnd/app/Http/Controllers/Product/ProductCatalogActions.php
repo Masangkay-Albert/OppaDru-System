@@ -51,14 +51,17 @@ trait ProductCatalogActions
 
             $catalog = $inventoryService->catalog((string) $franchiseId, true)->values();
             if ($catalog->isNotEmpty()) {
-                return response()->json($catalog);
+                return response()->json($catalog)
+                    ->header('Cache-Control', 'private, no-store, no-cache, max-age=0');
             }
 
             if (! $franchise->isOperationallyActive()) {
-                return response()->json(['message' => 'The selected branch is unavailable.'], 404);
+                return response()->json(['message' => 'The selected branch is unavailable.'], 404)
+                    ->header('Cache-Control', 'private, no-store, no-cache, max-age=0');
             }
 
-            return response()->json($catalog);
+            return response()->json($catalog)
+                ->header('Cache-Control', 'private, no-store, no-cache, max-age=0');
         }
 
         $availableProducts = Cache::remember('catalog_products_available', 600, function () {
