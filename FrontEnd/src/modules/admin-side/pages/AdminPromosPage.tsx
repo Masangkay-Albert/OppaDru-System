@@ -608,7 +608,7 @@ export default function AdminPromosPage() {
       setDeleteTarget(null);
       await loadPromos();
     } catch (error: unknown) {
-      window.alert(errorMessage(error, 'Failed to delete promo.'));
+      showToast(errorMessage(error, 'Failed to delete promo.'), 'error');
     }
   };
 

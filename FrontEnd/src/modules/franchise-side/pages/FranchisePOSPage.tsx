@@ -14,6 +14,7 @@ import { formatPeso } from '../../../utils/formatters';
 import { getEmployeePosBrowserSessionId, loadEmployeePosDraft, saveEmployeePosDraft } from '../../../services/employeePosDraft';
 import { CashierGCashModal } from '../../employee-side/components/pos/CashierGCashModal';
 import '../../../styles/cashier-pos.css';
+import { useToast } from '../../customer-side/components/ToastProvider';
 
 interface PosCartLine {
   key: string;
@@ -86,6 +87,7 @@ const isBranchProductLowStock = (product: BranchProduct) =>
     && product.branch_stock !== undefined && product.branch_stock > 0 && product.branch_stock <= 5));
 
 const FranchisePOSPage: React.FC = () => {
+  const { confirmDialog } = useToast();
   const { franchiseUser } = useFranchiseAuth();
   const location = useLocation();
   const employeeData = (() => {
@@ -474,8 +476,14 @@ const FranchisePOSPage: React.FC = () => {
     setRemovedLine(null);
   };
 
-  const clearOrder = () => {
-    if (!window.confirm('Clear all items from this order?')) return;
+  const clearOrder = async () => {
+    const confirmed = await confirmDialog({
+      title: 'Clear this order?',
+      message: 'Remove all items from the current POS order?',
+      confirmLabel: 'Clear order',
+      danger: true,
+    });
+    if (!confirmed) return;
     setCart({});
     setPaymentReference('');
     setPaymentCheckoutUrl('');

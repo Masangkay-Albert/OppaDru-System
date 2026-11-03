@@ -18,6 +18,7 @@ import {
 
 import { sortOrders } from '../../../utils/dashboardOrders';
 import { API_URL } from '../../../services/apiConfig';
+import { useToast } from '../../customer-side/components/ToastProvider';
 
 
 const chipBase = 'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition whitespace-nowrap motion-reduce:transition-none';
@@ -62,6 +63,7 @@ const formatDate = (dateString: string) => {
 };
 
 const DriverDashboardPage: React.FC = () => {
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<DriverOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,7 +179,7 @@ const DriverDashboardPage: React.FC = () => {
       if (activeTab === nextTab) fetchOrders(); 
     } catch (error) {
       console.error("Error updating status:", error);
-      alert(error instanceof Error ? error.message : "Failed to update order status. Please try again.");
+      showToast(error instanceof Error ? error.message : "Failed to update order status. Please try again.", 'error');
     }
   };
 
@@ -217,7 +219,7 @@ const DriverDashboardPage: React.FC = () => {
       ));
       setProofFile(null);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to upload delivery proof. Please try again.');
+      showToast(error instanceof Error ? error.message : 'Failed to upload delivery proof. Please try again.', 'error');
     } finally {
       setProofUploading(false);
     }

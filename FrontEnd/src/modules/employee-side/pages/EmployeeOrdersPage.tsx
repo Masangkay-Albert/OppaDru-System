@@ -6,9 +6,11 @@ import { OrderCard } from '../components/orders/OrderCard';
 import POSReceiptModal from '../components/pos/POSReceiptModal';
 import { getOnsiteOrders, fetchOnsiteOrders, markOrderServed, removeOrder, type AdminOrder } from '../../../services/adminOrderService';
 import SearchInput from '../../../components/ui/SearchInput';
+import { useToast } from '../../customer-side/components/ToastProvider';
 
 const EmployeeOrdersPage: React.FC = () => {
   const navigate = useNavigate();
+  const { confirmDialog } = useToast();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'preparing' | 'prepared' | 'delivered'>('all');
@@ -71,10 +73,15 @@ const EmployeeOrdersPage: React.FC = () => {
   };
 
   const handleCancelOrder = async (order: AdminOrder) => {
-    if (window.confirm(`Are you sure you want to void/cancel order ${order.order_number || order.id}?`)) {
-      await removeOrder(order.id, 'onsite');
-      loadOnsiteOrders();
-    }
+    const confirmed = await confirmDialog({
+      title: 'Cancel this order?',
+      message: `Void/cancel order ${order.order_number || order.id}?`,
+      confirmLabel: 'Cancel order',
+      danger: true,
+    });
+    if (!confirmed) return;
+    await removeOrder(order.id, 'onsite');
+    loadOnsiteOrders();
   };
 
   return (

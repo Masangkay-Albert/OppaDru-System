@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from '../../../contexts/Authcontext';
 import { useCart } from '../../../contexts/CartContext';
 import { useFavorites } from '../../../contexts/FavoritesContext';
+import { useToast } from '../components/ToastProvider';
 import { categories } from '../../../data/mockData';
 import type { Product, ProductCategory } from '../../../types/product.types';
 import ProductCard from '../components/product/ProductCard';
@@ -24,12 +25,12 @@ import '../../../styles/menu-design.css';
 
 const MenuPage: React.FC = () => {
   const { user } = useAuth();
-  const { getTotalItems, cartItems, clearCart } = useCart();
+  const { getTotalItems, activeBranchId, setActiveBranchId, getBranchCartItemCount, validateCartAgainstMenu } = useCart();
+  const { showToast } = useToast();
   const { showNotification, newFavoriteName, clearNotification } = useFavorites();
   const [products, setProducts] = useState<Product[]>([]);
   const [branches, setBranches] = useState<FranchiseBranch[]>([]);
   const [branchesLoaded, setBranchesLoaded] = useState(false);
-  const [selectedBranchId, setSelectedBranchIdState] = useState<string | null>(() => getSelectedBranchId());
   const [branchError, setBranchError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,14 +42,15 @@ const MenuPage: React.FC = () => {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const data = await productService.getAvailableProducts(selectedBranchId);
+      const data = await productService.getAvailableProducts(activeBranchId);
       setProducts(data);
+      validateCartAgainstMenu(data);
       setBranchError('');
     } catch (error) {
       setProducts([]);
       setBranchError(error instanceof Error ? error.message : 'Unable to load this branch menu.');
     }
-  }, [selectedBranchId]);
+  }, [activeBranchId, validateCartAgainstMenu]);
 
   useEffect(() => {
     getActiveBranches()
@@ -62,13 +64,13 @@ const MenuPage: React.FC = () => {
         if (selectedId !== savedBranchId) {
           setSelectedBranchId(selectedId);
         }
-        setSelectedBranchIdState(selectedId);
+        setActiveBranchId(selectedId);
         setBranchesLoaded(true);
       })
       .catch((error: unknown) => {
         setBranchError(error instanceof Error ? error.message : 'Unable to load branches.');
       });
-  }, []);
+  }, [setActiveBranchId]);
 
   useEffect(() => {
     if (!branchesLoaded) return;
@@ -90,16 +92,25 @@ const MenuPage: React.FC = () => {
       window.removeEventListener('focus', refreshProducts);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [branchesLoaded, fetchProducts, selectedBranchId]);
+  }, [branchesLoaded, fetchProducts, activeBranchId]);
 
   const handleBranchChange = (branchId: string) => {
-    if (branchId === (selectedBranchId || '')) return;
-    if (cartItems.length > 0 && !window.confirm('Changing branches will clear your current cart. Continue?')) return;
-    if (cartItems.length > 0) clearCart();
+    if (branchId === (activeBranchId || '')) return;
+    const previousBranchName = branches.find((branch) => branch.id === activeBranchId)?.name;
+    const previousCartCount = activeBranchId ? getBranchCartItemCount(activeBranchId) : 0;
+    const nextBranchName = branches.find((branch) => branch.id === branchId)?.name;
     const nextBranchId = branchId || null;
     setSelectedBranchId(nextBranchId);
-    setSelectedBranchIdState(nextBranchId);
+    setActiveBranchId(nextBranchId);
     setBranchError('');
+    if (nextBranchName) {
+      showToast(
+        previousCartCount && previousBranchName
+          ? `Switched to ${nextBranchName}. Your ${previousBranchName} cart is saved.`
+          : `Switched to ${nextBranchName}.`,
+        'success',
+      );
+    }
   };
 
   const handleOpenModal = useCallback((product: Product) => {
@@ -226,12 +237,22 @@ const MenuPage: React.FC = () => {
             <Select
               id="customer-branch"
               aria-label="Choose a branch"
-              value={selectedBranchId || ''}
+              value={activeBranchId || ''}
               onChange={handleBranchChange}
               icon={<LuStore size={18} aria-hidden="true" />}
               disabled={branchesLoaded && branches.length === 0}
               placeholder={branchesLoaded ? 'Select a branch' : 'Loading branches...'}
-              options={branches.map((branch) => ({ value: branch.id, label: branch.name, description: branch.address || undefined }))}
+              options={branches.map((branch) => {
+                const itemCount = getBranchCartItemCount(branch.id);
+                return {
+                  value: branch.id,
+                  label: branch.name,
+                  description: branch.address || undefined,
+                  badge: itemCount > 0
+                    ? <span className="shrink-0 rounded-full bg-[var(--oppa-green)] px-2 py-0.5 text-xs font-semibold text-white">{itemCount}</span>
+                    : undefined,
+                };
+              })}
               className="w-full sm:max-w-xl"
               triggerClassName="h-12"
             />

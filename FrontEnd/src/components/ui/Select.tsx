@@ -9,6 +9,7 @@ export interface SelectOption<Value extends string | number = string> {
   disabled?: boolean;
   icon?: ReactNode;
   description?: string;
+  badge?: ReactNode;
 }
 
 interface SelectProps<Value extends string | number = string> {
@@ -325,6 +326,7 @@ export default function Select<Value extends string | number = string>({
                   <span className="block truncate">{option.label}</span>
                   {option.description && <span className="mt-0.5 block truncate text-xs font-normal text-[var(--oppa-text-muted)]">{option.description}</span>}
                 </span>
+                {option.badge}
                 {isSelected && <LuCheck size={16} aria-hidden="true" className="shrink-0" />}
               </button>
             );

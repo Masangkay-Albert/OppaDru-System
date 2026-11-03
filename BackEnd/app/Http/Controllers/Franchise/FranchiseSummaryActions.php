@@ -25,6 +25,10 @@ trait FranchiseSummaryActions
                             });
                     });
             })
+            ->where(function ($query) {
+                $query->whereNull('franchise_account_id')
+                    ->orWhereHas('franchiseAccount', fn ($account) => $account->where('status', 'active'));
+            })
             ->orderByDesc('is_main')
             ->orderBy('name')
             ->get(['id', 'name', 'address', 'is_main']);

@@ -16,10 +16,12 @@ import { OrderCard } from '../components/orders/OrderCard';
 import { OrderEditModal } from '../components/orders/OrderEditModal';
 import SearchInput from '../../../components/ui/SearchInput';
 import '../../../styles/secondary-pages.css';
+import { useToast } from '../components/ToastProvider';
 
 const MyOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { orders, refreshOrders, isLoading } = useOrder();
+  const { showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -192,7 +194,7 @@ const MyOrdersPage: React.FC = () => {
       navigate(`/orders/${encodeURIComponent(orderId)}/track`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to update this order.';
-      window.alert(message);
+      showToast(message, 'error');
     } finally {
       setIsSavingEdit(false);
     }

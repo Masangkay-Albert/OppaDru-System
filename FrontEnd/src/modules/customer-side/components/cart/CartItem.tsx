@@ -6,12 +6,13 @@ import { FiTrash2 } from 'react-icons/fi';
 interface CartItemProps {
   item: CartItemType;
   onUpdateQuantity: (cartItemId: string, quantity: number) => void;
-  onRemove: (cartItemId: string) => void;
+  onRemove: () => void;
   onEdit: (item: CartItemType) => void;
+  onUpdatePrice: () => void;
   calculateItemTotal: (item: CartItemType) => number;
 }
 
-const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, onRemove, onEdit, calculateItemTotal }) => {
+const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, onRemove, onEdit, onUpdatePrice, calculateItemTotal }) => {
   const baseTotal = calculateItemTotal(item);
 
   return (
@@ -37,6 +38,18 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
                 <span className="text-xs font-medium text-[#7f4f24] mt-0.5 block">{item.selectedSize}</span>
               )}
             </div>
+            {item.cartIssue && (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" role="alert">
+                <p>{item.cartIssue === 'unavailable'
+                  ? 'This item is no longer available at the selected branch.'
+                  : `The price changed for this branch${item.currentBranchPrice != null ? ` to ₱${item.currentBranchPrice.toFixed(2)}` : ''}.`}</p>
+                {item.cartIssue === 'price-changed' && (
+                  <button type="button" onClick={(event) => { event.stopPropagation(); onUpdatePrice(); }} className="mt-2 font-semibold underline underline-offset-2">
+                    Accept new price
+                  </button>
+                )}
+              </div>
+            )}
             <span className="text-sm font-bold text-[#1b4d3e] whitespace-nowrap">{formatCurrency(baseTotal)}</span>
           </div>
 
@@ -79,7 +92,7 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onRemove(item.cartItemId);
+                onRemove();
               }}
               className="text-[#d94f4f]/70 hover:text-[#d94f4f] transition p-1.5 hover:bg-[#d94f4f]/10 rounded-full"
               title="Remove item"

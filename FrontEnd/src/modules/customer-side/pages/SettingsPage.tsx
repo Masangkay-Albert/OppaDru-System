@@ -8,12 +8,14 @@ import ProfileSection from '../components/settings/ProfileSection';
 import SecuritySection from '../components/settings/SecuritySection';
 import DiscountSection from '../components/settings/DiscountSection';
 import '../../../styles/secondary-pages.css';
+import { useToast } from '../components/ToastProvider';
 
 type SettingsTab = 'profile' | 'security' | 'discount';
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { confirmDialog } = useToast();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
 
   const renderContent = () => {
@@ -30,6 +32,13 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    const confirmed = await confirmDialog({
+      title: 'Log out?',
+      message: 'Your saved branch carts will remain on this device.',
+      confirmLabel: 'Log out',
+      danger: true,
+    });
+    if (!confirmed) return;
     await logout();
     navigate('/login');
   };

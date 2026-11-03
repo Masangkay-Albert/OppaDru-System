@@ -35,7 +35,7 @@ class MainBranchSeeder extends Seeder
                 'longitude' => 120.9355294,
                 'accepts_online_orders' => true,
                 'delivery_enabled' => true,
-                'delivery_radius_km' => 15,
+                'delivery_radius_km' => 10,
                 'is_main' => false,
             ]);
             $branch->save();

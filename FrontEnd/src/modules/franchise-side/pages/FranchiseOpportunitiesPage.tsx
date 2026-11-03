@@ -5,7 +5,7 @@ import {
   FileCheck2, Handshake, Headset, MapPin, Megaphone, PackageCheck, Phone,
   ShieldCheck, ShoppingBag, Store, Utensils,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
 import { API_URL } from '../../../services/apiConfig';
 import { productService, type Product } from '../../../services/productService';
@@ -304,7 +304,6 @@ const FranchiseOpportunitiesPage: React.FC = () => {
               <button type="button" onClick={handleApply} disabled={isAuthLoading || isStartingApplication} className="franchise-button franchise-button-primary">
                 {applyLabel} <ArrowRight size={16} />
               </button>
-              {applicant && <Link to="/franchise/my-applications" className="franchise-sidebar-account-link">My Applications <ArrowRight size={15} /></Link>}
               <p className="franchise-sidebar-caption">Contact the franchise team for current program details.</p>
             </div>
 

@@ -2,14 +2,16 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../../contexts/Authcontext";
 import { useFavorites } from "../../../../contexts/FavoritesContext";
-import { BriefcaseBusiness, Heart, ChevronDown, Package, LogOut, Settings } from "lucide-react";
+import { Heart, ChevronDown, Package, LogOut, Settings } from "lucide-react";
 import oppaLogo from "../../../../assets/oppadrulogo.jpg";
 import CustomerAnnouncementBell from "../common/CustomerAnnouncementBell";
+import { useToast } from '../ToastProvider';
 
 const NavbarCustomer: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { favoriteNotificationCount } = useFavorites();
+  const { confirmDialog } = useToast();
   const [showDropdown, setShowDropdown] = useState(false);
 
   const getInitials = (name: string) => {
@@ -18,6 +20,13 @@ const NavbarCustomer: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    const confirmed = await confirmDialog({
+      title: 'Log out?',
+      message: 'You can sign in again at any time. Your saved branch carts will remain on this device.',
+      confirmLabel: 'Log out',
+      danger: true,
+    });
+    if (!confirmed) return;
     await logout();
     setShowDropdown(false);
     navigate("/login");
@@ -104,16 +113,6 @@ const NavbarCustomer: React.FC = () => {
                       >
                         <Package size={16} className="text-gray-500" />
                         <span>My Orders</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowDropdown(false);
-                          navigate("/franchise/my-applications");
-                        }}
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors duration-150 font-sans"
-                      >
-                        <BriefcaseBusiness size={16} className="text-gray-500" />
-                        <span>My Applications</span>
                       </button>
                       <button
                         onClick={() => {

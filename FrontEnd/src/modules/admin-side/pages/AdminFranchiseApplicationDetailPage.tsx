@@ -19,6 +19,7 @@ import { FranchiseSkeleton, FranchiseStatusPill } from '../../franchise-side/com
 import InlineMessage from '../../shared/components/InlineMessage';
 import LocationPicker from '../../customer-side/components/common/LocationPicker';
 import '../../franchise-side/pages/FranchisePortalDesign.css';
+import { useToast } from '../../customer-side/components/ToastProvider';
 
 const statusTitle = franchiseStatusLabel;
 const money = (amount?: string | number) => amount === undefined || amount === null ? 'Not provided' : `₱${Number(amount).toLocaleString('en-PH')}`;
@@ -949,6 +950,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 };
 
 const FranchiseActivationPanel: React.FC<{ application: FranchiseApplication; onActivated: () => Promise<void> }> = ({ application, onActivated }) => {
+  const { confirmDialog } = useToast();
   const registeredApplicant = application.franchise_applicant;
   const [managerName, setManagerName] = useState(registeredApplicant?.full_name || application.contact_name);
   const [managerEmail, setManagerEmail] = useState(registeredApplicant?.email || application.email);
@@ -975,7 +977,12 @@ const FranchiseActivationPanel: React.FC<{ application: FranchiseApplication; on
 
   const handleActivate = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!window.confirm('Activate this franchise, create its location and franchisee dashboard access, and enable franchise operations?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Activate franchise?',
+      message: 'This will create its location and franchisee dashboard access, and enable franchise operations.',
+      confirmLabel: 'Activate franchise',
+    });
+    if (!confirmed) return;
     setSaving(true);
     setError('');
     try {

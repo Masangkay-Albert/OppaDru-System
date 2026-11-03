@@ -25,7 +25,7 @@ interface BranchUser {
 
 const FranchiseUsersPage: React.FC = () => {
   const { franchiseUser } = useFranchiseAuth();
-  const { showToast } = useToast();
+  const { showToast, confirmDialog, promptDialog } = useToast();
   const [users, setUsers] = useState<BranchUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -146,7 +146,14 @@ const FranchiseUsersPage: React.FC = () => {
 
   const resetPassword = async (user: BranchUser) => {
     if (!user.user_type) return;
-    const password = window.prompt(`Enter a new password for ${user.name} (at least 8 characters):`);
+    const password = await promptDialog({
+      title: 'Reset staff password',
+      message: `Enter a new password for ${user.name}.`,
+      label: 'New password',
+      type: 'password',
+      minLength: 8,
+      placeholder: 'At least 8 characters',
+    });
     if (password === null) return;
     if (password.length < 8) {
       setError('The new password must be at least 8 characters.');
@@ -167,7 +174,14 @@ const FranchiseUsersPage: React.FC = () => {
   };
 
   const removeStaff = async (user: BranchUser) => {
-    if (!user.user_type || !window.confirm(`Remove ${user.name}'s staff account from this branch?`)) return;
+    if (!user.user_type) return;
+    const confirmed = await confirmDialog({
+      title: 'Remove staff account?',
+      message: `Remove ${user.name}'s staff account from this branch?`,
+      confirmLabel: 'Remove account',
+      danger: true,
+    });
+    if (!confirmed) return;
     setError('');
     try {
       const response = await fetchWithFranchiseAuth(

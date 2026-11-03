@@ -18,6 +18,7 @@ import OrderDetailsModal from './components/OrderDetailsModal';
 import type { KitchenOrder, KitchenSort, KitchenTab, ScheduledDateFilter } from './kitchenOrderTypes';
 import { formatKitchenManilaDateTime, getKitchenScheduleState } from './kitchenSchedule';
 import Select from '../../components/ui/Select';
+import { useToast } from '../customer-side/components/ToastProvider';
 
 const chipBase = 'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition whitespace-nowrap';
 const chipPrimary = `${chipBase} bg-[var(--oppa-green)] text-white shadow-sm hover:bg-[#245f37] disabled:cursor-not-allowed disabled:opacity-50`;
@@ -42,6 +43,7 @@ const shiftDate = (date: string, days: number) => {
 };
 
 const KitchenDashboardPage: React.FC = () => {
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,7 +192,7 @@ const KitchenDashboardPage: React.FC = () => {
       if (!nextTab || nextTab === activeTab) await fetchOrders(false);
     } catch (error) {
       console.error('Error updating kitchen order:', error);
-      window.alert(error instanceof Error ? error.message : 'Failed to update order status.');
+      showToast(error instanceof Error ? error.message : 'Failed to update order status.', 'error');
     } finally {
       setBusyOrderId(null);
     }
@@ -226,7 +228,7 @@ const KitchenDashboardPage: React.FC = () => {
       await fetchOrders(false);
     } catch (error) {
       console.error('Error rescheduling kitchen order:', error);
-      window.alert(error instanceof Error ? error.message : 'Failed to reschedule order.');
+      showToast(error instanceof Error ? error.message : 'Failed to reschedule order.', 'error');
     } finally {
       setBusyOrderId(null);
     }

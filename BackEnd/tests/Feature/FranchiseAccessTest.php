@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Franchise;
+use App\Models\FranchiseAccount;
 use App\Models\FranchiseUser;
 use App\Models\Addon;
 use App\Models\AddonGroup;
@@ -531,6 +532,24 @@ class FranchiseAccessTest extends TestCase
             'address' => 'Closed St',
             'status' => 'inactive',
         ]);
+        $westBranch = Franchise::create([
+            'name' => 'West Branch',
+            'email' => 'west@example.com',
+            'phone' => '09170000005',
+            'address' => '321 West St',
+            'status' => 'active',
+        ]);
+        $inactiveAccount = FranchiseAccount::create([
+            'name' => 'Inactive Corporation',
+            'status' => 'inactive',
+        ]);
+        Franchise::create([
+            'name' => 'Inactive Account Branch',
+            'address' => 'Inactive corporation location',
+            'franchise_account_id' => $inactiveAccount->id,
+            'status' => 'active',
+            'is_active' => true,
+        ]);
 
         Product::create([
             'name' => 'Shared Bowl',
@@ -558,17 +577,33 @@ class FranchiseAccessTest extends TestCase
             'franchise_id' => $inactiveBranch->id,
             'is_available' => true,
         ]);
+        Product::create([
+            'name' => 'West Branch Apple',
+            'description' => 'Available only at West',
+            'price' => 140,
+            'category' => 'fruity-soda',
+            'image' => '',
+            'franchise_id' => $westBranch->id,
+            'is_available' => true,
+        ]);
 
         $branches = $this->getJson('/api/franchises/active');
         $branches->assertOk();
-        $this->assertCount(1, $branches->json('data'));
-        $this->assertSame($branch->id, $branches->json('data.0.id'));
+        $this->assertCount(2, $branches->json('data'));
+        $this->assertNotContains('Inactive Account Branch', collect($branches->json('data'))->pluck('name')->all());
 
         $catalog = $this->getJson('/api/products/available?franchise_id=' . $branch->id);
         $catalog->assertOk();
         $this->assertSame(
             ['East Special', 'Shared Bowl'],
             collect($catalog->json())->pluck('name')->sort()->values()->all()
+        );
+
+        $westCatalog = $this->getJson('/api/products/available?franchise_id=' . $westBranch->id);
+        $westCatalog->assertOk();
+        $this->assertSame(
+            ['Shared Bowl', 'West Branch Apple'],
+            collect($westCatalog->json())->pluck('name')->sort()->values()->all()
         );
     }
 

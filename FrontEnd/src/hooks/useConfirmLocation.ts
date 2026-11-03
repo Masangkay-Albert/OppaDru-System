@@ -5,6 +5,7 @@ import { searchLocationAPI } from './useLocationSearch';
 import type { LocationResult } from './useLocationSearch';
 import { getAddressFromCoords } from '../services/geocodingService';
 import { cleanAddress, getShortName } from '../utils/locationUtils';
+import { useToast } from '../modules/customer-side/components/ToastProvider';
 
 interface Params {
   searchQuery: string;
@@ -26,6 +27,7 @@ export const useConfirmLocation = ({
   onSelectLocation,
   onClose
 }: Params) => {
+  const { showToast } = useToast();
   return useCallback(async () => {
     const typed = searchQuery.trim();
 
@@ -40,7 +42,7 @@ export const useConfirmLocation = ({
       const pin = await getAddressFromCoords(position[0], position[1]);
 
       if (!pin) {
-        alert('Unable to resolve location. Try adjusting the pin.');
+        showToast('Unable to resolve location. Try adjusting the pin.', 'error');
         return;
       }
 
@@ -72,5 +74,5 @@ export const useConfirmLocation = ({
     }
 
     onClose();
-  }, [searchQuery, selectedSearchResult, position, onSelectLocation, onClose]);
+  }, [searchQuery, selectedSearchResult, position, onSelectLocation, onClose, showToast]);
 };

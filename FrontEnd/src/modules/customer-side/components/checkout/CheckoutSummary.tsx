@@ -19,6 +19,7 @@ interface CheckoutSummaryProps {
   branchName?: string;
   branchDistanceKm?: number;
   branchNotice?: string;
+  cartValidationNotice?: string;
   onPickLocation?: () => void;
   canPickLocation?: boolean;
   canPlaceOrder?: boolean;
@@ -36,6 +37,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   branchName = 'Select a delivery address',
   branchDistanceKm,
   branchNotice,
+  cartValidationNotice,
   onPickLocation,
   canPickLocation = false,
   canPlaceOrder = false,
@@ -83,6 +85,9 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         <p>{branchNotice}</p>
         {canPickLocation && onPickLocation && <button type="button" onClick={onPickLocation} className="mt-2 inline-flex min-h-9 items-center gap-1.5 font-semibold text-[var(--oppa-green)] underline underline-offset-2"><FiMapPin aria-hidden="true" />Pin your location on the map</button>}
       </div>}
+      {cartValidationNotice && <div role="status" className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        {cartValidationNotice}
+      </div>}
 
       <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
         {cartItems.map((item) => {
@@ -106,6 +111,13 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
                 <div className="text-xs text-gray-400 ml-4">
                   {item.selectedAddons.map(a => `+ ${a.name}`).join(', ')}
                 </div>
+              )}
+              {item.cartIssue && (
+                <p role="alert" className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">
+                  {item.cartIssue === 'unavailable'
+                    ? 'Unavailable at this branch. Remove this item from your cart to continue.'
+                    : `Price changed${item.currentBranchPrice != null ? ` to ${formatCurrency(item.currentBranchPrice)}` : ''}. Accept the new price from your cart before continuing.`}
+                </p>
               )}
             </div>
           );

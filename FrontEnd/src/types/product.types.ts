@@ -62,4 +62,6 @@ export interface CartItem extends Product {
   selectedAddons?: Addon[];
   specialInstructions?: string;
   selectedSize?: ProductSize;
+  cartIssue?: 'unavailable' | 'price-changed';
+  currentBranchPrice?: number;
 }

@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BadgeCheck, CheckCircle, X, XCircle } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { listDiscountApplications, updateDiscountApplicationStatus, type DiscountApplicationRequest } from '../../../services/discountApplicationService';
+import { useToast } from '../../customer-side/components/ToastProvider';
 
 const AdminDiscountApprovalsPage: React.FC = () => {
+  const { showToast } = useToast();
   const [applications, setApplications] = useState<DiscountApplicationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReason, setSelectedReason] = useState<Record<string, string>>({});
@@ -61,7 +63,7 @@ const AdminDiscountApprovalsPage: React.FC = () => {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update discount request.';
-      window.alert(message);
+      showToast(message, 'error');
     } finally {
       setActionLoading((prev) => ({ ...prev, [id]: false }));
     }

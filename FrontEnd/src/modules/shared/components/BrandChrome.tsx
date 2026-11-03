@@ -139,7 +139,6 @@ export const BrandFooter: React.FC<BrandFooterProps> = ({ variant = 'customer' }
           <h2>{isFranchise ? 'Franchise Links' : 'Quick Links'}</h2>
           {isFranchise ? (
             <>
-              <Link to="/franchise/my-applications">My Applications</Link>
               <Link to="/franchise/applicant-login">Applicant Sign In</Link>
               <a href="mailto:oppadrukfc@gmail.com?subject=Privacy%20Policy%20Request">Privacy Policy</a>
               <a href="#program-terms">Program Terms</a>

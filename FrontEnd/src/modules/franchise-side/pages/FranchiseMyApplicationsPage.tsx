@@ -13,6 +13,7 @@ import {
 import { franchiseStatusLabel } from '../../../services/franchiseWorkflow';
 import { FranchiseEmptyState, FranchiseSkeleton, FranchiseStepper, FranchiseStatusPill, FranchiseTimeline } from '../components/FranchisePortalUI';
 import InlineMessage from '../../shared/components/InlineMessage';
+import { useToast } from '../../customer-side/components/ToastProvider';
 import './FranchisePortalDesign.css';
 
 const title = franchiseStatusLabel;
@@ -52,6 +53,7 @@ type ApplicationFeedback = {
 };
 
 const FranchiseMyApplicationsPage: React.FC = () => {
+  const { confirmDialog } = useToast();
   const navigate = useNavigate();
   const { logout } = useFranchiseApplicantAuth();
   const [applications, setApplications] = useState<ApplicantFranchiseApplication[]>([]);
@@ -256,7 +258,13 @@ const FranchiseMyApplicationsPage: React.FC = () => {
   };
 
   const handleWithdraw = async (application: ApplicantFranchiseApplication) => {
-    if (!window.confirm(`Withdraw application ${application.reference_number}? This action cannot be undone.`)) return;
+    const confirmed = await confirmDialog({
+      title: 'Withdraw application?',
+      message: `Withdraw application ${application.reference_number}? This action cannot be undone.`,
+      confirmLabel: 'Withdraw application',
+      danger: true,
+    });
+    if (!confirmed) return;
     setBusyId(application.id);
     setError('');
     setApplicationFeedback((current) => {

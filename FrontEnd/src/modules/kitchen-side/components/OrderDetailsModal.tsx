@@ -7,6 +7,7 @@ import type { KitchenOrder } from '../kitchenOrderTypes';
 import {
   formatKitchenManilaDateTime, fromManilaDateTimeInput, getKitchenScheduleState, getKitchenScheduleTone, toLocalDateTimeInput,
 } from '../kitchenSchedule';
+import { useToast } from '../../customer-side/components/ToastProvider';
 
 interface OrderDetailsModalProps {
   order: KitchenOrder;
@@ -137,6 +138,7 @@ export const OrderTimeline = ({ order, now }: { order: KitchenOrder; now: number
 };
 
 const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, onReschedule, onCancel }: OrderDetailsModalProps) => {
+  const { showToast } = useToast();
   const [now, setNow] = useState(() => Date.now());
   const [rescheduling, setRescheduling] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'start-early' | 'cancel' | null>(null);
@@ -184,7 +186,7 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
     try {
       await navigator.clipboard.writeText(order.order_number || order.id);
     } catch {
-      window.prompt('Copy order ID:', order.order_number || order.id);
+      showToast('Unable to copy the order ID. Please copy it from the order details.', 'error');
     }
   };
 

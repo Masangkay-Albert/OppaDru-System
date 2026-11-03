@@ -20,7 +20,7 @@ import '../styles/franchise-account-detail.css';
 
 const AdminFranchiseAccountDetailPage: React.FC = () => {
   const { id = '' } = useParams();
-  const { showToast } = useToast();
+  const { showToast, confirmDialog } = useToast();
   const [overview, setOverview] = useState<FranchiseAccountOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -229,7 +229,15 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
   const toggleAccountStatus = async () => {
     if (!account) return;
     const nextStatus = account.status === 'active' ? 'inactive' : 'active';
-    if (nextStatus === 'inactive' && !window.confirm(`Deactivate ${account.name}? Existing records are retained.`)) return;
+    if (nextStatus === 'inactive') {
+      const confirmed = await confirmDialog({
+        title: 'Deactivate franchise?',
+        message: `Deactivate ${account.name}? Existing records are retained.`,
+        confirmLabel: 'Deactivate',
+        danger: true,
+      });
+      if (!confirmed) return;
+    }
     setSaving(true);
     setError('');
     setNotice('');

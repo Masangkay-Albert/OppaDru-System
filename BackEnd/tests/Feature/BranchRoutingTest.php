@@ -50,6 +50,10 @@ class BranchRoutingTest extends TestCase
     {
         $cavite = $this->branch('Cavite branch', 14.3500, 120.9500);
         $laguna = $this->branch('Laguna branch', 14.272967, 121.093142);
+        $cavite->delivery_radius_km = 25;
+        $cavite->save();
+        $laguna->delivery_radius_km = 25;
+        $laguna->save();
         $product = $this->product();
         $this->addInventory($cavite, $product);
         $this->addInventory($laguna, $product);
@@ -84,6 +88,7 @@ class BranchRoutingTest extends TestCase
     {
         $this->seed(\Database\Seeders\MainBranchSeeder::class);
         $branch = Franchise::where('is_main', true)->firstOrFail();
+        $this->assertSame(10.0, $branch->delivery_radius_km);
         $product = $this->product();
         $this->addInventory($branch, $product);
         $this->mock(GeocodingService::class)
@@ -383,6 +388,24 @@ class BranchRoutingTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.branch.id', $branch->id)
             ->assertJsonPath('data.unavailable_items', []);
+    }
+
+    public function test_unconfigured_branch_delivery_radius_defaults_to_ten_kilometers(): void
+    {
+        config(['app.debug' => true]);
+        $branch = $this->branch('Cavite branch', 14.3500, 120.9500);
+        $product = $this->product();
+
+        $this->postJson('/api/branches/resolve', [
+            'address' => 'Dasmarinas, Cavite',
+            'coordinates' => ['lat' => 14.4500, 'lng' => 120.9500],
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'fulfillment_type' => 'delivery',
+        ])->assertUnprocessable()
+            ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
+            ->assertJsonPath('branch_diagnostics.0.id', $branch->id)
+            ->assertJsonPath('branch_diagnostics.0.delivery_radius_km', 10)
+            ->assertJsonPath('branch_diagnostics.0.exclusion_reason', 'outside delivery radius');
     }
 
     private function branch(string $name, float $latitude, float $longitude): Franchise

@@ -7,6 +7,7 @@ import ProductModal from '../product/ProductModal';
 import { calculateItemTotal, calculateSubtotal } from '../../../../services/cartService';
 import type { CartItem } from '../../../../types/product.types';
 import { FiX, FiShoppingBag, FiTrash2 } from 'react-icons/fi';
+import { useToast } from '../ToastProvider';
 
 interface CartSidebarProps {
   onClose?: () => void;
@@ -14,25 +15,41 @@ interface CartSidebarProps {
 
 const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
   const navigate = useNavigate();
-  const { cartItems, removeFromCart, updateQuantity, clearCart } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, updateCartItemPrice, clearCart, useCutlery, setUseCutlery } = useCart();
+  const { showToast, confirmDialog } = useToast();
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
-  const [useCutlery, setUseCutlery] = useState(() => {
-    const saved = localStorage.getItem('cutleryPreference');
-    return saved ? JSON.parse(saved) : false;
-  });
 
   const subtotal = calculateSubtotal(cartItems);
   const hasItems = cartItems.length > 0;
 
-  const handleCutleryChange = (value: boolean) => {
-    setUseCutlery(value);
-    localStorage.setItem('cutleryPreference', JSON.stringify(value));
+  const handleCheckout = () => {
+    if (!hasItems) return;
+    if (cartItems.some((item) => item.cartIssue)) {
+      showToast('Resolve unavailable items or price changes before checkout.', 'warning');
+      return;
+    }
+    navigate('/checkout');
   };
 
-  const handleCheckout = () => {
-    if (hasItems) {
-      navigate('/checkout');
-    }
+  const handleRemove = async (item: CartItem) => {
+    const confirmed = await confirmDialog({
+      title: 'Remove item?',
+      message: `Remove ${item.name} from this branch’s cart?`,
+      confirmLabel: 'Remove item',
+      danger: true,
+    });
+    if (confirmed) removeFromCart(item.cartItemId);
+  };
+
+  const handleClearCart = async () => {
+    if (!hasItems) return;
+    const confirmed = await confirmDialog({
+      title: 'Clear this cart?',
+      message: 'This will clear items from the currently selected branch only.',
+      confirmLabel: 'Clear cart',
+      danger: true,
+    });
+    if (confirmed) clearCart();
   };
 
   return (
@@ -68,8 +85,9 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
               key={item.cartItemId}
               item={item}
               onUpdateQuantity={updateQuantity}
-              onRemove={removeFromCart}
+              onRemove={() => void handleRemove(item)}
               onEdit={setEditingItem}
+              onUpdatePrice={() => updateCartItemPrice(item.cartItemId)}
               calculateItemTotal={calculateItemTotal}
             />
           ))}
@@ -80,7 +98,7 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
         subtotal={subtotal}
         hasItems={hasItems}
         useCutlery={useCutlery}
-        onCutleryChange={handleCutleryChange}
+        onCutleryChange={setUseCutlery}
       />
 
       <div className="menu-cart-actions p-4 border-t border-gray-200 bg-white">
@@ -100,7 +118,7 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
           </button>
         )}
         <button
-          onClick={clearCart}
+          onClick={() => void handleClearCart()}
           className="w-full mt-3 py-2 text-gray-400 text-sm hover:text-red-500 transition flex items-center justify-center gap-2"
         >
           <FiTrash2 className="w-4 h-4" />
