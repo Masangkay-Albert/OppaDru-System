@@ -220,6 +220,26 @@ class FranchiseAccessTest extends TestCase
         $this->getJson('/api/products/available?franchise_id='.$franchiseB->id)
             ->assertOk()
             ->assertJsonMissing(['id' => $productId]);
+        $southHeaders = ['Authorization' => 'Bearer '.$southLogin->json('token')];
+        $sameNameInSouth = $this->postJson('/api/franchise/products', [
+            ...$request,
+            'name' => 'North Branch Special',
+            'franchise_id' => null,
+        ], $southHeaders)->assertCreated();
+        $southProductId = $sameNameInSouth->json('product.id');
+        $sameNameInSouth->assertJsonPath('product.franchise_id', $franchiseB->id);
+        $this->getJson('/api/franchise/inventory', $southHeaders)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $southProductId])
+            ->assertJsonMissing(['id' => $productId]);
+        $this->getJson('/api/franchise/inventory', $northHeaders)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $productId])
+            ->assertJsonMissing(['id' => $southProductId]);
+        $this->getJson('/api/products/available?franchise_id='.$franchiseB->id)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $southProductId])
+            ->assertJsonMissing(['id' => $productId]);
 
         $imageResponse = $this->post('/api/franchise/products/upload-image', [
             'image' => UploadedFile::fake()->create('branch-product.jpg', 1, 'image/jpeg'),
@@ -302,6 +322,7 @@ class FranchiseAccessTest extends TestCase
         $this->putJson('/api/franchise/products/'.$northProduct->id, ['price' => 125], $northHeaders)
             ->assertOk();
         $this->assertDatabaseHas('products', ['id' => $northProduct->id, 'price' => 125]);
+        $this->patchJson('/api/franchise/products/'.$northProduct->id.'/archive', [], $northHeaders)->assertOk();
         $this->patchJson('/api/franchise/products/'.$northProduct->id.'/archive', [], $northHeaders)->assertOk();
         $this->getJson('/api/franchise/products/archived', $northHeaders)
             ->assertOk()

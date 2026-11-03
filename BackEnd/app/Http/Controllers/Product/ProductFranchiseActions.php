@@ -49,8 +49,12 @@ trait ProductFranchiseActions
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
-        $product = Product::where('franchise_id', $franchiseUser->franchise_id)->findOrFail($id);
-        $product->delete();
+        $product = Product::withTrashed()
+            ->where('franchise_id', $franchiseUser->franchise_id)
+            ->findOrFail($id);
+        if (! $product->trashed()) {
+            $product->delete();
+        }
 
         return response()->json(['message' => 'Branch product archived successfully.']);
     }
@@ -97,28 +101,50 @@ trait ProductFranchiseActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $product = DB::transaction(function () use ($request, $franchiseUser, $payload, $inventoryService) {
-            $product = Product::create([
-                'id' => 'PROD-'.Str::random(8).'-'.strtoupper(Str::random(4)),
+        try {
+            $product = DB::transaction(function () use ($request, $franchiseUser, $payload, $inventoryService) {
+                $product = Product::create([
+                    'id' => 'PROD-'.Str::random(8).'-'.strtoupper(Str::random(4)),
+                    'franchise_id' => $franchiseUser->franchise_id,
+                    'name' => $request->name,
+                    'description' => $request->description,
+                    'price' => $request->price,
+                    'category' => $request->category,
+                    'image' => $payload['image'],
+                    'is_available' => $request->boolean('is_available', true),
+                ]);
+
+                $inventoryService->update(
+                    (string) $franchiseUser->franchise_id,
+                    (string) $product->id,
+                    ['is_available' => $product->is_available]
+                );
+
+                return $product;
+            });
+        } catch (QueryException $exception) {
+            Log::warning('Franchise product creation failed.', [
                 'franchise_id' => $franchiseUser->franchise_id,
-                'name' => $request->name,
-                'description' => $request->description,
-                'price' => $request->price,
-                'category' => $request->category,
-                'image' => $payload['image'],
-                'is_available' => $request->boolean('is_available', true),
+                'product_name' => $request->input('name'),
+                'exception' => $exception->getMessage(),
             ]);
 
-            $inventoryService->update(
-                (string) $franchiseUser->franchise_id,
-                (string) $product->id,
-                ['is_available' => $product->is_available]
-            );
+            if ($this->isProductNameConstraintViolation($exception)) {
+                return response()->json([
+                    'message' => 'A product with this name already exists in this branch.',
+                ], 409);
+            }
 
-            return $product;
-        });
+            throw $exception;
+        }
 
         return response()->json(['product' => $product, 'message' => 'Franchise product created successfully!'], 201);
+    }
+
+    private function isProductNameConstraintViolation(QueryException $exception): bool
+    {
+        return str_contains($exception->getMessage(), 'products_name_unique_ci')
+            || str_contains($exception->getMessage(), 'products_branch_name_unique_ci');
     }
 
     public function franchiseUploadImage(Request $request)
