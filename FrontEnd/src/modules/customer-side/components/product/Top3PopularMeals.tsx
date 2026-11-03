@@ -18,60 +18,61 @@ interface PopularMeal {
 
 interface Top3PopularMealsProps {
   products: Product[];
+  franchiseId?: string | null;
   onSelectProduct: (product: Product) => void;
   className?: string;
 }
 
 const Top3PopularMeals: React.FC<Top3PopularMealsProps> = ({
   products,
+  franchiseId,
   onSelectProduct,
   className = '',
 }) => {
-  const [top3, setTop3] = useState<PopularMeal[]>([]);
-  const [monthName, setMonthName] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
+  const visibleProductIds = products.map((product) => product.id).sort().join(',');
+  const requestKey = `${franchiseId || 'global'}:${visibleProductIds}`;
+  const [loadedMeals, setLoadedMeals] = useState<{
+    key: string;
+    meals: PopularMeal[];
+    monthName: string;
+  } | null>(null);
+  const isLoading = loadedMeals?.key !== requestKey;
+  const top3 = isLoading ? [] : loadedMeals.meals;
+  const monthName = isLoading ? '' : loadedMeals.monthName;
 
   useEffect(() => {
     let active = true;
     const fetchTop3 = async () => {
       try {
-        const res = await fetch(`${API_URL}/reports/popular-meals?limit=3`);
+        const params = new URLSearchParams({ limit: '3' });
+        if (franchiseId) params.set('franchise_id', franchiseId);
+        const res = await fetch(`${API_URL}/reports/popular-meals?${params.toString()}`, { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
-          if (active && Array.isArray(json.top_meals) && json.top_meals.length > 0) {
-            setTop3(json.top_meals.slice(0, 3));
-            setMonthName(json.month_name || '');
+          if (active && Array.isArray(json.top_meals)) {
+            const productIds = new Set(visibleProductIds.split(',').filter(Boolean));
+            const branchMeals = json.top_meals.filter((meal: PopularMeal) => productIds.has(meal.product_id));
+            setLoadedMeals({
+              key: requestKey,
+              meals: branchMeals.slice(0, 3),
+              monthName: json.month_name || '',
+            });
           }
         }
       } catch (e) {
         console.warn('Could not load top 3 popular meals', e);
-      } finally {
-        if (active) setIsLoading(false);
       }
     };
     void fetchTop3();
     return () => {
       active = false;
     };
-  }, []);
+  }, [franchiseId, requestKey, visibleProductIds]);
 
   const handleSelect = (meal: PopularMeal) => {
-    const matched = products.find(
-      (p) => p.id === meal.product_id || p.name.toLowerCase() === meal.name.toLowerCase(),
-    );
+    const matched = products.find((product) => product.id === meal.product_id);
     if (matched) {
       onSelectProduct(matched);
-    } else {
-      const fallback: Product = {
-        id: meal.product_id,
-        name: meal.name,
-        price: Number(meal.price),
-        category: meal.category || 'meal',
-        description: `Customer favorite this month (#${meal.rank})`,
-        image: meal.image || meal.image_url || null,
-        is_available: true,
-      };
-      onSelectProduct(fallback);
     }
   };
 
@@ -165,4 +166,3 @@ const Top3PopularMeals: React.FC<Top3PopularMealsProps> = ({
 };
 
 export default Top3PopularMeals;
-

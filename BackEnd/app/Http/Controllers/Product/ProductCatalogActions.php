@@ -13,11 +13,21 @@ trait ProductCatalogActions
 {
     use HttpCacheResponse;
 
-    public function index(Request $request)
+    public function index(Request $request, FranchiseInventoryService $inventoryService)
     {
         try {
-            $products = Cache::remember('catalog_products_all', 600, function () {
-                return $this->productQuery()->get();
+            $franchiseId = $request->query('franchise_id');
+            if ($franchiseId !== null) {
+                if (! Franchise::whereKey($franchiseId)->exists()) {
+                    return response()->json(['message' => 'The selected branch is unavailable.'], 404);
+                }
+
+                return response()->json($inventoryService->catalog((string) $franchiseId))
+                    ->header('Cache-Control', 'private, no-store, no-cache, max-age=0');
+            }
+
+            $products = Cache::remember('catalog_products_global', 600, function () {
+                return $this->productQuery()->whereNull('franchise_id')->get();
             });
 
             return $this->cachedJsonResponse($request, $products, 300);
@@ -26,14 +36,37 @@ trait ProductCatalogActions
         }
     }
 
-    public function show($id)
+    public function show(Request $request, string $id, FranchiseInventoryService $inventoryService)
     {
         try {
-            $product = Cache::remember("catalog_product_{$id}", 600, function () use ($id) {
-                return Product::withCatalogColumns()->with(['addonGroups.addons'])->findOrFail($id);
-            });
+            $franchiseId = $request->query('franchise_id');
+            $loadProduct = fn () => Product::withCatalogColumns()
+                ->with(['addonGroups.addons'])
+                ->whereKey($id)
+                ->where(function ($query) use ($franchiseId) {
+                    $query->whereNull('franchise_id');
+                    if ($franchiseId !== null) {
+                        $query->orWhere('franchise_id', $franchiseId);
+                    }
+                })
+                ->firstOrFail();
 
-            return response()->json($product);
+            if ($franchiseId !== null && ! Franchise::whereKey($franchiseId)->exists()) {
+                return response()->json(['message' => 'Product not found'], 404);
+            }
+
+            $product = $loadProduct();
+            if ($franchiseId !== null) {
+                $branchProduct = $inventoryService->catalog((string) $franchiseId)
+                    ->firstWhere('id', $id);
+                if (! $branchProduct) {
+                    return response()->json(['message' => 'Product not found'], 404);
+                }
+                $product = array_merge($product->toArray(), $branchProduct);
+            }
+
+            return response()->json($product)
+                ->header('Cache-Control', 'private, no-store, no-cache, max-age=0');
         } catch (\Exception $e) {
             return response()->json(['error' => 'Product not found'], 404);
         }
@@ -71,12 +104,29 @@ trait ProductCatalogActions
         return $this->cachedJsonResponse($request, $availableProducts, 300);
     }
 
-    public function getByCategory(Request $request, $category)
+    public function getByCategory(Request $request, string $category, FranchiseInventoryService $inventoryService)
     {
         try {
             $categoryClean = strtolower(trim((string)$category));
+            $franchiseId = $request->query('franchise_id');
+            if ($franchiseId !== null) {
+                if (! Franchise::whereKey($franchiseId)->exists()) {
+                    return response()->json(['message' => 'The selected branch is unavailable.'], 404);
+                }
+
+                $products = $inventoryService->catalog((string) $franchiseId, true)
+                    ->where('category', $categoryClean)
+                    ->values();
+
+                return response()->json($products)
+                    ->header('Cache-Control', 'private, no-store, no-cache, max-age=0');
+            }
+
             $products = Cache::remember("catalog_products_cat_{$categoryClean}", 600, function () use ($categoryClean) {
-                return $this->productQuery()->where('category', $categoryClean)->get();
+                return $this->productQuery()
+                    ->whereNull('franchise_id')
+                    ->where('category', $categoryClean)
+                    ->get();
             });
 
             return $this->cachedJsonResponse($request, $products, 300);

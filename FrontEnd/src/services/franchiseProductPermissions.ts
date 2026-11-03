@@ -9,7 +9,7 @@ export const canManageBranchProduct = (
   canManage: boolean,
 ): boolean => {
   if (!canManage) return permission === 'details';
-  const isOwnedProduct = String(product.franchise_id || '') === branchId;
+  const isInBranchCatalog = !product.franchise_id || String(product.franchise_id) === branchId;
   switch (permission) {
     case 'availability':
     case 'bulk-select':
@@ -21,6 +21,6 @@ export const canManageBranchProduct = (
     case 'restore':
     case 'delete':
     case 'bulk-category':
-      return isOwnedProduct;
+      return isInBranchCatalog;
   }
 };

@@ -45,7 +45,9 @@ class ProductController extends Controller
     {
         $user = $request->user();
 
-        return $user instanceof FranchiseUser ? $user : null;
+        return $user instanceof FranchiseUser && $user->franchise_id
+            ? $user
+            : null;
     }
 
     private function franchiseProductQuery(Request $request)
@@ -60,9 +62,13 @@ class ProductController extends Controller
         return $this->franchiseService->scopeProductQuery($query, $franchiseUser->franchise_id, true);
     }
 
-    public function image(string $id)
+    public function image(Request $request, string $id)
     {
-        $product = Product::select(['id', 'image'])->findOrFail($id);
+        $product = Product::select(['id', 'franchise_id', 'image'])->findOrFail($id);
+        if ($product->franchise_id !== null
+            && (string) $product->franchise_id !== (string) $request->query('franchise_id')) {
+            abort(404, 'Product image not found.');
+        }
         $imageData = $product->getRawOriginal('image');
 
         if (! is_string($imageData) || ! str_starts_with($imageData, 'data:image/')) {

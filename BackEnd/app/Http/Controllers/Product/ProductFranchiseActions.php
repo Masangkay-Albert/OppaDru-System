@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Product;
 
 use App\Models\Product;
+use App\Models\FranchiseInventory;
 use App\Services\FranchiseInventoryService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -24,34 +25,44 @@ trait ProductFranchiseActions
         return response()->json($this->franchiseProductQuery($request)->get());
     }
 
-    public function franchiseArchivedIndex(Request $request)
+    public function franchiseArchivedIndex(Request $request, FranchiseInventoryService $inventoryService)
     {
         $franchiseUser = $this->franchiseUser($request);
         if (! $franchiseUser) {
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
-        $products = Product::withTrashed()
+        $ownedProducts = Product::withTrashed()
             ->where('franchise_id', $franchiseUser->franchise_id)
             ->whereNotNull('deleted_at')
             ->withCatalogColumns()
             ->orderBy('category')
             ->orderBy('name')
             ->get();
+        $sharedProducts = $inventoryService->catalog((string) $franchiseUser->franchise_id, false, true)
+            ->where('branch_archived', true)
+            ->where('branch_hidden', false)
+            ->where('franchise_id', null)
+            ->values();
 
-        return response()->json(['data' => $products]);
+        return response()->json(['data' => $ownedProducts->concat($sharedProducts)->values()]);
     }
 
-    public function franchiseArchive(Request $request, string $id)
+    public function franchiseArchive(Request $request, string $id, FranchiseInventoryService $inventoryService)
     {
         $franchiseUser = $this->franchiseUser($request);
         if (! $franchiseUser) {
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
-        $product = Product::withTrashed()
-            ->where('franchise_id', $franchiseUser->franchise_id)
-            ->findOrFail($id);
+        $product = Product::withTrashed()->where(function ($query) use ($franchiseUser) {
+            $query->whereNull('franchise_id')
+                ->orWhere('franchise_id', $franchiseUser->franchise_id);
+        })->findOrFail($id);
+        if ($product->franchise_id === null) {
+            $inventoryService->update((string) $franchiseUser->franchise_id, $id, ['is_archived' => true]);
+            return response()->json(['message' => 'Product archived for this branch.']);
+        }
         if (! $product->trashed()) {
             $product->delete();
         }
@@ -59,16 +70,21 @@ trait ProductFranchiseActions
         return response()->json(['message' => 'Branch product archived successfully.']);
     }
 
-    public function franchiseRestore(Request $request, string $id)
+    public function franchiseRestore(Request $request, string $id, FranchiseInventoryService $inventoryService)
     {
         $franchiseUser = $this->franchiseUser($request);
         if (! $franchiseUser) {
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
-        $product = Product::withTrashed()
-            ->where('franchise_id', $franchiseUser->franchise_id)
-            ->findOrFail($id);
+        $product = Product::withTrashed()->where(function ($query) use ($franchiseUser) {
+            $query->whereNull('franchise_id')
+                ->orWhere('franchise_id', $franchiseUser->franchise_id);
+        })->findOrFail($id);
+        if ($product->franchise_id === null) {
+            $inventoryService->update((string) $franchiseUser->franchise_id, $id, ['is_archived' => false]);
+            return response()->json(['product' => $product, 'message' => 'Product restored for this branch.']);
+        }
         if ($product->trashed()) {
             $product->restore();
         }
@@ -173,14 +189,17 @@ trait ProductFranchiseActions
         return response()->json($uploadedImage);
     }
 
-    public function franchiseUpdate(Request $request, string $id)
+    public function franchiseUpdate(Request $request, string $id, FranchiseInventoryService $inventoryService)
     {
         $franchiseUser = $this->franchiseUser($request);
         if (! $franchiseUser) {
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
-        $product = Product::where('franchise_id', $franchiseUser->franchise_id)->findOrFail($id);
+        $product = Product::where(function ($query) use ($franchiseUser) {
+            $query->whereNull('franchise_id')
+                ->orWhere('franchise_id', $franchiseUser->franchise_id);
+        })->findOrFail($id);
         $payload = $request->except('franchise_id');
 
         if ($request->has('image')) {
@@ -200,6 +219,23 @@ trait ProductFranchiseActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        if ($product->franchise_id === null) {
+            $branchChanges = [];
+            foreach (['name' => 'branch_name', 'description' => 'branch_description', 'price' => 'branch_price', 'category' => 'branch_category', 'image' => 'branch_image'] as $field => $column) {
+                if (array_key_exists($field, $payload)) {
+                    $branchChanges[$column] = $payload[$field];
+                }
+            }
+            if (array_key_exists('is_available', $payload)) {
+                $branchChanges['is_available'] = (bool) $payload['is_available'];
+            }
+            if ($branchChanges) {
+                $inventoryService->update((string) $franchiseUser->franchise_id, $id, $branchChanges);
+            }
+
+            return response()->json(['product' => $product, 'message' => 'Product updated for this branch only.']);
+        }
+
         $product->update($payload);
 
         return response()->json(['product' => $product, 'message' => 'Franchise product updated successfully!']);
@@ -212,9 +248,30 @@ trait ProductFranchiseActions
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
-        $product = Product::withTrashed()
-            ->where('franchise_id', $franchiseUser->franchise_id)
-            ->findOrFail($id);
+        $product = Product::withTrashed()->where(function ($query) use ($franchiseUser) {
+            $query->whereNull('franchise_id')
+                ->orWhere('franchise_id', $franchiseUser->franchise_id);
+        })->findOrFail($id);
+
+        if ($product->franchise_id === null) {
+            $inventory = FranchiseInventory::where('franchise_id', $franchiseUser->franchise_id)
+                ->where('product_id', $product->id)
+                ->firstOrFail();
+            if (! $inventory->is_archived) {
+                return response()->json(['message' => 'Archive this branch product before permanently removing it.'], 409);
+            }
+            $inventory->fill([
+                'is_archived' => false,
+                'is_hidden' => true,
+                'branch_name' => null,
+                'branch_description' => null,
+                'branch_price' => null,
+                'branch_category' => null,
+                'branch_image' => null,
+            ])->save();
+
+            return response()->json(['message' => 'Product removed from this branch.']);
+        }
 
         if (! $product->trashed()) {
             $product->delete();
@@ -253,14 +310,27 @@ trait ProductFranchiseActions
         return response()->json(['message' => 'Archived branch product permanently deleted.']);
     }
 
-    public function franchiseToggleAvailability(Request $request, string $id)
+    public function franchiseToggleAvailability(Request $request, string $id, FranchiseInventoryService $inventoryService)
     {
         $franchiseUser = $this->franchiseUser($request);
         if (! $franchiseUser) {
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
-        $product = Product::where('franchise_id', $franchiseUser->franchise_id)->findOrFail($id);
+        $product = Product::where(function ($query) use ($franchiseUser) {
+            $query->whereNull('franchise_id')
+                ->orWhere('franchise_id', $franchiseUser->franchise_id);
+        })->findOrFail($id);
+        if ($product->franchise_id === null) {
+            $inventory = FranchiseInventory::where('franchise_id', $franchiseUser->franchise_id)
+                ->where('product_id', $id)
+                ->firstOrFail();
+            $inventoryService->update((string) $franchiseUser->franchise_id, $id, [
+                'is_available' => ! $inventory->is_available,
+            ]);
+
+            return response()->json(['message' => 'Branch product availability updated.']);
+        }
         $product->is_available = ! $product->is_available;
         $product->save();
 

@@ -47,6 +47,7 @@ export interface Product {
   created_at?: string;
   updated_at?: string;
   deleted_at?: string | null;
+  branch_archived?: boolean;
 }
 
 export interface Category {

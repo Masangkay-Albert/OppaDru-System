@@ -10,6 +10,22 @@ import { FiArrowLeft, FiHeart } from 'react-icons/fi';
 const EmployeeFavoritesPage: React.FC = () => {
   const navigate = useNavigate();
   const { favorites, clearFavoriteNotification } = useFavorites();
+  const employeeBranchId = (() => {
+    try {
+      const employee = JSON.parse(sessionStorage.getItem('employee_auth') || 'null') as {
+        franchise_id?: string | null;
+        branch_id?: string | null;
+      } | null;
+      const branchId = employee?.franchise_id || employee?.branch_id;
+      return branchId ? String(branchId) : null;
+    } catch (error) {
+      console.warn('Could not read the employee branch for favorites.', error);
+      return null;
+    }
+  })();
+  const branchFavorites = favorites.filter((product) => (
+    !product.franchise_id || String(product.franchise_id) === String(employeeBranchId || '')
+  ));
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const scrollPositionRef = useRef<number>(0);
 
@@ -50,7 +66,7 @@ const EmployeeFavoritesPage: React.FC = () => {
           </div>
         </div>
 
-        {favorites.length === 0 ? (
+        {branchFavorites.length === 0 ? (
           <div className="text-center py-20 bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-[#e76f51]/10">
             <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
               <FiHeart className="w-10 h-10 text-gray-400" />
@@ -68,7 +84,7 @@ const EmployeeFavoritesPage: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-            {favorites.map((product) => (
+            {branchFavorites.map((product) => (
               <ProductCard key={product.id} product={product} onOpenModal={handleOpenModal} />
             ))}
           </div>

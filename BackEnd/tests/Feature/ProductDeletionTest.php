@@ -76,6 +76,46 @@ class ProductDeletionTest extends TestCase
             ->assertJsonFragment(['id' => $product->id]);
     }
 
+    public function test_admin_can_create_and_change_product_ownership_scope(): void
+    {
+        $login = $this->postJson('/api/admin/login', [
+            'email' => 'admin@oppadru.com',
+            'password' => 'Admin@123',
+        ])->assertOk();
+        $headers = ['Authorization' => 'Bearer '.$login->json('token')];
+        $cavite = Franchise::create(['name' => 'Cavite Scope Branch', 'status' => 'active']);
+        $bulacan = Franchise::create(['name' => 'Bulacan Scope Branch', 'status' => 'active']);
+        $basePayload = [
+            'name' => 'Scoped Apple',
+            'description' => 'Branch-owned test item',
+            'price' => 120,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ];
+
+        $caviteProduct = $this->postJson('/api/admin/products', [
+            ...$basePayload,
+            'franchise_id' => $cavite->id,
+        ], $headers)->assertCreated()->json('product');
+        $bulacanProduct = $this->postJson('/api/admin/products', [
+            ...$basePayload,
+            'franchise_id' => $bulacan->id,
+        ], $headers)->assertCreated()->json('product');
+
+        $this->assertNotSame($caviteProduct['id'], $bulacanProduct['id']);
+        $this->assertSame($cavite->id, $caviteProduct['franchise_id']);
+        $this->assertSame($bulacan->id, $bulacanProduct['franchise_id']);
+        $this->putJson('/api/admin/products/'.$caviteProduct['id'], [
+            'franchise_id' => null,
+        ], $headers)->assertOk()->assertJsonPath('product.franchise_id', null);
+
+        $this->getJson('/api/admin/products', $headers)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $caviteProduct['id'], 'franchise_id' => null])
+            ->assertJsonFragment(['id' => $bulacanProduct['id'], 'franchise_id' => $bulacan->id]);
+    }
+
     public function test_archiving_hides_product_from_customer_catalog_and_admin_can_restore_it(): void
     {
         $login = $this->postJson('/api/admin/login', [

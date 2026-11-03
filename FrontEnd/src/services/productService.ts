@@ -215,7 +215,7 @@ class ProductService {
         }
       }
 
-      try { return await this.getProducts(); } catch { throw new Error(errorBody.message || 'Failed to fetch admin products'); }
+      throw new Error(errorBody.message || 'Failed to fetch admin products');
     }
 
     return this.parseProducts(await response.json());
@@ -257,12 +257,20 @@ class ProductService {
     }
   }
 
-  async getProductsByCategory(category: string): Promise<Product[]> {
-    return this.fetchPublicProducts(`/products/category/${category}`);
+  async getProductsByCategory(category: string, franchiseId?: string | null): Promise<Product[]> {
+    const params = new URLSearchParams();
+    if (franchiseId) params.set('franchise_id', franchiseId);
+    const queryString = params.toString();
+    const query = queryString ? `?${queryString}` : '';
+    return this.fetchPublicProducts(`/products/category/${encodeURIComponent(category)}${query}`, { cache: 'no-store' });
   }
 
-  async getProduct(id: string): Promise<Product> {
-    const response = await fetch(`${API_URL}/products/${id}`, { headers: this.getHeaders() });
+  async getProduct(id: string, franchiseId?: string | null): Promise<Product> {
+    const params = new URLSearchParams();
+    if (franchiseId) params.set('franchise_id', franchiseId);
+    const queryString = params.toString();
+    const query = queryString ? `?${queryString}` : '';
+    const response = await fetch(`${API_URL}/products/${encodeURIComponent(id)}${query}`, { headers: this.getHeaders(), cache: 'no-store' });
     if (!response.ok) throw new Error('Failed to fetch product');
     return this.mapProduct(await response.json());
   }

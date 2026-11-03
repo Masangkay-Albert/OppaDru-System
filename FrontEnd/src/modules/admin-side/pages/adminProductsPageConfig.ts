@@ -10,6 +10,7 @@ import {
   updateProduct,
 } from '../../../services/adminProductService';
 import { productService } from '../../../services/productService';
+import { getFranchises } from '../../../services/franchiseAdminService';
 
 const adminProductAdapter: ProductPageAdapter = {
   list: getAllProducts,
@@ -26,6 +27,10 @@ const adminProductAdapter: ProductPageAdapter = {
 const adminProductsPageConfig: ProductsPageConfig = {
   subtitle: 'Manage your menu items and availability.',
   adapter: adminProductAdapter,
+  scopeBranches: async () => (await getFranchises()).map((branch) => ({
+    id: String(branch.id),
+    name: branch.name,
+  })),
   migrateLegacyArchives: true,
   permissions: {
     add: true,

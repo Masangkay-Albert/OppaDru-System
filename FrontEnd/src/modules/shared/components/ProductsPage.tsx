@@ -22,9 +22,15 @@ export interface ProductPageAdapter {
   uploadImage: (file: File, category: string) => Promise<string>;
 }
 
+export interface ProductBranchOption {
+  id: string;
+  name: string;
+}
+
 export interface ProductsPageConfig {
   subtitle: string;
   adapter: ProductPageAdapter;
+  scopeBranches?: () => Promise<ProductBranchOption[]>;
   permissions: {
     add: boolean;
     bulkAvailability: boolean;
@@ -56,7 +62,10 @@ type ProductFormState = {
   category: ProductCategory;
   image: string;
   isAvailable: boolean;
+  franchiseId: string;
 };
+
+const GLOBAL_PRODUCT_SCOPE = '__global__';
 
 const ProductImage: React.FC<{ src?: string; name: string; className?: string }> = (props) => (
   <ProductThumbnail
@@ -74,6 +83,7 @@ const createEmptyForm = (): ProductFormState => ({
   category: 'chicken',
   image: '',
   isAvailable: true,
+  franchiseId: GLOBAL_PRODUCT_SCOPE,
 });
 
 const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
@@ -106,9 +116,34 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
   const [pendingAvailability, setPendingAvailability] = useState<string[]>([]);
   const [bulkCategorySelectKey, setBulkCategorySelectKey] = useState(0);
   const dialogRef = useRef<HTMLElement | null>(null);
+  const [branchOptions, setBranchOptions] = useState<ProductBranchOption[]>([]);
+  const [branchOptionsError, setBranchOptionsError] = useState('');
+  const [branchOptionsLoading, setBranchOptionsLoading] = useState(() => Boolean(config.scopeBranches));
+  const [branchFilter, setBranchFilter] = useState('all');
+  const hasScopeControls = Boolean(config.scopeBranches);
+
+  useEffect(() => {
+    const loadBranches = config.scopeBranches;
+    if (!loadBranches) return;
+    let cancelled = false;
+    void loadBranches().then((branches) => {
+      if (!cancelled) {
+        setBranchOptions(branches.map((branch) => ({ id: String(branch.id), name: branch.name })));
+        setBranchOptionsError('');
+        setBranchOptionsLoading(false);
+      }
+    }).catch((error: unknown) => {
+      console.error('Failed to load product branch options:', error);
+      if (!cancelled) {
+        setBranchOptionsError('Could not load branches. Product scope controls are unavailable.');
+        setBranchOptionsLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [config]);
 
   const isAvailable = (product: Product) => product.isAvailable ?? product.is_available;
-  const isArchived = (product: Product) => Boolean(product.deleted_at);
+  const isArchived = (product: Product) => Boolean(product.deleted_at || product.branch_archived);
   const allowed = (product: Product, permission: ProductPermission) => config.permissions.forProduct(product, permission);
   const canToggleAvailability = (product: Product) => !isArchived(product) && allowed(product, 'availability');
 
@@ -158,17 +193,24 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
   const getCategoryLabel = (category: string) => {
     return categories.find((item) => item.id === category)?.name || category.replace('-', ' ');
   };
+  const getBranchLabel = (branchId: string | null | undefined) => (
+    branchId ? branchOptions.find((branch) => branch.id === String(branchId))?.name || 'Branch' : 'All branches'
+  );
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
+  const branchScopedProducts = products.filter((product) => (
+    branchFilter === 'all'
+    || (branchFilter === 'global' ? !product.franchise_id : String(product.franchise_id || '') === branchFilter)
+  ));
   const categoryFilterOptions = categoryOptions.map((option) => {
-    const count = products.filter((product) => (
+    const count = branchScopedProducts.filter((product) => (
       isArchived(product) === showArchived
       && (option.value === 'all' || product.category === option.value)
     )).length;
     return { ...option, label: `${option.label} (${count})` };
   });
 
-  const filteredProducts = products
+  const filteredProducts = branchScopedProducts
     .filter((product) => {
       const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
       const matchesArchiveStatus = isArchived(product) === showArchived;
@@ -309,6 +351,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
         image: product.image,
         is_available: isAvailable(product),
         isAvailable: isAvailable(product),
+        ...(hasScopeControls ? { franchise_id: product.franchise_id ?? null } : {}),
       });
       await refresh();
       setToastMessage('Product duplicated');
@@ -366,6 +409,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
       category: product.category as ProductCategory,
       image: product.image || '',
       isAvailable: product.isAvailable ?? product.is_available,
+      franchiseId: product.franchise_id ? String(product.franchise_id) : GLOBAL_PRODUCT_SCOPE,
     });
     setImagePreview(product.image || '');
     setSelectedFile(null);
@@ -454,6 +498,9 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
         category: form.category,
         is_available: form.isAvailable,
         isAvailable: form.isAvailable,
+        ...(hasScopeControls
+          ? { franchise_id: form.franchiseId === GLOBAL_PRODUCT_SCOPE ? null : form.franchiseId }
+          : {}),
       };
 
       if (modalMode === 'edit' && selectedProductId) {
@@ -506,7 +553,19 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
               className="w-full shrink-0 sm:w-52"
               triggerClassName="h-11 rounded-xl"
             />
-            <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setSelectedIds([]); setPage(1); }} className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${showArchived ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><Archive size={15} />{showArchived ? 'Showing archived' : `Archived (${products.filter(isArchived).length})`}</button>
+            {hasScopeControls && <Select
+              aria-label="Filter products by branch"
+              value={branchFilter}
+              onChange={(value) => { setBranchFilter(value); setSelectedIds([]); setPage(1); }}
+              options={[
+                { value: 'all', label: 'All branches' },
+                { value: 'global', label: 'Global products' },
+                ...branchOptions.map((branch) => ({ value: branch.id, label: branch.name })),
+              ]}
+              className="w-full shrink-0 sm:w-48"
+              triggerClassName="h-11 rounded-xl"
+            />}
+            <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived((value) => !value); setSelectedIds([]); setPage(1); }} className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 ${showArchived ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-text)] shadow-sm' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><Archive size={15} />{showArchived ? 'Showing archived' : `Archived (${branchScopedProducts.filter(isArchived).length})`}</button>
           </div>
           <div className="flex items-center justify-between gap-3 xl:justify-end">
             <div className="flex min-w-0 items-center gap-2">
@@ -516,6 +575,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                 {sortDirection === 'asc' ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
               </button>
             </div>
+            {branchOptionsError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{branchOptionsError}</p>}
             <div role="group" aria-label="Product view" className="inline-flex h-11 shrink-0 items-center rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-1">
               <button type="button" aria-label="Table view" aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')} className={`inline-flex size-9 items-center justify-center rounded-lg transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 ${viewMode === 'table' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><List size={16} /></button>
               <button type="button" aria-label="Card view" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} className={`inline-flex size-9 items-center justify-center rounded-lg transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 ${viewMode === 'grid' ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-highlight-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-green-soft)]'}`}><LayoutGrid size={16} /></button>
@@ -582,6 +642,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                   <p className="mt-0.5 line-clamp-2 text-xs text-[var(--oppa-text-muted)]">{product.description}</p>
                   <div className="mt-2 flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]">
                     <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${categoryBadgeStyles[product.category] || 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]'}`}>{getCategoryLabel(product.category)}</span>
+                    {hasScopeControls && <span className="rounded-full bg-[var(--oppa-cream)] px-2 py-1">{getBranchLabel(product.franchise_id)}</span>}
                     <span>•</span>
                     <span className="tabular-nums ml-auto text-right font-semibold text-[var(--oppa-text)]">{formatCurrency(product.price)}</span>
                   </div>
@@ -607,9 +668,13 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
         <div className="admin-scrollbar mt-4 hidden overflow-x-auto rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm md:block">
           <table className="admin-table products-table w-full min-w-[780px] table-fixed text-sm">
             <colgroup>
-              <col style={{ width: '4%' }} /><col style={{ width: activeCategory === 'all' ? '34%' : '49%' }} />
-              {activeCategory === 'all' && <col style={{ width: '15%' }} />}
-              <col style={{ width: '12%' }} /><col style={{ width: '22%' }} /><col style={{ width: '13%' }} />
+              <col style={{ width: '4%' }} />
+              <col style={{ width: hasScopeControls ? (activeCategory === 'all' ? '23%' : '35%') : (activeCategory === 'all' ? '34%' : '49%') }} />
+              {activeCategory === 'all' && <col style={{ width: hasScopeControls ? '12%' : '15%' }} />}
+              <col style={{ width: hasScopeControls ? '10%' : '12%' }} />
+              <col style={{ width: hasScopeControls ? '18%' : '22%' }} />
+              {hasScopeControls && <col style={{ width: '20%' }} />}
+              <col style={{ width: hasScopeControls ? '13%' : '13%' }} />
             </colgroup>
             <thead>
               <tr className="border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]">
@@ -618,6 +683,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                 {activeCategory === 'all' && <th scope="col" className="col-left">Category</th>}
                 <th scope="col" className="col-right">Price</th>
                 <th scope="col" className="col-left">Availability</th>
+                {hasScopeControls && <th scope="col" className="col-left">Branch</th>}
                 <th scope="col" className="col-right">Actions</th>
               </tr>
             </thead>
@@ -637,6 +703,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                   {activeCategory === 'all' && <td data-label="Category" className="col-left"><span title={getCategoryLabel(product.category)} className={`inline-block max-w-full truncate rounded-full px-3 py-1 align-middle text-xs font-medium capitalize ${categoryBadgeStyles[product.category] || 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]'}`}>{getCategoryLabel(product.category)}</span></td>}
                   <td data-label="Price" className="col-right tabular-nums font-semibold text-[var(--oppa-text)]">{formatCurrency(product.price)}</td>
                   <td data-label="Availability" className="col-left"><div className="inline-flex items-center gap-2 whitespace-nowrap text-xs">{canToggleAvailability(product) && <AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Unavailable" disabled={pendingAvailability.includes(product.id)} onChange={() => void handleToggle(product.id)} />}<span className={isAvailable(product) ? 'font-medium text-[var(--oppa-available-text)]' : 'text-[var(--oppa-text-muted)]'}>{isAvailable(product) ? 'Available' : 'Unavailable'}</span></div></td>
+                  {hasScopeControls && <td data-label="Branch" className="col-left"><span className="inline-block max-w-full truncate rounded-full bg-[var(--oppa-cream)] px-2.5 py-1 text-xs">{getBranchLabel(product.franchise_id)}</span></td>}
                   <td data-label="Actions" className="col-right"><div className="flex items-center justify-end gap-1">
                     {!isArchived(product) && <>
                       {allowed(product, 'edit') && <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">Edit</button>}
@@ -745,6 +812,17 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                   />
                 </div>
               </div>
+              {hasScopeControls && <Select
+                label="Scope"
+                aria-label="Product scope"
+                value={form.franchiseId}
+                onChange={(value) => setForm((prev) => ({ ...prev, franchiseId: value }))}
+                options={[
+                  { value: GLOBAL_PRODUCT_SCOPE, label: 'All branches (global)' },
+                  ...branchOptions.map((branch) => ({ value: branch.id, label: branch.name })),
+                ]}
+                disabled={branchOptionsLoading || Boolean(branchOptionsError)}
+              />}
 
               <div>
                 <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Food Image</label>
@@ -770,7 +848,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                 >
                   Cancel
                 </button>
-                <button type="submit" disabled={isSaving} className="bg-oppa-gradient rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-wait disabled:opacity-60">
+                <button type="submit" disabled={isSaving || (hasScopeControls && (branchOptionsLoading || Boolean(branchOptionsError)))} className="bg-oppa-gradient rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-wait disabled:opacity-60">
                   {isSaving ? 'Saving…' : modalMode === 'add' ? 'Save Product' : 'Save Changes'}
                 </button>
               </div>

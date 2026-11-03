@@ -464,6 +464,62 @@ class OrderPlacementTest extends TestCase
         $this->assertSame(0.0, (float) Order::countedAsRevenue()->sum('total'));
     }
 
+    public function test_checkout_rejects_a_product_owned_by_another_branch(): void
+    {
+        $user = User::create([
+            'full_name' => 'Branch Checkout Customer',
+            'email' => 'branch-checkout@example.com',
+            'phone' => '09171234569',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $cavite = Franchise::create([
+            'name' => 'Cavite Checkout Branch',
+            'status' => 'active',
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'latitude' => 14.3194,
+            'longitude' => 120.9943,
+        ]);
+        $bulacan = Franchise::create([
+            'name' => 'Bulacan Checkout Branch',
+            'status' => 'active',
+        ]);
+        $bulacanProduct = Product::create([
+            'name' => 'Bulacan Only Product',
+            'description' => 'Not available to Cavite',
+            'price' => 120,
+            'category' => 'chicken',
+            'image' => '',
+            'franchise_id' => $bulacan->id,
+            'is_available' => true,
+        ]);
+        $login = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ])->assertOk();
+
+        $this->withHeader('Authorization', 'Bearer '.$login->json('token'))
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'franchise_id' => $cavite->id,
+                'fulfillment_type' => 'pickup',
+                'items' => [[
+                    'product_id' => $bulacanProduct->id,
+                    'product_name' => $bulacanProduct->name,
+                    'product_price' => 120,
+                    'quantity' => 1,
+                ]],
+                'total' => 120,
+                'delivery_address' => 'Cavite Branch',
+                'payment_method' => 'cash_on_delivery',
+                'phone' => $user->phone,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('unavailable_items.0', 'Bulacan Only Product');
+    }
+
     public function test_customer_branch_order_is_validated_and_saved_to_that_branch(): void
     {
         $user = User::create([

@@ -29,7 +29,7 @@ class FranchiseInventoryService
         ])->all());
     }
 
-    public function catalog(string $franchiseId, bool $availableOnly = false): Collection
+    public function catalog(string $franchiseId, bool $availableOnly = false, bool $includeArchived = false): Collection
     {
         $this->initializeBranchMenu($franchiseId);
 
@@ -50,19 +50,32 @@ class FranchiseInventoryService
                 && ($stockQuantity === null || $stockQuantity > 0);
 
             return array_merge($product->toArray(), [
+                'name' => $stock?->branch_name ?? $product->name,
+                'description' => $stock?->branch_description ?? $product->description,
+                'price' => $stock?->branch_price ?? $product->price,
+                'category' => $stock?->branch_category ?? $product->category,
+                'image' => $stock?->branch_image ?? $product->image,
                 'branch_stock' => $stockQuantity,
                 'branch_stock_tracked' => $stock !== null && $stockQuantity !== null,
                 'branch_enabled' => (bool) ($stock?->is_available ?? ($hasBranchInventory && $product->is_available)),
                 'branch_available' => $branchAvailable,
+                'branch_archived' => (bool) ($stock?->is_archived ?? false),
+                'branch_hidden' => (bool) ($stock?->is_hidden ?? false),
                 'low_stock' => $stockQuantity !== null && $stockQuantity > 0 && $stockQuantity <= 5,
             ]);
         });
 
-        return $availableOnly ? $catalog->where('branch_available', true)->values() : $catalog;
+        if (! $includeArchived) {
+            $catalog = $catalog->where('branch_archived', false)->where('branch_hidden', false);
+        }
+
+        return $availableOnly ? $catalog->where('branch_available', true)->values() : $catalog->values();
     }
 
     public function update(string $franchiseId, string $productId, array $values): FranchiseInventory
     {
+        $this->initializeBranchMenu($franchiseId);
+
         $product = Product::where(function ($query) use ($franchiseId) {
             $query->whereNull('franchise_id')->orWhere('franchise_id', $franchiseId);
         })->findOrFail($productId);

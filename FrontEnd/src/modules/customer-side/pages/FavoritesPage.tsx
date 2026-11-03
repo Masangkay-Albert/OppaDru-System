@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFavorites } from '../../../contexts/FavoritesContext';
+import { useCart } from '../../../contexts/CartContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import ProductCard from '../components/product/ProductCard';
 import ProductModal from '../components/product/ProductModal';
@@ -12,6 +13,10 @@ import '../../../styles/secondary-pages.css';
 const FavoritesPage: React.FC = () => {
   const navigate = useNavigate();
   const { favorites, clearFavoriteNotification } = useFavorites();
+  const { activeBranchId } = useCart();
+  const branchFavorites = favorites.filter((product) => (
+    !product.franchise_id || String(product.franchise_id) === String(activeBranchId || '')
+  ));
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const scrollPositionRef = useRef<number>(0);
 
@@ -49,7 +54,7 @@ const FavoritesPage: React.FC = () => {
           <h1 className="secondary-page-title text-2xl sm:text-3xl font-serif font-bold text-[#2d6a4f]">My Favorites</h1>
         </div>
 
-        {favorites.length === 0 ? (
+        {branchFavorites.length === 0 ? (
           <div className="secondary-empty-state text-center py-20 bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-[#e76f51]/10">
             <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
               <FiHeart className="w-10 h-10 text-gray-400" />
@@ -67,7 +72,7 @@ const FavoritesPage: React.FC = () => {
           </div>
         ) : (
           <div className="favorites-product-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {favorites.map((product) => (
+            {branchFavorites.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}

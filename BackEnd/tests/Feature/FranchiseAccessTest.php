@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Franchise;
 use App\Models\FranchiseAccount;
+use App\Models\FranchiseInventory;
 use App\Models\FranchiseUser;
 use App\Models\Addon;
 use App\Models\AddonGroup;
@@ -11,6 +12,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Services\FranchiseInventoryService;
+use App\Services\BranchRoutingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -137,6 +139,94 @@ class FranchiseAccessTest extends TestCase
         $this->assertContains('Shared Menu Item', $names);
         $this->assertContains('North House Special', $names);
         $this->assertNotContains('South Secret Menu', $names);
+    }
+
+    public function test_public_product_queries_and_checkout_validation_respect_branch_ownership(): void
+    {
+        $cavite = Franchise::create(['name' => 'Cavite Branch', 'status' => 'active']);
+        $bulacan = Franchise::create(['name' => 'Bulacan Branch', 'status' => 'active']);
+        FranchiseUser::create([
+            'franchise_id' => $cavite->id,
+            'full_name' => 'Cavite Manager',
+            'email' => 'cavite.catalog@example.com',
+            'phone' => '09170000018',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+        ]);
+        $globalProduct = Product::create([
+            'name' => 'Global Base Product',
+            'description' => 'Shared everywhere',
+            'price' => 100,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ]);
+        $caviteProduct = Product::create([
+            'name' => 'Test Cavite Item',
+            'description' => 'Cavite only',
+            'price' => 120,
+            'category' => 'chicken',
+            'image' => 'data:image/png;base64,AA==',
+            'franchise_id' => $cavite->id,
+            'is_available' => true,
+        ]);
+        $bulacanProduct = Product::create([
+            'name' => 'Test Bulacan Item',
+            'description' => 'Bulacan only',
+            'price' => 130,
+            'category' => 'chicken',
+            'image' => '',
+            'franchise_id' => $bulacan->id,
+            'is_available' => true,
+        ]);
+
+        $this->getJson('/api/products')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $globalProduct->id])
+            ->assertJsonMissing(['id' => $caviteProduct->id])
+            ->assertJsonMissing(['id' => $bulacanProduct->id]);
+        $this->getJson('/api/products?franchise_id='.$cavite->id)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $globalProduct->id])
+            ->assertJsonFragment(['id' => $caviteProduct->id])
+            ->assertJsonMissing(['id' => $bulacanProduct->id]);
+        $this->getJson('/api/products/category/chicken?franchise_id='.$bulacan->id)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $globalProduct->id])
+            ->assertJsonFragment(['id' => $bulacanProduct->id])
+            ->assertJsonMissing(['id' => $caviteProduct->id]);
+        $this->getJson('/api/products/category/chicken')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $globalProduct->id])
+            ->assertJsonMissing(['id' => $caviteProduct->id])
+            ->assertJsonMissing(['id' => $bulacanProduct->id]);
+        $this->getJson('/api/products/available?franchise_id='.$cavite->id)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $globalProduct->id])
+            ->assertJsonFragment(['id' => $caviteProduct->id])
+            ->assertJsonMissing(['id' => $bulacanProduct->id]);
+        $this->getJson('/api/products/'.$caviteProduct->id.'?franchise_id='.$cavite->id)->assertOk();
+        $this->getJson('/api/products/'.$caviteProduct->id.'?franchise_id='.$bulacan->id)->assertNotFound();
+        $this->getJson('/api/products/'.$caviteProduct->id)->assertNotFound();
+        $this->get('/api/products/'.$caviteProduct->id.'/image?franchise_id='.$cavite->id)->assertOk();
+        $this->get('/api/products/'.$caviteProduct->id.'/image?franchise_id='.$bulacan->id)->assertNotFound();
+        $this->getJson('/api/products/'.$globalProduct->id.'?franchise_id='.$bulacan->id)->assertOk();
+
+        $login = $this->postJson('/api/franchise/login', [
+            'email' => 'cavite.catalog@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $headers = ['Authorization' => 'Bearer '.$login->json('token')];
+        $this->getJson('/api/franchise/products', $headers)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $globalProduct->id])
+            ->assertJsonFragment(['id' => $caviteProduct->id])
+            ->assertJsonMissing(['id' => $bulacanProduct->id]);
+
+        $unavailable = app(BranchRoutingService::class)->validateCatalog((string) $cavite->id, [
+            ['product_id' => $bulacanProduct->id, 'product_name' => $bulacanProduct->name],
+        ]);
+        $this->assertSame([$bulacanProduct->name], $unavailable);
     }
 
     public function test_franchise_product_creation_is_scoped_to_authenticated_branch(): void
@@ -333,6 +423,7 @@ class FranchiseAccessTest extends TestCase
         $this->patchJson('/api/franchise/products/'.$southActiveProduct->id.'/archive', [], $northHeaders)->assertNotFound();
         $this->patchJson('/api/franchise/products/'.$southProduct->id.'/restore', [], $northHeaders)->assertNotFound();
         $this->deleteJson('/api/franchise/products/'.$southActiveProduct->id, [], $northHeaders)->assertNotFound();
+        $this->patchJson('/api/franchise/products/'.$southActiveProduct->id.'/toggle', [], $northHeaders)->assertNotFound();
         $this->patchJson('/api/franchise/inventory/'.$southActiveProduct->id, ['is_available' => false], $northHeaders)
             ->assertNotFound();
         $this->assertDatabaseHas('products', ['id' => $southActiveProduct->id, 'is_available' => true]);
@@ -343,6 +434,101 @@ class FranchiseAccessTest extends TestCase
         $this->patchJson('/api/franchise/inventory/'.$northProduct->id, ['is_available' => false], [
             'Authorization' => 'Bearer '.$staffLogin->json('token'),
         ])->assertForbidden();
+    }
+
+    public function test_shared_product_edits_archive_and_delete_are_limited_to_the_authenticated_branch(): void
+    {
+        $north = Franchise::create(['name' => 'North Branch', 'status' => 'active']);
+        $south = Franchise::create(['name' => 'South Branch', 'status' => 'active']);
+        FranchiseUser::create([
+            'franchise_id' => $north->id,
+            'full_name' => 'North Manager',
+            'email' => 'north.shared@example.com',
+            'phone' => '09170000016',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+            'role' => 'manager',
+        ]);
+        FranchiseUser::create([
+            'franchise_id' => $south->id,
+            'full_name' => 'South Manager',
+            'email' => 'south.shared@example.com',
+            'phone' => '09170000017',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+            'role' => 'manager',
+        ]);
+        $sharedProduct = Product::create([
+            'name' => 'Shared Menu Item',
+            'description' => 'Original description',
+            'price' => 100,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ]);
+
+        $northLogin = $this->postJson('/api/franchise/login', [
+            'email' => 'north.shared@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $northHeaders = ['Authorization' => 'Bearer '.$northLogin->json('token')];
+        $southLogin = $this->postJson('/api/franchise/login', [
+            'email' => 'south.shared@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $southHeaders = ['Authorization' => 'Bearer '.$southLogin->json('token')];
+
+        $this->putJson('/api/franchise/products/'.$sharedProduct->id, [
+            'name' => 'North Branch Special',
+            'price' => 125,
+        ], $northHeaders)->assertOk();
+
+        $this->assertDatabaseHas('products', [
+            'id' => $sharedProduct->id,
+            'name' => 'Shared Menu Item',
+            'price' => 100,
+        ]);
+        $this->assertDatabaseHas('franchise_inventory', [
+            'franchise_id' => $north->id,
+            'product_id' => $sharedProduct->id,
+            'branch_name' => 'North Branch Special',
+            'branch_price' => 125,
+        ]);
+        $northCatalog = app(FranchiseInventoryService::class)->catalog((string) $north->id)->keyBy('id');
+        $southCatalog = app(FranchiseInventoryService::class)->catalog((string) $south->id)->keyBy('id');
+        $this->assertSame('North Branch Special', $northCatalog->get($sharedProduct->id)['name']);
+        $this->assertSame(125.0, (float) $northCatalog->get($sharedProduct->id)['price']);
+        $this->assertSame('Shared Menu Item', $southCatalog->get($sharedProduct->id)['name']);
+        $this->assertSame(100.0, (float) $southCatalog->get($sharedProduct->id)['price']);
+
+        $this->patchJson('/api/franchise/products/'.$sharedProduct->id.'/archive', [], $northHeaders)->assertOk();
+        $this->getJson('/api/franchise/products/archived', $northHeaders)
+            ->assertOk()
+            ->assertJsonFragment(['id' => $sharedProduct->id, 'branch_archived' => true]);
+        $this->assertFalse(app(FranchiseInventoryService::class)
+            ->catalog((string) $north->id)
+            ->contains('id', $sharedProduct->id));
+        $this->assertTrue(app(FranchiseInventoryService::class)
+            ->catalog((string) $south->id)
+            ->contains('id', $sharedProduct->id));
+
+        $this->patchJson('/api/franchise/products/'.$sharedProduct->id.'/restore', [], $northHeaders)->assertOk();
+        $this->patchJson('/api/franchise/products/'.$sharedProduct->id.'/archive', [], $northHeaders)->assertOk();
+        $this->deleteJson('/api/franchise/products/'.$sharedProduct->id, [], $northHeaders)->assertOk();
+
+        $this->assertDatabaseHas('products', ['id' => $sharedProduct->id, 'name' => 'Shared Menu Item']);
+        $this->assertTrue((bool) FranchiseInventory::where('franchise_id', $north->id)
+            ->where('product_id', $sharedProduct->id)
+            ->value('is_hidden'));
+        $this->getJson('/api/franchise/products/archived', $northHeaders)
+            ->assertOk()
+            ->assertJsonMissing(['id' => $sharedProduct->id]);
+        $this->assertTrue(app(FranchiseInventoryService::class)
+            ->catalog((string) $south->id)
+            ->contains('id', $sharedProduct->id));
+        $this->assertFalse(app(FranchiseInventoryService::class)
+            ->catalog((string) $north->id)
+            ->contains('id', $sharedProduct->id));
     }
 
     public function test_franchise_user_cannot_access_another_franchise_scope(): void

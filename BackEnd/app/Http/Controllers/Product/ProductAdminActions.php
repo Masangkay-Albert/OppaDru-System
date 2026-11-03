@@ -112,7 +112,7 @@ trait ProductAdminActions
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $payload = $request->except('franchise_id');
+        $payload = $request->all();
         $payload['image'] = $this->normalizeProductImage($request->input('image'));
 
         $validator = Validator::make($payload, [
@@ -122,15 +122,24 @@ trait ProductAdminActions
             'category' => 'required|string',
             'image' => 'nullable|string',
             'is_available' => 'sometimes|boolean',
+            'franchise_id' => 'present|nullable|string|exists:franchises,id',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $name = trim((string) $request->name);
+        $payload = $validator->validated();
+        $name = trim((string) $payload['name']);
         $normalizedName = strtolower(preg_replace('/\s+/', ' ', $name));
-        $product = Product::whereNull('franchise_id')
+        $product = Product::query()
+            ->where(function ($query) use ($payload) {
+                if ($payload['franchise_id'] === null) {
+                    $query->whereNull('franchise_id');
+                } else {
+                    $query->where('franchise_id', $payload['franchise_id']);
+                }
+            })
             ->whereRaw('LOWER(TRIM(name)) = ?', [$normalizedName])
             ->first();
 
@@ -151,7 +160,7 @@ trait ProductAdminActions
         }
 
         $product = Product::findOrFail($id);
-        $payload = $request->except('franchise_id');
+        $payload = $request->all();
 
         if ($request->has('image')) {
             $payload['image'] = $this->normalizeProductImage($request->input('image'));
@@ -164,12 +173,14 @@ trait ProductAdminActions
             'category' => 'sometimes|string',
             'image' => 'nullable|string',
             'is_available' => 'sometimes|boolean',
+            'franchise_id' => 'sometimes|nullable|string|exists:franchises,id',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $payload = $validator->validated();
         $product->update($payload);
 
         return response()->json(['product' => $product, 'message' => 'Product updated successfully!']);

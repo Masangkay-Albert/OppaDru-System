@@ -259,7 +259,7 @@ const MenuPage: React.FC = () => {
             {branchError && <p className="mt-2 text-sm text-red-600">{branchError}</p>}
           </section>
 
-          <Top3PopularMeals products={products} onSelectProduct={handleOpenModal} />
+          <Top3PopularMeals products={products} franchiseId={activeBranchId} onSelectProduct={handleOpenModal} />
 
           <div className="menu-search mb-6">
             <SearchInput

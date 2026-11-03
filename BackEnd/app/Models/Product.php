@@ -36,8 +36,11 @@ class Product extends Model
         if (is_string($value)) {
             if (str_starts_with($value, 'data:image/')) {
                 $version = substr(hash('sha256', $value), 0, 16);
+                $branchQuery = $this->getAttribute('franchise_id')
+                    ? '?franchise_id='.urlencode((string) $this->getAttribute('franchise_id')).'&'
+                    : '?';
 
-                return url('/api/products/'.$this->getKey().'/image').'?v='.$version;
+                return url('/api/products/'.$this->getKey().'/image').$branchQuery.'v='.$version;
             }
 
             if (str_starts_with($value, '/api/')) {
@@ -56,7 +59,7 @@ class Product extends Model
     {
         $imageColumn = \Illuminate\Support\Facades\DB::getDriverName() === 'sqlite'
             ? 'image'
-            : \Illuminate\Support\Facades\DB::raw("CASE WHEN image LIKE 'data:image%' THEN CONCAT('/api/products/', id, '/image?v=', SUBSTRING(MD5(image), 1, 16)) ELSE image END AS image");
+            : \Illuminate\Support\Facades\DB::raw("CASE WHEN image LIKE 'data:image%' THEN CONCAT('/api/products/', id, '/image?', CASE WHEN franchise_id IS NOT NULL THEN CONCAT('franchise_id=', franchise_id, '&') ELSE '' END, 'v=', SUBSTRING(MD5(image), 1, 16)) ELSE image END AS image");
 
         return $query->select([
             'id',
@@ -76,6 +79,7 @@ class Product extends Model
     public static function clearCatalogCache(): void
     {
         \Illuminate\Support\Facades\Cache::forget('catalog_products_all');
+        \Illuminate\Support\Facades\Cache::forget('catalog_products_global');
         \Illuminate\Support\Facades\Cache::forget('catalog_products_available');
         // Clear category caches
         $categories = ['chicken', 'rice-meals', 'burgers', 'drinks', 'sides', 'noodles', 'combos'];

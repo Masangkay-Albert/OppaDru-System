@@ -115,7 +115,20 @@ class PopularMealsController extends Controller
 
         // Attach Product details (image, category, price)
         $productIds = collect($meals)->pluck('product_id')->filter()->unique();
-        $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
+        $products = Product::whereIn('id', $productIds)
+            ->where(function ($query) use ($franchiseId) {
+                if ($franchiseId === null) {
+                    $query->whereNull('franchise_id');
+                } else {
+                    $query->whereNull('franchise_id')->orWhere('franchise_id', $franchiseId);
+                }
+            })
+            ->get()
+            ->keyBy('id');
+        $meals = array_values(array_filter(
+            $meals,
+            fn (array $meal): bool => $products->has($meal['product_id'] ?? null),
+        ));
 
         $baseUrl = (function_exists('request') && request()?->hasHeader('host'))
             ? rtrim(request()->root(), '/')
