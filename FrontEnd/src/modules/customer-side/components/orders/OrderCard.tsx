@@ -14,7 +14,7 @@ import {
   getScheduledOrderDetails,
   getStatusColor,
 } from '../../../../utils/orderUtils';
-import { canManageOrder, getOrderGraceRemainingSeconds } from '../../../../utils/orderManagement';
+import { canCancelOrder, getOrderCancellationRemainingSeconds } from '../../../../utils/orderManagement';
 import { formatCurrency } from '../../../../utils/formatters';
 
 interface OrderCardProps {
@@ -179,20 +179,20 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             </div>
 
             {order.status === ORDER_STATUS.PENDING && (() => {
-              const canManageThisOrder = canManageOrder(order, graceStartedAtByOrder);
+              const canCancelThisOrder = canCancelOrder(order, graceStartedAtByOrder);
 
               return (
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-gray-100 pt-4">
                   <div className="text-xs text-gray-500">
-                    {canManageThisOrder ? (
+                    {canCancelThisOrder ? (
                       <span>
-                        You can cancel or edit this order for {Math.ceil(getOrderGraceRemainingSeconds(order, graceStartedAtByOrder))}s
+                        You can cancel this order for {Math.ceil(getOrderCancellationRemainingSeconds(order, graceStartedAtByOrder))}s
                       </span>
                     ) : (
-                      <span>Your order has been finalized. Cancellation and editing are no longer available.</span>
+                      <span>The cancellation window has closed.</span>
                     )}
                   </div>
-                  {canManageThisOrder ? (
+                  {canCancelThisOrder ? (
                     <div className="flex gap-2">
                       <button type="button" onClick={() => onCancel(order)} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100">
                         <FiTrash2 size={12} /> Cancel Order

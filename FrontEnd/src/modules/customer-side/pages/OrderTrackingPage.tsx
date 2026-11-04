@@ -7,7 +7,11 @@ import { useOrder, type Order } from '../../../contexts/OrderContext';
 import { OrderServiceError, orderService } from '../../../services/orderService';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import { ORDER_STATUS, STATUS_COLORS } from '../../../utils/constants';
-import { getOrderCreatedAtMs, normalizeOrderStatus } from '../../../utils/orderManagement';
+import {
+  getOrderCreatedAtMs,
+  normalizeOrderStatus,
+  ORDER_CANCELLATION_WINDOW_SECONDS,
+} from '../../../utils/orderManagement';
 import RouteLayer from '../components/tracking/RouteLayer';
 import DriverMarker from '../components/tracking/DriverMarker';
 import MapLegend from '../components/tracking/MapLegend';
@@ -100,12 +104,11 @@ const OrderTrackingPageContent: React.FC = () => {
   const isDelivered = status === 'delivered' || status === 'completed';
   const showDeliveredNotice = Boolean(order && isDelivered && dismissedDeliveredNoticeId !== order.id);
   const deliveredDriverName = order?.driver?.name?.trim() || 'Driver details unavailable';
-  const deliveredDriverPhone = order?.driver?.phone?.trim() || '';
   const routeProgress = isDelivered ? 100 : simulatedProgress;
   const statusColor = STATUS_COLORS[status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700';
   const createdAt = order ? getOrderCreatedAtMs(order) : 0;
   const cancelSeconds = status === ORDER_STATUS.PENDING && createdAt > 0
-    ? Math.max(0, 20 - ((tick - createdAt) / 1000))
+    ? Math.max(0, ORDER_CANCELLATION_WINDOW_SECONDS - ((tick - createdAt) / 1000))
     : 0;
   const canCancel = status === ORDER_STATUS.PENDING && cancelSeconds > 0;
 
@@ -221,24 +224,13 @@ const OrderTrackingPageContent: React.FC = () => {
         )}
         {cancelError && <p role="alert" className="mb-3 text-sm text-red-700">{cancelError}</p>}
         
-        {order?.driver && (status === 'on_the_way' || status === 'prepared' || status === 'arrived') && (
-          <div className="mb-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-xs">
-            <div className="flex items-center gap-2.5">
-              <span className="flex size-7 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-bold">🛵</span>
-              <span><strong>{order.driver.name}</strong> accepted your delivery ({order.driver.vehicleType || 'Driver'}).</span>
-            </div>
-            {order.driver.phone && (
-              <a href={`tel:${order.driver.phone}`} className="font-bold text-[#2d6a4f] hover:underline flex items-center gap-1 text-xs shrink-0">
-                Call {order.driver.phone}
-              </a>
-            )}
-          </div>
-        )}
-        <div className="mb-5 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm sm:p-5"><ProgressBar status={status || ORDER_STATUS.PENDING} progress={getBarProgress()} /></div>
+        <div className="mb-5 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm sm:p-5">
+          <ProgressBar status={status || ORDER_STATUS.PENDING} progress={getBarProgress()} />
+        </div>
 
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3 lg:gap-6">
-          <div className="lg:col-span-2">
-            <div className="overflow-hidden rounded-2xl border border-white/80 bg-white shadow-md">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3 lg:gap-6">
+          <div className="order-1 lg:col-span-2">
+            <div className="overflow-hidden rounded-2xl border border-white/80 bg-white shadow-lg">
               <div className="relative z-0 h-[300px] w-full sm:h-[380px] lg:h-[440px]">
                 {!hasTrackingCoordinates && <div className="flex h-full items-center justify-center bg-[#f8fbf8] px-6 text-center text-sm text-gray-600">Store or delivery coordinates are not available for this order.</div>}
                 {hasTrackingCoordinates && <MapContainer key={`${order.id}-${branchCoordinates!.lat}-${branchCoordinates!.lng}-${destinationCoordinates!.lat}-${destinationCoordinates!.lng}`} center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl>
@@ -252,7 +244,7 @@ const OrderTrackingPageContent: React.FC = () => {
               <MapLegend />
             </div>
           </div>
-          <div>
+          <div className="order-2">
             <OrderDetailsCards currentOrder={{
               ...order,
               eta: status === 'on_the_way' ? Math.max(0, Math.ceil(35 * (1 - simulatedProgress / 100))) : order.eta,
@@ -281,12 +273,6 @@ const OrderTrackingPageContent: React.FC = () => {
             <div className="mt-5 rounded-2xl border border-emerald-100 bg-[#f3f8f3] p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Delivered by</p>
               <p className="mt-1 text-base font-bold text-gray-900">{deliveredDriverName}</p>
-              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Contact information</p>
-              {deliveredDriverPhone ? (
-                <a href={`tel:${deliveredDriverPhone}`} className="mt-1 inline-flex min-h-10 items-center font-semibold text-[#2d6a4f] hover:underline">{deliveredDriverPhone}</a>
-              ) : (
-                <p className="mt-1 text-sm text-gray-600">Not available</p>
-              )}
             </div>
             <button type="button" autoFocus onClick={() => setDismissedDeliveredNoticeId(order.id)} className="mt-5 min-h-12 w-full rounded-xl bg-[#2d6a4f] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1c3d2e]">Got it</button>
           </section>

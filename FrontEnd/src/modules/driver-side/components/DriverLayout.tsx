@@ -29,7 +29,13 @@ const DriverLayout: React.FC<DriverLayoutProps> = ({ children }) => {
   };
 
   return (
-    <EmployeeDashboardLayout role="driver" branchName={branchName} branchId={branchId} onSignOut={handleLogout}>
+    <EmployeeDashboardLayout
+      role="driver"
+      branchName={branchName}
+      branchId={branchId}
+      userName={driver?.name}
+      onSignOut={handleLogout}
+    >
       {children}
     </EmployeeDashboardLayout>
   );

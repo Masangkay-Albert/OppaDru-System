@@ -9,10 +9,10 @@ interface ProgressBarProps {
 
 const ProgressBar: React.FC<ProgressBarProps> = ({ status, progress }) => {
   const steps = [
-    { label: "Order placed", value: 25 },
-    { label: "Preparing", value: 50 },
-    { label: "On the way", value: 75 },
-    { label: "Delivered", value: 100 }
+    { label: "Order placed" },
+    { label: "Preparing" },
+    { label: "On the way" },
+    { label: "Delivered" }
   ];
 
   const getCurrentStep = () => {
@@ -32,25 +32,30 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ status, progress }) => {
   };
 
   const currentStep = getCurrentStep();
+  const fillProgress = Math.min(100, Math.max(0, ((progress - 12.5) / 75) * 100));
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-md p-4 border border-[#e76f51]/20">
-      <div className="flex justify-between text-sm text-gray-600 mb-2">
+    <div role="group" aria-label="Order progress" className="relative">
+      <div className="relative z-10 grid grid-cols-4">
         {steps.map((step, index) => (
-          <span 
-            key={step.label} 
-            className={`transition-colors duration-300 ${
-              index <= currentStep ? 'text-[#2d6a4f] font-medium' : 'text-gray-400'
-            }`}
-          >
-            {step.label}
-          </span>
+          <div key={step.label} className={`relative z-10 flex min-w-0 flex-col items-center gap-2 text-center text-[11px] transition-colors duration-300 sm:text-sm ${index <= currentStep ? 'font-semibold text-[#2d6a4f]' : 'text-gray-400'}`}>
+            <span className={`grid size-3.5 place-items-center rounded-full border-2 transition-colors duration-300 sm:size-4 ${
+              index < currentStep
+                ? 'border-[#2d6a4f] bg-[#2d6a4f]'
+                : index === currentStep
+                  ? 'border-[#2d6a4f] bg-white ring-2 ring-[#2d6a4f]/20'
+                  : 'border-gray-300 bg-white'
+            }`}>
+              {index < currentStep && <span className="size-1.5 rounded-full bg-white" />}
+            </span>
+            <span className="whitespace-nowrap">{step.label}</span>
+          </div>
         ))}
       </div>
-      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+      <div className="absolute left-[12.5%] right-[12.5%] top-[7px] z-0 h-1.5 overflow-hidden rounded-full bg-gray-200 sm:top-2">
         <div 
-          className="h-full bg-[#2d6a4f] transition-all duration-1000 ease-in-out rounded-full" 
-          style={{ width: `${Math.min(progress, 100)}%` }} 
+          className="h-full rounded-full bg-[#2d6a4f] transition-all duration-1000 ease-in-out"
+          style={{ width: `${fillProgress}%` }}
         />
       </div>
     </div>

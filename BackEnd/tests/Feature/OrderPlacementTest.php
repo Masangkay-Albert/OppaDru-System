@@ -15,6 +15,7 @@ use App\Models\Product;
 use App\Models\Driver;
 use App\Models\User;
 use App\Notifications\DiscountApplicationDecisionNotification;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -24,6 +25,77 @@ use Tests\TestCase;
 class OrderPlacementTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
+
+    public function test_customer_can_cancel_a_pending_order_within_thirty_seconds(): void
+    {
+        $customer = User::create([
+            'full_name' => 'Cancellation Customer',
+            'email' => 'cancellation@example.com',
+            'phone' => '09171234567',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $order = Order::create([
+            'id' => 'CUSTOMER-CANCEL-30S',
+            'email' => $customer->email,
+            'user_id' => $customer->id,
+            'total' => 100,
+            'status' => 'pending',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Test delivery address',
+            'phone' => $customer->phone,
+            'items' => [],
+            'delivery_type' => 'standard',
+        ]);
+
+        Carbon::setTestNow($order->created_at->copy()->addSeconds(29));
+        $this->actingAs($customer, 'api')
+            ->patchJson('/api/orders/'.$order->id.'/status', ['status' => 'cancelled'])
+            ->assertOk()
+            ->assertJsonPath('order.status', 'cancelled');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_customer_cannot_cancel_a_pending_order_after_thirty_seconds(): void
+    {
+        $customer = User::create([
+            'full_name' => 'Late Cancellation Customer',
+            'email' => 'late-cancellation@example.com',
+            'phone' => '09171234568',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $order = Order::create([
+            'id' => 'CUSTOMER-CANCEL-31S',
+            'email' => $customer->email,
+            'user_id' => $customer->id,
+            'total' => 100,
+            'status' => 'pending',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Test delivery address',
+            'phone' => $customer->phone,
+            'items' => [],
+            'delivery_type' => 'standard',
+        ]);
+
+        Carbon::setTestNow($order->created_at->copy()->addSeconds(31));
+        $this->actingAs($customer, 'api')
+            ->patchJson('/api/orders/'.$order->id.'/status', ['status' => 'cancelled'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Order cancellation is only allowed within 30 seconds of creation.');
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'pending']);
+
+        Carbon::setTestNow();
+    }
 
     public function test_main_system_onsite_order_is_assigned_to_the_main_branch(): void
     {
@@ -1223,7 +1295,7 @@ class OrderPlacementTest extends TestCase
 
         $response
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Order cancellation is only allowed within 20 seconds of creation.');
+            ->assertJsonPath('message', 'Order cancellation is only allowed within 30 seconds of creation.');
     }
 
     public function test_discount_application_decision_sends_email_to_customer(): void
@@ -1344,6 +1416,43 @@ class OrderPlacementTest extends TestCase
             base64_decode(substr($imageData, strpos($imageData, ',') + 1), true),
             $imageResponse->getContent(),
         );
+    }
+
+    public function test_delivery_proof_submission_can_mark_an_active_order_delivered_atomically(): void
+    {
+        $driver = Driver::create([
+            'name' => 'Completing Driver',
+            'email' => 'completing.driver@example.com',
+            'password' => Hash::make('password123'),
+            'phone' => '09171234569',
+            'vehicleType' => 'motorcycle',
+            'isActive' => true,
+        ]);
+        $driverToken = 'test-completing-driver-token';
+        $driver->forceFill(['api_token' => hash('sha256', $driverToken)])->save();
+
+        $order = Order::create([
+            'email' => 'delivery.customer@example.com',
+            'total' => 263,
+            'status' => 'on_the_way',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Delivery completion test address',
+            'phone' => '09171234568',
+            'items' => [],
+            'driver_id' => $driver->id,
+        ]);
+
+        $response = $this
+            ->withHeader('Authorization', 'Bearer '.$driverToken)
+            ->post('/api/driver/orders/'.$order->id.'/delivery-proof', [
+                'proof_image' => UploadedFile::fake()->create('delivery-proof.jpg', 10, 'image/jpeg'),
+                'status' => 'delivered',
+            ]);
+
+        $response->assertOk()->assertJsonPath('status', 'delivered');
+        $this->assertSame('delivered', $order->fresh()->status);
+        $this->assertNotNull($order->fresh()->delivery_confirmed_at);
+        $this->assertNotNull($order->fresh()->getRawOriginal('delivery_proof_image_data'));
     }
 
     public function test_order_list_projection_skips_proof_image_payloads_but_keeps_image_urls(): void

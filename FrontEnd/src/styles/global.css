@@ -39,11 +39,119 @@ body {
 }
 
 .customer-bell-dropdown {
+  --notification-surface: #fffdf8;
+  --notification-header: #f5f1e8;
+  --notification-row: #fffdf8;
+  --notification-row-unread: #f1f5ef;
+  --notification-hover: #e9f0e8;
+  --notification-border: #e5dfd3;
+  --notification-green: #315b40;
+  --notification-green-soft: #e4ede3;
+  --notification-green-icon: #55745d;
+  --notification-green-badge: #e6eee5;
+  --notification-green-badge-text: #355a40;
+  --notification-active-tab: #55745d;
+  --notification-muted: #66766b;
+  --notification-status: #e8efe7;
+  --notification-status-text: #355a40;
+  --notification-scrollbar: #91a495;
   top: calc(100% + 0.75rem);
   max-height: 70vh;
   overflow: visible;
-  box-shadow: 0 18px 48px rgba(15, 35, 22, 0.18), 0 3px 10px rgba(15, 35, 22, 0.08);
+  border-color: var(--notification-border);
+  background-color: var(--notification-surface);
+  box-shadow: 0 14px 36px rgba(37, 49, 39, 0.14), 0 2px 8px rgba(37, 49, 39, 0.06);
   animation: customer-notification-open 150ms ease-out both;
+}
+
+.dark .customer-bell-dropdown {
+  --notification-surface: #2e3e33;
+  --notification-header: #35483a;
+  --notification-row: #2e3e33;
+  --notification-row-unread: #35493a;
+  --notification-hover: #3c5041;
+  --notification-border: #46564a;
+  --notification-green: #b6cbb9;
+  --notification-green-soft: #3a4d3e;
+  --notification-green-icon: #a8c0ab;
+  --notification-green-badge: #3a4d3e;
+  --notification-green-badge-text: #c2d4c4;
+  --notification-active-tab: #58765f;
+  --notification-muted: #bbc8bd;
+  --notification-status: #3a4d3e;
+  --notification-status-text: #d0dfd1;
+  --notification-scrollbar: #718777;
+}
+
+.customer-bell-dropdown > header {
+  border-color: var(--notification-border);
+  background-color: var(--notification-header);
+}
+
+.customer-notification-icon {
+  background-color: var(--notification-green-soft);
+  color: var(--notification-green);
+}
+
+.customer-notification-count,
+.customer-notification-badge {
+  background-color: var(--notification-green-badge);
+  color: var(--notification-green-badge-text);
+}
+
+.customer-notification-tab {
+  background-color: var(--notification-surface);
+  color: var(--notification-muted);
+}
+
+.customer-notification-tab:hover {
+  background-color: var(--notification-green-soft);
+  color: var(--notification-green);
+}
+
+.customer-notification-tab[aria-selected="true"] {
+  background-color: var(--notification-active-tab);
+  color: #fff;
+}
+
+.customer-notification-link {
+  color: var(--notification-green);
+}
+
+.customer-notification-link:hover {
+  color: var(--notification-green);
+}
+
+.customer-notification-action:hover {
+  background-color: var(--notification-green-soft);
+  color: var(--notification-green);
+}
+
+.customer-notification-status {
+  background-color: var(--notification-status);
+  color: var(--notification-status-text);
+}
+
+.customer-notification-row-heading {
+  border-color: var(--notification-border);
+  background-color: color-mix(in srgb, var(--notification-surface) 95%, transparent);
+}
+
+.customer-notification-footer {
+  border-color: var(--notification-border);
+  background-color: var(--notification-header);
+}
+
+.customer-notification-item-surface {
+  background-color: var(--notification-row);
+}
+
+.customer-notification-item-surface--unread {
+  background-color: var(--notification-row-unread);
+}
+
+.customer-notification-unread-dot {
+  background-color: var(--notification-green-icon);
 }
 
 .customer-bell-dropdown--closing {
@@ -55,15 +163,23 @@ body {
   border-radius: 1rem 1rem 0 0;
 }
 
+.customer-bell-drag-handle {
+  background-color: var(--notification-header);
+}
+
+.customer-bell-drag-handle span {
+  background-color: var(--notification-scrollbar);
+}
+
 .customer-bell-dropdown::before {
   position: absolute;
   top: -7px;
   right: 18px;
   width: 13px;
   height: 13px;
-  border-top: 1px solid #f3f4f6;
-  border-left: 1px solid #f3f4f6;
-  background: #fbf8f1;
+  border-top: 1px solid var(--notification-header);
+  border-left: 1px solid var(--notification-header);
+  background: var(--notification-header);
   content: "";
   transform: rotate(45deg);
 }
@@ -73,7 +189,7 @@ body {
 }
 
 .customer-notification-scroll {
-  scrollbar-color: #8ca897 transparent;
+  scrollbar-color: var(--notification-scrollbar) transparent;
   scrollbar-width: thin;
 }
 
@@ -87,11 +203,11 @@ body {
 
 .customer-notification-scroll::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: #8ca897;
+  background: var(--notification-scrollbar);
 }
 
 .notification-item:hover {
-  background-color: #f0f7f1;
+  background-color: var(--notification-hover);
 }
 
 .notification-item {
@@ -107,7 +223,7 @@ body {
 }
 
 .dark .notification-item:hover {
-  background-color: #20382a;
+  background-color: var(--notification-hover);
 }
 
 .notification-item-actions {
@@ -169,22 +285,14 @@ body {
     flex-shrink: 0;
     justify-content: center;
     padding: 9px 0 0;
-    background: #fbf8f1;
+    background: var(--notification-header);
   }
 
   .customer-bell-drag-handle span {
     width: 36px;
     height: 4px;
     border-radius: 999px;
-    background: #cbd5ce;
-  }
-
-  .dark .customer-bell-drag-handle {
-    background: #1b2b20;
-  }
-
-  .dark .customer-bell-drag-handle span {
-    background: #52665a;
+    background: var(--notification-scrollbar);
   }
 }
 

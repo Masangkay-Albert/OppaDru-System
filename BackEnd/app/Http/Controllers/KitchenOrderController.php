@@ -39,6 +39,9 @@ class KitchenOrderController extends Controller
         $pendingOrders = $this->ordersForBranch($this->branchIdForEmployee($employee))
             ->with(['user', 'branch:id,name', 'franchise:id,name'])
             ->where('status', 'pending')
+            ->where(function (Builder $query): void {
+                $this->whereCustomerCancellationWindowElapsed($query);
+            })
             ->get();
         $scheduled = $pendingOrders->filter(fn (Order $order) => $this->isInScheduledTab($order))->values();
         $promoted = $pendingOrders->filter(fn (Order $order) => $this->isInNewOrdersTab($order))->values();
@@ -106,11 +109,32 @@ class KitchenOrderController extends Controller
         $request->validate([
             'status' => ['required', 'string', Rule::in(OrderStatus::KITCHEN_ALLOWED)],
             'start_early' => 'sometimes|boolean',
+            'items_completed' => 'sometimes|boolean',
         ]);
+        if (
+            in_array($request->input('status'), ['preparing', 'prepared'], true)
+            && ! $request->boolean('items_completed')
+        ) {
+            return response()->json([
+                'message' => 'Mark every order item complete before changing the preparation status.',
+                'errors' => ['items_completed' => ['Mark every order item complete before continuing.']],
+            ], 422);
+        }
 
         $order = $this->ordersForBranch($this->branchIdForEmployee($employee))
             ->with(['branch:id,name', 'franchise:id,name'])
             ->findOrFail($id);
+        if (
+            $request->input('status') === 'preparing'
+            && $order->status === 'pending'
+            && $order->user_id
+            && $order->created_at
+            && $order->created_at->gt(now()->subSeconds((int) config('orders.customer_cancellation_window_seconds', 30)))
+        ) {
+            return response()->json([
+                'message' => 'This customer order is still in its cancellation window.',
+            ], 422);
+        }
         if ($request->input('status') === 'preparing' && $this->scheduleService->isScheduled($order)) {
             $scheduledFor = $this->scheduleService->scheduledFor($order);
             if ($scheduledFor && $this->scheduleService->prepStartTime($scheduledFor)->isFuture() && ! $request->boolean('start_early')) {
@@ -171,13 +195,19 @@ class KitchenOrderController extends Controller
             ->with(['user', 'branch:id,name', 'franchise:id,name']);
 
         if ($tab === 'scheduled') {
-            $pending = $query->where('status', 'pending')->orderBy('created_at')->get();
+            $pending = $query->where('status', 'pending')
+                ->where(fn (Builder $pendingQuery) => $this->whereCustomerCancellationWindowElapsed($pendingQuery))
+                ->orderBy('created_at')
+                ->get();
 
             return $pending->filter(fn (Order $order) => $this->isInScheduledTab($order));
         }
 
         if ($tab === 'pending') {
-            $pending = $query->where('status', 'pending')->orderBy('created_at')->get();
+            $pending = $query->where('status', 'pending')
+                ->where(fn (Builder $pendingQuery) => $this->whereCustomerCancellationWindowElapsed($pendingQuery))
+                ->orderBy('created_at')
+                ->get();
 
             return $pending->filter(fn (Order $order) => $this->isInNewOrdersTab($order));
         }
@@ -201,6 +231,18 @@ class KitchenOrderController extends Controller
         $scheduledFor = $this->scheduleService->scheduledFor($order);
 
         return $scheduledFor !== null && $this->scheduleService->prepStartTime($scheduledFor)->isFuture();
+    }
+
+    private function whereCustomerCancellationWindowElapsed(Builder $query): Builder
+    {
+        return $query->where(function (Builder $visibleQuery): void {
+            $visibleQuery->whereNull('user_id')
+                ->orWhere(
+                    'created_at',
+                    '<=',
+                    now()->subSeconds((int) config('orders.customer_cancellation_window_seconds', 30)),
+                );
+        });
     }
 
     private function isInNewOrdersTab(Order $order): bool

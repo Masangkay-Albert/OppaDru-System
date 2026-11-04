@@ -59,8 +59,15 @@ export const ScheduleCard = ({ order, now }: { order: KitchenOrder; now: number 
   );
 };
 
-export const OrderItemsList = ({ order }: { order: KitchenOrder }) => {
-  const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({});
+export const OrderItemsList = ({
+  order,
+  checkedItems,
+  onCheckItem,
+}: {
+  order: KitchenOrder;
+  checkedItems: Record<number, boolean>;
+  onCheckItem: (index: number, checked: boolean) => void;
+}) => {
   const totalQuantity = order.items.reduce((total, item) => total + item.quantity, 0);
   const completed = ['prepared', 'ready', 'delivered', 'completed'].includes(order.status);
   const cancelled = ['cancelled', 'canceled'].includes(order.status);
@@ -68,7 +75,7 @@ export const OrderItemsList = ({ order }: { order: KitchenOrder }) => {
   return (
     <section>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h3 className="font-semibold text-[var(--oppa-text)]">{completed ? 'Prepared items' : cancelled ? 'Order items' : 'Items to Prepare'}</h3>
+        <h3 className="font-semibold text-[var(--oppa-text)]">{completed ? 'Prepared items' : cancelled ? 'Order items' : order.status === 'preparing' ? 'Confirm all items are prepared' : 'Items to Prepare'}</h3>
         {completed && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800"><CheckCircle size={14} /> All prepared</span>}
       </div>
       <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 bg-gray-50 px-4">
@@ -81,9 +88,9 @@ export const OrderItemsList = ({ order }: { order: KitchenOrder }) => {
             ) : (
               <input
                 type="checkbox"
-                aria-label={`Mark ${item.name} prepared`}
+                aria-label={`Mark ${item.name} complete`}
                 checked={Boolean(checkedItems[index])}
-                onChange={(event) => setCheckedItems((current) => ({ ...current, [index]: event.target.checked }))}
+                onChange={(event) => onCheckItem(index, event.target.checked)}
                 className="mt-1 size-4 accent-[var(--oppa-green)]"
               />
             )}
@@ -140,6 +147,10 @@ export const OrderTimeline = ({ order, now }: { order: KitchenOrder; now: number
 const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, onReschedule, onCancel }: OrderDetailsModalProps) => {
   const { showToast } = useToast();
   const [now, setNow] = useState(() => Date.now());
+  const [checklist, setChecklist] = useState<{ orderId: string; checked: Record<number, boolean> }>({
+    orderId: order.id,
+    checked: {},
+  });
   const [rescheduling, setRescheduling] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'start-early' | 'cancel' | null>(null);
   const [newSchedule, setNewSchedule] = useState(order.scheduledFor ? toLocalDateTimeInput(order.scheduledFor) : '');
@@ -148,6 +159,8 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
   const closeRef = useRef<HTMLButtonElement>(null);
   const isCancelled = ['cancelled', 'canceled'].includes(order.status);
   const prepIsOpen = !order.isScheduled || !order.prepStartTime || new Date(order.prepStartTime).getTime() <= now;
+  const checkedItems = checklist.orderId === order.id ? checklist.checked : {};
+  const allItemsChecked = order.items.length > 0 && order.items.every((_, index) => checkedItems[index]);
   const timelineStatus = useMemo(() => order.status.replaceAll('_', ' '), [order.status]);
 
   useEffect(() => {
@@ -196,6 +209,16 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
 
   const doCancel = () => {
     setConfirmAction('cancel');
+  };
+
+  const handleItemCheck = (index: number, checked: boolean) => {
+    setChecklist((current) => ({
+      orderId: order.id,
+      checked: {
+        ...(current.orderId === order.id ? current.checked : {}),
+        [index]: checked,
+      },
+    }));
   };
 
   return (
@@ -267,7 +290,14 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
             </aside>
           )}
 
-          <OrderItemsList order={order} />
+          <OrderItemsList order={order} checkedItems={checkedItems} onCheckItem={handleItemCheck} />
+          {!['prepared', 'ready', 'delivered', 'completed', 'cancelled', 'canceled'].includes(order.status) && (
+            <p className="text-xs text-gray-500" aria-live="polite">
+              {allItemsChecked
+                ? 'All items are marked complete. You can continue.'
+                : `Mark all ${order.items.length} ${order.items.length === 1 ? 'item' : 'items'} complete before continuing (${Object.values(checkedItems).filter(Boolean).length}/${order.items.length}).`}
+            </p>
+          )}
           <OrderTimeline order={order} now={now} />
           <p className="sr-only" aria-live="polite">Current order status: {timelineStatus}</p>
         </div>
@@ -299,13 +329,13 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
           )}
           {order.status === 'pending' && (
             <>
-              <button type="button" onClick={() => onStart(order)} disabled={busy || isCancelled || !prepIsOpen} title={!prepIsOpen && order.prepStartTime ? `Available at ${formatKitchenManilaDateTime(order.prepStartTime, { year: undefined, month: undefined, day: undefined })}` : undefined} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" onClick={() => onStart(order)} disabled={busy || isCancelled || !prepIsOpen || !allItemsChecked} title={!prepIsOpen && order.prepStartTime ? `Available at ${formatKitchenManilaDateTime(order.prepStartTime, { year: undefined, month: undefined, day: undefined })}` : !allItemsChecked ? 'Mark all items complete first.' : undefined} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
                 <ChefHat size={17} /> Start Preparing
               </button>
-              {order.isScheduled && !prepIsOpen && <button type="button" onClick={requestStartEarly} disabled={busy || isCancelled} className="min-h-11 rounded-xl border border-[var(--oppa-green)] px-3 py-2 text-sm font-semibold text-[var(--oppa-green)] disabled:opacity-50">Start Early</button>}
+              {order.isScheduled && !prepIsOpen && <button type="button" onClick={requestStartEarly} disabled={busy || isCancelled || !allItemsChecked} title={!allItemsChecked ? 'Mark all items complete first.' : undefined} className="min-h-11 rounded-xl border border-[var(--oppa-green)] px-3 py-2 text-sm font-semibold text-[var(--oppa-green)] disabled:opacity-50">Start Early</button>}
             </>
           )}
-          {order.status === 'preparing' && <button type="button" onClick={() => onComplete(order)} disabled={busy || isCancelled} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 font-semibold text-white disabled:opacity-50"><PackageCheck size={17} /> Done Preparing</button>}
+          {order.status === 'preparing' && <button type="button" onClick={() => onComplete(order)} disabled={busy || isCancelled || !allItemsChecked} title={!allItemsChecked ? 'Mark all items complete first.' : undefined} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"><PackageCheck size={17} /> Done Preparing</button>}
           {order.status === 'pending' && !isCancelled && (
             <div className="flex w-full flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
               {order.isScheduled && (

@@ -17,7 +17,13 @@ import {
   SegmentedControl,
   Toggle,
 } from '../../../components/ui/AdminPromoControls';
-import { getLocalDateTimeMin, stripEmoji } from '../../../utils/promoUi';
+import {
+  getPromoDateTimeMin,
+  getPromoDateTimeTimestamp,
+  stripEmoji,
+  toPromoApiDateTime,
+  toPromoDateTimeInput,
+} from '../../../utils/promoUi';
 import { useToast } from '../../customer-side/components/ToastProvider';
 import {
   LuCalendar,
@@ -38,30 +44,7 @@ import {
   LuX,
 } from 'react-icons/lu';
 
-const PROMO_TIME_ZONE = 'Asia/Manila';
 type PromoStatusFilter = 'all' | 'active' | 'inactive' | 'expired';
-
-const toDateTimeLocal = (value?: string | null): string => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: PROMO_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map(({ type, value: part }) => [type, part]));
-  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
-};
-
-const toPromoApiDateTime = (value: string): string => (
-  value ? `${value.length === 16 ? `${value}:00` : value}+08:00` : ''
-);
 
 const formatPromoDate = (value: string): string => {
   const date = new Date(value);
@@ -70,7 +53,7 @@ const formatPromoDate = (value: string): string => {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-    timeZone: PROMO_TIME_ZONE,
+    timeZone: 'Asia/Manila',
   });
 };
 
@@ -78,9 +61,9 @@ const errorMessage = (error: unknown, fallback: string): string => (
   error instanceof Error ? error.message : fallback
 );
 
-const localDateTimeTimestamp = (value: string): number => new Date(value).getTime();
+const localDateTimeTimestamp = getPromoDateTimeTimestamp;
 const getPromoCurrentYear = (): number => Number(new Intl.DateTimeFormat('en', {
-  timeZone: PROMO_TIME_ZONE,
+  timeZone: 'Asia/Manila',
   year: 'numeric',
 }).format(new Date()));
 const getDateTimeLocalMax = (): string => `${getPromoCurrentYear()}-12-31T23:59`;
@@ -346,7 +329,7 @@ export default function AdminPromosPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [startDateError, setStartDateError] = useState('');
   const [endDateError, setEndDateError] = useState('');
-  const [dateTimeMin, setDateTimeMin] = useState(getLocalDateTimeMin);
+  const [dateTimeMin, setDateTimeMin] = useState(getPromoDateTimeMin);
   const [deleteTarget, setDeleteTarget] = useState<Promo | null>(null);
   const [imageInputKey, setImageInputKey] = useState(0);
   const [initialStartDate, setInitialStartDate] = useState('');
@@ -416,7 +399,7 @@ export default function AdminPromosPage() {
     setEndDate('');
     setInitialStartDate('');
     setInitialEndDate('');
-    setDateTimeMin(getLocalDateTimeMin());
+    setDateTimeMin(getPromoDateTimeMin());
     setIsActive(true);
     setSelectedCategories([]);
     setSelectedProducts([]);
@@ -430,8 +413,8 @@ export default function AdminPromosPage() {
   };
 
   const openEditModal = (promo: Promo) => {
-    const savedStartDate = toDateTimeLocal(promo.start_date);
-    const savedEndDate = toDateTimeLocal(promo.end_date);
+    const savedStartDate = toPromoDateTimeInput(promo.start_date);
+    const savedEndDate = toPromoDateTimeInput(promo.end_date);
     setEditingPromo(promo);
     setTitle(promo.title);
     setCode(promo.code || '');
@@ -447,7 +430,7 @@ export default function AdminPromosPage() {
     setEndDate(savedEndDate);
     setInitialStartDate(savedStartDate);
     setInitialEndDate(savedEndDate);
-    setDateTimeMin(getLocalDateTimeMin());
+    setDateTimeMin(getPromoDateTimeMin());
     setIsActive(promo.is_active);
     setSelectedCategories(promo.applicable_categories || []);
     setSelectedProducts(promo.applicable_products || []);
@@ -915,7 +898,7 @@ export default function AdminPromosPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="promo-discount-fields">
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Discount type <span className="text-[var(--promo-danger-text)]">*</span></p>
                 <div className="grid h-11 grid-cols-2 gap-1 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-1" role="group" aria-label="Discount type">
@@ -960,7 +943,7 @@ export default function AdminPromosPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="promo-datetime-fields">
               <FormField error={startDateError}>
                 <FieldLabel htmlFor="promo-start-date">Start date & time (optional)</FieldLabel>
                 <div className="relative">
@@ -976,7 +959,7 @@ export default function AdminPromosPage() {
                     className={`${inputClass(Boolean(startDateError))} cursor-pointer pl-10 [font-family:inherit]`}
                   />
                 </div>
-                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Choose now or a future start time this year.</p>
+                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Choose now or a future start time this year (Philippine time).</p>
               </FormField>
               <FormField error={endDateError}>
                 <FieldLabel htmlFor="promo-end-date">End date & time (optional)</FieldLabel>
@@ -993,7 +976,7 @@ export default function AdminPromosPage() {
                     className={`${inputClass(Boolean(endDateError))} cursor-pointer pl-10 [font-family:inherit]`}
                   />
                 </div>
-                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Must be after the start time and within this year.</p>
+                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Philippine time; after the start time and within this year.</p>
               </FormField>
             </div>
 

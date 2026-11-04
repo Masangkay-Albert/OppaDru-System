@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Driver;
 use App\Models\Franchise;
 use App\Models\Order;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -14,6 +15,52 @@ use Tests\TestCase;
 class KitchenOrderChannelTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
+
+    public function test_customer_orders_stay_out_of_kitchen_until_the_cancellation_window_ends(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-11-04 12:00:00'));
+        $branch = Franchise::create([
+            'name' => 'Grace Window Branch',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
+        [$headers] = $this->createKitchenStaff($branch->id);
+        $customer = User::create([
+            'full_name' => 'Grace Window Customer',
+            'email' => 'grace-window@example.com',
+            'phone' => '09170000000',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $order = $this->createOrder('CUSTOMER-GRACE-WINDOW', 'standard', 'Customer delivery address');
+        $order->update(['branch_id' => $branch->id, 'franchise_id' => $branch->id, 'user_id' => $customer->id]);
+
+        $this->getJson('/api/kitchen/orders?tab=pending', $headers)
+            ->assertOk()
+            ->assertJsonCount(0);
+        $this->getJson('/api/kitchen/orders/counts', $headers)
+            ->assertOk()
+            ->assertJsonPath('new_count', 0);
+        $this->patchJson('/api/kitchen/orders/'.$order->id.'/status', ['status' => 'preparing', 'items_completed' => true], $headers)
+            ->assertStatus(422);
+
+        Carbon::setTestNow(Carbon::parse('2026-11-04 12:00:30'));
+        $this->getJson('/api/kitchen/orders?tab=pending', $headers)
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $order->id);
+        $this->getJson('/api/kitchen/orders/counts', $headers)
+            ->assertOk()
+            ->assertJsonPath('new_count', 1);
+        Carbon::setTestNow();
+    }
 
     public function test_kitchen_order_list_includes_the_order_branch_name(): void
     {
@@ -31,6 +78,23 @@ class KitchenOrderChannelTest extends TestCase
         $this->getJson('/api/kitchen/orders?tab=pending', $headers)
             ->assertOk()
             ->assertJsonPath('0.branch_name', 'Kitchen Branch');
+    }
+
+    public function test_kitchen_status_changes_require_completed_item_checklist(): void
+    {
+        [$headers] = $this->createKitchenStaff();
+        $order = $this->createOrder('KITCHEN-CHECKLIST-REQUIRED', 'standard', 'Customer delivery address');
+
+        $this->patchJson('/api/kitchen/orders/'.$order->id.'/status', ['status' => 'preparing'], $headers)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items_completed']);
+
+        $this->patchJson('/api/kitchen/orders/'.$order->id.'/status', [
+            'status' => 'preparing',
+            'items_completed' => true,
+        ], $headers)
+            ->assertOk()
+            ->assertJsonPath('order.status', 'preparing');
     }
 
     public function test_main_system_kitchen_sees_orders_assigned_to_the_main_branch_id(): void
@@ -63,6 +127,7 @@ class KitchenOrderChannelTest extends TestCase
             ->assertJsonPath('new_count', 1);
         $this->patchJson('/api/kitchen/orders/'.$mainBranchOrder->id.'/status', [
             'status' => 'preparing',
+            'items_completed' => true,
         ], $headers)
             ->assertOk()
             ->assertJsonPath('order.status', 'preparing');
@@ -90,11 +155,11 @@ class KitchenOrderChannelTest extends TestCase
         $onsiteOrder = $this->createOrder('ONSITE-CHANNEL-TEST', 'onsite', 'Onsite - Takeout (Customer: Walk-in Customer)');
         $onlineOrder = $this->createOrder('ONLINE-CHANNEL-TEST', 'standard', 'Customer delivery address');
 
-        $this->patchJson('/api/kitchen/orders/'.$onsiteOrder->id.'/status', ['status' => 'prepared'], $headers)
+        $this->patchJson('/api/kitchen/orders/'.$onsiteOrder->id.'/status', ['status' => 'prepared', 'items_completed' => true], $headers)
             ->assertOk()
             ->assertJsonPath('order.status', 'delivered');
 
-        $this->patchJson('/api/kitchen/orders/'.$onlineOrder->id.'/status', ['status' => 'prepared'], $headers)
+        $this->patchJson('/api/kitchen/orders/'.$onlineOrder->id.'/status', ['status' => 'prepared', 'items_completed' => true], $headers)
             ->assertOk()
             ->assertJsonPath('order.status', 'prepared');
 
@@ -141,6 +206,7 @@ class KitchenOrderChannelTest extends TestCase
 
         $this->patchJson('/api/kitchen/orders/'.$order->id.'/status', [
             'status' => 'prepared',
+            'items_completed' => true,
         ], $kitchenHeaders)
             ->assertOk()
             ->assertJsonPath('order.status', 'prepared');
@@ -297,9 +363,9 @@ class KitchenOrderChannelTest extends TestCase
             'fulfillment_type' => 'delivery',
         ]);
 
-        $this->patchJson('/api/kitchen/orders/'.$order->id.'/status', ['status' => 'preparing'], $headers)
+        $this->patchJson('/api/kitchen/orders/'.$order->id.'/status', ['status' => 'preparing', 'items_completed' => true], $headers)
             ->assertStatus(422);
-        $this->patchJson('/api/kitchen/orders/'.$order->id.'/status', ['status' => 'preparing', 'start_early' => true], $headers)
+        $this->patchJson('/api/kitchen/orders/'.$order->id.'/status', ['status' => 'preparing', 'start_early' => true, 'items_completed' => true], $headers)
             ->assertOk()
             ->assertJsonPath('order.status', 'preparing');
 

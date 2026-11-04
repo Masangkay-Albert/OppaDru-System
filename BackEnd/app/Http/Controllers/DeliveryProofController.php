@@ -23,23 +23,46 @@ class DeliveryProofController extends Controller
 
         $request->validate([
             'proof_image' => 'required|file|image|mimes:jpeg,jpg,png,webp|max:5120',
+            'status' => 'sometimes|in:delivered',
         ]);
 
-        $query = Order::query()->where('driver_id', $driver->id);
-        DriverOrderScope::applyBranch($query, DriverOrderScope::branchId($driver));
-        DriverOrderScope::applyDeliveryEligibility($query);
-        $order = $query->findOrFail($id);
-        if (!in_array($order->status, [OrderStatus::ON_THE_WAY, OrderStatus::ARRIVED, OrderStatus::DELIVERED], true)) {
-            return response()->json(['message' => 'You can only upload proof for an active delivery assigned to you.'], 403);
+        $markDelivered = $request->input('status') === OrderStatus::DELIVERED;
+        try {
+            $order = \Illuminate\Support\Facades\DB::transaction(function () use ($driver, $id, $request, $markDelivered) {
+                $query = Order::query()->where('driver_id', $driver->id)->lockForUpdate();
+                DriverOrderScope::applyBranch($query, DriverOrderScope::branchId($driver));
+                DriverOrderScope::applyDeliveryEligibility($query);
+                $order = $query->findOrFail($id);
+
+                $allowedStatuses = $markDelivered
+                    ? [OrderStatus::ON_THE_WAY, OrderStatus::ARRIVED]
+                    : [OrderStatus::ON_THE_WAY, OrderStatus::ARRIVED, OrderStatus::DELIVERED];
+                if (!in_array($order->status, $allowedStatuses, true)) {
+                    return response()->json(['message' => 'You can only upload proof for an active delivery assigned to you.'], 403);
+                }
+
+                $order->delivery_proof_image_data = DatabaseImage::fromUploadedFile($request->file('proof_image'));
+                $order->delivery_proof_image = null;
+                $order->delivery_proof_uploaded_at = now();
+                if ($markDelivered) {
+                    $order->status = OrderStatus::DELIVERED;
+                    $order->delivery_confirmed_at = $order->delivery_confirmed_at ?? now();
+                }
+                $order->save();
+
+                return $order;
+            });
+        } catch (\Illuminate\Http\Exceptions\HttpResponseException $exception) {
+            return $exception->getResponse();
         }
 
-        $order->delivery_proof_image_data = DatabaseImage::fromUploadedFile($request->file('proof_image'));
-        $order->delivery_proof_image = null;
-        $order->delivery_proof_uploaded_at = now();
-        $order->save();
+        if ($order instanceof \Illuminate\Http\JsonResponse) {
+            return $order;
+        }
 
         return response()->json([
-            'message' => 'Delivery proof uploaded successfully.',
+            'message' => $markDelivered ? 'Delivery completed successfully.' : 'Delivery proof uploaded successfully.',
+            'status' => $order->status,
             'delivery_proof_image_url' => $order->delivery_proof_image,
             'delivery_proof_uploaded_at' => $order->delivery_proof_uploaded_at?->toISOString(),
         ]);

@@ -2,13 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Truck, MapPin, CheckCircle, Phone, Clock, Eye, X, ImagePlus, Flame } from 'lucide-react';
+import { Truck, MapPin, CheckCircle, Phone, Clock, Eye, X, ImagePlus, Flame, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import DriverLayout from '../components/DriverLayout';
-import StaffBranchBadge from '../../shared/components/StaffBranchBadge';
 import RouteLayer from '../../customer-side/components/tracking/RouteLayer';
 import { destinationIcon, storeIcon } from '../../customer-side/components/tracking/MapIcons';
 import { OrderDateTime, StatusBadge } from '../../shared/components/DashboardPrimitives';
-import { getDriverBranchDisplay, type DriverAuthData } from '../../../services/driverAuth';
+import type { DriverAuthData } from '../../../services/driverAuth';
 import {
   EmployeeDashboardEmptyState,
   EmployeeDashboardHeader,
@@ -29,13 +28,20 @@ const chipDisabled = 'inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--op
 type TabView = 'available' | 'active' | 'history';
 type SortOrder = 'desc' | 'asc';
 
+interface DriverOrderItem {
+  name?: string;
+  product_name?: string;
+  title?: string;
+  quantity: number;
+}
+
 export interface DriverOrder {
   id: string;
   order_number?: string;
   driver_id?: string | null;
   customerName: string;
   status: string;
-  items?: any[];
+  items?: DriverOrderItem[];
   scheduleDisplay?: string;
   deliveryType?: string;
   created_at: string;
@@ -48,6 +54,12 @@ export interface DriverOrder {
   deliveryProofImageUrl?: string | null;
   deliveryProofUploadedAt?: string | null;
 }
+
+type DriverOrderResponse = DriverOrder & {
+  branch_coordinates?: { lat: number; lng: number } | null;
+  branch_name?: string | null;
+  franchise?: { latitude?: number | null; longitude?: number | null; name?: string | null };
+};
 
 const formatDate = (dateString: string) => {
   if (!dateString) return 'Unknown date';
@@ -71,19 +83,33 @@ const DriverDashboardPage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [driverName, setDriverName] = useState<string>("Driver");
   const [driverId, setDriverId] = useState<string>("");
-  const branch = (() => {
-    try {
-      return getDriverBranchDisplay(JSON.parse(localStorage.getItem('driver_auth') || 'null') as DriverAuthData | null);
-    } catch {
-      return getDriverBranchDisplay(null);
-    }
-  })();
-  
   const [selectedOrder, setSelectedOrder] = useState<DriverOrder | null>(null);
   const getDisplayOrderNumber = (order: DriverOrder) => order.order_number || order.id;
   const [proofFile, setProofFile] = useState<File | null>(null);
-  const [proofUploading, setProofUploading] = useState(false);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
+  const [proofSubmitting, setProofSubmitting] = useState(false);
   const ordersFetchInFlightRef = useRef(false);
+
+  useEffect(() => () => {
+    if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl);
+  }, [proofPreviewUrl]);
+
+  const openOrderDetails = (order: DriverOrder) => {
+    setProofFile(null);
+    setProofPreviewUrl(null);
+    setSelectedOrder(order);
+  };
+
+  const copyDeliveryAddress = async (address: string) => {
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard access is unavailable.');
+      await navigator.clipboard.writeText(address);
+      showToast('Address copied.', 'success');
+    } catch (error) {
+      console.error('Failed to copy delivery address:', error);
+      showToast('Could not copy the address.', 'error');
+    }
+  };
 
   
   useEffect(() => {
@@ -128,7 +154,7 @@ const DriverDashboardPage: React.FC = () => {
       
       const data = await response.json();
       if (requestedTab === activeTab) {
-        const normalized = (Array.isArray(data) ? data : []).map((order: any) => ({
+        const normalized = (Array.isArray(data) ? data : []).map((order: DriverOrderResponse) => ({
           ...order,
           branchCoordinates: order.branchCoordinates || order.branch_coordinates || (order.franchise?.latitude != null && order.franchise?.longitude != null ? { lat: Number(order.franchise.latitude), lng: Number(order.franchise.longitude) } : null),
           branchName: order.branchName || order.branch_name || order.franchise?.name || null,
@@ -183,14 +209,15 @@ const DriverDashboardPage: React.FC = () => {
     }
   };
 
-  const uploadDeliveryProof = async () => {
+  const submitDelivery = async () => {
     if (!selectedOrder || !proofFile) return;
 
-    setProofUploading(true);
+    setProofSubmitting(true);
     try {
       const token = localStorage.getItem('driver_token');
       const formData = new FormData();
       formData.append('proof_image', proofFile);
+      formData.append('status', 'delivered');
 
       const response = await fetch(`${API_URL}/driver/orders/${selectedOrder.id}/delivery-proof`, {
         method: 'POST',
@@ -206,22 +233,28 @@ const DriverDashboardPage: React.FC = () => {
         const validationMessages = result?.errors
           ? Object.values(result.errors).flat().join(' ')
           : '';
-        throw new Error(validationMessages || result?.message || 'Could not upload delivery proof.');
+        throw new Error(validationMessages || result?.message || 'Could not complete the delivery.');
       }
 
-      const proofUpdates = {
-        deliveryProofImageUrl: result.delivery_proof_image_url,
-        deliveryProofUploadedAt: result.delivery_proof_uploaded_at,
-      };
-      setSelectedOrder((current) => current ? { ...current, ...proofUpdates } : current);
       setOrders((current) => current.map((order) =>
-        order.id === selectedOrder.id ? { ...order, ...proofUpdates } : order
+        order.id === selectedOrder.id
+          ? {
+              ...order,
+              status: 'delivered',
+              deliveryProofImageUrl: result.delivery_proof_image_url,
+              deliveryProofUploadedAt: result.delivery_proof_uploaded_at,
+            }
+          : order
       ));
       setProofFile(null);
+      setProofPreviewUrl(null);
+      setSelectedOrder(null);
+      setActiveTab('history');
+      showToast('Order marked as delivered.', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Failed to upload delivery proof. Please try again.', 'error');
+      showToast(error instanceof Error ? error.message : 'Failed to complete delivery. Please try again.', 'error');
     } finally {
-      setProofUploading(false);
+      setProofSubmitting(false);
     }
   };
 
@@ -243,11 +276,11 @@ const DriverDashboardPage: React.FC = () => {
         title="Delivery Dashboard"
         name={driverName}
         subtitle="Manage available orders and track your active deliveries."
-        context={<StaffBranchBadge name={branch.name} id={branch.id} />}
+        showIdentity={false}
       />
 
       {/* Tabs and Sort Controls */}
-      <div className="relative z-20 mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative z-20 mb-4 flex min-w-0 flex-wrap items-center justify-between gap-3">
         {/* Tabs */}
         <EmployeeDashboardTabs<TabView>
           tabs={[
@@ -260,7 +293,7 @@ const DriverDashboardPage: React.FC = () => {
         />
 
         {/* Sort Dropdown */}
-        <div className="admin-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="ml-auto flex min-w-0 items-center gap-2">
           <EmployeeDashboardSort<SortOrder>
             value={sortOrder}
             onChange={setSortOrder}
@@ -298,11 +331,10 @@ const DriverDashboardPage: React.FC = () => {
                     <StatusBadge status={order.status} />
                     <p className="mt-2 font-mono text-[13px] tabular-nums text-[var(--oppa-text-muted)]">{getDisplayOrderNumber(order)}</p>
                     <p className="truncate font-medium text-[var(--oppa-text)]">{order.customerName || 'Customer'}</p>
-                    {order.branchName && <p className="mt-0.5 truncate text-xs font-medium text-[var(--oppa-green)]">{order.branchName}</p>}
                     <p className="mt-0.5 text-[10px] text-[var(--oppa-text-muted)]">{formatDate(order.created_at)}</p>
                   </div>
                   <button 
-                    onClick={() => setSelectedOrder(order)}
+                    onClick={() => openOrderDetails(order)}
                     aria-label="Details"
                     title="Details"
                     className="flex-shrink-0 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-2 text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"
@@ -340,7 +372,7 @@ const DriverDashboardPage: React.FC = () => {
                       <Truck size={14} /> Accept Order
                     </button>
                   ) : activeTab === 'active' ? (
-                    <button onClick={() => setSelectedOrder(order)} className={chipSuccess + " w-full justify-center"}>
+                    <button onClick={() => openOrderDetails(order)} className={chipSuccess + " w-full justify-center"}>
                       <CheckCircle size={14} /> View Details
                     </button>
                   ) : (
@@ -388,12 +420,7 @@ const DriverDashboardPage: React.FC = () => {
                     </td>
                     <td className="min-w-0 px-3 py-2.5 align-middle">
                       <p className="font-medium text-[var(--oppa-text)]">{order.customerName || 'Customer'}</p>
-                      {order.branchName && <p className="mt-0.5 truncate text-xs font-medium text-[var(--oppa-green)]">{order.branchName}</p>}
                       {order.phone && <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-[var(--oppa-text-muted)]"><Phone size={12} />{order.phone}</p>}
-                      <p className="mt-1 hidden truncate text-xs text-[var(--oppa-text-muted)] md:max-lg:block" title={order.deliveryAddress || order.address}>
-                        <MapPin size={12} className="mr-1 inline shrink-0 text-[var(--oppa-green)]" />
-                        {order.deliveryAddress || order.address}
-                      </p>
                     </td>
                     <td className="hidden min-w-0 px-3 py-2.5 align-middle lg:table-cell">
                       <p className="flex min-w-0 items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-[var(--oppa-text-muted)]" title={order.deliveryAddress || order.address}>
@@ -412,7 +439,7 @@ const DriverDashboardPage: React.FC = () => {
                     <td className="min-w-0 whitespace-nowrap px-3 py-2.5 pr-4 align-middle">
                       <div className="flex flex-nowrap items-center justify-end gap-2">
                         <button 
-                          onClick={() => setSelectedOrder(order)}
+                          onClick={() => openOrderDetails(order)}
                           title="Details"
                           aria-label="Details"
                           className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2.5 text-[12px] font-semibold whitespace-nowrap text-[var(--oppa-text)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"
@@ -425,7 +452,7 @@ const DriverDashboardPage: React.FC = () => {
                             <Truck size={14} /> Accept
                           </button>
                         ) : activeTab === 'active' ? (
-                          <button onClick={() => setSelectedOrder(order)} className={`${chipSuccess} h-8 shrink-0 px-2.5 text-[12px] whitespace-nowrap justify-center`}>
+                          <button onClick={() => openOrderDetails(order)} className={`${chipSuccess} h-8 shrink-0 px-2.5 text-[12px] whitespace-nowrap justify-center`}>
                             <CheckCircle size={14} /> View Details
                           </button>
                         ) : (
@@ -446,23 +473,32 @@ const DriverDashboardPage: React.FC = () => {
       {/* Driver Order Details Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 text-[var(--oppa-text)] shadow-xl">
-            <div className="flex items-start justify-between mb-4 border-b pb-4">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 text-[var(--oppa-text)] shadow-xl sm:p-6">
+            <div className="mb-5 flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold">Delivery Details</h2>
                 <p className="font-mono text-sm text-[var(--oppa-text-muted)]">{getDisplayOrderNumber(selectedOrder)}</p>
               </div>
-              <button onClick={() => setSelectedOrder(null)} className="rounded-full p-2 text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">
+              <button
+                type="button"
+                aria-label="Close delivery details"
+                onClick={() => {
+                  setSelectedOrder(null);
+                  setProofFile(null);
+                  setProofPreviewUrl(null);
+                }}
+                className="rounded-full p-2 text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"
+              >
                 <X size={20} />
               </button>
             </div>
             
             <div className="space-y-5">
               {/* Customer & Date */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-[var(--oppa-text-muted)]">Customer</p>
-                  <p className="font-medium">{selectedOrder.customerName}</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-[var(--oppa-text-muted)]">Customer</p>
+                  <p className="mt-1 font-semibold">{selectedOrder.customerName}</p>
                   {selectedOrder.phone && (
                     <div className="mt-1 flex items-center gap-1 text-sm text-[var(--oppa-text-muted)]">
                       <Phone size={14} />
@@ -472,20 +508,47 @@ const DriverDashboardPage: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <div>
-                  <p className="text-sm text-[var(--oppa-text-muted)]">Date Ordered</p>
-                  <p className="font-medium text-sm">{formatDate(selectedOrder.created_at)}</p>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-[var(--oppa-text-muted)]">Date Ordered</p>
+                  <p className="mt-1 text-sm font-semibold">{formatDate(selectedOrder.created_at)}</p>
                 </div>
               </div>
 
               {/* Delivery Address */}
-              <div className="rounded-xl border border-orange-100 bg-orange-50 p-3 dark:border-orange-900 dark:bg-orange-950/40">
-                <p className="mb-1 flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-orange-800 dark:text-orange-200">
-                  <MapPin size={14} /> Address
-                </p>
-                <p className="text-sm font-medium text-orange-950 dark:text-orange-100">
-                  {selectedOrder.deliveryAddress || selectedOrder.address || 'No address provided'}
-                </p>
+              <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/70 p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-highlight-text)]">
+                      <MapPin size={14} /> Address
+                    </p>
+                    <p className="break-words text-sm font-medium text-[var(--oppa-text)]">
+                      {selectedOrder.deliveryAddress || selectedOrder.address || 'No address provided'}
+                    </p>
+                  </div>
+                  {(selectedOrder.deliveryAddress || selectedOrder.address) && (
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        aria-label="Copy delivery address"
+                        title="Copy address"
+                        onClick={() => void copyDeliveryAddress(selectedOrder.deliveryAddress || selectedOrder.address || '')}
+                        className="rounded-lg p-2 text-[var(--oppa-highlight-text)] transition hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"
+                      >
+                        <Copy size={15} />
+                      </button>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedOrder.deliveryAddress || selectedOrder.address || '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label="Open address in Maps"
+                        title="Open in Maps"
+                        className="rounded-lg p-2 text-[var(--oppa-highlight-text)] transition hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"
+                      >
+                        <ExternalLink size={15} />
+                      </a>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {selectedOrder.deliveryCoordinates ? (
@@ -517,75 +580,55 @@ const DriverDashboardPage: React.FC = () => {
                     </Marker>
                   </MapContainer>
                 </div>
-              ) : (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  This order has no saved map pin. Use the delivery address above.
-                </p>
-              )}
-              
-             
+              ) : null}
+
               {selectedOrder.items && selectedOrder.items.length > 0 && (
                 <div>
-                  <p className="mb-2 border-b border-[var(--oppa-border)] pb-2 text-sm font-medium text-[var(--oppa-text-muted)]">Order Items ({selectedOrder.items.length})</p>
-                  <ul className="space-y-1">
-                    {selectedOrder.items.map((item: any, idx: number) => (
-                      <li key={idx} className="flex justify-between text-sm">
-                        <span>
-                          <span className="text-[var(--oppa-green)] font-bold mr-1">{item.quantity}x</span>
-                          {item.name || item.product_name || item.title || 'Item'} 
-                        </span>
+                  <p className="mb-2 text-sm font-semibold text-[var(--oppa-text)]">Order Items ({selectedOrder.items.length})</p>
+                  <ul className="space-y-2">
+                    {selectedOrder.items.map((item, idx) => (
+                      <li key={idx} className="flex items-baseline gap-2 text-sm">
+                        <span className="shrink-0 font-bold text-[var(--oppa-highlight-text)]">{item.quantity}x</span>
+                        <span>{item.name || item.product_name || item.title || 'Item'}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
 
-              {selectedOrder.status === 'on_the_way' ? (
-                <div className="space-y-3">
-                  <button
-                    type="button"
-                    onClick={() => void updateOrderStatus(selectedOrder.id, 'delivered', 'history')}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-                  >
-                    <CheckCircle size={17} />
-                    Delivered
-                  </button>
-                  <p className="text-center text-xs text-[var(--oppa-text-muted)]">
-                    This updates the order to Delivered for the customer and admin immediately.
-                  </p>
-                </div>
-              ) : null}
-
-              {(selectedOrder.status === 'on_the_way' || selectedOrder.status === 'delivered') && (
-                <div className="space-y-3 border-t border-[var(--oppa-border)] pt-4">
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--oppa-text)]">Delivery Proof</p>
-                    <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Send a delivery photo for the admin to view in Orders.</p>
-                  </div>
-                  {selectedOrder.deliveryProofImageUrl && (
-                    <a href={selectedOrder.deliveryProofImageUrl} target="_blank" rel="noreferrer" className="block w-fit">
-                      <img src={selectedOrder.deliveryProofImageUrl} alt="Uploaded delivery proof" className="h-28 w-40 rounded-lg border border-[var(--oppa-border)] object-cover" />
-                    </a>
-                  )}
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {(selectedOrder.status === 'on_the_way' || selectedOrder.status === 'arrived') && (
+                <div className="space-y-4 border-t border-[var(--oppa-border)] pt-5">
+                  <p className="text-sm font-semibold text-[var(--oppa-text)]">Delivery Proof (photo)</p>
+                  <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/40 px-4 py-4 text-center transition hover:bg-[var(--oppa-green-soft)]">
+                    <ImagePlus size={20} className="text-[var(--oppa-highlight-text)]" />
+                    <span className="text-sm font-semibold text-[var(--oppa-highlight-text)]">Choose File</span>
+                    <span className="max-w-full truncate text-xs text-[var(--oppa-text-muted)]">{proofFile?.name || 'JPEG, PNG, or WebP (max 5 MB)'}</span>
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
                       capture="environment"
-                      onChange={(event) => setProofFile(event.target.files?.[0] ?? null)}
-                      className="min-w-0 flex-1 text-xs text-[var(--oppa-text-muted)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--oppa-green-soft)] file:px-3 file:py-2 file:text-xs file:font-medium file:text-[var(--oppa-green)]"
+                      disabled={proofSubmitting}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] ?? null;
+                        setProofFile(file);
+                        setProofPreviewUrl(file ? URL.createObjectURL(file) : null);
+                      }}
+                      className="sr-only"
                     />
-                    <button
-                      type="button"
-                      onClick={() => void uploadDeliveryProof()}
-                      disabled={!proofFile || proofUploading}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <ImagePlus size={16} />
-                      {proofUploading ? 'Sending...' : selectedOrder.deliveryProofImageUrl ? 'Replace Photo' : 'Send Photo'}
-                    </button>
-                  </div>
-                  {proofFile && <p className="text-xs text-[var(--oppa-text-muted)]">Selected: {proofFile.name}</p>}
+                  </label>
+                  {proofPreviewUrl && (
+                    <img src={proofPreviewUrl} alt="Selected delivery proof preview" className="h-28 w-40 rounded-lg border border-[var(--oppa-border)] object-cover" />
+                  )}
+                  {!proofFile && <p className="text-xs text-[var(--oppa-text-muted)]">Add a delivery photo to continue.</p>}
+                  <button
+                    type="button"
+                    onClick={() => void submitDelivery()}
+                    disabled={!proofFile || proofSubmitting}
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[var(--oppa-green-soft)] disabled:text-[var(--oppa-text-muted)] disabled:shadow-none"
+                  >
+                    {proofSubmitting ? <Loader2 size={17} className="animate-spin" /> : <CheckCircle size={17} />}
+                    {proofSubmitting ? 'Submitting...' : 'Mark as Delivered'}
+                  </button>
                 </div>
               )}
             </div>

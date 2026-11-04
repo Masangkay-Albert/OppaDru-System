@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Order;
 
 use App\Models\Order;
+use App\Models\Promo;
 use App\Services\PricingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 trait OrderManagementActions
@@ -107,31 +109,42 @@ trait OrderManagementActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $order = Order::findOrFail($id);
+        return DB::transaction(function () use ($request, $id) {
+            $order = Order::query()->lockForUpdate()->findOrFail($id);
 
-        if ($order->email !== $request->user()->email) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
-        }
+            if ($order->email !== $request->user()->email) {
+                return response()->json(['message' => 'Unauthorized.'], 403);
+            }
 
-        if ($request->status === 'cancelled') {
             $createdAt = $order->created_at;
-            $now = now();
-            $elapsedSeconds = $createdAt ? abs($createdAt->diffInSeconds($now, false)) : null;
-
-            if (! $createdAt || $createdAt->isFuture() || $elapsedSeconds > 20 || $order->status !== 'pending') {
+            $elapsedSeconds = $createdAt ? now()->getTimestamp() - $createdAt->getTimestamp() : null;
+            $cancellationWindow = (int) config('orders.customer_cancellation_window_seconds', 30);
+            if (
+                ! $createdAt
+                || $elapsedSeconds < 0
+                || $elapsedSeconds >= $cancellationWindow
+                || $order->status !== 'pending'
+            ) {
                 return response()->json([
-                    'message' => 'Order cancellation is only allowed within 20 seconds of creation.',
+                    'message' => "Order cancellation is only allowed within {$cancellationWindow} seconds of creation.",
                 ], 422);
             }
-        }
 
-        $order->status = $request->status;
-        $order->save();
+            $order->status = 'cancelled';
+            $order->save();
 
-        return response()->json([
-            'success' => true,
-            'order' => $order,
-            'message' => 'Order status updated!',
-        ]);
+            if ($order->promo_id) {
+                Promo::query()
+                    ->whereKey($order->promo_id)
+                    ->where('times_used', '>', 0)
+                    ->decrement('times_used');
+            }
+
+            return response()->json([
+                'success' => true,
+                'order' => $order,
+                'message' => 'Order cancelled successfully.',
+            ]);
+        });
     }
 }

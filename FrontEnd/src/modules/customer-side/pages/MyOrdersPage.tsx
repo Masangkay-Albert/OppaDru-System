@@ -8,6 +8,7 @@ import { ORDER_STATUS } from '../../../utils/constants';
 import { orderService } from '../../../services/orderService';
 import { STATUS_OPTIONS, getScheduledOrderDetails } from '../../../utils/orderUtils';
 import {
+  canCancelOrder,
   canManageOrder,
   getOrderCreatedAtMs,
   normalizeOrderStatus,
@@ -102,7 +103,7 @@ const MyOrdersPage: React.FC = () => {
   };
 
   const handleCancelOrder = async (order: any) => {
-    if (!canManageOrder(order, graceStartedAtByOrder)) return;
+    if (!canCancelOrder(order, graceStartedAtByOrder)) return;
 
     try {
       await orderService.updateOrderStatus(order.id, ORDER_STATUS.CANCELLED);

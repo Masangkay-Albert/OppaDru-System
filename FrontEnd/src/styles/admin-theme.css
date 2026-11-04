@@ -1084,6 +1084,18 @@ body {
   background: color-mix(in srgb, var(--oppa-text-muted) 32%, transparent);
 }
 
+.promo-discount-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  gap: 1rem;
+}
+
+.promo-datetime-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
+}
+
 @keyframes promo-backdrop-in {
   from { opacity: 0; }
   to { opacity: 1; }

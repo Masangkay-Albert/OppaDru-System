@@ -168,6 +168,7 @@ const KitchenDashboardPage: React.FC = () => {
     status: string,
     nextTab: KitchenTab | null,
     startEarly = false,
+    itemsCompleted = false,
   ) => {
     setBusyOrderId(orderId);
     try {
@@ -179,7 +180,11 @@ const KitchenDashboardPage: React.FC = () => {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify({ status, start_early: startEarly }),
+        body: JSON.stringify({
+          status,
+          start_early: startEarly,
+          ...(itemsCompleted ? { items_completed: true } : {}),
+        }),
       });
       if (!response.ok) {
         const failure = await response.json().catch(() => ({}));
@@ -365,8 +370,8 @@ const KitchenDashboardPage: React.FC = () => {
                   <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">{order.isScheduled && order.scheduledFor ? `Due ${formatKitchenManilaDateTime(order.scheduledFor, { year: undefined })}` : <OrderDateTime date={order.created_at} />}</p>
                   {scheduleState && <p className="mt-1 text-xs font-semibold text-violet-900">{scheduleState.label} · {scheduleState.detail}</p>}
                   <div className="mt-3 border-t border-[var(--oppa-border)] pt-2">
-                    {activeTab === 'pending' && <button type="button" disabled={!mayStart || busyOrderId === order.id} onClick={() => void updateOrderStatus(order.id, 'preparing', 'preparing')} className={`${chipPrimary} w-full`}><ChefHat size={14} /> Start Preparing</button>}
-                    {activeTab === 'preparing' && <button type="button" onClick={() => void updateOrderStatus(order.id, 'prepared', 'history')} className={`${chipSuccess} w-full`}><CheckCircle size={14} /> Done Preparing</button>}
+                    {activeTab === 'pending' && <button type="button" disabled={!mayStart || busyOrderId === order.id} onClick={() => setSelectedOrder(order)} className={`${chipPrimary} w-full`}><ChefHat size={14} /> Review &amp; Start Preparing</button>}
+                    {activeTab === 'preparing' && <button type="button" onClick={() => setSelectedOrder(order)} className={`${chipSuccess} w-full`}><CheckCircle size={14} /> Review &amp; Complete</button>}
                     {activeTab === 'history' && <span className={`${chipDisabled} w-full`}><CheckCircle size={14} /> {order.status === 'delivered' ? 'Delivered' : order.status === 'cancelled' ? 'Cancelled' : 'Ready'}</span>}
                   </div>
                 </article>
@@ -410,8 +415,8 @@ const KitchenDashboardPage: React.FC = () => {
                     <td className="px-4 py-3"><StatusBadge status={order.status} /></td>
                     <td className="px-4 py-3"><div className="flex justify-end gap-2">
                       <button type="button" onClick={() => setSelectedOrder(order)} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-xs font-semibold text-[var(--oppa-text)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><Eye size={14} /> Details</button>
-                      {activeTab === 'pending' && <button type="button" disabled={!mayStart || busyOrderId === order.id} onClick={() => void updateOrderStatus(order.id, 'preparing', 'preparing')} className={chipPrimary}><ChefHat size={14} /> Start</button>}
-                      {activeTab === 'preparing' && <button type="button" onClick={() => void updateOrderStatus(order.id, 'prepared', 'history')} className={chipSuccess}><CheckCircle size={14} /> Done</button>}
+                      {activeTab === 'pending' && <button type="button" disabled={!mayStart || busyOrderId === order.id} onClick={() => setSelectedOrder(order)} className={chipPrimary}><ChefHat size={14} /> Review &amp; Start</button>}
+                      {activeTab === 'preparing' && <button type="button" onClick={() => setSelectedOrder(order)} className={chipSuccess}><CheckCircle size={14} /> Review &amp; Complete</button>}
                     </div></td>
                   </tr>
                 );
@@ -428,8 +433,8 @@ const KitchenDashboardPage: React.FC = () => {
           order={selectedOrder}
           busy={busyOrderId === selectedOrder.id}
           onClose={() => setSelectedOrder(null)}
-          onStart={(order, startEarly = false) => void updateOrderStatus(order.id, 'preparing', 'preparing', startEarly)}
-          onComplete={(order) => void updateOrderStatus(order.id, 'prepared', 'history')}
+          onStart={(order, startEarly = false) => void updateOrderStatus(order.id, 'preparing', 'preparing', startEarly, true)}
+          onComplete={(order) => void updateOrderStatus(order.id, 'prepared', 'history', false, true)}
           onReschedule={(order, scheduledFor) => void rescheduleOrder(order, scheduledFor)}
           onCancel={(order) => void updateOrderStatus(order.id, 'cancelled', null)}
         />

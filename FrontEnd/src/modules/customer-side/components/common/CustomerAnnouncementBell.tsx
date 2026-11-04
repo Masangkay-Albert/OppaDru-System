@@ -360,17 +360,17 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
 
       {/* 2. Dropdown Menu */}
       {(isOpenDropdown || isClosingDropdown) && (
-        <section className={`customer-bell-dropdown absolute right-0 z-50 flex max-h-[70vh] w-[390px] max-w-[calc(100vw-1.5rem)] flex-col rounded-2xl border border-gray-100 bg-white shadow-2xl dark:border-[#314638] dark:bg-[#101b14] ${isClosingDropdown ? 'customer-bell-dropdown--closing' : ''}`} aria-label="Notifications" aria-hidden={isClosingDropdown || undefined}>
+        <section className={`customer-bell-dropdown absolute right-0 z-50 flex max-h-[70vh] w-[390px] max-w-[calc(100vw-1.5rem)] flex-col rounded-2xl border shadow-2xl ${isClosingDropdown ? 'customer-bell-dropdown--closing' : ''}`} aria-label="Notifications" aria-hidden={isClosingDropdown || undefined}>
           <div className="customer-bell-drag-handle" aria-hidden="true"><span /></div>
-          <header className="sticky top-0 z-10 shrink-0 border-b border-gray-100 bg-[#fbf8f1] px-4 pb-3 pt-3.5 dark:border-white/10 dark:bg-[#1b2b20]">
+          <header className="sticky top-0 z-10 shrink-0 border-b px-4 pb-3 pt-3.5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-800 dark:bg-green-950/70 dark:text-emerald-300" aria-hidden="true"><Megaphone size={16} /></span>
+                <span className="customer-notification-icon flex size-8 shrink-0 items-center justify-center rounded-xl" aria-hidden="true"><Megaphone size={16} /></span>
                 <h3 className="truncate font-serif text-base font-semibold text-gray-900 dark:text-gray-50">Notifications</h3>
-                <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-900 dark:bg-green-950/70 dark:text-emerald-200">{unreadCount} new</span>
+                <span className="customer-notification-count shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold">{unreadCount} new</span>
               </div>
               <div className="flex shrink-0 items-center gap-3">
-                {unreadCount > 0 && <button type="button" onClick={handleMarkAllComplete} className="text-xs font-semibold text-green-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 dark:text-emerald-300" title="Mark all as read">Mark all read</button>}
+                {unreadCount > 0 && <button type="button" onClick={handleMarkAllComplete} className="customer-notification-link text-xs font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30" title="Mark all as read">Mark all read</button>}
                 <button type="button" onClick={closeDropdown} className="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white" aria-label="Close notifications"><X size={17} /></button>
               </div>
             </div>
@@ -379,15 +379,15 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                 ['all', 'All'],
                 ['unread', 'Unread'],
               ] as const).map(([filter, label]) => (
-                <button key={filter} type="button" role="tab" aria-selected={notificationFilter === filter} onClick={() => setNotificationFilter(filter)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 ${notificationFilter === filter ? 'bg-green-800 text-white shadow-sm dark:bg-emerald-700' : 'bg-white text-gray-600 hover:bg-green-50 hover:text-green-900 dark:bg-[#142219] dark:text-gray-300 dark:hover:bg-green-950/60 dark:hover:text-emerald-200'}`}>{label}</button>
+                <button key={filter} type="button" role="tab" aria-selected={notificationFilter === filter} onClick={() => setNotificationFilter(filter)} className={`customer-notification-tab rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 ${notificationFilter === filter ? 'shadow-sm' : ''}`}>{label}</button>
               ))}
             </div>
           </header>
 
           {undoDeletedItem && (
-            <div className="flex shrink-0 items-center justify-between bg-green-900 px-4 py-2 text-xs text-white dark:bg-[#213d2a]" role="status">
+            <div className="customer-notification-status flex shrink-0 items-center justify-between px-4 py-2 text-xs" role="status">
               <span>Notification deleted.</span>
-              <button type="button" onClick={() => handleUndoSingleDelete(undoDeletedItem)} className="inline-flex items-center gap-1 font-semibold text-emerald-100 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"><RotateCcw size={13} />Undo</button>
+              <button type="button" onClick={() => handleUndoSingleDelete(undoDeletedItem)} className="inline-flex items-center gap-1 font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/60"><RotateCcw size={13} />Undo</button>
             </div>
           )}
 
@@ -403,30 +403,30 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
               </div>
             ) : visibleNotifications.length === 0 ? (
               <div className="px-6 py-10 text-center">
-                <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-green-50 text-green-800 dark:bg-green-950/60 dark:text-emerald-300"><Bell size={22} /></div>
+                <div className="customer-notification-icon mx-auto mb-3 flex size-12 items-center justify-center rounded-full"><Bell size={22} /></div>
                 <p className="font-serif text-sm font-semibold text-gray-900 dark:text-gray-50">You're all caught up</p>
                 <p className="mx-auto mt-1 max-w-[250px] text-xs leading-5 text-gray-600 dark:text-gray-300">New announcements will show up here.</p>
-                {deletedIds.length > 0 && <button type="button" onClick={handleRestoreDeleted} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-green-800 hover:underline dark:text-emerald-300"><RotateCcw size={12} />Restore dismissed notifications</button>}
+                {deletedIds.length > 0 && <button type="button" onClick={handleRestoreDeleted} className="customer-notification-link mt-3 inline-flex items-center gap-1 text-xs font-semibold hover:underline"><RotateCcw size={12} />Restore dismissed notifications</button>}
               </div>
             ) : (
               <>
                 {newNotifications.length > 0 && (
                   <section aria-label="New notifications">
-                    <h4 className="sticky top-0 z-[1] border-b border-gray-100 bg-white/95 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 backdrop-blur dark:border-white/10 dark:bg-[#101b14]/95 dark:text-gray-400">New</h4>
+                    <h4 className="customer-notification-row-heading sticky top-0 z-[1] border-b px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 backdrop-blur dark:text-gray-400">New</h4>
                     {newNotifications.map((item) => <NotificationItem key={item.id} item={item} onOpen={handleSelectNotification} onToggleRead={handleToggleRead} onDelete={(notification) => handleDeleteNotification(notification.id)} onCopyCode={handleCopyCode} copiedCode={copiedCode} />)}
                   </section>
                 )}
                 {earlierNotifications.length > 0 && (
                   <section aria-label="Earlier notifications">
-                    <h4 className="sticky top-0 z-[1] border-b border-gray-100 bg-white/95 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 backdrop-blur dark:border-white/10 dark:bg-[#101b14]/95 dark:text-gray-400">Earlier</h4>
+                    <h4 className="customer-notification-row-heading sticky top-0 z-[1] border-b px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 backdrop-blur dark:text-gray-400">Earlier</h4>
                     {earlierNotifications.map((item) => <NotificationItem key={item.id} item={item} onOpen={handleSelectNotification} onToggleRead={handleToggleRead} onDelete={(notification) => handleDeleteNotification(notification.id)} onCopyCode={handleCopyCode} copiedCode={copiedCode} />)}
                   </section>
                 )}
               </>
             )}
           </div>
-          <footer className="sticky bottom-0 flex shrink-0 items-center justify-center border-t border-gray-100 bg-[#fbf8f1] px-4 py-3 dark:border-white/10 dark:bg-[#1b2b20]">
-            <button type="button" onClick={() => { if (unifiedNotifications[0]) { setSelectedNotificationId(unifiedNotifications[0].id); setExpandedModal(true); closeDropdown(); } }} disabled={unifiedNotifications.length === 0} className="text-xs font-semibold text-green-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-300">View all notifications</button>
+          <footer className="customer-notification-footer sticky bottom-0 flex shrink-0 items-center justify-center border-t px-4 py-3">
+            <button type="button" onClick={() => { if (unifiedNotifications[0]) { setSelectedNotificationId(unifiedNotifications[0].id); setExpandedModal(true); closeDropdown(); } }} disabled={unifiedNotifications.length === 0} className="customer-notification-link text-xs font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 disabled:cursor-not-allowed disabled:opacity-50">View all notifications</button>
           </footer>
         </section>
       )}

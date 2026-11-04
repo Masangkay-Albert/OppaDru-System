@@ -64,7 +64,7 @@ const NotificationItem = ({
           onToggleRead(item);
           setShowMobileActions(false);
         }}
-        className="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-green-50 hover:text-green-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 dark:text-gray-300 dark:hover:bg-green-950/60 dark:hover:text-emerald-200"
+        className="customer-notification-action flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 dark:text-gray-300"
         title={item.isCompleted ? 'Mark as unread' : 'Mark as read'}
         aria-label={`${item.isCompleted ? 'Mark as unread' : 'Mark as read'}: ${item.title}`}
       >
@@ -87,8 +87,8 @@ const NotificationItem = ({
   );
 
   return (
-    <article aria-hidden={isDeleting || undefined} className={`notification-item relative border-b border-gray-100 transition-colors duration-150 last:border-b-0 dark:border-white/10 ${isDeleting ? 'notification-item--deleting' : ''} ${item.isCompleted ? 'bg-white dark:bg-[#17251c]' : 'bg-green-50/70 dark:bg-[#1b3022]'}`}>
-      {!item.isCompleted && <span className="absolute left-1 top-1/2 size-2 -translate-y-1/2 rounded-full bg-green-700 dark:bg-emerald-400" aria-label="Unread" />}
+    <article aria-hidden={isDeleting || undefined} className={`notification-item relative border-b border-gray-100 transition-colors duration-150 last:border-b-0 dark:border-white/10 ${item.isCompleted ? 'customer-notification-item-surface' : 'customer-notification-item-surface customer-notification-item-surface--unread'} ${isDeleting ? 'notification-item--deleting' : ''}`}>
+      {!item.isCompleted && <span className="customer-notification-unread-dot absolute left-1 top-1/2 size-2 -translate-y-1/2 rounded-full" aria-label="Unread" />}
       <div className="grid grid-cols-[48px_minmax(0,1fr)_32px] items-center gap-3 px-4 py-3.5">
         <button
           type="button"
@@ -106,7 +106,7 @@ const NotificationItem = ({
               className="size-12 rounded-xl border border-gray-100 object-cover dark:border-white/10"
             />
           ) : (
-            <span className="flex size-12 items-center justify-center rounded-xl bg-green-50 text-green-800 dark:bg-green-950/60 dark:text-emerald-300" aria-hidden="true">
+            <span className="customer-notification-icon flex size-12 items-center justify-center rounded-xl" aria-hidden="true">
               {isPromo ? <Sparkles size={20} /> : <Megaphone size={20} />}
             </span>
           )}
@@ -121,7 +121,7 @@ const NotificationItem = ({
               {item.content}
             </span>
             <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-900 dark:bg-green-950/70 dark:text-emerald-200">
+              <span className="customer-notification-badge inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold">
                 {isPromo ? <Sparkles size={11} /> : <Megaphone size={11} />}
                 {isPromo ? 'Special Promo' : 'Announcement'}
               </span>
@@ -136,7 +136,7 @@ const NotificationItem = ({
           <button
             type="button"
             onClick={() => setShowMobileActions((visible) => !visible)}
-            className="flex size-8 items-center justify-center rounded-lg text-gray-500 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 dark:text-gray-300 dark:hover:bg-green-950/60 sm:hidden"
+            className="customer-notification-action flex size-8 items-center justify-center rounded-lg text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 dark:text-gray-300 sm:hidden"
             aria-label={`More actions for ${item.title}`}
             aria-expanded={showMobileActions}
           >

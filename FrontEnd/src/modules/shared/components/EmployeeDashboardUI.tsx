@@ -26,6 +26,7 @@ interface EmployeeDashboardLayoutProps {
   role: EmployeeDashboardRole;
   branchName: string;
   branchId?: string | null;
+  userName?: string;
   onSignOut: () => void;
   children: React.ReactNode;
 }
@@ -34,6 +35,7 @@ export const EmployeeDashboardLayout: React.FC<EmployeeDashboardLayoutProps> = (
   role,
   branchName,
   branchId,
+  userName,
   onSignOut,
   children,
 }) => {
@@ -57,13 +59,22 @@ export const EmployeeDashboardLayout: React.FC<EmployeeDashboardLayoutProps> = (
               <span className="truncate">{branchName}</span>
               {branchId && <span className="hidden shrink-0 text-[var(--oppa-text-muted)] sm:inline">{branchId}</span>}
             </span>
+            {userName && (
+              <span title={userName} className="inline-flex min-w-0 max-w-[24vw] items-center gap-1.5 text-xs font-medium text-[var(--oppa-text)] sm:max-w-[12rem] sm:gap-2 sm:text-sm">
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--oppa-green-soft)] text-[10px] font-bold uppercase text-[var(--oppa-highlight-text)]">
+                  {userName.trim().charAt(0) || <UserRound size={12} aria-hidden="true" />}
+                </span>
+                <span className="hidden truncate sm:inline">{userName}</span>
+              </span>
+            )}
             <button
               type="button"
+              aria-label="Sign Out"
               onClick={onSignOut}
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-1.5 text-xs font-medium text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-300 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2 sm:h-9 sm:gap-2 sm:px-3 sm:text-sm"
             >
               <LogOut size={16} aria-hidden="true" />
-              <span>Sign Out</span>
+              <span className="hidden sm:inline">Sign Out</span>
             </button>
           </div>
         </div>
@@ -80,7 +91,8 @@ export const EmployeeDashboardHeader: React.FC<{
   name: string;
   subtitle?: string;
   context?: React.ReactNode;
-}> = ({ title, name, subtitle, context }) => (
+  showIdentity?: boolean;
+}> = ({ title, name, subtitle, context, showIdentity = true }) => (
   <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div className="min-w-0">
       <h1 className="font-serif text-3xl font-bold leading-tight tracking-[-0.035em] text-[var(--oppa-text)] sm:text-4xl lg:text-[2.625rem]">
@@ -90,13 +102,15 @@ export const EmployeeDashboardHeader: React.FC<{
     </div>
     <div className="flex max-w-full flex-wrap items-center gap-2">
       {context}
-      <span className="inline-flex h-10 max-w-full shrink-0 items-center gap-2 rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-xs shadow-sm">
-        <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[10px] font-bold uppercase text-[var(--oppa-highlight-text)]">
-          {name.trim().charAt(0) || <UserRound size={12} aria-hidden="true" />}
+      {showIdentity && (
+        <span className="inline-flex h-10 max-w-full shrink-0 items-center gap-2 rounded-full border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-xs shadow-sm">
+          <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[10px] font-bold uppercase text-[var(--oppa-highlight-text)]">
+            {name.trim().charAt(0) || <UserRound size={12} aria-hidden="true" />}
+          </span>
+          <span className="text-[var(--oppa-text-muted)]">Logged in as</span>
+          <span className="max-w-[min(45vw,16rem)] truncate font-medium text-[var(--oppa-text)]">{name}</span>
         </span>
-        <span className="text-[var(--oppa-text-muted)]">Logged in as</span>
-        <span className="max-w-[min(45vw,16rem)] truncate font-medium text-[var(--oppa-text)]">{name}</span>
-      </span>
+      )}
     </div>
   </div>
 );

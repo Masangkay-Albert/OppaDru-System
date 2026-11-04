@@ -4,28 +4,28 @@ import oppaDeliveryIcon from '../../../../assets/oppa-dru-delivery.png';
 
 const MapLegend: React.FC = () => {
   const legendItems = [
-    { color: "bg-[#2d6a4f]", label: "Route taken", type: "line" },
-    { color: "bg-[#e76f51]", label: "Remaining", type: "line", dashed: true },
+    { color: "border-[#2d6a4f]", label: "Route taken", type: "line" },
+    { color: "border-[#e76f51]", label: "Remaining", type: "line", dashed: true },
     { color: "bg-white border-2 border-[#e76f51]", label: "Store", type: "circle" },
     { color: "bg-red-500", label: "Destination", type: "circle" },
     { icon: oppaDeliveryIcon, label: "Driver", type: "image" }
   ];
 
   return (
-    <div className="p-3 bg-[#fdf4e6] border-t border-[#e76f51]/20">
-      <div className="flex items-center justify-center gap-5 text-xs flex-wrap">
+    <div className="border-t border-gray-100 bg-white px-3 py-2.5">
+      <div className="flex items-center justify-between gap-1 text-[9px] text-gray-500 sm:justify-center sm:gap-5 sm:text-xs">
         {legendItems.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-1.5">
+          <div key={idx} className="flex min-w-0 items-center gap-1 sm:gap-1.5">
             {item.type === "line" && (
-              <div className={`w-4 h-0.5 ${item.color} ${item.dashed ? 'border-t border-dashed' : ''}`}></div>
+              <div className={`w-3 shrink-0 border-t-2 ${item.color} ${item.dashed ? 'border-dashed' : 'border-solid'} sm:w-4`}></div>
             )}
             {item.type === "circle" && (
-              <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
+              <div className={`size-2.5 shrink-0 rounded-full ${item.color} sm:size-3`}></div>
             )}
             {item.type === "image" && (
-              <img src={item.icon} alt={item.label} className="w-4 h-4 object-contain" />
+              <img src={item.icon} alt="" className="size-3 shrink-0 object-contain sm:size-4" />
             )}
-            <span className="text-gray-600">{item.label}</span>
+            <span className="whitespace-nowrap">{item.label}</span>
           </div>
         ))}
       </div>

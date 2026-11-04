@@ -8,8 +8,42 @@ export const stripEmoji = (title: string): string => (
     .trim()
 );
 
-export const getLocalDateTimeMin = (): string => {
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+const PROMO_TIME_ZONE = 'Asia/Manila';
+
+const formatPromoDateTimeInput = (date: Date): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PROMO_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+};
+
+const parsePromoDateTimeInput = (value: string): Date => (
+  new Date(`${value.length === 16 ? `${value}:00` : value}+08:00`)
+);
+
+export const getPromoDateTimeMin = (): string => formatPromoDateTimeInput(new Date());
+
+export const getPromoDateTimeTimestamp = (value: string): number => (
+  parsePromoDateTimeInput(value).getTime()
+);
+
+export const toPromoApiDateTime = (value: string): string => {
+  const date = parsePromoDateTimeInput(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new RangeError('Invalid promo date and time.');
+  }
+  return date.toISOString();
+};
+
+export const toPromoDateTimeInput = (value?: string | null): string => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : formatPromoDateTimeInput(date);
 };
