@@ -106,10 +106,10 @@ export const ConfirmDialog: React.FC<{
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => {
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-white/50 p-4 backdrop-blur-[4px]" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onCancel();
     }}>
-      <section ref={(element) => { dialogRef.current = element; }} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description" className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl">
+      <section ref={(element) => { dialogRef.current = element; }} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description" className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
         <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-red-50 text-red-600"><AlertCircle size={22} aria-hidden="true" /></div>
         <h2 id="confirm-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">{title}</h2>
         <p id="confirm-description" className="mt-2 text-sm text-[var(--oppa-text-muted)]">{description}</p>

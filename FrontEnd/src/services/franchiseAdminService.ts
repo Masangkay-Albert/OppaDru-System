@@ -1,6 +1,8 @@
 import { API_URL } from './apiConfig';
 import { fetchWithAdminAuth } from './adminAuthService';
 
+export type FranchiseBranchType = 'company' | 'franchise';
+
 export interface FranchiseSummary {
   id: string | number;
   name: string;
@@ -9,6 +11,7 @@ export interface FranchiseSummary {
   phone?: string;
   address?: string;
   status?: string;
+  type?: FranchiseBranchType | string | null;
   latitude?: number | null;
   longitude?: number | null;
   is_active?: boolean;
@@ -416,14 +419,14 @@ export const approveFranchiseApplication = async (id: string | number) => {
 export const getFranchiseDetail = (id: string | number) =>
   franchiseAdminRequest<FranchiseSummary>(`${API_URL}/admin/franchises/${id}`);
 
-export const createFranchise = (data: Pick<FranchiseSummary, 'name'> & Partial<Pick<FranchiseSummary, 'email' | 'phone' | 'address' | 'status' | 'latitude' | 'longitude' | 'delivery_radius_km'>>) =>
+export const createFranchise = (data: Pick<FranchiseSummary, 'name'> & Partial<Pick<FranchiseSummary, 'email' | 'phone' | 'address' | 'status' | 'type' | 'latitude' | 'longitude' | 'is_active' | 'accepts_online_orders' | 'delivery_enabled' | 'delivery_radius_km'>>) =>
   franchiseAdminRequest<FranchiseSummary>(`${API_URL}/admin/franchises`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(data),
   });
 
-export const updateFranchise = (id: string | number, data: Partial<Pick<FranchiseSummary, 'name' | 'email' | 'phone' | 'address' | 'status' | 'latitude' | 'longitude' | 'is_active' | 'accepts_online_orders' | 'delivery_enabled' | 'delivery_radius_km' | 'location_status'>>) =>
+export const updateFranchise = (id: string | number, data: Partial<Pick<FranchiseSummary, 'name' | 'email' | 'phone' | 'address' | 'status' | 'type' | 'latitude' | 'longitude' | 'is_active' | 'accepts_online_orders' | 'delivery_enabled' | 'delivery_radius_km' | 'location_status'>>) =>
   franchiseAdminRequest<FranchiseSummary>(`${API_URL}/admin/franchises/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

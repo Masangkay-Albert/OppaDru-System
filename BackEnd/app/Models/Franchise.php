@@ -22,6 +22,7 @@ class Franchise extends Model
         'phone',
         'address',
         'status',
+        'type',
         'owner_admin_id',
         'metadata',
         'latitude',
@@ -47,6 +48,7 @@ class Franchise extends Model
         'is_main' => 'boolean',
         'location_status' => 'string',
         'sales_target_amount' => 'float',
+        'type' => 'string',
     ];
 
     protected static function boot()
@@ -54,6 +56,7 @@ class Franchise extends Model
         parent::boot();
 
         static::creating(function ($model) {
+            $model->type = strtolower((string) ($model->type ?? 'franchise'));
             $hasValidCoordinates = is_numeric($model->latitude)
                 && is_numeric($model->longitude)
                 && (float) $model->latitude >= 4
@@ -77,7 +80,9 @@ class Franchise extends Model
             }
 
             if (empty($model->id)) {
-                $model->id = 'OPPA-FR-' . strtoupper(Str::random(8));
+                $model->id = $model->type === 'company'
+                    ? 'OPPA-BR-' . strtoupper(Str::random(8))
+                    : 'OPPA-FR-' . strtoupper(Str::random(8));
             }
 
             if (empty($model->slug)) {

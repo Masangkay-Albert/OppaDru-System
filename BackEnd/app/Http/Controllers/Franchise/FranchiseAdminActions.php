@@ -317,17 +317,18 @@ trait FranchiseAdminActions
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
+            'name' => ['required', 'string', 'max:255', 'unique:franchises,name'],
             'email' => 'nullable|string|email|max:255',
             'phone' => 'nullable|string|max:50',
-            'address' => 'nullable|string',
+            'address' => 'required|string',
             'status' => 'nullable|string|in:active,inactive,pending',
+            'type' => 'nullable|string|in:company,franchise',
             'latitude' => 'nullable|numeric|between:4,22',
             'longitude' => 'nullable|numeric|between:116,127',
             'is_active' => 'nullable|boolean',
             'accepts_online_orders' => 'nullable|boolean',
             'delivery_enabled' => 'nullable|boolean',
-            'delivery_radius_km' => 'nullable|numeric|gt:0|max:100',
+            'delivery_radius_km' => 'nullable|numeric|gt:0|max:20',
         ]);
 
         if ($validator->fails()) {
@@ -379,6 +380,7 @@ trait FranchiseAdminActions
             'phone' => $request->phone,
             'address' => $request->address,
             'status' => $request->input('status', 'active'),
+            'type' => $request->input('type', 'franchise'),
             'latitude' => $latitude,
             'longitude' => $longitude,
             'is_active' => $request->boolean('is_active', true),
@@ -404,17 +406,18 @@ trait FranchiseAdminActions
         $franchise = Franchise::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
+            'name' => ['sometimes', 'string', 'max:255'],
             'email' => 'sometimes|nullable|string|email|max:255',
             'phone' => 'sometimes|nullable|string|max:50',
             'address' => 'sometimes|nullable|string',
             'status' => 'sometimes|string|in:active,inactive,pending',
+            'type' => 'sometimes|string|in:company,franchise',
             'latitude' => 'sometimes|nullable|numeric|between:4,22',
             'longitude' => 'sometimes|nullable|numeric|between:116,127',
             'is_active' => 'sometimes|boolean',
             'accepts_online_orders' => 'sometimes|boolean',
             'delivery_enabled' => 'sometimes|boolean',
-            'delivery_radius_km' => 'sometimes|nullable|numeric|gt:0|max:100',
+            'delivery_radius_km' => 'sometimes|nullable|numeric|gt:0|max:20',
             'location_status' => 'sometimes|in:geocoded,manual,needs_location',
         ]);
 
@@ -464,7 +467,7 @@ trait FranchiseAdminActions
         }
 
         $franchise->fill($request->only([
-            'name', 'email', 'phone', 'address', 'status',
+            'name', 'email', 'phone', 'address', 'status', 'type',
             'delivery_radius_km', 'location_status',
         ]));
         $franchise->latitude = $latitude;

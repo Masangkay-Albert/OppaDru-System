@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart3, ClipboardList, FileText, IndianRupee, Package, Store, TrendingUp, Users, X } from 'lucide-react';
+import { BarChart3, ClipboardList, IndianRupee, Package, Store, TrendingUp, Users, X } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getFranchiseAccountDetailedReport } from '../../../services/franchiseAdminService';
@@ -139,6 +139,14 @@ const FranchiseAccountReportView: React.FC<{
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [selectedOrder]);
 
+  useEffect(() => {
+    const handleExportRequest = () => {
+      if (!loading && report) void exportPdf();
+    };
+    window.addEventListener('franchise-export-request', handleExportRequest);
+    return () => window.removeEventListener('franchise-export-request', handleExportRequest);
+  }, [loading, report]);
+
   const products = Array.isArray(report?.top_products) ? [...report.top_products].slice(0, 10) : [];
   const locationRows = Array.isArray(report?.sales_by_location) ? report.sales_by_location : [];
   const staffRows = [
@@ -272,7 +280,6 @@ const FranchiseAccountReportView: React.FC<{
             ] as Array<[DatePreset, string]>).map(([value, label]) => <button type="button" key={value} aria-pressed={preset === value} className={`franchise-date-chip ${preset === value ? 'active' : ''}`} onClick={() => selectPreset(value)}>{label}</button>)}
           </div>
           {preset === 'custom' && <div className="flex items-center gap-2"><label className="sr-only" htmlFor="report-from">From date</label><input id="report-from" type="date" value={range.from} onChange={(event) => changeRange('from', event.target.value)} className="franchise-report-select" /><label className="sr-only" htmlFor="report-to">To date</label><input id="report-to" type="date" value={range.to} onChange={(event) => changeRange('to', event.target.value)} className="franchise-report-select" /></div>}
-          <button id="franchise-report-export" type="button" disabled={!report || loading || exportingPdf} onClick={() => void exportPdf()} className="franchise-action-button"><FileText size={15} aria-hidden="true" />{exportingPdf ? 'Generating PDF…' : 'Export PDF'}</button>
         </div>
       </div>
       <div className="flex flex-wrap justify-between gap-2 text-xs text-[var(--oppa-text-muted)]"><span>{error ? <span role="alert" className="text-red-700">{error} <button type="button" onClick={retry} className="underline">Retry</button></span> : `${range.from} – ${range.to}`}</span><span>Last updated: {report?.last_updated ? dateTime(report.last_updated) : '—'}</span></div>

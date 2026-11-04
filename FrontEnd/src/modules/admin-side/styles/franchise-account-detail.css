@@ -23,7 +23,7 @@
 
 .franchise-account-heading,
 .franchise-report-card h3 {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: 'Segoe UI', Arial, sans-serif;
 }
 
 .franchise-account-card,
@@ -177,8 +177,25 @@
   background: var(--oppa-cream, #faf7f0);
   padding: 5px 0;
 }
-.franchise-account-nav a { min-height: 42px; display: inline-flex; flex: 0 0 auto; align-items: center; border-radius: 10px; padding: 0 14px; color: var(--oppa-text-muted); font-size: 13px; font-weight: 650; }
-.franchise-account-nav a:hover { background: var(--oppa-green-soft); color: var(--oppa-green-dark); }
+.franchise-account-nav button {
+  min-height: 42px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  padding: 0 14px;
+  color: var(--oppa-text-muted);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.franchise-account-nav button:hover,
+.franchise-account-nav button[aria-current='page'] {
+  background: var(--oppa-green-soft);
+  color: var(--oppa-green-dark);
+}
 .franchise-soft-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
 .franchise-soft-table thead { background: var(--oppa-surface, #fff); }
 .franchise-soft-table th { border-bottom: 1px solid var(--oppa-border); padding: 10px 8px; color: var(--oppa-text-muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }

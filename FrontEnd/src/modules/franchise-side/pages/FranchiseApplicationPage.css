@@ -1,5 +1,7 @@
 .franchise-application-card {
+  display: flex;
   min-height: min(76vh, 760px);
+  flex-direction: column;
   box-shadow: var(--shadow-card);
   transition: box-shadow 180ms ease;
 }
@@ -429,6 +431,7 @@ button.franchise-step-button {
 }
 
 .franchise-step-panel {
+  flex: 1;
   animation: franchise-step-enter 220ms ease both;
 }
 
@@ -1191,10 +1194,10 @@ button.franchise-step-button {
 }
 
 .franchise-application-card > .franchise-form-actions {
-  position: sticky;
-  z-index: 6;
-  bottom: -1px;
-  background: var(--bg-card);
+  position: static;
+  z-index: 1;
+  bottom: auto;
+  background: transparent;
   padding: 16px 0 4px;
 }
 

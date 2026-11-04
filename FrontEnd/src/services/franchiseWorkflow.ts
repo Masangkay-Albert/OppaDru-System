@@ -1,24 +1,31 @@
 export const franchiseStatusLabel = (status = 'pending'): string => {
-  if (status === 'conditionally_approved') return 'Final evaluation';
-  if (status === 'for_final_evaluation') return 'Final evaluation';
-  if (status === 'approved_for_opening') return 'Opening readiness';
-  if (status === 'approved' || status === 'active') return 'Approved';
-  if (status === 'additional_information_required') return 'Documents Requested';
-  return status.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const normalized = String(status || 'pending');
+  if (normalized === 'under_review') return 'Under Review';
+  if (normalized === 'for_interview') return 'For Interview';
+  if (normalized === 'location_assessment') return 'Location Assessment';
+  if (normalized === 'for_final_evaluation') return 'Final Evaluation';
+  if (normalized === 'conditionally_approved') return 'Final Evaluation';
+  if (normalized === 'approved_for_opening') return 'Approved';
+  if (normalized === 'approved' || normalized === 'active') return 'Approved';
+  if (normalized === 'additional_information_required') return 'Under Review';
+  if (normalized === 'pending' || normalized === 'submitted') return 'Under Review';
+  return normalized.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 };
 
 export const FRANCHISE_APPLICATION_STAGES = [
-  { status: 'program', label: 'Franchise opportunity' },
-  { status: 'submitted', label: 'Application submission' },
-  { status: 'under_review', label: 'Application review' },
-  { status: 'location_assessment', label: 'Site and final evaluation' },
-  { status: 'approved', label: 'Final decision and dashboard access' },
+  { status: 'under_review', label: 'Under Review' },
+  { status: 'for_interview', label: 'For Interview' },
+  { status: 'location_assessment', label: 'Location Assessment' },
+  { status: 'for_final_evaluation', label: 'Final Evaluation' },
+  { status: 'approved', label: 'Approved' },
 ] as const;
 
 export const franchiseStageIndex = ({ status }: { status: string }): number => {
-  if (status === 'submitted' || status === 'pending') return 1;
-  if (['under_review', 'additional_information_required', 'for_interview', 'on_hold'].includes(status)) return 2;
-  if (['approved', 'active', 'approved_for_opening'].includes(status)) return 4;
-  if (['location_assessment', 'conditionally_approved', 'for_final_evaluation', 'agreement_pending', 'requirements_pending', 'training'].includes(status)) return 3;
-  return FRANCHISE_APPLICATION_STAGES.findIndex((stage) => stage.status === status);
+  const normalized = String(status || 'under_review');
+  if (['submitted', 'pending', 'under_review', 'additional_information_required'].includes(normalized)) return 0;
+  if (['for_interview', 'on_hold'].includes(normalized)) return 1;
+  if (['location_assessment', 'requirements_pending', 'agreement_pending', 'training'].includes(normalized)) return 2;
+  if (['for_final_evaluation', 'conditionally_approved'].includes(normalized)) return 3;
+  if (['approved', 'active', 'approved_for_opening'].includes(normalized)) return 4;
+  return FRANCHISE_APPLICATION_STAGES.findIndex((stage) => stage.status === normalized);
 };

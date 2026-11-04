@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, ChevronDown, Download, Eye, FileText, Loader2, MapPin, MoreHorizontal, Plus, Save, Upload, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
@@ -589,16 +589,48 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
       ? 'location_assessment'
       : 'under_review'
     : storedStatus;
+  const adminApplicationStages = [
+    { key: 'under_review', label: 'Under Review' },
+    { key: 'for_interview', label: 'For Interview' },
+    { key: 'location_assessment', label: 'Location Assessment' },
+    { key: 'for_final_evaluation', label: 'Final Evaluation' },
+    { key: 'approved', label: 'Approved' },
+  ] as const;
+  const stageIndex = (status: string) => {
+    const normalized = status === 'approved_for_opening' ? 'approved' : status;
+    const index = adminApplicationStages.findIndex((stage) => stage.key === normalized);
+    if (index >= 0) return index;
+    if (['submitted', 'pending', 'additional_information_required'].includes(normalized)) return 0;
+    if (['for_interview'].includes(normalized)) return 1;
+    if (['location_assessment'].includes(normalized)) return 2;
+    if (['for_final_evaluation', 'conditionally_approved'].includes(normalized)) return 3;
+    if (['approved', 'active'].includes(normalized)) return 4;
+    return 0;
+  };
+  const currentStageIndex = stageIndex(currentStatus);
+  const actionLabel = currentStatus === 'under_review'
+    ? 'Schedule interview'
+    : currentStatus === 'for_interview'
+      ? 'Save interview and continue to Location Assessment'
+      : currentStatus === 'location_assessment'
+        ? 'Move to Final Evaluation'
+        : currentStatus === 'for_final_evaluation'
+          ? 'Approve and activate dashboard'
+          : 'Save review updates';
   const requiredApprovalDocuments = (application?.required_documents || []).filter((document) => document.required);
   const approvalReady = !!application?.requirements_reviewed_at
     && requiredApprovalDocuments.every((document) => ['verified', 'not_applicable'].includes(document.status));
-  const availableStatuses = useMemo(() => {
-    const options = (application?.allowed_transitions || [currentStatus])
-      .filter((option) => !['additional_information_required', 'on_hold', 'conditionally_approved', 'approved'].includes(option));
-    return options.includes(status) ? options : [status, ...options];
-  }, [application?.allowed_transitions, currentStatus, status]);
-  const saveReviewUpdates = async () => {
+  const advanceStatus = (statusValue: string) => {
+    if (statusValue === 'under_review') return 'for_interview';
+    if (statusValue === 'for_interview') return 'location_assessment';
+    if (statusValue === 'location_assessment') return 'for_final_evaluation';
+    if (statusValue === 'for_final_evaluation') return 'approved';
+    return statusValue;
+  };
+
+  const saveReviewUpdates = async (nextStatusOverride?: string) => {
     if (!id) return;
+    const effectiveStatus = nextStatusOverride || status;
     const savedInterviewAt = application?.interview_at ? toManilaDateTimeInput(application.interview_at) : '';
     const interviewChanged = interviewAt !== savedInterviewAt;
     const interviewAtIso = interviewAt ? manilaDateTimeInputToIso(interviewAt) : '';
@@ -606,7 +638,7 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     setError('');
     try {
       await reviewFranchiseApplication(id, {
-        status,
+        status: effectiveStatus,
         location: proposedLocation.trim(),
         ...(proposedCoordinates ? {
           proposed_latitude: proposedCoordinates.lat,
@@ -614,18 +646,19 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
         } : {}),
         proposed_location_pin_confirmed: proposedCoordinates ? proposedCoordinatesConfirmed : false,
         next_step_instructions: instructions,
-        ...(interviewAt && (status === 'for_interview' || interviewChanged) ? { interview_at: interviewAtIso } : {}),
+        ...(interviewAt && (effectiveStatus === 'for_interview' || interviewChanged) ? { interview_at: interviewAtIso } : {}),
         interview_type: interviewType,
         interview_location: interviewType === 'onsite' ? interviewLocation.trim() : null,
         interview_notes: interviewNotes,
         interview_meeting_url: interviewType === 'online' ? interviewMeetingUrl.trim() || null : null,
       });
+      setStatus(effectiveStatus);
       setApplication((current) => current
-        ? { ...current, status, next_step_instructions: instructions }
+        ? { ...current, status: effectiveStatus, next_step_instructions: instructions }
         : current);
       formDirty.current = false;
       await load(false);
-      if (status === 'location_assessment') {
+      if (effectiveStatus === 'location_assessment') {
         window.setTimeout(() => {
           document.getElementById('franchise-requirements-panel')?.scrollIntoView({
             behavior: 'smooth',
@@ -642,23 +675,22 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
-    const savedInterviewAt = application?.interview_at ? toManilaDateTimeInput(application.interview_at) : '';
-    const interviewChanged = interviewAt !== savedInterviewAt;
+    const nextStatus = advanceStatus(status);
     const interviewAtIso = interviewAt ? manilaDateTimeInputToIso(interviewAt) : '';
     const interviewIsPast = Boolean(interviewAtIso) && new Date(interviewAtIso).getTime() < Date.now();
-    if ((status === 'for_interview' || (interviewAt && interviewChanged)) && (!interviewAt || interviewIsPast)) {
-      setError('Choose a current or future interview date and time.');
+    if (status === 'for_interview' && (!interviewAt || interviewIsPast)) {
+      setError('Add an interview date to continue.');
       return;
     }
-    if (interviewType === 'onsite' && !interviewLocation.trim()) {
-      setError('Enter the location for the onsite interview.');
+    if (interviewType === 'onsite' && status === 'for_interview' && !interviewLocation.trim()) {
+      setError('Enter the onsite interview location before continuing.');
       return;
     }
     if (status === 'approved_for_opening' || status === 'rejected') {
       setConfirmationStatus(status);
       return;
     }
-    await saveReviewUpdates();
+    await saveReviewUpdates(nextStatus === status ? status : nextStatus);
   };
 
   const downloadDocument = async (index: number, name: string) => {
@@ -836,11 +868,25 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
             </div>
 
             <div className="space-y-5"><form noValidate onChange={() => { formDirty.current = true; }} onSubmit={handleSave} className="h-fit space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm">
-              <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Review and verify the requested documents, then approve to activate dashboard access. Agreement, fee, and opening setup can be completed separately.</p></div>
+              <div><h2 className="font-semibold text-[var(--oppa-text)]">Review and decision</h2><p className="mt-1 text-xs leading-5 text-[var(--oppa-text-muted)]">Review the current stage, update the required details, and move the application to the next stage.</p></div>
               {error && application && <InlineMessage variant="error" message={error} />}
-              <Select<string> label="Application status" required value={status} onChange={setStatus} options={[currentStatus, ...availableStatuses.filter((next) => next !== currentStatus)].map((option) => ({ value: option, label: statusTitle(option) }))} />
-              {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview is completed, select Location Assessment. This begins the combined final stage (site inspection, financial evaluation, and agreement). Add the required-document checklist in the panel below. A blank form is optional; saving the requirements automatically opens the applicant's upload area.</p>}
-              {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Request and review any needed documents in the panel below. Once the requested documents are verified, approve the application to activate dashboard access.</p>}
+              <div className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-3">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--oppa-text-muted)]">Application stage</p>
+                <div className="grid gap-2 sm:grid-cols-5">
+                  {adminApplicationStages.map((stage, index) => {
+                    const active = currentStageIndex === index;
+                    const complete = currentStageIndex > index;
+                    return <div key={stage.key} className={`flex items-center gap-2 rounded-xl border px-2 py-2 text-left ${active ? 'border-[var(--oppa-green)] bg-white' : complete ? 'border-emerald-200 bg-emerald-50' : 'border-[var(--oppa-border)] bg-white/60'}`}>
+                      <span className={`grid size-6 place-items-center rounded-full text-[10px] font-bold ${active ? 'bg-[var(--oppa-green)] text-white' : complete ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>{complete ? <Check size={12} /> : index + 1}</span>
+                      <span className="min-w-0 text-[11px] font-semibold leading-tight text-[var(--oppa-text)]">{stage.label}</span>
+                    </div>;
+                  })}
+                </div>
+              </div>
+              {currentStatus === 'under_review' && <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]"><p className="font-semibold text-[var(--oppa-text)]">Checklist</p><ul className="mt-2 list-disc space-y-1 pl-5"><li>Verify the profile and business details.</li><li>Confirm the supporting documents are complete.</li><li>Check the proposed location and branch readiness.</li></ul></div>}
+              {currentStatus === 'for_interview' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">After the interview is completed, move the application to Location Assessment. This begins the final review stage for the site, documents, and final approval.</p>}
+              {currentStatus === 'location_assessment' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Review the requirements panel below and request the missing documents. Once all required items are verified, move to Final Evaluation.</p>}
+              {currentStatus === 'for_final_evaluation' && <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)]">Review the interview notes, verified documents, and location notes before approval. Final approval is enabled only after all required documents are verified.</p>}
               {application.status === 'approved' && (application.franchise_id
                 ? <InlineMessage variant="success" message="Final approval is complete and the franchise dashboard account is active." />
                 : <InlineMessage variant="warning" message="Needs location: approval is complete, but the branch and dashboard are not provisioned until its address can be located." />)}
@@ -852,8 +898,8 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                   {approving ? 'Saving and retrying…' : 'Save address and retry setup'}
                 </button>
               </>}
-              <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or list the requested documents." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-              <div className="rounded-xl border border-[var(--oppa-border)] p-3">
+              {currentStatus === 'location_assessment' && <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or list the requested documents." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>}
+              {currentStatus === 'for_interview' && <div className="rounded-xl border border-[var(--oppa-border)] p-3">
                 <h3 className="mb-3 text-sm font-semibold">Interview record (Philippine time)</h3>
                 <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Date and time<input type="datetime-local" min={minimumInterviewAt} value={interviewAt} onChange={(event) => setInterviewAt(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
                 <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Past dates and times are unavailable. Choose today or a future date.</p>
@@ -863,13 +909,8 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                   <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">This link will be shared with the franchisee in their application portal.</p>
                 </> : <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Onsite interview location<input required maxLength={500} value={interviewLocation} onChange={(event) => setInterviewLocation(event.target.value)} placeholder="Enter the complete address or venue" className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /><span className="mt-1 block">This location will be shared with the franchisee in their application portal.</span></label>}
                 <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Internal interview notes<textarea value={interviewNotes} onChange={(event) => setInterviewNotes(event.target.value)} rows={2} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-              </div>
-              <button type="submit" disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60"><Save size={16} />{saving ? 'Saving review…' : 'Save review updates'}</button>
-              {['location_assessment', 'for_final_evaluation', 'approved_for_opening'].includes(currentStatus) && application.franchise_applicant && application.status !== 'approved' && (
-                <button type="button" onClick={() => setApprovalDialogOpen(true)} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-[var(--oppa-green)] hover:bg-emerald-50">
-                  <Check size={16} /> Final approval and activate dashboard
-                </button>
-              )}
+              </div>}
+              <button type="submit" disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60"><Save size={16} />{saving ? 'Saving review…' : actionLabel}</button>
             </form>
             </div>
           </div>
