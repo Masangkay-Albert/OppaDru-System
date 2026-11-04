@@ -86,6 +86,8 @@ Route::prefix('franchise')->group(function () {
         Route::patch('/inventory/{productId}', [FranchiseController::class, 'updateInventory'])->middleware('franchise.role:owner,manager');
         Route::get('/fulfillment', [FranchiseController::class, 'fulfillmentSummary']);
         Route::get('/reports', [FranchiseController::class, 'branchReports'])->middleware('franchise.role:owner,manager');
+        Route::put('/reports/sales-target', [FranchiseController::class, 'updateBranchSalesTarget'])->middleware('franchise.role:owner,manager');
+        Route::delete('/reports/sales-target', [FranchiseController::class, 'deleteBranchSalesTarget'])->middleware('franchise.role:owner,manager');
         Route::get('/users', [FranchiseController::class, 'branchUsers'])->middleware('franchise.role:owner,manager');
         Route::post('/users', [FranchiseController::class, 'storeBranchUser'])->middleware('franchise.role:owner,manager');
         Route::patch('/users/{type}/{id}/status', [FranchiseController::class, 'updateBranchUserStatus'])->middleware('franchise.role:owner,manager');

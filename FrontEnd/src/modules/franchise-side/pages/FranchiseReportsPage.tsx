@@ -5,11 +5,13 @@ import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
 import { generateFranchiseReportPdf } from '../../../utils/franchiseReportPdfGenerator';
+import { deleteFranchiseSalesTarget, updateFranchiseSalesTarget } from '../../../services/franchiseSalesTargetService';
 import { EmptyState, PageHeader, Toast } from '../../admin-side/components/AdminUI';
 import {
   MetricCard,
   ReportFilterCard,
   SalesChannelCard,
+  SalesTargetCard,
   SalesTimelineCard,
   SalesTotalCard,
   type SalesTrendBucket,
@@ -29,6 +31,7 @@ interface Report {
   completed_orders: number;
   cancelled_orders: number;
   average_order_value: number;
+  sales_target_amount: number | null;
   product_sales: ProductSale[];
   payment_summary: Record<string, { orders: number; amount: number }>;
   discount_summary: { discounted_orders: number; discount_amount: number };
@@ -174,6 +177,10 @@ const FranchiseReportsPage: React.FC = () => {
   const [report, setReport] = useState<Report | null>(null);
   const [orders, setOrders] = useState<BranchReportOrder[]>([]);
   const [timelineStyle, setTimelineStyle] = useState<TimelineStyle>('line');
+  const [goalInput, setGoalInput] = useState('');
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [goalSaving, setGoalSaving] = useState(false);
+  const [goalError, setGoalError] = useState('');
   const [loading, setLoading] = useState(true);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [error, setError] = useState('');
@@ -206,6 +213,10 @@ const FranchiseReportsPage: React.FC = () => {
       }
       setReport(reportPayload.data as Report);
       setOrders(ordersPayload.data as BranchReportOrder[]);
+      const savedTarget = Number(reportPayload.data.sales_target_amount) || 0;
+      setGoalInput(savedTarget > 0 ? String(savedTarget) : '');
+      setEditingGoal(false);
+      setGoalError('');
       setError('');
     } catch (loadError) {
       setReport(null);
@@ -306,6 +317,60 @@ const FranchiseReportsPage: React.FC = () => {
     report && (report.discount_summary.discounted_orders > 0 || report.discount_summary.discount_amount > 0),
   );
   const noOrders = !loading && !error && report?.total_orders === 0;
+  const savedGoal = Number(report?.sales_target_amount) || 0;
+  const goalSet = savedGoal > 0;
+  const goalReached = goalSet && Number(report?.total_sales || 0) >= savedGoal;
+
+  const handleSaveGoal = async () => {
+    const targetAmount = Number(goalInput.replaceAll(',', ''));
+    if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
+      setGoalError('Please enter a valid target amount greater than 0.');
+      return;
+    }
+    setGoalSaving(true);
+    setGoalError('');
+    try {
+      const updated = await updateFranchiseSalesTarget(targetAmount);
+      setReport((current) => current ? { ...current, sales_target_amount: updated } : current);
+      setGoalInput(String(updated));
+      setEditingGoal(false);
+      setNoticeTone('success');
+      setNotice('Branch sales target saved.');
+    } catch (saveError) {
+      setGoalError(saveError instanceof Error ? saveError.message : 'Sales target could not be saved.');
+    } finally {
+      setGoalSaving(false);
+    }
+  };
+
+  const handleClearGoal = async () => {
+    setGoalSaving(true);
+    setGoalError('');
+    try {
+      await deleteFranchiseSalesTarget();
+      setReport((current) => current ? { ...current, sales_target_amount: null } : current);
+      setGoalInput('');
+      setEditingGoal(false);
+      setNoticeTone('success');
+      setNotice('Branch sales target removed.');
+    } catch (removeError) {
+      setGoalError(removeError instanceof Error ? removeError.message : 'Sales target could not be removed.');
+    } finally {
+      setGoalSaving(false);
+    }
+  };
+
+  const handleStartGoalEdit = () => {
+    setGoalInput(savedGoal > 0 ? String(savedGoal) : '');
+    setEditingGoal(true);
+    setGoalError('');
+  };
+
+  const handleCancelGoalEdit = () => {
+    setGoalInput(savedGoal > 0 ? String(savedGoal) : '');
+    setEditingGoal(false);
+    setGoalError('');
+  };
 
   const handleExportPdf = async () => {
     if (!report || exportingPdf) return;
@@ -449,14 +514,29 @@ const FranchiseReportsPage: React.FC = () => {
         ) : report && (
           <>
             <section aria-label="Branch sales metrics" className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              <SalesTotalCard label="Net sales" amount={Number(report.total_sales) || 0} trendBuckets={timeline.buckets} />
+              <SalesTotalCard label="Total sales" amount={Number(report.total_sales) || 0} trendBuckets={timeline.buckets} />
               <MetricCard icon={<ShoppingCart size={18} />} label="Orders" value={report.total_orders} detail="This period" />
               <MetricCard icon={<BarChart3 size={18} />} label="Completed orders" value={report.completed_orders} detail="This period" />
               <MetricCard icon={<TrendingUp size={18} />} label="Cancelled orders" value={report.cancelled_orders} detail="This period" />
               <MetricCard icon={<CreditCard size={18} />} label="Average order value" value={money(Number(report.average_order_value) || 0)} detail="Per revenue order" />
             </section>
 
-            <section aria-label="Branch product performance" className="mb-4 grid gap-4 md:grid-cols-2">
+            <section aria-label="Branch sales target and product performance" className="mb-4 grid gap-4 xl:grid-cols-3">
+              <SalesTargetCard
+                savedGoal={savedGoal}
+                goalInput={goalInput}
+                sales={Number(report.total_sales) || 0}
+                goalReached={goalReached}
+                goalSet={goalSet}
+                editing={editingGoal}
+                saving={goalSaving}
+                error={goalError}
+                onGoalChange={setGoalInput}
+                onSave={handleSaveGoal}
+                onStartEdit={handleStartGoalEdit}
+                onCancelEdit={handleCancelGoalEdit}
+                onClear={handleClearGoal}
+              />
               <TopProductCard title="Top 5 Online products" products={topProducts.online} emptyDescription="No online product sales for this period." />
               <TopProductCard title="Top 5 Onsite products" products={topProducts.onsite} emptyDescription="No onsite product sales for this period." />
             </section>

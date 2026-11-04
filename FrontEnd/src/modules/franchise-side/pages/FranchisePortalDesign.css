@@ -519,6 +519,10 @@
   box-shadow: var(--franchise-shadow-card);
 }
 
+.franchise-admin .franchise-report-page .admin-card.relative.min-h-36 > div:first-child > p:first-child {
+  font-size: 0.875rem;
+}
+
 .franchise-admin .franchise-report-page :is(h2, .font-serif:not(h1)) {
   font-family: var(--franchise-font-sans);
 }

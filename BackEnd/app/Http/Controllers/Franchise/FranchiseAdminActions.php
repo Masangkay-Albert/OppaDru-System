@@ -42,6 +42,7 @@ trait FranchiseAdminActions
         $orders = $query->orderByDesc('created_at')->get();
         $completedOrders = $orders->whereIn('status', ['delivered', 'completed']);
         $salesOrders = $orders->filter(fn (Order $order) => $order->isCountedAsRevenue());
+        $branch = Franchise::query()->find($user->franchise_id);
         $productSales = [];
         foreach ($salesOrders as $order) {
             foreach (($order->items ?? []) as $item) {
@@ -64,6 +65,7 @@ trait FranchiseAdminActions
             'data' => [
                 'from' => $request->query('from'),
                 'to' => $request->query('to'),
+                'sales_target_amount' => $branch?->sales_target_amount,
                 'total_sales' => (float) $salesOrders->sum('total'),
                 'total_orders' => $orders->count(),
                 'completed_orders' => $completedOrders->count(),
@@ -80,6 +82,41 @@ trait FranchiseAdminActions
                 ],
             ],
         ]);
+    }
+
+    public function updateBranchSalesTarget(Request $request)
+    {
+        $user = $request->user();
+        if (! $user instanceof FranchiseUser || ! $user->franchise_id) {
+            return response()->json(['message' => 'Franchise access required'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'target_amount' => 'required|numeric|gt:0|max:9999999999.99',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['message' => 'The sales target must be greater than zero.', 'errors' => $validator->errors()], 422);
+        }
+
+        $branch = Franchise::query()->findOrFail($user->franchise_id);
+        $branch->sales_target_amount = $request->input('target_amount');
+        $branch->save();
+
+        return response()->json(['data' => ['target_amount' => $branch->sales_target_amount]]);
+    }
+
+    public function deleteBranchSalesTarget(Request $request)
+    {
+        $user = $request->user();
+        if (! $user instanceof FranchiseUser || ! $user->franchise_id) {
+            return response()->json(['message' => 'Franchise access required'], 403);
+        }
+
+        $branch = Franchise::query()->findOrFail($user->franchise_id);
+        $branch->sales_target_amount = null;
+        $branch->save();
+
+        return response()->json(['data' => null]);
     }
 
     public function inventoryOverview(Request $request, string $id)

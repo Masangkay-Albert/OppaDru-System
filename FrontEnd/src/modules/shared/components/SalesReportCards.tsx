@@ -50,6 +50,123 @@ export const SalesTotalCard = ({
   );
 };
 
+export interface SalesTargetCardProps {
+  savedGoal: number;
+  goalInput: string;
+  sales: number;
+  goalReached: boolean;
+  goalSet: boolean;
+  editing: boolean;
+  saving: boolean;
+  error: string;
+  onGoalChange: (value: string) => void;
+  onSave: () => void;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onClear: () => void;
+}
+
+export const SalesTargetCard: React.FC<SalesTargetCardProps> = ({
+  savedGoal,
+  goalInput,
+  sales,
+  goalReached,
+  goalSet,
+  editing,
+  saving,
+  error,
+  onGoalChange,
+  onSave,
+  onStartEdit,
+  onCancelEdit,
+  onClear,
+}) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const numericInput = Number(goalInput);
+  const isInputValid = !Number.isNaN(numericInput) && numericInput > 0;
+  const isDirty = goalSet ? isInputValid && numericInput !== savedGoal : isInputValid;
+  const progress = goalSet ? Math.min(Math.round((sales / savedGoal) * 100), 100) : 0;
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if ((!goalSet || editing) && isInputValid && (!goalSet || isDirty)) onSave();
+    } else if (event.key === 'Escape' && editing) {
+      onCancelEdit();
+    }
+  };
+
+  return (
+    <div className={`rounded-2xl border p-5 shadow-sm ${!goalSet ? 'admin-card' : goalReached ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[var(--oppa-text)]">Sales target</p>
+          <p className={`mt-1 text-xs font-medium ${!goalSet ? 'text-[var(--oppa-text-muted)]' : goalReached ? 'text-green-700' : 'text-red-700'}`}>
+            {!goalSet ? 'No target set' : goalReached ? 'Profit target reached' : 'Below profit target'}
+          </p>
+        </div>
+        <TrendingUp size={19} className={!goalSet ? 'text-[var(--oppa-text-muted)]' : goalReached ? 'text-green-600' : 'text-red-600'} />
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <label className="flex h-11 min-w-0 flex-1 items-center gap-1 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text-muted)] focus-within:border-[var(--oppa-green)]">
+          ₱<input
+            ref={inputRef}
+            type="text"
+            inputMode="decimal"
+            value={goalSet && !editing ? savedGoal.toLocaleString('en-PH') : goalInput}
+            onChange={(event) => onGoalChange(event.target.value.replace(/[^\d.]/g, ''))}
+            onKeyDown={handleKeyDown}
+            disabled={goalSet && !editing}
+            placeholder="Set target"
+            aria-label="Sales target in Philippine pesos"
+            className="admin-embedded-input min-w-0 w-full px-1 py-2 text-sm text-[var(--oppa-text)] disabled:cursor-not-allowed"
+          />
+        </label>
+
+        {!goalSet ? (
+          <button type="button" onClick={onSave} disabled={saving || !isInputValid} className="rounded-lg bg-[var(--oppa-text)] px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50">
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        ) : !editing ? (
+          <button type="button" onClick={onStartEdit} disabled={saving} className="rounded-lg bg-[var(--oppa-text)] px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50">Edit</button>
+        ) : (
+          <div className="flex gap-1.5">
+            <button type="button" onClick={onSave} disabled={saving || !isInputValid || !isDirty} className="rounded-lg bg-[var(--oppa-text)] px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50">
+              {saving ? 'Saving...' : 'Update'}
+            </button>
+            <button type="button" onClick={onCancelEdit} disabled={saving} className="rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2.5 py-2 text-xs font-medium text-[var(--oppa-text-muted)] transition hover:bg-slate-50">Cancel</button>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-xs text-[var(--oppa-text-muted)]">Sales: {formatCurrency(sales)} / Target: {formatCurrency(savedGoal)}</p>
+        {goalSet && <button type="button" onClick={onClear} disabled={saving} className="text-xs font-medium text-[var(--oppa-text-muted)] underline transition hover:text-[var(--oppa-text)] disabled:opacity-50">Remove</button>}
+      </div>
+
+      {goalSet && (
+        <div className="mt-4">
+          <div className="mb-1.5 flex items-center justify-between text-xs">
+            <span className="font-medium text-[var(--oppa-text-muted)]">Target progress</span>
+            <span className="font-bold tabular-nums text-[var(--oppa-text)]">{Math.round((sales / savedGoal) * 100)}%</span>
+          </div>
+          <div role="progressbar" aria-label="Sales target reached" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(Math.round((sales / savedGoal) * 100), 100)} className="h-2.5 overflow-hidden rounded-full bg-[var(--oppa-green-soft)]">
+            <div className={`h-full rounded-full transition-[width] duration-700 ${goalReached ? 'bg-emerald-600' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+          </div>
+          <p className="mt-1.5 text-right text-xs text-[var(--oppa-text-muted)]">Remaining <strong className="tabular-nums text-[var(--oppa-text)]">{formatCurrency(Math.max(savedGoal - sales, 0))}</strong></p>
+        </div>
+      )}
+      {error && <p className="mt-2 text-xs font-medium text-red-700">{error}</p>}
+    </div>
+  );
+};
+
 export const SalesChannelCard = ({
   onlineOrders,
   onlineSales,

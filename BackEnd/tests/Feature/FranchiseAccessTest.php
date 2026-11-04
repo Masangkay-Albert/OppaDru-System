@@ -1083,6 +1083,56 @@ class FranchiseAccessTest extends TestCase
             ->assertJsonPath('data.total_orders', 1);
     }
 
+    public function test_branch_sales_target_is_persisted_only_for_the_authenticated_branch(): void
+    {
+        $northBranch = Franchise::create(['name' => 'North Target Branch', 'status' => 'active']);
+        $southBranch = Franchise::create(['name' => 'South Target Branch', 'status' => 'active']);
+        FranchiseUser::create([
+            'franchise_id' => $northBranch->id,
+            'full_name' => 'North Owner',
+            'email' => 'north.target@example.com',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+            'role' => 'owner',
+        ]);
+        FranchiseUser::create([
+            'franchise_id' => $southBranch->id,
+            'full_name' => 'South Owner',
+            'email' => 'south.target@example.com',
+            'password' => Hash::make('Franchise@123'),
+            'is_active' => true,
+            'role' => 'owner',
+        ]);
+
+        $northLogin = $this->postJson('/api/franchise/login', [
+            'email' => 'north.target@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $northHeaders = ['Authorization' => 'Bearer '.$northLogin->json('token')];
+        $southLogin = $this->postJson('/api/franchise/login', [
+            'email' => 'south.target@example.com',
+            'password' => 'Franchise@123',
+        ])->assertOk();
+        $southHeaders = ['Authorization' => 'Bearer '.$southLogin->json('token')];
+
+        $this->putJson('/api/franchise/reports/sales-target', ['target_amount' => 10000], $northHeaders)
+            ->assertOk()
+            ->assertJsonPath('data.target_amount', 10000);
+        $this->getJson('/api/franchise/reports', $northHeaders)
+            ->assertOk()
+            ->assertJsonPath('data.sales_target_amount', 10000);
+        $this->getJson('/api/franchise/reports', $southHeaders)
+            ->assertOk()
+            ->assertJsonPath('data.sales_target_amount', null);
+
+        $this->putJson('/api/franchise/reports/sales-target', ['target_amount' => 0], $northHeaders)
+            ->assertUnprocessable();
+        $this->deleteJson('/api/franchise/reports/sales-target', [], $northHeaders)->assertOk();
+        $this->getJson('/api/franchise/reports', $northHeaders)
+            ->assertOk()
+            ->assertJsonPath('data.sales_target_amount', null);
+    }
+
     public function test_franchise_pos_validates_branch_addons_and_preserves_other_category_addons(): void
     {
         $branch = Franchise::create([

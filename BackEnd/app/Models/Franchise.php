@@ -33,6 +33,7 @@ class Franchise extends Model
         'is_main',
         'location_status',
         'location_error',
+        'sales_target_amount',
     ];
 
     protected $casts = [
@@ -45,6 +46,7 @@ class Franchise extends Model
         'delivery_radius_km' => 'float',
         'is_main' => 'boolean',
         'location_status' => 'string',
+        'sales_target_amount' => 'float',
     ];
 
     protected static function boot()
