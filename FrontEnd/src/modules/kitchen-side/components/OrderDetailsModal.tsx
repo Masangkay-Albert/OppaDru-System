@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, CalendarClock, CheckCircle, ChefHat, Clock3, Copy, PackageCheck, Phone,
-  ShoppingBag, Truck, X,
+  ShoppingBag, Truck, Utensils, X,
 } from 'lucide-react';
 import type { KitchenOrder } from '../kitchenOrderTypes';
 import {
@@ -262,6 +262,7 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
             <div><p className="text-xs text-gray-500">Customer</p><p className="mt-1 font-semibold">{order.customerName}</p></div>
             <div><p className="text-xs text-gray-500">Date Ordered</p><p className="mt-1 text-sm font-medium">{formatKitchenManilaDateTime(order.created_at)}</p></div>
             <div><p className="text-xs text-gray-500">Fulfillment</p><p className="mt-1 inline-flex items-center gap-2 font-medium">{order.fulfillmentType === 'pickup' ? <ShoppingBag size={16} /> : <Truck size={16} />}{order.fulfillmentType === 'pickup' ? 'Pickup' : 'Delivery'}</p></div>
+            <div><p className="text-xs text-gray-500">Cutlery</p><p className="mt-1 inline-flex items-center gap-2 font-medium">{order.include_cutlery && <Utensils size={16} aria-hidden="true" />}{order.include_cutlery ? 'Included' : 'Not requested'}</p></div>
             <div>
               <p className="text-xs text-gray-500">Payment</p>
               <div className="mt-1 flex flex-wrap items-center gap-2">

@@ -91,7 +91,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         {cartValidationNotice}
       </div>}
 
-      <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
+      <div className="space-y-3 mb-4">
         {cartItems.map((item) => {
           const itemTotal = calculateItemTotal(item);
           const itemDiscount = activeDiscount.discountRate > 0 ? itemTotal * activeDiscount.discountRate : 0;

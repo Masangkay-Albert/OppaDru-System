@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle, X, Eye, Package, Copy, Globe2, Store, RotateCcw, Clock3 } from 'lucide-react';
+import { CheckCircle, X, Eye, Package, Copy, Globe2, Store, RotateCcw } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { AdminDate, Avatar, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
@@ -433,8 +433,8 @@ const AdminOrdersPage: React.FC = () => {
                       <div className="admin-order-status-group">
                         <StatusBadge status={statusLabels[order.status] || order.status} />
                         {isScheduledOrder(order) && (
-                          <span className="admin-order-scheduled-icon" title={`Scheduled: ${getScheduledDisplay(order)}`} aria-label={`Scheduled: ${getScheduledDisplay(order)}`}>
-                            <Clock3 size={14} aria-hidden="true" />
+                          <span className="admin-order-scheduled" title={`Scheduled: ${getScheduledDisplay(order)}`}>
+                            Scheduled
                           </span>
                         )}
                       </div>
@@ -469,7 +469,7 @@ const AdminOrdersPage: React.FC = () => {
                     <span className="admin-order-card-id" title={orderId}>{getCompactOrderId(orderId)}</span>
                     <span className="admin-order-status-group">
                       <StatusBadge status={statusLabels[order.status] || order.status} />
-                      {isScheduledOrder(order) && <span className="admin-order-scheduled-icon" title={`Scheduled: ${getScheduledDisplay(order)}`} aria-label={`Scheduled: ${getScheduledDisplay(order)}`}><Clock3 size={14} aria-hidden="true" /></span>}
+                      {isScheduledOrder(order) && <span className="admin-order-scheduled" title={`Scheduled: ${getScheduledDisplay(order)}`}>Scheduled</span>}
                     </span>
                   </div>
                   <div className="admin-order-card-customer">

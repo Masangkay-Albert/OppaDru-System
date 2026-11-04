@@ -417,6 +417,7 @@ body {
   border-radius: 12px;
   background: var(--oppa-surface);
   color: var(--oppa-text-muted);
+  cursor: pointer;
 }
 
 .admin-orders-date-filter:focus-within {
@@ -425,36 +426,38 @@ body {
 }
 
 .admin-orders-date-filter input {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
   width: 100%;
-  min-width: 0;
   height: 100%;
+  padding-right: 36px;
   border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--oppa-text);
-  font: inherit;
-  font-size: 12px;
-  color-scheme: light;
+  opacity: 0;
   cursor: pointer;
 }
 
-.admin-orders-date-filter:not(.has-date) input {
-  color: transparent;
-}
-
-.admin-orders-date-placeholder {
-  position: absolute;
-  left: 36px;
+.admin-orders-date-value {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
   color: var(--oppa-text-muted);
   font-size: 12px;
-  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.admin-orders-date-filter input::-webkit-calendar-picker-indicator {
-  display: none;
+.admin-orders-date-value.is-selected {
+  color: var(--oppa-text);
+}
+
+.admin-orders-date-filter:focus-within .admin-orders-date-value {
+  color: var(--oppa-text);
 }
 
 .admin-orders-date-filter > button {
+  position: relative;
+  z-index: 2;
   display: inline-flex;
   width: 26px;
   height: 26px;
@@ -468,10 +471,6 @@ body {
 .admin-orders-date-filter > button:hover {
   background: var(--oppa-green-soft);
   color: var(--oppa-highlight-text);
-}
-
-[data-theme='dark'] .admin-orders-date-filter input {
-  color-scheme: dark;
 }
 
 .admin-orders-option-count {
@@ -797,18 +796,6 @@ body {
   font-weight: 650;
 }
 
-.admin-order-scheduled-icon {
-  display: inline-flex;
-  width: 24px;
-  height: 24px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 7px;
-  background: #fff1d8;
-  color: #884713;
-  cursor: help;
-}
-
 .admin-orders-table .date-cell {
   color: var(--oppa-text);
   font-size: 12px;
@@ -914,11 +901,6 @@ body {
 }
 
 [data-theme='dark'] .admin-order-scheduled {
-  background: #4a3514;
-  color: #ffe3a2;
-}
-
-[data-theme='dark'] .admin-order-scheduled-icon {
   background: #4a3514;
   color: #ffe3a2;
 }

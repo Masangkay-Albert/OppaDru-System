@@ -26,6 +26,7 @@ export interface CreateOrderData {
     total: number;
     delivery_address: string;
     delivery_instructions?: DeliveryInstructions;
+    include_cutlery?: boolean;
     payment_method: 'cash_on_delivery' | 'gcash' | 'credit_card';
     delivery_type?: 'standard' | 'priority' | 'scheduled';
     phone: string;
@@ -154,6 +155,7 @@ class OrderService {
             if (data.delivery_instructions) {
                 formData.append('delivery_instructions', JSON.stringify(data.delivery_instructions));
             }
+            formData.append('include_cutlery', String(data.include_cutlery ?? false));
             formData.append('payment_method', data.payment_method);
             if (data.delivery_type) formData.append('delivery_type', data.delivery_type);
             formData.append('phone', data.phone);

@@ -601,7 +601,7 @@
 }
 
 .peer:focus-visible ~ .menu-cutlery-switch {
-  outline: 3px solid #d47a32;
+  outline: 3px solid #276343;
   outline-offset: 3px;
 }
 

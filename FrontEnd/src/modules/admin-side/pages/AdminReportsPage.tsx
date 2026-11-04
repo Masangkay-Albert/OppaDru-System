@@ -9,6 +9,7 @@ import { formatCurrency } from '../../../utils/formatters';
 import { generateSalesReportPdf } from '../../../utils/reportPdfGenerator';
 import { EmptyState, PageHeader, Toast } from '../components/AdminUI';
 import Select from '../../../components/ui/Select';
+import { MetricCard, TopProductCard } from '../../shared/components/SalesReportCards';
 
 type ReportRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
 type QuickRange = 'custom' | 'today' | '7days' | '30days' | 'month' | 'year';
@@ -479,8 +480,8 @@ const AdminReportsPage: React.FC = () => {
           onCancelEdit={handleCancelEdit}
           onClear={handleClearGoal}
         />
-        <TopProductCard channel="Online" products={topProductsByChannel.online} />
-        <TopProductCard channel="Onsite" products={topProductsByChannel.onsite} />
+        <TopProductCard title="Top 5 Online products" products={topProductsByChannel.online} />
+        <TopProductCard title="Top 5 Onsite products" products={topProductsByChannel.onsite} />
       </div>
 
       <section className="admin-card mb-6">
@@ -552,8 +553,6 @@ const AdminReportsPage: React.FC = () => {
     </AdminLayout>
   );
 };
-
-const MetricCard = ({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: number; detail: string }) => <div className="admin-card p-5"><div className="flex items-center gap-2 text-[var(--oppa-green-dark)]">{icon}<span className="text-sm font-medium text-[var(--oppa-text-muted)]">{label}</span></div><p className="tabular-nums mt-5 text-3xl font-bold text-[var(--oppa-text)]">{value}</p><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{detail}</p></div>;
 
 const formatCompactPeso = (amount: number) => formatCurrency(amount);
 
@@ -739,18 +738,6 @@ const GoalCard: React.FC<GoalCardProps> = ({
       {error && <p className="mt-2 text-xs font-medium text-red-700">{error}</p>}
     </div>
   );
-};
-
-const TopProductCard = ({ channel, products }: { channel: string; products: [string, number][] }) => {
-  const max = Math.max(...products.map(([, quantity]) => quantity), 1);
-  const ranks = ['bg-amber-300 text-amber-950', 'bg-slate-300 text-slate-900', 'bg-orange-300 text-orange-950'];
-  return <div className="admin-card p-5">
-    <p className="text-sm font-semibold text-[var(--oppa-text)]">Top 5 {channel} products</p>
-    {products.length === 0 ? <EmptyState title="No product sales" description="No product sales in this filter." /> : <ol className="mt-4 space-y-3">{products.map(([name, quantity], index) => <li key={name} className="flex items-center gap-3">
-      <span className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${ranks[index] || 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]'}`}>{index + 1}</span>
-      <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span title={name} className="min-w-0 truncate text-sm font-medium text-[var(--oppa-text)]">{name}</span><span className="tabular-nums shrink-0 text-xs font-semibold text-[var(--oppa-text-muted)]">{quantity} sold</span></div><div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--oppa-green-soft)]"><div className="h-full rounded-full bg-[var(--oppa-green)] transition-[width] duration-500" style={{ width: `${(quantity / max) * 100}%` }} /></div></div>
-    </li>)}</ol>}
-  </div>;
 };
 
 export default AdminReportsPage;

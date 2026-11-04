@@ -158,19 +158,6 @@ const GCashPaymentModal: React.FC<GCashPaymentModalProps> = ({
               </span>
             </div>
 
-            
-            {referenceNumber && (
-              <a
-                href={`/payment/confirm/${referenceNumber}?amount=${paymentAmount}&returnUrl=${encodeURIComponent(window.location.pathname)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-flex items-center justify-center gap-1.5 w-full py-2.5 px-3 rounded-xl bg-blue-50 text-blue-800 hover:bg-blue-100 text-xs font-bold transition border border-blue-200 shadow-2xs"
-              >
-                <span>Simulate GCash Redirect & Confirm</span>
-                <span className="text-[10px] bg-blue-200 text-blue-900 px-1.5 py-0.5 rounded-md">Demo</span>
-              </a>
-            )}
-            
             {timeRemaining === 0 && (
               <button onClick={handleRetry} className="mt-4 text-sm text-[#e76f51] font-medium hover:underline">
                 Generate new QR code

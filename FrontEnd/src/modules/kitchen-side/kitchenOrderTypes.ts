@@ -15,6 +15,7 @@ export interface KitchenOrder {
   phone?: string | null;
   channel?: 'online' | 'onsite';
   status: string;
+  include_cutlery?: boolean;
   items: KitchenOrderItem[];
   scheduleDisplay?: string | null;
   deliveryType?: string | null;

@@ -25,7 +25,7 @@ import '../../../styles/checkout-page.css';
 
 const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
-  const { cartItems, clearCart, activeBranchId, validateCartAgainstMenu } = useCart();
+  const { cartItems, clearCart, activeBranchId, validateCartAgainstMenu, useCutlery } = useCart();
   const { placeOrder } = useOrder();
   const { showToast } = useToast();
   const { getActiveDiscount } = useSettings();
@@ -298,6 +298,7 @@ const CheckoutPage: React.FC = () => {
         checkoutBranchId,
         appliedPromo?.code || null,
         deliveryInstructions,
+        useCutlery,
       );
 
       if (placedOrderId) {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { Product, CartItem, Addon, AddonGroup } from '../../../../types/product.types';
 import { useCart } from '../../../../contexts/CartContext';
 import { useFavorites } from '../../../../contexts/FavoritesContext';
@@ -140,7 +141,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
     return () => { isCurrentRequest = false; };
   }, [product?.id, product?.category]);
 
-  if (!product) return null;
+  if (!product || typeof document === 'undefined') return null;
 
   const getTotalPrice = () => calculateProductOptionsTotal(Number(product.price || 0), quantity, selectedAddons);
 
@@ -179,36 +180,36 @@ const ProductModal: React.FC<ProductModalProps> = ({
     handleClose();
   };
 
-  return (
+  return createPortal(
     <>
       <div
-        className={`fixed inset-0 bg-black/50 z-[100] transition-opacity duration-200 ${
+        className={`fixed inset-0 z-[1000] bg-black/55 backdrop-blur-[2px] transition-opacity duration-200 ${
           isClosing ? 'opacity-0' : 'opacity-100'
         }`}
         onClick={handleClose}
       />
 
-      <div className="fixed inset-0 z-[101] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[1001] flex items-center justify-center p-3 sm:p-5">
         <div
           ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-labelledby="product-modal-title"
           onKeyDown={handleDialogKeyDown}
-          className={`w-[90%] max-w-[520px] max-h-[85vh] bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col transition-all duration-200 ${
+          className={`flex h-[min(88dvh,760px)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border border-[#e7e4dc] bg-white shadow-2xl transition-all duration-200 ${
             isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
           }`}
         >
-          <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] text-white shrink-0">
-            <h2 id="product-modal-title" className="font-bold text-lg">{product.name}</h2>
-            <button ref={closeButtonRef} aria-label="Close product details" onClick={handleClose} className="text-2xl opacity-80 hover:opacity-100 hover:rotate-90 transition-all duration-300 cursor-pointer">
+          <div className="flex shrink-0 items-center justify-between gap-4 bg-gradient-to-r from-[#276343] to-[#1b4d3e] px-5 py-4 text-white sm:px-6">
+            <h2 id="product-modal-title" className="min-w-0 truncate font-serif text-lg font-bold">{product.name}</h2>
+            <button ref={closeButtonRef} type="button" aria-label="Close product details" onClick={handleClose} className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xl opacity-85 transition hover:bg-white/15 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               <FiX />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6">
-            <p className="text-3xl font-extrabold text-[#2d6a4f] mb-2">{formatCurrency(Number(product.price || 0))}</p>
-            <p className="text-sm text-gray-500 mb-4">{product.description}</p>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+            <p className="mb-1 text-2xl font-extrabold text-[#276343]">{formatCurrency(Number(product.price || 0))}</p>
+            <p className="mb-5 text-sm leading-relaxed text-gray-600">{product.description}</p>
 
             {!product.isAvailable && (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -270,17 +271,17 @@ const ProductModal: React.FC<ProductModalProps> = ({
             )}
           </div>
 
-          <div className="p-6 border-t border-gray-200 bg-white shrink-0">
-            <div className="flex justify-between items-center font-bold text-lg mb-3">
+          <div className="shrink-0 border-t border-gray-200 bg-white px-5 py-4 sm:px-6">
+            <div className="mb-3 flex items-center justify-between font-bold">
               <span>Total:</span>
-              <span className="text-[#2d6a4f] text-2xl">{formatCurrency(getTotalPrice())}</span>
+              <span className="text-xl text-[#276343]">{formatCurrency(getTotalPrice())}</span>
             </div>
             <button
               onClick={handleSubmit}
               disabled={!product.isAvailable}
-              className={`w-full py-3 rounded-xl font-bold transition-all ${
+              className={`min-h-12 w-full rounded-xl px-4 py-3 font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#276343] focus-visible:ring-offset-2 ${
                 product.isAvailable
-                  ? 'bg-gradient-to-r from-[#e76f51] to-[#f4a261] text-white hover:shadow-lg hover:scale-[1.02]'
+                  ? 'bg-[#276343] text-white shadow-sm hover:bg-[#1f5338] hover:shadow-md active:scale-[0.99]'
                   : 'bg-gray-300 text-gray-600 cursor-not-allowed'
               }`}
             >
@@ -289,7 +290,8 @@ const ProductModal: React.FC<ProductModalProps> = ({
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 };
 

@@ -80,6 +80,21 @@ class KitchenOrderChannelTest extends TestCase
             ->assertJsonPath('0.branch_name', 'Kitchen Branch');
     }
 
+    public function test_kitchen_preparing_orders_include_the_cutlery_preference(): void
+    {
+        [$headers] = $this->createKitchenStaff();
+        $order = $this->createOrder('KITCHEN-CUTLERY-PREFERENCE', 'standard', 'Customer delivery address');
+        $order->update([
+            'status' => 'preparing',
+            'include_cutlery' => true,
+        ]);
+
+        $this->getJson('/api/kitchen/orders?tab=preparing', $headers)
+            ->assertOk()
+            ->assertJsonPath('0.id', $order->id)
+            ->assertJsonPath('0.include_cutlery', true);
+    }
+
     public function test_kitchen_status_changes_require_completed_item_checklist(): void
     {
         [$headers] = $this->createKitchenStaff();

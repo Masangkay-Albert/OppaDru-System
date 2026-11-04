@@ -67,7 +67,11 @@ const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
     />
     <label className={`admin-orders-date-filter ${date ? 'has-date' : ''}`}>
       <CalendarDays size={16} aria-hidden="true" />
-      {!date && <span className="admin-orders-date-placeholder">Select date</span>}
+      <span className={`admin-orders-date-value ${date ? 'is-selected' : ''}`}>
+        {date
+          ? new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+          : 'Select date'}
+      </span>
       <input
         aria-label="Filter by exact date"
         type="date"
@@ -75,7 +79,7 @@ const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
         max={dateMax}
         onChange={(event) => onDateChange(event.target.value)}
       />
-      {date && <button type="button" aria-label="Clear selected date" title="Clear date" onClick={(event) => { event.preventDefault(); onDateChange(''); }}><X size={15} aria-hidden="true" /></button>}
+      {date && <button type="button" aria-label="Clear selected date" title="Clear date" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDateChange(''); }}><X size={15} aria-hidden="true" /></button>}
     </label>
     {onClear && (
       <button type="button" onClick={onClear} className="admin-orders-clear-filters">

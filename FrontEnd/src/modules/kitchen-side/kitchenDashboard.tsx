@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  CalendarClock, CheckCircle, ChefHat, Eye, Flame,
+  CalendarClock, CheckCircle, ChefHat, Eye, Flame, Utensils,
 } from 'lucide-react';
 import { sortOrders } from '../../utils/dashboardOrders';
 import { OrderDateTime, StatusBadge } from '../shared/components/DashboardPrimitives';
@@ -278,6 +278,9 @@ const KitchenDashboardPage: React.FC = () => {
     <div className="mt-1 flex flex-wrap gap-1">
       <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
         {order.channel === 'onsite' ? 'Onsite' : 'Online'}
+      </span>
+      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${order.include_cutlery ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
+        <Utensils size={11} aria-hidden="true" />{order.include_cutlery ? 'Cutlery included' : 'No cutlery'}
       </span>
       {order.isScheduled && <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-900"><CalendarClock size={11} /> Scheduled</span>}
       {order.rescheduledFrom && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">Rescheduled</span>}

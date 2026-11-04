@@ -64,6 +64,9 @@
 .franchise-admin .franchise-admin-card { border-radius: var(--franchise-radius-card); box-shadow: var(--admin-card-shadow); }
 .franchise-admin .franchise-admin-table-head { position: sticky; top: 0; z-index: 2; }
 .franchise-admin .franchise-admin-row:hover { background: #f6faf6; }
+.franchise-report-periods { scrollbar-width: thin; scrollbar-color: var(--oppa-border) transparent; }
+.franchise-report-periods::-webkit-scrollbar { height: 4px; }
+.franchise-report-periods::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--oppa-border); }
 .franchise-admin .franchise-status-badge { border: 1px solid color-mix(in srgb, currentColor 20%, transparent); font-weight: 650; }
 .franchise-admin :is(input, select, textarea) { transition: border-color 160ms ease, box-shadow 160ms ease; }
 .franchise-admin :is(section, form).rounded-2xl { box-shadow: var(--admin-card-shadow); }
@@ -340,6 +343,12 @@
   color: #24577d;
 }
 
+.franchise-admin .franchise-status-badge--prepared {
+  border-color: #ddc9f0;
+  background: #f3ebfb;
+  color: #65408f;
+}
+
 .franchise-admin .franchise-status-badge--cancelled,
 .franchise-admin .franchise-status-badge--failed,
 .franchise-admin .franchise-status-badge--out_of_stock {
@@ -548,6 +557,12 @@
   border-color: #355673;
   background: #22384c;
   color: #c1e1f8;
+}
+
+[data-theme='dark'] .franchise-admin .franchise-status-badge--prepared {
+  border-color: #5c4778;
+  background: #392e4b;
+  color: #dcc5f5;
 }
 
 [data-theme='dark'] .franchise-admin :is(.franchise-status-badge--cancelled, .franchise-status-badge--failed, .franchise-status-badge--out_of_stock) {

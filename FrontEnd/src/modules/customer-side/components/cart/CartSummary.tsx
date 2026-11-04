@@ -19,25 +19,28 @@ const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutler
           <span className="font-bold text-gray-800">{hasItems ? formatCurrency(subtotal) : '—'}</span>
         </div>
 
-        <label className="flex min-h-10 cursor-pointer items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Utensils className="size-5 text-gray-500" aria-hidden="true" />
-            <span className="text-sm text-gray-700">Cutlery</span>
+        <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-xl border border-gray-100 bg-[#fbfaf7] px-3 py-2 transition hover:border-[#d7e5d8]">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#e7f1e8] text-[#276343]">
+              <Utensils className="size-4" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-gray-800">Cutlery</span>
+              <span className="block text-xs text-gray-500">{useCutlery ? 'Included with your order' : 'No cutlery requested'}</span>
+            </span>
           </div>
-          <span className="relative">
+          <span className="relative inline-flex shrink-0 items-center">
             <input
               type="checkbox"
               checked={useCutlery}
               onChange={(e) => onCutleryChange(e.target.checked)}
-              aria-label="Include cutlery"
+              aria-label="Include cutlery with my order"
+              role="switch"
               className="peer sr-only"
             />
-            <span className="menu-cutlery-switch block h-5 w-10 rounded-full bg-gray-200 transition-colors peer-checked:bg-[#2d6a4f] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#2d6a4f] after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-5" />
+            <span aria-hidden="true" className="menu-cutlery-switch block h-6 w-11 rounded-full bg-gray-300 transition-colors peer-checked:bg-[#276343] after:absolute after:left-[3px] after:top-[3px] after:size-[18px] after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-[20px] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#276343]" />
           </span>
         </label>
-        {!useCutlery && (
-          <p className="-mt-2 pb-1 text-xs text-gray-400">No cutlery provided. Thanks for reducing waste!</p>
-        )}
       </div>
     </div>
   );

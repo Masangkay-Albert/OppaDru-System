@@ -288,6 +288,7 @@ class KitchenOrderController extends Controller
             'channel' => $order->delivery_type === 'onsite' || $order->delivery_calculation_method === 'onsite'
                 || str_starts_with(strtolower((string) $order->delivery_address), 'onsite') ? 'onsite' : 'online',
             'status' => $order->status,
+            'include_cutlery' => (bool) $order->include_cutlery,
             'items' => $items,
             'scheduleDisplay' => $order->schedule_display,
             'deliveryType' => $order->delivery_type,

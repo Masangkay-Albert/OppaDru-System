@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, ArrowRight, Boxes, DollarSign, MapPin, ShoppingCart, Users } from 'lucide-react';
+import { Activity, ArrowRight, Boxes, DollarSign, ShoppingCart, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
@@ -118,12 +118,7 @@ const FranchiseDashboardPage: React.FC = () => {
           <AdminStatCard icon={Activity} label="POS activity" value={dashboard.pos_activity_count ?? 0} accent="amber" />
         </section>
 
-        <section className="mb-5 grid gap-3 sm:grid-cols-2">
-          <div className="admin-card p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold"><MapPin size={17} className="text-[var(--oppa-green)]" /> Assigned location</div>
-            <p className="mt-2 text-sm text-[var(--oppa-text)]">{branchName}</p>
-            <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{dashboard.branch_address || franchiseUser?.franchise?.address || 'Address not provided'} · <span className="capitalize">{dashboard.branch_status || franchiseUser?.franchise?.status || 'active'}</span></p>
-          </div>
+        <section className="mb-5">
           <div className="admin-card p-4">
             <div className="flex items-center gap-2 text-sm font-semibold"><Activity size={17} className="text-[var(--oppa-green)]" /> POS sales</div>
             <p className="mt-2 text-xl font-semibold text-[var(--oppa-green)]">{money.format(dashboard.pos_sales ?? 0)}</p>

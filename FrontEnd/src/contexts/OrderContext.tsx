@@ -88,6 +88,7 @@ interface OrderContextType {
     franchiseId?: string | null,
     promoCode?: string | null,
     deliveryInstructions?: DeliveryInstructions,
+    includeCutlery?: boolean,
   ) => Promise<string | null>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   clearOrder: () => void;
@@ -377,6 +378,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     franchiseId?: string | null,
     promoCode?: string | null,
     deliveryInstructions?: DeliveryInstructions,
+    includeCutlery?: boolean,
   ): Promise<string | null> => {
     const token = authService.getToken();
     const activeUser = token ? user ?? authService.getUserFromStorage() : null;
@@ -419,6 +421,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         total,
         delivery_address: address,
         delivery_instructions: deliveryInstructions,
+        include_cutlery: includeCutlery ?? false,
         payment_method: paymentMethod as 'cash_on_delivery' | 'gcash' | 'credit_card',
         delivery_type: deliveryType,
         phone: phone || '',
