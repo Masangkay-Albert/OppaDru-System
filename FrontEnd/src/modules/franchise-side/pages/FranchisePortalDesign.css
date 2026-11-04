@@ -497,6 +497,47 @@
   font-size: clamp(1.5rem, 2.3vw, 1.875rem);
 }
 
+.franchise-admin .franchise-report-page {
+  --oppa-green: #267a43;
+  --oppa-green-dark: #176334;
+  --oppa-green-bright: #2fa84b;
+  --oppa-green-soft: #e3f1e6;
+  --oppa-cream: #fbf8f1;
+  --oppa-text: #1e2b22;
+  --oppa-text-muted: #58685e;
+  --oppa-border: #e4ded0;
+  --franchise-radius-card: 16px;
+  --radius-lg: 16px;
+  --franchise-shadow-card: 0 1px 3px rgb(26 43 31 / 8%), 0 1px 2px rgb(26 43 31 / 4%);
+  --shadow-card: var(--franchise-shadow-card);
+  --shadow-hover: 0 12px 24px rgb(26 43 31 / 11%);
+  --admin-card-shadow: var(--franchise-shadow-card);
+}
+
+.franchise-admin .franchise-report-page .admin-card {
+  border-radius: 16px;
+  box-shadow: var(--franchise-shadow-card);
+}
+
+.franchise-admin .franchise-report-page :is(h2, .font-serif:not(h1)) {
+  font-family: var(--franchise-font-sans);
+}
+
+.franchise-shell .franchise-report-page .bg-oppa-gradient {
+  background: var(--oppa-green);
+}
+
+[data-theme='dark'] .franchise-admin .franchise-report-page {
+  --oppa-cream: #111a14;
+  --oppa-surface: #1b281f;
+  --oppa-surface-raised: #223128;
+  --oppa-text: #eff5ef;
+  --oppa-text-muted: #b3c1b6;
+  --oppa-border: #3a4a3e;
+  --oppa-green-soft: #294634;
+  --franchise-shadow-card: 0 1px 3px rgb(0 0 0 / 20%), 0 1px 2px rgb(0 0 0 / 14%);
+}
+
 .franchise-admin :is(.overflow-x-auto, .admin-scrollbar) {
   scrollbar-color: color-mix(in srgb, var(--oppa-green) 55%, transparent) transparent;
   scrollbar-width: thin;

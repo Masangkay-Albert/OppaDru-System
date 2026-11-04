@@ -7,9 +7,16 @@ import { getCurrentAdmin } from '../../../services/adminAuthService';
 import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
 import { formatCurrency } from '../../../utils/formatters';
 import { generateSalesReportPdf } from '../../../utils/reportPdfGenerator';
-import { EmptyState, PageHeader, Toast } from '../components/AdminUI';
+import { PageHeader, Toast } from '../components/AdminUI';
 import Select from '../../../components/ui/Select';
-import { MetricCard, TopProductCard } from '../../shared/components/SalesReportCards';
+import {
+  MetricCard,
+  ReportFilterCard,
+  SalesChannelCard,
+  SalesTimelineCard,
+  SalesTotalCard,
+  TopProductCard,
+} from '../../shared/components/SalesReportCards';
 
 type ReportRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
 type QuickRange = 'custom' | 'today' | '7days' | '30days' | 'month' | 'year';
@@ -261,7 +268,6 @@ const AdminReportsPage: React.FC = () => {
     const range = getWeekDateRange({ ...filters, week: String(week) });
     return { value: String(week), label: range ? `Week ${week} (${formatDateRange(range).replace(`, ${filters.year}`, '')})` : `Week ${week}` };
   });
-  const highestTrendSales = Math.max(...trendBuckets.map((bucket) => bucket.sales), 1);
   const goalSet = savedGoal > 0;
   const goalReached = goalSet && metrics.totalSales >= savedGoal;
 
@@ -422,7 +428,7 @@ const AdminReportsPage: React.FC = () => {
         </div>
       } />
 
-      <section aria-label="Report filters" className="admin-reports-filters admin-card mb-3 p-4">
+      <ReportFilterCard className="mb-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2" aria-label="Quick date ranges">
           {([
@@ -450,15 +456,10 @@ const AdminReportsPage: React.FC = () => {
           {!filters.date && filters.year === ALL_YEARS && filters.month === ALL_FILTER && filters.week === ALL_FILTER && filters.day === ALL_FILTER && filters.channel === ALL_CHANNELS && <strong className="font-semibold text-[var(--oppa-text)]">{activeFilterSummary}</strong>}
         </div>
       </div>
-      </section>
+      </ReportFilterCard>
 
       {loading ? <div role="status" aria-label="Loading sales report" aria-busy="true" className="mb-6 min-h-36" /> : <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="admin-card admin-card--brand relative overflow-hidden p-5 text-white sm:col-span-2 xl:col-span-1">
-          <div className="flex items-center justify-between"><p className="text-sm font-medium text-white/80">Total sales</p><TrendingUp size={19} /></div>
-          <p className="tabular-nums mt-4 text-3xl font-bold tracking-tight sm:text-4xl">{formatCurrency(metrics.totalSales)}</p>
-          <p className="mt-1 text-xs text-white/75">Based on selected filters</p>
-          <div className="mt-3 flex items-center gap-2"><span className="rounded-full bg-white/15 px-2 py-1 text-[10px] font-semibold">Current selection</span><svg aria-label="Sales trend for selected period" role="img" viewBox="0 0 100 25" className="h-6 w-20 text-white/90"><polyline points={trendBuckets.map((bucket, index) => `${(index / (trendBuckets.length - 1 || 1)) * 100},${23 - (bucket.sales / highestTrendSales) * 20}`).join(' ')} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg></div>
-        </div>
+        <SalesTotalCard label="Total sales" amount={metrics.totalSales} trendBuckets={trendBuckets} />
         <MetricCard icon={<BarChart3 size={18} />} label="Total orders" value={metrics.totalOrders} detail="All channels" />
         <MetricCard icon={<Globe2 size={18} />} label="Online orders" value={metrics.onlineOrders.length} detail={formatCurrency(metrics.onlineSales)} />
         <MetricCard icon={<Store size={18} />} label="Onsite orders" value={metrics.onsiteOrders.length} detail={formatCurrency(metrics.onsiteSales)} />
@@ -484,77 +485,27 @@ const AdminReportsPage: React.FC = () => {
         <TopProductCard title="Top 5 Onsite products" products={topProductsByChannel.onsite} />
       </div>
 
-      <section className="admin-card mb-6">
-        <div className="flex items-center justify-between border-b border-[var(--oppa-border)] px-5 py-4"><div><h2 className="font-serif font-semibold text-[var(--oppa-text)]">Channel performance</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Revenue contribution for the selected filters.</p></div><BarChart3 size={19} className="text-[var(--oppa-green-dark)]" /></div>
-        <div className="space-y-4 p-5">
-          {(() => {
-            const onlineShare = metrics.totalSales > 0 ? Math.round(metrics.onlineSales / metrics.totalSales * 100) : 0;
-            const onsiteShare = Math.max(0, 100 - onlineShare);
-            return <>
-              <div role="img" aria-label={`Online ${onlineShare} percent, Onsite ${onsiteShare} percent`} className="flex h-5 overflow-hidden rounded-full bg-[var(--oppa-green-soft)]">
-                <div className="h-full rounded-l-full bg-[var(--oppa-green)] transition-[width] duration-500" style={{ width: `${onlineShare}%` }} />
-                <div className="h-full rounded-r-full bg-amber-500 transition-[width] duration-500" style={{ width: `${onsiteShare}%` }} />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="flex items-center justify-between gap-2 text-sm"><span className="flex items-center gap-2 font-medium text-[var(--oppa-text)]"><span className="size-2.5 rounded-full bg-[var(--oppa-green)]" />Online</span><span className="tabular-nums text-right text-xs text-[var(--oppa-text-muted)]">{metrics.onlineOrders.length} orders · {formatCurrency(metrics.onlineSales)} · {onlineShare}%</span></div>
-                <div className="flex items-center justify-between gap-2 text-sm"><span className="flex items-center gap-2 font-medium text-[var(--oppa-text)]"><span className="size-2.5 rounded-full bg-amber-500" />Onsite</span><span className="tabular-nums text-right text-xs text-[var(--oppa-text-muted)]">{metrics.onsiteOrders.length} orders · {formatCurrency(metrics.onsiteSales)} · {onsiteShare}%</span></div>
-              </div>
-            </>;
-          })()}
-        </div>
-      </section>
-
-      <section className="admin-card mb-6">
-        <div className="flex flex-col gap-1 border-b border-[var(--oppa-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="font-serif font-semibold text-[var(--oppa-text)]">Sales timeline</h2>
-            <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">
-              {timelineRange === 'daily' ? 'Hourly activity from 11:00 AM to 11:00 PM.' : timelineRange === 'weekly' ? weekDateRange ? `Daily activity for ${formatDateRange(weekDateRange)}.` : 'Daily activity grouped by weekday.' : timelineRange === 'monthly' ? 'Daily activity grouped by calendar date.' : 'Monthly activity grouped from January to December.'}
-            </p>
-          </div>
-          <div className="flex items-center gap-3"><span className="text-xs font-semibold text-[var(--oppa-green-dark)]">Peak: {formatCompactPeso(Math.max(...trendBuckets.map((bucket) => bucket.sales), 0))}</span><div className="flex rounded-lg border border-[var(--oppa-border)] p-0.5" aria-label="Timeline chart style">{(['line', 'bar'] as const).map((style) => <button key={style} type="button" aria-pressed={timelineStyle === style} onClick={() => setTimelineStyle(style)} className={`rounded-md px-2 py-1 text-[10px] font-semibold capitalize ${timelineStyle === style ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text-muted)]'}`}>{style}</button>)}</div><span className="text-xs text-[var(--oppa-text-muted)]">{filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}</span></div>
-        </div>
-        <div className="w-full p-5">
-          {trendBuckets.length ? <div className="w-full">
-            {trendBuckets.some((bucket) => bucket.orders > 0) ? (() => {
-              const width = Math.max(760, trendBuckets.length * 58);
-              const left = 68;
-              const right = width - 18;
-              const top = 24;
-              const bottom = 176;
-              const xAt = (index: number) => left + (index * (right - left)) / Math.max(trendBuckets.length - 1, 1);
-              const yAt = (sales: number) => bottom - (sales / highestTrendSales) * (bottom - top);
-              const line = trendBuckets.map((bucket, index) => `${xAt(index)},${yAt(bucket.sales)}`).join(' ');
-              const peak = Math.max(...trendBuckets.map((bucket) => bucket.sales));
-              return <svg role="img" aria-label="Sales and order timeline" viewBox={`0 0 ${width} 230`} className="h-[250px] w-full">
-                {[0, .25, .5, .75, 1].map((fraction) => {
-                  const y = bottom - fraction * (bottom - top);
-                  return <g key={fraction}><line x1={left} x2={right} y1={y} y2={y} stroke="var(--oppa-border)" strokeDasharray="4 5" /><text x={left - 8} y={y + 4} textAnchor="end" fill="var(--oppa-text-muted)" fontSize="10">{formatCompactPeso(highestTrendSales * fraction)}</text></g>;
-                })}
-                <line x1={left} x2={left} y1={top} y2={bottom} stroke="var(--oppa-border)" /><line x1={left} x2={right} y1={bottom} y2={bottom} stroke="var(--oppa-border)" />
-                {timelineStyle === 'line' && <><polygon points={`${left},${bottom} ${line} ${right},${bottom}`} fill="rgba(38,122,67,.10)" /><polyline points={line} fill="none" stroke="#267a43" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" /></>}
-                {timelineStyle === 'bar' && trendBuckets.map((bucket, index) => {
-                  const step = (right - left) / Math.max(trendBuckets.length, 1);
-                  const barHeight = (bucket.sales / highestTrendSales) * (bottom - top);
-                  return <rect key={`bar-${bucket.label}`} x={left + index * step + step * .2} y={bottom - barHeight} width={Math.max(2, step * .6)} height={barHeight} rx="4" fill="#267a43"><title>{`${bucket.label.replace('\n', ' ')} · ${formatCurrency(bucket.sales)} · ${bucket.orders} ${bucket.orders === 1 ? 'order' : 'orders'}`}</title></rect>;
-                })}
-                {trendBuckets.map((bucket, index) => <g key={bucket.label}>
-                  {timelineStyle === 'line' && <circle cx={xAt(index)} cy={yAt(bucket.sales)} r={bucket.sales === peak && peak > 0 ? 5 : 3.5} fill={bucket.sales === peak && peak > 0 ? '#e0a800' : '#267a43'} stroke="var(--oppa-surface)" strokeWidth="2">
-                    <title>{`${bucket.label.replace('\n', ' ')} · ${formatCurrency(bucket.sales)} · ${bucket.orders} ${bucket.orders === 1 ? 'order' : 'orders'}`}</title>
-                  </circle>}
-                  <text x={xAt(index)} y="199" textAnchor="middle" fill="var(--oppa-text-muted)" fontSize="10">{bucket.label.split('\n')[0]}</text>
-                </g>)}
-              </svg>;
-            })() : <EmptyState title="No sales for these filters" description="The timeline will show revenue and order activity when sales are available." />}
-          </div> : <EmptyState title="No timeline data" description="There is no activity to chart for this selection." />}
-        </div>
-      </section>
+      <div className="mb-6">
+        <SalesChannelCard
+          onlineOrders={metrics.onlineOrders.length}
+          onlineSales={metrics.onlineSales}
+          onsiteOrders={metrics.onsiteOrders.length}
+          onsiteSales={metrics.onsiteSales}
+        />
+      </div>
+      <div className="mb-6">
+        <SalesTimelineCard
+          buckets={trendBuckets}
+          orderCount={filteredOrders.length}
+          description={timelineRange === 'daily' ? 'Hourly activity from 11:00 AM to 11:00 PM.' : timelineRange === 'weekly' ? weekDateRange ? `Daily activity for ${formatDateRange(weekDateRange)}.` : 'Daily activity grouped by weekday.' : timelineRange === 'monthly' ? 'Daily activity grouped by calendar date.' : 'Monthly activity grouped from January to December.'}
+          style={timelineStyle}
+          onStyleChange={setTimelineStyle}
+        />
+      </div>
 
     </AdminLayout>
   );
 };
-
-const formatCompactPeso = (amount: number) => formatCurrency(amount);
 
 const FilterSelect = ({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) => (
   <Select label={label} value={value} onChange={onChange} options={options} />

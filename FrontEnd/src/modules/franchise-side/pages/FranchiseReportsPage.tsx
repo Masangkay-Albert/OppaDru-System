@@ -6,7 +6,15 @@ import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
 import { generateFranchiseReportPdf } from '../../../utils/franchiseReportPdfGenerator';
 import { EmptyState, PageHeader, Toast } from '../../admin-side/components/AdminUI';
-import { MetricCard, TopProductCard } from '../../shared/components/SalesReportCards';
+import {
+  MetricCard,
+  ReportFilterCard,
+  SalesChannelCard,
+  SalesTimelineCard,
+  SalesTotalCard,
+  type SalesTrendBucket,
+  TopProductCard,
+} from '../../shared/components/SalesReportCards';
 
 interface ProductSale {
   product_id: string | null;
@@ -26,7 +34,24 @@ interface Report {
   discount_summary: { discounted_orders: number; discount_amount: number };
 }
 
+interface BranchReportOrder {
+  id: string;
+  total: number | string;
+  status: string;
+  payment_status?: string | null;
+  payment_method?: string | null;
+  delivery_type?: string | null;
+  created_at: string;
+  items?: Array<{
+    product_id?: string | number | null;
+    product_name?: string;
+    name?: string;
+    quantity?: number | string;
+  }>;
+}
+
 type ReportPeriod = 'today' | '7days' | '30days' | 'month' | 'year' | 'custom';
+type TimelineStyle = 'line' | 'bar';
 
 const money = (amount: number) => formatCurrency(amount);
 const formatDateLabel = (value: string) => new Intl.DateTimeFormat('en-PH', {
@@ -44,6 +69,102 @@ const PERIOD_OPTIONS: Array<[ReportPeriod, string]> = [
   ['year', 'This year'],
   ['custom', 'Custom'],
 ];
+const PAYMENT_COLORS = [
+  'var(--oppa-green)',
+  '#6ea983',
+  '#eba943',
+  '#529ca5',
+  '#8b70b5',
+];
+
+const isRevenueOrder = (order: BranchReportOrder): boolean => {
+  const status = String(order.status || '').trim().toLowerCase();
+  const paymentStatus = String(order.payment_status || '').trim().toLowerCase();
+  const paymentMethod = String(order.payment_method || '').trim().toLowerCase();
+  if (['cancelled', 'failed'].includes(status) || ['failed', 'cancelled', 'expired'].includes(paymentStatus)) return false;
+  return paymentStatus === 'paid'
+    || (paymentMethod === 'cash_on_delivery' && status === 'delivered' && ['pending', 'unpaid', ''].includes(paymentStatus));
+};
+
+const getLocalDateParts = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  if (!year || !month || !day) return null;
+  return { year: Number(year), month: Number(month), day: Number(day), date: `${year}-${month}-${day}` };
+};
+
+const createTimeline = (
+  orders: BranchReportOrder[],
+  from: string,
+  to: string,
+  period: ReportPeriod,
+): { buckets: SalesTrendBucket[]; description: string } => {
+  const isYear = period === 'year';
+  const allDates = !from || !to;
+  const rangeDays = from && to
+    ? (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 + 1
+    : Infinity;
+  const groupByMonth = isYear || allDates || rangeDays > 31;
+  const buckets: SalesTrendBucket[] = [];
+
+  if (groupByMonth && (isYear || allDates)) {
+    const year = Number(TODAY.slice(0, 4));
+    for (let month = 1; month <= 12; month += 1) {
+      buckets.push({
+        label: new Date(Date.UTC(year, month - 1, 1)).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' }),
+        sales: 0,
+        orders: 0,
+      });
+    }
+  } else if (groupByMonth) {
+    const start = new Date(`${from.slice(0, 7)}-01T00:00:00Z`);
+    const end = new Date(`${to.slice(0, 7)}-01T00:00:00Z`);
+    for (const date = new Date(start); date <= end; date.setUTCMonth(date.getUTCMonth() + 1)) {
+      buckets.push({
+        label: date.toLocaleString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
+        sales: 0,
+        orders: 0,
+      });
+    }
+  } else {
+    const start = new Date(`${from}T00:00:00Z`);
+    const end = new Date(`${to}T00:00:00Z`);
+    for (const date = new Date(start); date <= end; date.setUTCDate(date.getUTCDate() + 1)) {
+      buckets.push({
+        label: date.toLocaleString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
+        sales: 0,
+        orders: 0,
+      });
+    }
+  }
+
+  const revenueOrders = orders.filter(isRevenueOrder);
+  revenueOrders.forEach((order) => {
+    const parts = getLocalDateParts(order.created_at);
+    if (!parts) return;
+    const startMonth = new Date(`${from.slice(0, 7)}-01T00:00:00Z`);
+    const index = groupByMonth
+      ? isYear || allDates
+        ? parts.month - 1
+        : (parts.year - startMonth.getUTCFullYear()) * 12 + parts.month - 1 - startMonth.getUTCMonth()
+      : Math.round((new Date(`${parts.date}T00:00:00Z`).getTime() - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+    if (index < 0 || index >= buckets.length) return;
+    buckets[index].sales += Number(order.total) || 0;
+    buckets[index].orders += 1;
+  });
+
+  const description = groupByMonth ? 'Monthly activity grouped across the selected period.' : 'Daily activity for the selected date range.';
+  return { buckets, description };
+};
 
 const FranchiseReportsPage: React.FC = () => {
   const { franchiseUser } = useFranchiseAuth();
@@ -51,6 +172,8 @@ const FranchiseReportsPage: React.FC = () => {
   const [to, setTo] = useState(REPORT_YEAR_END);
   const [period, setPeriod] = useState<ReportPeriod>('year');
   const [report, setReport] = useState<Report | null>(null);
+  const [orders, setOrders] = useState<BranchReportOrder[]>([]);
+  const [timelineStyle, setTimelineStyle] = useState<TimelineStyle>('line');
   const [loading, setLoading] = useState(true);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [error, setError] = useState('');
@@ -67,15 +190,26 @@ const FranchiseReportsPage: React.FC = () => {
       const params = new URLSearchParams();
       if (from) params.set('from', from);
       if (to) params.set('to', to);
-      const query = params.size ? `?${params}` : '';
-      const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/reports${query}`, {
-        signal: AbortSignal.timeout(15000),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.message || 'Could not load branch reports.');
+      const query = params.toString() ? `?${params}` : '';
+      const [reportResponse, ordersResponse] = await Promise.all([
+        fetchWithFranchiseAuth(`${API_URL}/franchise/reports${query}`, { signal: AbortSignal.timeout(15000) }),
+        fetchWithFranchiseAuth(`${API_URL}/franchise/orders${query}`, { signal: AbortSignal.timeout(15000) }),
+      ]);
+      const [reportPayload, ordersPayload] = await Promise.all([
+        reportResponse.json().catch(() => ({})),
+        ordersResponse.json().catch(() => ({})),
+      ]);
+      if (!reportResponse.ok) throw new Error(reportPayload.message || 'Could not load branch reports.');
+      if (!ordersResponse.ok) throw new Error(ordersPayload.message || 'Could not load branch sales details.');
+      if (!reportPayload.data || typeof reportPayload.data !== 'object' || !Array.isArray(ordersPayload.data)) {
+        throw new Error('The branch report data could not be read.');
+      }
+      setReport(reportPayload.data as Report);
+      setOrders(ordersPayload.data as BranchReportOrder[]);
       setError('');
-      setReport(payload.data as Report);
     } catch (loadError) {
+      setReport(null);
+      setOrders([]);
       setError(loadError instanceof Error ? loadError.message : 'Could not load branch reports.');
     } finally {
       setLoading(false);
@@ -119,12 +253,6 @@ const FranchiseReportsPage: React.FC = () => {
     setTo('');
   };
 
-  const removePeriodFilter = () => {
-    setPeriod('custom');
-    setFrom('');
-    setTo('');
-  };
-
   const periodLabel = useMemo(() => {
     if (period !== 'custom') return PERIOD_OPTIONS.find(([value]) => value === period)?.[1] || 'Custom';
     if (from && to) return `${formatDateLabel(from)} – ${formatDateLabel(to)}`;
@@ -133,29 +261,44 @@ const FranchiseReportsPage: React.FC = () => {
     return 'All dates';
   }, [from, period, to]);
 
-  const productRows = (report?.product_sales || [])
-    .slice()
-    .sort((left, right) => Number(right.quantity) - Number(left.quantity))
-    .slice(0, 5)
-    .map((product) => [
-      product.product_name,
-      Number(product.quantity) || 0,
-      money(Number(product.sales) || 0),
-    ] as [string, number, string]);
+  const revenueOrders = useMemo(() => orders.filter(isRevenueOrder), [orders]);
+  const channelMetrics = useMemo(() => {
+    const online = revenueOrders.filter((order) => order.delivery_type?.toLowerCase() !== 'onsite');
+    const onsite = revenueOrders.filter((order) => order.delivery_type?.toLowerCase() === 'onsite');
+    return {
+      onlineOrders: online.length,
+      onlineSales: online.reduce((sum, order) => sum + (Number(order.total) || 0), 0),
+      onsiteOrders: onsite.length,
+      onsiteSales: onsite.reduce((sum, order) => sum + (Number(order.total) || 0), 0),
+    };
+  }, [revenueOrders]);
 
+  const topProducts = useMemo(() => {
+    const byChannel = { online: new Map<string, { name: string; quantity: number }>(), onsite: new Map<string, { name: string; quantity: number }>() };
+    revenueOrders.forEach((order) => {
+      const channel = order.delivery_type?.toLowerCase() === 'onsite' ? 'onsite' : 'online';
+      order.items?.forEach((item) => {
+        const name = item.product_name || item.name || 'Unnamed item';
+        const key = String(item.product_id || name);
+        const current = byChannel[channel].get(key) || { name, quantity: 0 };
+        current.quantity += Number(item.quantity) || 0;
+        byChannel[channel].set(key, current);
+      });
+    });
+    const rows = (channel: 'online' | 'onsite') => [...byChannel[channel].values()]
+      .sort((left, right) => right.quantity - left.quantity)
+      .slice(0, 5)
+      .map(({ name, quantity }) => [name, quantity] as [string, number]);
+    return { online: rows('online'), onsite: rows('onsite') };
+  }, [revenueOrders]);
+
+  const timeline = useMemo(() => createTimeline(orders, from, to, period), [from, orders, period, to]);
   const paymentEntries = Object.entries(report?.payment_summary || {});
   const totalPaymentSales = paymentEntries.reduce((sum, [, summary]) => sum + Number(summary.amount || 0), 0);
-  const paymentColors = [
-    'var(--franchise-chart-1, #267a43)',
-    'var(--franchise-chart-2, #6ea983)',
-    'var(--franchise-chart-3, #eba943)',
-    'var(--franchise-chart-4, #529ca5)',
-    'var(--franchise-chart-5, #8b70b5)',
-  ];
   let currentAngle = 0;
   const paymentGradient = paymentEntries.map(([, summary], index) => {
     const segment = totalPaymentSales > 0 ? (Number(summary.amount) / totalPaymentSales) * 360 : 0;
-    const segmentColor = `${paymentColors[index % paymentColors.length]} ${currentAngle}deg ${currentAngle + segment}deg`;
+    const segmentColor = `${PAYMENT_COLORS[index % PAYMENT_COLORS.length]} ${currentAngle}deg ${currentAngle + segment}deg`;
     currentAngle += segment;
     return segmentColor;
   }).join(', ');
@@ -203,7 +346,7 @@ const FranchiseReportsPage: React.FC = () => {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
+    <main className="franchise-report-page min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       {notice && <Toast message={notice} tone={noticeTone} onDismiss={() => setNotice('')} />}
       <div className="mx-auto max-w-[1500px]">
         <PageHeader
@@ -215,21 +358,21 @@ const FranchiseReportsPage: React.FC = () => {
                 type="button"
                 onClick={handleExportPdf}
                 disabled={loading || !report || exportingPdf}
-                className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="bg-oppa-gradient inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {exportingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+                {exportingPdf ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
                 {exportingPdf ? 'Generating PDF...' : 'Export PDF'}
               </button>
               <div className="inline-flex items-center gap-1.5 text-xs text-[var(--oppa-text-muted)]">
                 <Shield size={13} className="shrink-0 text-[var(--oppa-green)]" aria-hidden="true" />
-                <span>Exporting as: <strong className="font-semibold text-[var(--oppa-text)]">{userName}</strong> ({userEmail})</span>
+                <span>Exporting as: <strong className="font-semibold text-[var(--oppa-text)]">{userName}</strong> <span className="text-[11px] text-[var(--oppa-text-muted)]">({userEmail})</span></span>
               </div>
             </div>
           )}
         />
 
-        <section aria-label="Report filters" className="admin-reports-filters admin-card mb-4 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <ReportFilterCard className="mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="franchise-report-periods flex min-w-0 gap-2 overflow-x-auto pb-1" aria-label="Quick date ranges">
               {PERIOD_OPTIONS.map(([value, label]) => (
                 <button
@@ -247,7 +390,7 @@ const FranchiseReportsPage: React.FC = () => {
                 </button>
               ))}
             </div>
-            <button type="button" onClick={clearFilters} className="self-end rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--oppa-green-dark)] transition hover:bg-[var(--oppa-green-soft)] sm:self-auto">
+            <button type="button" onClick={clearFilters} className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--oppa-green-dark)] transition hover:bg-[var(--oppa-green-soft)]">
               Clear filters
             </button>
           </div>
@@ -276,13 +419,13 @@ const FranchiseReportsPage: React.FC = () => {
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--oppa-border)] pt-3 text-xs text-[var(--oppa-text-muted)]">
             <span>Showing:</span>
             {periodLabel !== 'All dates' ? (
-              <button type="button" onClick={removePeriodFilter} className="rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 font-medium text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]/70">
+              <button type="button" onClick={clearFilters} className="rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 font-medium text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]/70">
                 {periodLabel} ×
               </button>
             ) : <span className="font-medium text-[var(--oppa-text)]">All dates</span>}
             <span className="font-medium text-[var(--oppa-text)]">{branchName}</span>
           </div>
-        </section>
+        </ReportFilterCard>
 
         {error && (
           <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -296,75 +439,122 @@ const FranchiseReportsPage: React.FC = () => {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               {Array.from({ length: 5 }, (_, index) => <div key={index} className="admin-card h-36 animate-pulse bg-[var(--oppa-surface)] p-5"><div className="h-4 w-28 rounded bg-[var(--oppa-green-soft)]" /><div className="mt-6 h-8 w-32 rounded bg-[var(--oppa-green-soft)]" /><div className="mt-3 h-3 w-24 rounded bg-[var(--oppa-green-soft)]" /></div>)}
             </div>
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               {[0, 1].map((item) => <div key={item} className="admin-card h-64 animate-pulse p-5"><div className="h-4 w-36 rounded bg-[var(--oppa-green-soft)]" /><div className="mt-6 space-y-4">{[0, 1, 2, 3].map((row) => <div key={row} className="h-7 rounded bg-[var(--oppa-green-soft)]" />)}</div></div>)}
             </div>
+            <div className="admin-card h-72 animate-pulse p-5"><div className="h-4 w-40 rounded bg-[var(--oppa-green-soft)]" /><div className="mt-8 h-40 rounded bg-[var(--oppa-green-soft)]" /></div>
           </div>
         ) : report && noOrders ? (
           <EmptyState title="No sales found for this period" description={`No orders were found for ${branchName} in the selected date range.`} icon={<BarChart3 size={24} aria-hidden="true" />} />
         ) : report && (
           <>
-            <section aria-label="Branch sales metrics" className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              <div className="admin-card admin-card--brand relative min-h-36 overflow-hidden p-4 text-white sm:p-5">
-                <div className="flex items-center justify-between"><p className="text-sm font-medium text-white/85">Net sales</p><TrendingUp size={19} aria-hidden="true" /></div>
-                <p className="mt-4 text-3xl font-bold tracking-tight tabular-nums sm:text-4xl">{money(Number(report.total_sales) || 0)}</p>
-                <p className="mt-1 text-xs text-white/75">Based on selected filters</p>
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="rounded-full bg-white/15 px-2 py-1 text-[10px] font-semibold">Current selection</span>
-                  <svg aria-hidden="true" viewBox="0 0 100 25" className="h-6 w-20 text-white/90"><polyline points="0,21 16,18 32,20 48,12 64,15 80,7 100,9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </div>
-              </div>
+            <section aria-label="Branch sales metrics" className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <SalesTotalCard label="Net sales" amount={Number(report.total_sales) || 0} trendBuckets={timeline.buckets} />
               <MetricCard icon={<ShoppingCart size={18} />} label="Orders" value={report.total_orders} detail="This period" />
               <MetricCard icon={<BarChart3 size={18} />} label="Completed orders" value={report.completed_orders} detail="This period" />
-              <MetricCard icon={<BarChart3 size={18} />} label="Cancelled orders" value={report.cancelled_orders} detail="This period" />
+              <MetricCard icon={<TrendingUp size={18} />} label="Cancelled orders" value={report.cancelled_orders} detail="This period" />
               <MetricCard icon={<CreditCard size={18} />} label="Average order value" value={money(Number(report.average_order_value) || 0)} detail="Per revenue order" />
             </section>
 
-            <section aria-label="Branch product performance" className="mb-5">
-              <TopProductCard title="Top 5 products" products={productRows} emptyDescription="No product sales for this period." />
+            <section aria-label="Branch product performance" className="mb-4 grid gap-4 md:grid-cols-2">
+              <TopProductCard title="Top 5 Online products" products={topProducts.online} emptyDescription="No online product sales for this period." />
+              <TopProductCard title="Top 5 Onsite products" products={topProducts.onsite} emptyDescription="No onsite product sales for this period." />
             </section>
 
-            <section aria-label="Branch payment and discount summaries" className={`grid items-stretch gap-4 ${hasDiscounts ? 'lg:grid-cols-2' : 'lg:grid-cols-1'}`}>
-              <div className="admin-card h-full p-5">
+            {hasDiscounts ? (
+              <>
                 <div className="mb-4">
-                  <h2 className="text-sm font-semibold text-[var(--oppa-text)]">Payment methods</h2>
-                  <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Revenue collected by payment type</p>
+                  <SalesChannelCard
+                    onlineOrders={channelMetrics.onlineOrders}
+                    onlineSales={channelMetrics.onlineSales}
+                    onsiteOrders={channelMetrics.onsiteOrders}
+                    onsiteSales={channelMetrics.onsiteSales}
+                  />
                 </div>
-                {paymentEntries.length && totalPaymentSales > 0 ? (
-                  <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
-                    <div className="relative size-36 shrink-0 rounded-full" style={{ background: `conic-gradient(${paymentGradient})` }} role="img" aria-label="Payment methods sales distribution">
-                      <div className="absolute inset-5 grid place-content-center rounded-full bg-[var(--oppa-surface)] text-center"><span className="text-[10px] text-[var(--oppa-text-muted)]">Total</span><strong className="text-sm text-[var(--oppa-text)]">{money(totalPaymentSales)}</strong></div>
-                    </div>
-                    <div className="w-full space-y-3">
-                      {paymentEntries.map(([method, summary], index) => (
-                        <div key={method} className="flex min-h-10 items-center gap-2 text-sm">
-                          <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: paymentColors[index % paymentColors.length] }} aria-hidden="true" />
-                          <span className="min-w-0 flex-1 capitalize text-[var(--oppa-text)]">{method.replaceAll('_', ' ')}<span className="block text-xs text-[var(--oppa-text-muted)]">{summary.orders} orders</span></span>
-                          <strong className="shrink-0 text-right tabular-nums text-[var(--oppa-text)]">{money(Number(summary.amount) || 0)}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : <p className="py-8 text-center text-sm text-[var(--oppa-text-muted)]">No payment data in this period.</p>}
-              </div>
+                <section aria-label="Branch payment and discount summaries" className="mb-4 grid items-stretch gap-4 lg:grid-cols-2">
+                  <PaymentMethodsCard entries={paymentEntries} total={totalPaymentSales} gradient={paymentGradient} />
+                  <DiscountSummaryCard report={report} />
+                </section>
+              </>
+            ) : (
+              <section aria-label="Branch channel and payment summaries" className="mb-4 grid items-stretch gap-4 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <SalesChannelCard
+                    onlineOrders={channelMetrics.onlineOrders}
+                    onlineSales={channelMetrics.onlineSales}
+                    onsiteOrders={channelMetrics.onsiteOrders}
+                    onsiteSales={channelMetrics.onsiteSales}
+                  />
+                </div>
+                <PaymentMethodsCard entries={paymentEntries} total={totalPaymentSales} gradient={paymentGradient} />
+              </section>
+            )}
 
-              {hasDiscounts && <div className="admin-card h-full p-5">
-                <div className="mb-4">
-                  <h2 className="text-sm font-semibold text-[var(--oppa-text)]">Discount summary</h2>
-                  <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Approved discounts for this period</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4 rounded-xl bg-[var(--oppa-green-soft)] p-4 text-sm text-[var(--oppa-text)]">
-                  <span>Discounted orders</span><strong className="text-right">{report.discount_summary.discounted_orders}</strong>
-                  <span>Discount amount</span><strong className="text-right">{money(Number(report.discount_summary.discount_amount) || 0)}</strong>
-                </div>
-                <p className="mt-4 text-xs text-[var(--oppa-text-muted)]">Cancelled orders in range: <strong className="text-[var(--oppa-text)]">{report.cancelled_orders}</strong></p>
-              </div>}
-            </section>
+            <SalesTimelineCard
+              buckets={timeline.buckets}
+              orderCount={report.total_orders}
+              description={timeline.description}
+              style={timelineStyle}
+              onStyleChange={setTimelineStyle}
+            />
           </>
         )}
       </div>
     </main>
   );
 };
+
+const PaymentMethodsCard = ({
+  entries,
+  total,
+  gradient,
+}: {
+  entries: Array<[string, { orders: number; amount: number }]>;
+  total: number;
+  gradient: string;
+}) => (
+  <div className="admin-card h-full p-5">
+    <div className="mb-4">
+      <h2 className="text-sm font-semibold text-[var(--oppa-text)]">Payment methods</h2>
+      <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Revenue collected by payment type</p>
+    </div>
+    {entries.length && total > 0 ? (
+      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
+        <div className="relative size-28 shrink-0 rounded-full" style={{ background: `conic-gradient(${gradient})` }} role="img" aria-label="Payment methods sales distribution">
+          <div className="absolute inset-4 grid place-content-center rounded-full bg-[var(--oppa-surface)] text-center">
+            <span className="text-[10px] text-[var(--oppa-text-muted)]">Total</span>
+            <strong className="text-xs text-[var(--oppa-text)]">{money(total)}</strong>
+          </div>
+        </div>
+        <div className="min-w-0 space-y-3">
+          {entries.map(([method, summary], index) => (
+            <div key={method} className="flex items-start gap-2 text-sm">
+              <span className="mt-1 size-2.5 shrink-0 rounded-full" style={{ backgroundColor: PAYMENT_COLORS[index % PAYMENT_COLORS.length] }} aria-hidden="true" />
+              <span className="min-w-0 capitalize text-[var(--oppa-text)]">
+                {method.replaceAll('_', ' ')}
+                <span className="block text-xs text-[var(--oppa-text-muted)]">{summary.orders} {summary.orders === 1 ? 'order' : 'orders'}</span>
+              </span>
+              <strong className="shrink-0 text-xs tabular-nums text-[var(--oppa-text)]">{money(Number(summary.amount) || 0)}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : <p className="py-8 text-center text-sm text-[var(--oppa-text-muted)]">No payment data in this period.</p>}
+  </div>
+);
+
+const DiscountSummaryCard = ({ report }: { report: Report }) => (
+  <div className="admin-card h-full p-5">
+    <div className="mb-4">
+      <h2 className="text-sm font-semibold text-[var(--oppa-text)]">Discount summary</h2>
+      <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Approved discounts for this period</p>
+    </div>
+    <div className="grid grid-cols-2 gap-4 rounded-xl bg-[var(--oppa-green-soft)] p-4 text-sm text-[var(--oppa-text)]">
+      <span>Discounted orders</span><strong className="text-right">{report.discount_summary.discounted_orders}</strong>
+      <span>Discount amount</span><strong className="text-right">{money(Number(report.discount_summary.discount_amount) || 0)}</strong>
+    </div>
+    <p className="mt-4 text-xs text-[var(--oppa-text-muted)]">Cancelled orders in range: <strong className="text-[var(--oppa-text)]">{report.cancelled_orders}</strong></p>
+  </div>
+);
 
 export default FranchiseReportsPage;
