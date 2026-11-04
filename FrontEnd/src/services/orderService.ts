@@ -2,6 +2,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrend
 
 export interface OrderItem {
     product_id: string;
+    franchise_id?: string | null;
     product_name: string;
     product_price: number;
     quantity: number;
@@ -104,11 +105,30 @@ export interface Order {
 
 export class OrderServiceError extends Error {
     readonly status?: number;
+    readonly code?: string;
+    readonly title?: string;
+    readonly nearestBranch?: { id?: string; name?: string };
+    readonly cartBranch?: { id?: string; name?: string | null };
+    readonly servingBranch?: { id?: string; name?: string };
+    readonly distanceKm?: number;
 
-    constructor(message: string, status?: number) {
+    constructor(message: string, status?: number, details?: {
+        code?: string;
+        title?: string;
+        nearestBranch?: { id?: string; name?: string };
+        cartBranch?: { id?: string; name?: string | null };
+        servingBranch?: { id?: string; name?: string };
+        distanceKm?: number;
+    }) {
         super(message);
         this.name = 'OrderServiceError';
         this.status = status;
+        this.code = details?.code;
+        this.title = details?.title;
+        this.nearestBranch = details?.nearestBranch;
+        this.cartBranch = details?.cartBranch;
+        this.servingBranch = details?.servingBranch;
+        this.distanceKm = details?.distanceKm;
     }
 }
 
@@ -184,26 +204,46 @@ class OrderService {
         });
 
         if (!response.ok) {
-            const error = await this.readError(response);
-            throw new Error(error || 'Failed to place order');
+            const error: Record<string, unknown> = await response.json().catch(() => ({}));
+            const validationErrors = error.errors && typeof error.errors === 'object'
+                ? Object.values(error.errors as Record<string, unknown>)
+                    .flatMap((messages) => Array.isArray(messages) ? messages.filter((message): message is string => typeof message === 'string') : [])
+                    .join(' ')
+                : '';
+            const nearest = error.nearest_branch && typeof error.nearest_branch === 'object'
+                ? error.nearest_branch as Record<string, unknown>
+                : undefined;
+            const cart = error.cart_branch && typeof error.cart_branch === 'object'
+                ? error.cart_branch as Record<string, unknown>
+                : undefined;
+            const serving = error.serving_branch && typeof error.serving_branch === 'object'
+                ? error.serving_branch as Record<string, unknown>
+                : undefined;
+            throw new OrderServiceError(
+                typeof error.message === 'string' ? error.message : validationErrors || 'Failed to place order',
+                response.status,
+                {
+                    code: typeof error.code === 'string' ? error.code : undefined,
+                    title: typeof error.title === 'string' ? error.title : undefined,
+                    nearestBranch: nearest ? {
+                        id: typeof nearest.id === 'string' ? nearest.id : undefined,
+                        name: typeof nearest.name === 'string' ? nearest.name : undefined,
+                    } : undefined,
+                    cartBranch: cart ? {
+                        id: typeof cart.id === 'string' ? cart.id : undefined,
+                        name: typeof cart.name === 'string' ? cart.name : null,
+                    } : undefined,
+                    servingBranch: serving ? {
+                        id: typeof serving.id === 'string' ? serving.id : undefined,
+                        name: typeof serving.name === 'string' ? serving.name : undefined,
+                    } : undefined,
+                    distanceKm: typeof error.distance_km === 'number' ? error.distance_km : undefined,
+                },
+            );
         }
 
         const result = await response.json();
         return result.order;
-    }
-
-    private async readError(response: Response): Promise<string> {
-        try {
-            const error = await response.json();
-            if (error.message) return error.message;
-            if (error.errors) {
-                return Object.values(error.errors).flat().join(' ');
-            }
-        } catch {
-            return response.statusText;
-        }
-
-        return response.statusText;
     }
 
     async getUserOrders(): Promise<Order[]> {

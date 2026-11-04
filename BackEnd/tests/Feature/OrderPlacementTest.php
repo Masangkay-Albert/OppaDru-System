@@ -11,6 +11,7 @@ use App\Models\FranchiseAccount;
 use App\Models\FranchiseInventory;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\Promo;
 use App\Models\Product;
 use App\Models\Driver;
 use App\Models\User;
@@ -748,6 +749,13 @@ class OrderPlacementTest extends TestCase
             'stock_quantity' => 1,
             'is_available' => true,
         ]);
+        Promo::create([
+            'code' => 'TEST10',
+            'title' => 'Test discount',
+            'discount_type' => 'fixed',
+            'discount_value' => 10,
+            'is_active' => true,
+        ]);
 
         $loginResponse = $this->postJson('/api/login', [
             'email' => $user->email,
@@ -773,7 +781,6 @@ class OrderPlacementTest extends TestCase
                 'promo_code' => 'TEST10',
                 'promo_discount' => 10,
             ]);
-
         $response->assertCreated();
         $this->assertSame($branch->id, $response->json('order.franchise_id'));
         $this->assertDatabaseHas('orders', [
@@ -858,6 +865,7 @@ class OrderPlacementTest extends TestCase
                 'is_available' => true,
             ]);
         }
+
         $login = $this->postJson('/api/login', [
             'email' => $user->email,
             'password' => 'password123',
@@ -866,7 +874,7 @@ class OrderPlacementTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.$login->json('token'));
         foreach ([
             [['lat' => 14.3194939, 'lng' => 120.9943268], $cavite],
-            [['lat' => 14.2105, 'lng' => 121.1601], $laguna],
+            [['lat' => 14.272967, 'lng' => 121.093142], $laguna],
         ] as [$coordinates, $expectedBranch]) {
             $response = $this->postJson('/api/orders', [
                 'email' => $user->email,
@@ -910,6 +918,120 @@ class OrderPlacementTest extends TestCase
                 ->assertJsonPath('delivery_coordinates.lng', $coordinates['lng'])
                 ->assertJsonPath('status_history.0.status', 'pending');
         }
+    }
+
+    public function test_order_api_rejects_addresses_outside_the_ten_kilometer_radius_without_creating_orders(): void
+    {
+        $user = User::create([
+            'full_name' => 'Out of Range Customer',
+            'email' => 'out-of-range@example.com',
+            'phone' => '09171234570',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $branch = Franchise::create([
+            'name' => 'Cavite Branch',
+            'status' => 'active',
+            'latitude' => 14.3167,
+            'longitude' => 120.9333,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 50,
+        ]);
+        $product = Product::create([
+            'name' => 'Out of Range Chicken',
+            'description' => 'Test product',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ]);
+
+        $this->actingAs($user, 'api')
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'franchise_id' => $branch->id,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'total' => 0,
+                'delivery_address' => 'Remote address',
+                'delivery_coordinates' => ['lat' => 14.50, 'lng' => 120.9333],
+                'payment_method' => 'cash_on_delivery',
+                'phone' => $user->phone,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'OUT_OF_RANGE')
+            ->assertJsonPath('title', 'Address is outside our delivery area');
+
+        $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_order_api_rejects_a_cart_branch_that_differs_from_the_serving_branch(): void
+    {
+        $user = User::create([
+            'full_name' => 'Branch Mismatch Customer',
+            'email' => 'branch-mismatch@example.com',
+            'phone' => '09171234571',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $cavite = Franchise::create([
+            'name' => 'Cavite Branch',
+            'status' => 'active',
+            'latitude' => 14.3167,
+            'longitude' => 120.9333,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 10,
+        ]);
+        $laguna = Franchise::create([
+            'name' => 'Laguna Branch',
+            'status' => 'active',
+            'latitude' => 14.272967,
+            'longitude' => 121.093142,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 10,
+        ]);
+        $product = Product::create([
+            'name' => 'Branch Mismatch Chicken',
+            'description' => 'Test product',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ]);
+
+        $this->actingAs($user, 'api')
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'franchise_id' => $cavite->id,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'total' => 0,
+                'delivery_address' => 'Santa Rosa, Laguna',
+                'delivery_coordinates' => ['lat' => 14.272967, 'lng' => 121.093142],
+                'payment_method' => 'cash_on_delivery',
+                'phone' => $user->phone,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'BRANCH_MISMATCH')
+            ->assertJsonPath('serving_branch.name', 'Laguna Branch');
+
+        $this->assertDatabaseCount('orders', 0);
     }
 
     public function test_franchise_customer_order_links_branch_payment_to_exact_order(): void

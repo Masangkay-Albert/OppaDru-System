@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiChevronDown, FiPackage, FiShoppingBag, FiCheckCircle, FiClock } from 'react-icons/fi';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { FiArrowLeft, FiPackage } from 'react-icons/fi';
 import { FaClipboardList, FaStore } from 'react-icons/fa';
 import { useOrder } from '../../../contexts/OrderContext';
+import { useCart } from '../../../contexts/CartContext';
+import type { Order } from '../../../contexts/OrderContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import { ORDER_STATUS } from '../../../utils/constants';
 import { orderService } from '../../../services/orderService';
-import { STATUS_OPTIONS, getScheduledOrderDetails } from '../../../utils/orderUtils';
+import { getCustomerOrderGroup } from '../../../utils/orderUtils';
 import {
   canCancelOrder,
   canManageOrder,
@@ -17,21 +19,32 @@ import {
 import { OrderCard } from '../components/orders/OrderCard';
 import { OrderEditModal } from '../components/orders/OrderEditModal';
 import SearchInput from '../../../components/ui/SearchInput';
+import { setSelectedBranchId } from '../../../services/franchiseBranchService';
 import '../../../styles/secondary-pages.css';
 import { useToast } from '../components/ToastProvider';
 
+type EditableOrderItem = Order['items'][number] & {
+  selected_addons?: NonNullable<Order['items'][number]['selectedAddons']>;
+  special_instructions?: string | null;
+};
+
 const MyOrdersPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { orders, refreshOrders, isLoading } = useOrder();
+  const { addToCart, setActiveBranchId } = useCart();
   const { showToast, confirmDialog, dismissDialog } = useToast();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const requestedTab = searchParams.get('tab');
+  const filterStatus = requestedTab === 'active' || requestedTab === 'delivered' || requestedTab === 'cancelled'
+    ? requestedTab
+    : 'all';
+  const searchTerm = searchParams.get('q') || '';
+  const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({});
-  const [editingOrder, setEditingOrder] = useState<any | null>(null);
-  const [editDraft, setEditDraft] = useState<any[]>([]);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editDraft, setEditDraft] = useState<EditableOrderItem[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [, setTick] = useState(Date.now());
+  const [tick, setTick] = useState(0);
   const [graceStartedAtByOrder, setGraceStartedAtByOrder] = useState<Record<string, number>>({});
   const [confirmingCancellationOrderId, setConfirmingCancellationOrderId] = useState<string | null>(null);
 
@@ -44,8 +57,12 @@ const MyOrdersPage: React.FC = () => {
   }, [orders]);
 
   useEffect(() => {
+    const initialTimer = window.setTimeout(() => setTick(Date.now()), 0);
     const interval = window.setInterval(() => setTick(Date.now()), 1000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -64,60 +81,119 @@ const MyOrdersPage: React.FC = () => {
   useEffect(() => {
     const pendingOrders = sortedOrders.filter(order => normalizeOrderStatus(order.status) === ORDER_STATUS.PENDING);
 
-    setGraceStartedAtByOrder(prev => {
-      const next = { ...prev };
+    const timer = window.setTimeout(() => {
+      setGraceStartedAtByOrder(prev => {
+        const next = { ...prev };
 
-      pendingOrders.forEach(order => {
-        const orderId = String(order.id);
-        if (!(orderId in next)) {
-          next[orderId] = getOrderCreatedAtMs(order) || Date.now();
-        }
+        pendingOrders.forEach(order => {
+          const orderId = String(order.id);
+          if (!(orderId in next)) {
+            next[orderId] = getOrderCreatedAtMs(order) || Date.now();
+          }
+        });
+
+        Object.keys(next).forEach(key => {
+          const hasPendingOrder = pendingOrders.some(order => String(order.id) === String(key));
+          if (!hasPendingOrder) {
+            delete next[key];
+          }
+        });
+
+        return next;
       });
-
-      Object.keys(next).forEach(key => {
-        const hasPendingOrder = pendingOrders.some(order => String(order.id) === String(key));
-        if (!hasPendingOrder) {
-          delete next[key];
-        }
-      });
-
-      return next;
-    });
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [sortedOrders]);
 
   const filteredOrders = useMemo(() => {
     return sortedOrders.filter(order => {
-      const scheduleDetails = getScheduledOrderDetails(order);
-      const effectiveStatus = scheduleDetails.isScheduled ? ORDER_STATUS.SCHEDULED : order.status;
-      const orderIdentifier = order.orderNumber || order.id;
-      const matchesSearch = orderIdentifier.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            order.items.some(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesFilter = filterStatus === 'all' || effectiveStatus === filterStatus;
+      const orderIdentifier = String(order.orderNumber || order.id).toLowerCase();
+      const branchName = String(order.branchName || order.branch_name || order.branch?.name || '').toLowerCase();
+      const query = searchTerm.trim().toLowerCase();
+      const matchesSearch = !query
+        || orderIdentifier.includes(query)
+        || String(order.id).toLowerCase().includes(query)
+        || branchName.includes(query)
+        || order.items.some(item => String(item.name || '').toLowerCase().includes(query));
+      const matchesFilter = filterStatus === 'all' || getCustomerOrderGroup(order) === filterStatus;
       return matchesSearch && matchesFilter;
     });
   }, [sortedOrders, searchTerm, filterStatus]);
 
-  const stats = useMemo(() => {
-    const visibleOrders = orders.filter(o => normalizeOrderStatus(o.status) !== ORDER_STATUS.CANCELLED);
-    const total = visibleOrders.length;
-    const delivered = visibleOrders.filter(o => o.status === ORDER_STATUS.DELIVERED).length;
-    const scheduled = visibleOrders.filter(o => getScheduledOrderDetails(o).isScheduled && o.status !== ORDER_STATUS.DELIVERED).length;
-    return { total, delivered, active: total - delivered, scheduled };
-  }, [orders]);
+  const tabCounts = useMemo(() => ({
+    all: sortedOrders.length,
+    active: sortedOrders.filter(order => getCustomerOrderGroup(order) === 'active').length,
+    delivered: sortedOrders.filter(order => getCustomerOrderGroup(order) === 'delivered').length,
+    cancelled: sortedOrders.filter(order => getCustomerOrderGroup(order) === 'cancelled').length,
+  }), [sortedOrders]);
+  const visibleOrders = filteredOrders.slice(0, page * 10);
+  const dateGroups = useMemo(() => {
+    if (filteredOrders.length <= 10) return [{ label: '', orders: visibleOrders }];
+    const dateKey = (date: Date) => new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
+    if (!tick) return [{ label: '', orders: visibleOrders }];
+    const today = dateKey(new Date(tick));
+    const yesterday = dateKey(new Date(tick - 24 * 60 * 60 * 1000));
+    const groups = new Map<string, typeof visibleOrders>();
+    visibleOrders.forEach((order) => {
+      const timestamp = getOrderCreatedAtMs(order);
+      const key = timestamp ? dateKey(new Date(timestamp)) : '';
+      const label = key === today ? 'Today' : key === yesterday ? 'Yesterday' : 'Earlier';
+      groups.set(label, [...(groups.get(label) || []), order]);
+    });
+    return ['Today', 'Yesterday', 'Earlier']
+      .filter(label => groups.has(label))
+      .map(label => ({ label, orders: groups.get(label) || [] }));
+  }, [filteredOrders, tick, visibleOrders]);
 
-  const currentStatus = STATUS_OPTIONS.find(opt => opt.value === filterStatus) ?? STATUS_OPTIONS[0];
+  const updateQuery = (updates: Record<string, string | null>, replace = false) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    });
+    setSearchParams(next, { replace });
+  };
+
+  const handleTabChange = (tab: string) => {
+    updateQuery({ tab: tab === 'all' ? null : tab, page: null });
+  };
+
+  const handleSearchChange = (value: string) => {
+    updateQuery({ q: value.trim() ? value : null, page: null }, true);
+  };
+
+  const handleLoadMore = () => updateQuery({ page: String(page + 1) });
 
   const handleTrackOrder = (orderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     navigate(`/orders/${encodeURIComponent(orderId)}/track`);
   };
 
+  const handleReorder = (order: Order) => {
+    const branchId = order.branchId ? String(order.branchId) : '';
+    if (!branchId) {
+      showToast('This order is missing its branch information, so it cannot be reordered.', 'error');
+      return;
+    }
+    setSelectedBranchId(branchId);
+    setActiveBranchId(branchId);
+    order.items.forEach((item) => {
+      addToCart({ ...item, quantity: Math.max(1, Number(item.quantity) || 1) });
+    });
+    showToast(`Items from ${order.branchName || order.branch_name || order.branch?.name || 'this branch'} were added to your cart.`, 'success');
+    navigate('/customer');
+  };
+
   const toggleOrderDetails = (orderId: string) => {
     setExpandedOrderIds(prev => ({ ...prev, [orderId]: !prev[orderId] }));
   };
 
-  const handleCancelOrder = async (order: any) => {
+  const handleCancelOrder = async (order: Order) => {
     if (!canCancelOrder(order)) {
       showToast('Cancellation period has ended.', 'warning');
       return;
@@ -155,12 +231,12 @@ const MyOrdersPage: React.FC = () => {
     }
   };
 
-  const openEditOrder = (order: any) => {
+  const openEditOrder = (order: Order) => {
     if (!canManageOrder(order, graceStartedAtByOrder)) return;
     setEditingOrder(order);
-    setEditDraft(order.items.map((item: any) => ({
+    setEditDraft(order.items.map((item) => ({
       ...item,
-      selected_addons: (item.selectedAddons || item.selected_addons || []).map((addon: any) => ({
+      selected_addons: (item.selectedAddons || []).map((addon) => ({
         id: addon.id,
         name: addon.name,
         price: Number(addon.price || 0),
@@ -175,11 +251,11 @@ const MyOrdersPage: React.FC = () => {
     setEditDraft(prev => prev.map((item, index) => {
       if (index !== itemIndex) return item;
       const current = item.selected_addons || [];
-      const selected = current.some((addon: any) => String(addon.id) === String(addonId));
+      const selected = current.some((addon) => String(addon.id) === String(addonId));
       return {
         ...item,
         selected_addons: selected
-          ? current.filter((addon: any) => String(addon.id) !== String(addonId))
+          ? current.filter((addon) => String(addon.id) !== String(addonId))
           : [...current, { id: addonId, name: addonId, price: 0, quantity: 1 }],
       };
     }));
@@ -200,18 +276,18 @@ const MyOrdersPage: React.FC = () => {
 
   const saveEditedOrder = async () => {
     if (!editingOrder) return;
-    const validDraft = editDraft.filter((item: any) => Number(item.quantity || 0) > 0);
+    const validDraft = editDraft.filter(item => Number(item.quantity || 0) > 0);
     if (validDraft.length === 0) return;
 
     setIsSavingEdit(true);
 
     try {
-      const payload = validDraft.map((item: any) => ({
+      const payload = validDraft.map(item => ({
         product_id: item.id,
         product_name: item.name,
         product_price: Number(item.price || 0),
         quantity: Number(item.quantity || 1),
-        selected_addons: (item.selected_addons || []).map((addon: any) => ({
+        selected_addons: (item.selected_addons || []).map((addon) => ({
           id: addon.id,
           name: addon.name,
           price: Number(addon.price || 0),
@@ -262,100 +338,96 @@ const MyOrdersPage: React.FC = () => {
             </div>
           </div>
           
-          <div className="orders-stats flex items-center gap-4 bg-white/80 backdrop-blur-sm rounded-xl px-4 py-2 shadow-sm border border-gray-100 text-sm">
-            <span className="flex items-center gap-1.5">
-              <FiShoppingBag size={15} className="text-gray-400" /> 
-              Total: <strong className="text-[#2d6a4f]">{stats.total}</strong>
-            </span>
-            <span className="w-px h-5 bg-gray-200" />
-            <span className="flex items-center gap-1.5">
-              <FiClock className="text-amber-400" /> 
-              Active: <strong className="text-amber-600">{stats.active}</strong>
-            </span>
-            <span className="w-px h-5 bg-gray-200" />
-            <span className="flex items-center gap-1.5">
-              <FiCheckCircle className="text-emerald-400" /> 
-              Delivered: <strong className="text-emerald-600">{stats.delivered}</strong>
-            </span>
-          </div>
         </div>
 
         {/* Filters */}
-        <div className="orders-toolbar flex flex-col sm:flex-row gap-3">
+        <div className="orders-toolbar">
           <SearchInput
             aria-label="Search orders"
-            placeholder="Search orders..."
+            placeholder="Search order ID, item, or branch..."
             value={searchTerm}
-            onChange={setSearchTerm}
-            wrapperClassName="flex-1"
+            onChange={handleSearchChange}
+            debounceMs={0}
+            wrapperClassName="orders-search"
           />
-
-          <div className="relative">
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="orders-filter-button flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium hover:border-gray-300 transition-colors min-w-[140px] justify-between"
-            >
-              <span>{currentStatus?.label || 'Pending'}</span>
-              <FiChevronDown className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {isDropdownOpen && (
-              <div className="absolute top-full right-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10 min-w-[140px]">
-                {STATUS_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => { setFilterStatus(option.value); setIsDropdownOpen(false); }}
-                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${
-                      filterStatus === option.value ? 'bg-gray-50 font-medium' : ''
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="orders-filter-tabs" role="tablist" aria-label="Filter orders by status">
+            {([
+              ['all', 'All'],
+              ['active', 'Active'],
+              ['delivered', 'Delivered'],
+              ['cancelled', 'Cancelled'],
+            ] as const).map(([tab, label]) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={filterStatus === tab}
+                onClick={() => handleTabChange(tab)}
+                className={`orders-filter-tab${filterStatus === tab ? ' is-selected' : ''}`}
+              >
+                {label}<span>{tabCounts[tab]}</span>
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Orders List */}
-        <div className="orders-list mt-5 space-y-3">
+        <div className="orders-list mt-5">
           {isLoading && filteredOrders.length === 0 ? (
-            <div role="status" className="orders-empty-state rounded-xl border border-gray-100 bg-white p-12 text-center text-sm text-gray-500 shadow-sm">
-              Loading orders...
+            <div role="status" aria-label="Loading orders" className="orders-skeleton-list">
+              {Array.from({ length: 3 }, (_, index) => <OrderCardSkeleton key={index} />)}
             </div>
           ) : filteredOrders.length === 0 ? (
-            <div className="orders-empty-state bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+            <div className="orders-empty-state">
               <FiPackage className="text-4xl text-[#2d6a4f]/30 mx-auto mb-3" />
               <h2 className="text-xl font-bold text-gray-800 mb-1">
-                {orders.length === 0 ? 'No orders yet' : 'No matching orders'}
+                {searchTerm
+                  ? 'No matching orders'
+                  : orders.length === 0
+                    ? 'No orders yet'
+                    : `No ${filterStatus === 'all' ? '' : filterStatus + ' '}orders`}
               </h2>
               <p className="text-sm text-gray-500 max-w-sm mx-auto mb-4">
-                {orders.length === 0 
-                  ? "You haven't placed any orders yet."
-                  : "Try adjusting your search or filter."
-                }
+                {searchTerm
+                  ? 'Try another order ID, item name, or branch.'
+                  : orders.length === 0
+                    ? "You haven't placed any orders yet."
+                    : `You don't have any ${filterStatus === 'all' ? '' : filterStatus + ' '}orders right now.`}
               </p>
-              {orders.length === 0 && (
-                <button 
+              <button
                   onClick={() => navigate('/customer')} 
                   className="px-6 py-2.5 bg-[#2d6a4f] text-white rounded-lg font-medium hover:bg-[#1b4332] transition-colors shadow-md shadow-[#2d6a4f]/20 flex items-center gap-2 mx-auto text-sm"
                 >
                   <FaStore size={15} /> Browse Menu
-                </button>
-              )}
+              </button>
             </div>
           ) : (
-            filteredOrders.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                isExpanded={Boolean(expandedOrderIds[order.id])}
-                onToggleDetails={toggleOrderDetails}
-                onTrack={handleTrackOrder}
-                onCancel={handleCancelOrder}
-                onEdit={openEditOrder}
-              />
-            ))
+            <>
+              {dateGroups.map(({ label, orders: groupOrders }) => (
+                <section key={label || 'orders'} className="orders-date-group">
+                  {label && <h2 className="orders-date-heading">{label}</h2>}
+                  <div className="orders-date-cards">
+                    {groupOrders.map((order) => (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        isExpanded={Boolean(expandedOrderIds[order.id])}
+                        onToggleDetails={toggleOrderDetails}
+                        onTrack={handleTrackOrder}
+                        onCancel={handleCancelOrder}
+                        onEdit={openEditOrder}
+                        onReorder={handleReorder}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+              {visibleOrders.length < filteredOrders.length && (
+                <button type="button" className="orders-load-more" onClick={handleLoadMore}>
+                  Load more orders
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -374,5 +446,22 @@ const MyOrdersPage: React.FC = () => {
     </div>
   );
 };
+
+const OrderCardSkeleton: React.FC = () => (
+  <div className="order-card-skeleton" aria-hidden="true">
+    <div className="order-skeleton-row">
+      <span className="order-skeleton-block order-skeleton-title" />
+      <span className="order-skeleton-block order-skeleton-badge" />
+      <span className="order-skeleton-block order-skeleton-total" />
+    </div>
+    <span className="order-skeleton-block order-skeleton-meta" />
+    <div className="order-skeleton-items">
+      <span className="order-skeleton-block" />
+      <span className="order-skeleton-block" />
+      <span className="order-skeleton-block" />
+    </div>
+    <span className="order-skeleton-block order-skeleton-actions" />
+  </div>
+);
 
 export default MyOrdersPage;

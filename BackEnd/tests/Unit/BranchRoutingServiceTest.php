@@ -73,49 +73,50 @@ class BranchRoutingServiceTest extends TestCase
         $laguna = $this->branch('Laguna branch', 14.272967, 121.093142);
         $routing = app(BranchRoutingService::class);
 
-        foreach ([
-            ['lat' => 14.272967, 'lng' => 121.093142], // Santa Rosa
-            ['lat' => 14.2105, 'lng' => 121.1601], // Calamba
-        ] as $coordinates) {
-            $this->assertSame($laguna->id, $routing->resolve($coordinates)['branch']->id);
-        }
+        $this->assertSame(
+            $laguna->id,
+            $routing->resolve(['lat' => 14.272967, 'lng' => 121.093142])['branch']->id,
+        );
+        $this->expectException(\App\Services\DeliveryOutOfRangeException::class);
+        $routing->resolve(['lat' => 14.2105, 'lng' => 121.1601]);
     }
 
-    public function test_branch_specific_delivery_radius_above_default_is_honored(): void
+    public function test_delivery_radius_is_capped_at_ten_kilometers_even_when_branch_radius_is_higher(): void
     {
         $laguna = $this->branch('Laguna branch', 14.3181, 121.1011);
         $laguna->delivery_radius_km = 40;
         $laguna->save();
         config(['delivery.default_radius_km' => 15]);
 
-        $result = app(BranchRoutingService::class)->resolve([
-            'lat' => 14.1700,
-            'lng' => 121.2400,
-        ]);
-
-        $this->assertSame($laguna->id, $result['branch']->id);
-        $this->assertGreaterThan(15, $result['distance_km']);
-        $this->assertLessThanOrEqual(40, $result['distance_km']);
+        try {
+            app(BranchRoutingService::class)->resolve([
+                'lat' => 14.1700,
+                'lng' => 121.2400,
+            ]);
+            $this->fail('Expected delivery beyond the maximum radius to be rejected.');
+        } catch (\App\Services\DeliveryOutOfRangeException $exception) {
+            $this->assertSame($laguna->id, $exception->nearestBranch->id);
+            $this->assertGreaterThan(10, $exception->distanceKm);
+        }
     }
 
-    public function test_null_branch_radius_uses_the_fifteen_kilometer_default(): void
+    public function test_configured_branch_radius_cannot_exceed_ten_kilometers(): void
     {
         config(['delivery.default_radius_km' => 15]);
         $this->branch('Laguna branch', 14.3181, 121.1011);
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('outside its 15.0 km delivery area');
-
-        app(BranchRoutingService::class)->resolve([
-            'lat' => 14.1700,
-            'lng' => 121.2400,
-        ]);
+        try {
+            app(BranchRoutingService::class)->resolve(['lat' => 14.1700, 'lng' => 121.2400]);
+            $this->fail('Expected address outside the hard delivery radius to be rejected.');
+        } catch (\App\Services\DeliveryOutOfRangeException $exception) {
+            $this->assertGreaterThan(10, $exception->distanceKm);
+        }
     }
 
     public function test_imus_and_bacoor_coordinates_select_cavite_branch(): void
     {
         config(['delivery.default_radius_km' => 20]);
-        $cavite = $this->branch('Cavite branch', 14.3167, 120.9333);
+        $cavite = $this->branch('Cavite branch', 14.4300, 120.9350);
         $this->branch('Laguna branch', 14.272967, 121.093142);
         $routing = app(BranchRoutingService::class);
 

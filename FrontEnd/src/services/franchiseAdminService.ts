@@ -430,6 +430,12 @@ export const updateFranchise = (id: string | number, data: Partial<Pick<Franchis
     body: JSON.stringify(data),
   });
 
+export const deleteFranchise = (id: string | number) =>
+  franchiseAdminRequest<void>(`${API_URL}/admin/franchises/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+  });
+
 export const getFranchiseAdminOverview = async (id: string | number) => {
   const [summary, inventory, fulfillment, users] = await Promise.all([
     franchiseAdminRequest<Record<string, unknown>>(`${API_URL}/admin/franchises/${id}/summary`),

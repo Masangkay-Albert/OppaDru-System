@@ -5,14 +5,15 @@ import {
   FiClock,
   FiTrash2,
 } from 'react-icons/fi';
-import { FaCheck } from 'react-icons/fa';
 import { ORDER_STATUS } from '../../../../utils/constants';
+import type { Order } from '../../../../contexts/OrderContext';
 import {
-  STATUS_DISPLAY,
   formatOrderDate,
   formatOrderTime,
+  formatPaymentMethod,
+  getCustomerOrderGroup,
+  getCustomerOrderStatusLabel,
   getScheduledOrderDetails,
-  getStatusColor,
 } from '../../../../utils/orderUtils';
 import {
   canCancelOrder,
@@ -22,12 +23,13 @@ import {
 import { formatCurrency } from '../../../../utils/formatters';
 
 interface OrderCardProps {
-  order: any;
+  order: Order;
   isExpanded: boolean;
   onToggleDetails: (orderId: string) => void;
   onTrack: (orderId: string, event: React.MouseEvent) => void;
-  onCancel: (order: any) => void;
-  onEdit: (order: any) => void;
+  onCancel: (order: Order) => void;
+  onEdit: (order: Order) => void;
+  onReorder: (order: Order) => void;
 }
 
 export const OrderCard: React.FC<OrderCardProps> = ({
@@ -36,63 +38,36 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   onToggleDetails,
   onTrack,
   onCancel,
+  onReorder,
 }) => {
   const scheduleDetails = getScheduledOrderDetails(order);
-  const isFinal = ['delivered', 'cancelled', 'completed', 'failed'].includes(String(order.status || '').toLowerCase());
-  const effectiveStatus = scheduleDetails.isScheduled ? ORDER_STATUS.SCHEDULED : order.status;
+  const statusGroup = getCustomerOrderGroup(order);
+  const isFinal = statusGroup !== 'active';
   const isScheduledOrder = scheduleDetails.isScheduled && !isFinal;
-  const displayStatus = isScheduledOrder
-    ? STATUS_DISPLAY[ORDER_STATUS.SCHEDULED]
-    : STATUS_DISPLAY[order.status] ?? STATUS_DISPLAY[ORDER_STATUS.PENDING];
-  const isActive = !isFinal;
-  const statusColor = getStatusColor(isScheduledOrder ? ORDER_STATUS.SCHEDULED : effectiveStatus);
+  const displayStatus = getCustomerOrderStatusLabel(order);
+  const isActive = statusGroup === 'active';
+  const isDelivered = statusGroup === 'delivered';
   const displayOrderNumber = order.orderNumber || order.id;
+  const branchName = order.branchName || order.branch_name || order.branch?.name || 'Branch unavailable';
 
   return (
-    <div className="order-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300">
+    <article className="order-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300" data-status-group={statusGroup}>
       <div className="p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className={`p-2 rounded-lg flex-shrink-0 ${statusColor} border`}>
-              {displayStatus.icon}
+        <div className="order-card-header">
+          <div className="min-w-0">
+            <div className="order-card-identity">
+              <span className="order-card-id">Order #{displayOrderNumber}</span>
+              <span className="order-card-status">{displayStatus}</span>
+              <span className="order-card-branch">· {branchName}</span>
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="order-card-id font-semibold text-gray-800 text-sm">Order #{displayOrderNumber}</span>
-                <span className={`order-card-status text-xs font-medium px-2 py-0.5 rounded-full ${displayStatus.badgeClass} border flex items-center gap-1`}>
-                  {displayStatus.icon}
-                  {displayStatus.label}
-                </span>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
-                <span className="flex items-center gap-1">
-                  <FiCalendar size={12} /> {formatOrderDate(order.timestamp || '')}
-                </span>
-                <span className="hidden xs:inline">•</span>
-                <span className="flex items-center gap-1">
-                  <FiClock size={12} /> {formatOrderTime(order.timestamp || '')}
-                </span>
-                {(order.branchName || order.branch_name || order.branch?.name) && (
-                  <span className="font-medium text-[#2d6a4f]">{order.branchName || order.branch_name || order.branch?.name}</span>
-                )}
-              </div>
+            <div className="order-card-date">
+              <span><FiCalendar size={12} /> {formatOrderDate(order.timestamp || '')}</span>
+              <span><FiClock size={12} /> {formatOrderTime(order.timestamp || '')}</span>
             </div>
           </div>
-
-          <div className="flex items-center gap-3 flex-shrink-0 ml-auto sm:ml-0">
-            <div className="order-card-total text-right">
-              <p className="text-xs text-gray-500">Total</p>
-              <p className="text-base font-bold text-[#2d6a4f]">{formatCurrency(order.total)}</p>
-            </div>
-            {isActive ? (
-              <div className="order-card-chevron w-8 h-8 rounded-full bg-[#2d6a4f]/10 flex items-center justify-center text-[#2d6a4f] flex-shrink-0">
-                <FiChevronRight size={18} />
-              </div>
-            ) : (
-              <div className="order-card-chevron w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-500 flex-shrink-0">
-                <FaCheck size={15} />
-              </div>
-            )}
+          <div className="order-card-summary">
+            <span className="order-card-total">{formatCurrency(order.total)}</span>
+            <span className="order-card-payment">{formatPaymentMethod(order.paymentMethod)}</span>
           </div>
         </div>
 
@@ -100,7 +75,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50/50 p-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-orange-700">
               <span aria-hidden="true">🗓</span>
-              <span>Scheduled Order</span>
+              <span>Scheduled delivery</span>
             </div>
             <div className="mt-3 grid gap-2 text-sm text-gray-700 sm:grid-cols-2">
               <div>
@@ -116,14 +91,13 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               {scheduleDetails.scheduleDisplay || 'Scheduled Delivery'}
             </div>
             <div className="mt-3 flex items-center justify-between flex-wrap gap-2 border-t border-orange-100 pt-2 text-xs text-orange-700">
-              <span className="font-medium">Status: Scheduled</span>
               <span className="text-gray-500">Waiting for scheduled time</span>
             </div>
           </div>
         )}
 
-        <div className="order-item-chips flex flex-wrap gap-1.5 pt-3 border-t border-gray-100 mt-3">
-          {order.items.slice(0, 3).map((item: any, idx: number) => (
+        <div className="order-item-chips flex gap-1.5 pt-3 border-t border-gray-100 mt-3">
+          {order.items.slice(0, 3).map((item, idx: number) => (
             <span key={idx} title={item.name} className="order-item-chip inline-flex items-center gap-1 bg-gray-50 px-2.5 py-1 rounded-lg text-xs text-gray-700 border border-gray-100">
               <span className="font-semibold text-[#2d6a4f]">{item.quantity}x</span>
               <span className="truncate max-w-[100px]">{item.name}</span>
@@ -136,16 +110,20 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-gray-100 mt-2.5">
-          <div className="flex items-center gap-3 text-xs text-gray-400">
-            <span className="capitalize">{order.paymentMethod?.replace('_', ' ') || 'Cash'}</span>
-          </div>
-          <div className="order-card-actions flex items-center gap-2">
-            <button onClick={() => onToggleDetails(order.id)} className="order-details-button text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1">
-              {isExpanded ? 'Hide Details' : 'View Details'}
-            </button>
-            <button onClick={(e) => onTrack(order.id, e)} className="order-track-button text-xs font-medium text-[#2d6a4f] hover:underline flex items-center gap-1">
-              {isActive ? 'Track Order' : 'View Tracking'} <FiChevronRight size={14} />
+        <div className="order-card-footer">
+          <div className="order-card-actions">
+            {isActive && (
+              <button onClick={(e) => onTrack(order.id, e)} className="order-track-button">
+                Track order <FiChevronRight size={15} />
+              </button>
+            )}
+            {isDelivered && (
+              <button type="button" onClick={() => onReorder(order)} className="order-reorder-button">
+                Reorder
+              </button>
+            )}
+            <button type="button" onClick={() => onToggleDetails(order.id)} className="order-details-button">
+              {isExpanded ? 'Hide details' : 'View details'}
             </button>
           </div>
         </div>
@@ -153,8 +131,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         {isExpanded && (
           <div className="mt-4 border-t border-gray-100 pt-4">
             <div className="space-y-3">
-              {order.items.map((item: any, itemIndex: number) => {
-                const addonsTotal = (item.selectedAddons || []).reduce((sum: number, addon: any) => sum + Number(addon.price || 0), 0);
+              {order.items.map((item, itemIndex: number) => {
+                const addonsTotal = (item.selectedAddons || []).reduce((sum: number, addon) => sum + Number(addon.price || 0), 0);
                 const itemSubtotal = (Number(item.price || 0) * Number(item.quantity || 1)) + addonsTotal;
 
                 return (
@@ -164,7 +142,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                         <p className="font-medium text-gray-800">{item.quantity}x {item.name}</p>
                         {item.selectedAddons && item.selectedAddons.length > 0 && (
                           <div className="mt-2 text-xs text-gray-500 space-y-1">
-                            {item.selectedAddons.map((addon: any, addonIndex: number) => (
+                            {item.selectedAddons.map((addon, addonIndex: number) => (
                               <div key={`${item.id}-${addonIndex}`} className="flex justify-between gap-3">
                                 <span>+ {addon.name}</span>
                                 <span>{formatCurrency(Number(addon.price || 0))}</span>
@@ -214,8 +192,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <div className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-sm">
               {(() => {
                 const { productSubtotal, deliveryFee, serviceFee, priorityFee, vat } = (() => {
-                  const subtotal = order.items.reduce((sum: number, item: any) => {
-                    const addonTotal = (item.selectedAddons || []).reduce((addonSum: number, addon: any) => addonSum + Number(addon.price || 0), 0);
+                  const subtotal = order.items.reduce((sum: number, item) => {
+                    const addonTotal = (item.selectedAddons || []).reduce((addonSum: number, addon) => addonSum + Number(addon.price || 0), 0);
                     return sum + ((Number(item.price || 0) * Number(item.quantity || 1)) + addonTotal);
                   }, 0);
 
@@ -268,6 +246,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </article>
   );
 };

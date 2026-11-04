@@ -86,6 +86,68 @@ export const STATUS_OPTIONS = [
   { value: ORDER_STATUS.FAILED, label: 'Failed' },
 ];
 
+export type CustomerOrderTab = 'all' | 'active' | 'delivered' | 'cancelled';
+
+interface ScheduleOrderLike {
+  status?: string;
+  scheduleDisplay?: string | null;
+  schedule_display?: string | null;
+  scheduledDisplay?: string | null;
+  scheduled_display?: string | null;
+  scheduledAt?: string | null;
+  scheduled_at?: string | null;
+  scheduledDateTime?: string | null;
+  scheduledDate?: string | Date | null;
+  scheduled_date?: string | null;
+  scheduledTime?: string | null;
+  scheduled_time?: string | null;
+  scheduleWindow?: string | null;
+  schedule_window?: string | null;
+  deliveryType?: string | null;
+  delivery_type?: string | null;
+}
+
+export const getCustomerOrderGroup = (order: ScheduleOrderLike): Exclude<CustomerOrderTab, 'all'> => {
+  const status = String(order?.status || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (status === ORDER_STATUS.DELIVERED || status === ORDER_STATUS.COMPLETED) return 'delivered';
+  if (status === ORDER_STATUS.CANCELLED || status === ORDER_STATUS.FAILED) return 'cancelled';
+  return 'active';
+};
+
+export const getCustomerOrderStatusLabel = (order: ScheduleOrderLike): string => {
+  const status = String(order?.status || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (getCustomerOrderGroup(order) === 'active' && getScheduledOrderDetails(order).isScheduled) return 'Scheduled';
+
+  const labels: Record<string, string> = {
+    pending: 'Pending',
+    confirmed: 'Confirmed',
+    preparing: 'Preparing',
+    prepared: 'Prepared',
+    ready: 'Ready',
+    scheduled: 'Scheduled',
+    on_the_way: 'On the way',
+    arriving: 'Arriving',
+    arrived: 'Arrived',
+    delivered: 'Delivered',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    failed: 'Failed',
+  };
+  return labels[status] || 'Pending';
+};
+
+export const formatPaymentMethod = (value?: string | null): string => {
+  const normalized = String(value || 'cash')
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+  if (normalized === 'gcash') return 'GCash';
+  if (normalized === 'maya') return 'Maya';
+  if (normalized === 'paymaya') return 'PayMaya';
+  return normalized ? `${normalized[0].toUpperCase()}${normalized.slice(1)}` : 'Cash';
+};
+
 export const getStatusColor = (status: string) => {
   switch (status) {
     case ORDER_STATUS.PENDING: return 'border-amber-200 bg-amber-50';
@@ -104,7 +166,7 @@ export const getStatusColor = (status: string) => {
   }
 };
 
-export const getScheduledOrderDetails = (order: any) => {
+export const getScheduledOrderDetails = (order: ScheduleOrderLike) => {
   const rawScheduleDisplay = order?.scheduleDisplay || order?.schedule_display || order?.scheduledDisplay || order?.scheduled_display || '';
   const scheduledAt = order?.scheduledAt || order?.scheduled_at || order?.scheduledDateTime || null;
   const scheduledDate = order?.scheduledDate || order?.scheduled_date || null;

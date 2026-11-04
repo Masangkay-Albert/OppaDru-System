@@ -61,22 +61,28 @@ class BranchRoutingTest extends TestCase
         $this->strayUnlocatedBranch('wala-pa-name-laguna');
 
         $addresses = [
-            [['lat' => 14.3194939, 'lng' => 120.9943268], $cavite], // Dasmariñas
-            [['lat' => 14.4189, 'lng' => 120.9312], $cavite], // Imus
-            [['lat' => 14.4594, 'lng' => 120.9402], $cavite], // Bacoor
-            [['lat' => 14.272967, 'lng' => 121.093142], $laguna], // Santa Rosa
-            [['lat' => 14.2105, 'lng' => 121.1601], $laguna], // Calamba
+            [['lat' => 14.3194939, 'lng' => 120.9943268], $cavite, true], // Dasmariñas
+            [['lat' => 14.4189, 'lng' => 120.9312], $cavite, true], // Imus
+            [['lat' => 14.4594, 'lng' => 120.9402], $cavite, false], // Bacoor
+            [['lat' => 14.272967, 'lng' => 121.093142], $laguna, true], // Santa Rosa
+            [['lat' => 14.2105, 'lng' => 121.1601], $laguna, false], // Calamba
         ];
 
-        foreach ($addresses as [$coordinates, $expectedBranch]) {
-            $this->postJson('/api/branches/resolve', [
+        foreach ($addresses as [$coordinates, $expectedBranch, $inRange]) {
+            $response = $this->postJson('/api/branches/resolve', [
                 'address' => 'Test address, Cavite',
                 'coordinates' => $coordinates,
                 'items' => [['product_id' => $product->id, 'quantity' => 1]],
                 'fulfillment_type' => 'delivery',
                 'delivery_type' => 'standard',
-            ])
-                ->assertOk()
+            ]);
+            if (! $inRange) {
+                $response->assertUnprocessable()
+                    ->assertJsonPath('code', 'OUT_OF_RANGE')
+                    ->assertJsonPath('nearest_branch.name', $expectedBranch->name);
+                continue;
+            }
+            $response->assertOk()
                 ->assertJsonPath('data.branch.id', $expectedBranch->id)
                 ->assertJsonPath('data.franchise_account_id', $expectedBranch->franchise_account_id)
                 ->assertJsonPath('data.name', $expectedBranch->name)
@@ -171,8 +177,9 @@ class BranchRoutingTest extends TestCase
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
         ])->assertUnprocessable()
-            ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
-            ->assertJsonPath('message', 'Nearest branch is Oppa Dru Korean Fried Chicken - Bulacan, 18.7 km away. Your address is outside its 15.0 km delivery area. Please choose an address closer to a branch.');
+            ->assertJsonPath('code', 'OUT_OF_RANGE')
+            ->assertJsonPath('title', 'Address is outside our delivery area')
+            ->assertJsonPath('message', 'We only deliver within 10 km of a branch. The nearest branch is Oppa Dru Korean Fried Chicken - Bulacan, 18.7 km away.');
 
         $diagnostic = $response->json('branch_diagnostics.0');
         $this->assertSame($bulacan->id, $diagnostic['id']);
@@ -356,8 +363,10 @@ class BranchRoutingTest extends TestCase
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
         ])->assertUnprocessable()
-            ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
-            ->assertJsonPath('message', 'Nearest branch is Cavite branch, 5.9 km away. Your address is outside its 1.0 km delivery area. Please choose an address closer to a branch.');
+            ->assertJsonPath('code', 'OUT_OF_RANGE')
+            ->assertJsonPath('title', 'Address is outside our delivery area')
+            ->assertJsonPath('message', 'We only deliver within 10 km of a branch. The nearest branch is Cavite branch, 5.9 km away.')
+            ->assertJsonPath('nearest_branch.name', 'Cavite branch');
     }
 
     public function test_null_branch_radius_uses_the_configured_default(): void
@@ -372,7 +381,7 @@ class BranchRoutingTest extends TestCase
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
         ])->assertOk()
-            ->assertJsonPath('data.branch_diagnostics.0.delivery_radius_km', 20);
+            ->assertJsonPath('data.branch_diagnostics.0.delivery_radius_km', 10);
     }
 
     public function test_branch_without_inventory_rows_initializes_available_products(): void
@@ -402,7 +411,7 @@ class BranchRoutingTest extends TestCase
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'fulfillment_type' => 'delivery',
         ])->assertUnprocessable()
-            ->assertJsonPath('code', 'NO_BRANCH_IN_RANGE')
+            ->assertJsonPath('code', 'OUT_OF_RANGE')
             ->assertJsonPath('branch_diagnostics.0.id', $branch->id)
             ->assertJsonPath('branch_diagnostics.0.delivery_radius_km', 10)
             ->assertJsonPath('branch_diagnostics.0.exclusion_reason', 'outside delivery radius');

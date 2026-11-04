@@ -24,6 +24,7 @@ interface AddressSectionProps {
   onSetDefault: (id: string) => void;
   onAddNew: () => void;
   onSaveDetails: (details: AddressDetails) => void;
+  addressAvailability?: Record<string, 'checking' | 'deliverable' | 'out-of-range' | 'different-branch' | 'unknown'>;
 }
 
 const AddressSection: React.FC<AddressSectionProps> = ({
@@ -36,6 +37,7 @@ const AddressSection: React.FC<AddressSectionProps> = ({
   onSetDefault,
   onAddNew,
   onSaveDetails,
+  addressAvailability = {},
 }) => {
   const { addresses: settingsAddresses } = useSettings();
   const [isEditing, setIsEditing] = useState(false);
@@ -67,7 +69,7 @@ const AddressSection: React.FC<AddressSectionProps> = ({
   };
 
   return (
-    <div className="checkout-section checkout-address-card bg-white rounded-2xl shadow-lg p-6">
+    <div id="checkout-address-list" className="checkout-section checkout-address-card bg-white rounded-2xl shadow-lg p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-[#d8f3dc] rounded-full flex items-center justify-center">
@@ -90,6 +92,7 @@ const AddressSection: React.FC<AddressSectionProps> = ({
             key={addr.id}
             {...addr}
             isSelected={selectedId === addr.id}
+            availability={addressAvailability[addr.id]}
             onSelect={() => onSelect(addr.id)}
             onEdit={() => onEdit(addr)}
             onDelete={() => onDelete(addr.id)}

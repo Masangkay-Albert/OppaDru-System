@@ -116,6 +116,7 @@ trait OrderPlacementActions
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'items.*.selected_addons' => 'nullable|array',
+            'items.*.franchise_id' => 'nullable|string|exists:franchises,id',
             'items.*.special_instructions' => 'nullable|string',
             'total' => 'nullable|numeric|min:0',
             'delivery_address' => 'required|string',
@@ -199,6 +200,19 @@ trait OrderPlacementActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $itemBranchIds = collect($request->input('items', []))
+            ->pluck('franchise_id')
+            ->filter()
+            ->unique()
+            ->values();
+        if ($itemBranchIds->count() > 1) {
+            return response()->json([
+                'code' => 'CART_BRANCH_MISMATCH',
+                'title' => 'Your cart has items from different branches',
+                'message' => 'Remove items that do not belong to the same branch before placing your order.',
+            ], 422);
+        }
+
         $isPickup = $request->input('fulfillment_type') === 'pickup';
         try {
             $branchResolution = $this->branchRoutingService->resolve(
@@ -206,8 +220,27 @@ trait OrderPlacementActions
                 $isPickup ? $request->input('franchise_id') : null,
                 $isPickup,
             );
+        } catch (\App\Services\DeliveryOutOfRangeException $exception) {
+            return response()->json($exception->responsePayload(), 422);
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
+        }
+        $cartBranchId = $request->input('franchise_id') ?: $itemBranchIds->first();
+        if ($cartBranchId && (string) $cartBranchId !== (string) $branchResolution['branch']->id) {
+            $cartBranch = Franchise::find($cartBranchId);
+            return response()->json([
+                'code' => 'BRANCH_MISMATCH',
+                'title' => 'This address is served by a different branch',
+                'message' => 'Your cart has items from '.($cartBranch?->name ?? 'another branch').', but this address is served by '.$branchResolution['branch']->name.'. Items from different branches can\'t be ordered together.',
+                'cart_branch' => [
+                    'id' => $cartBranchId,
+                    'name' => $cartBranch?->name,
+                ],
+                'serving_branch' => [
+                    'id' => $branchResolution['branch']->id,
+                    'name' => $branchResolution['branch']->name,
+                ],
+            ], 422);
         }
         $unavailableItems = $this->branchRoutingService->validateCatalog((string) $branchResolution['branch']->id, $request->input('items', []));
         if ($unavailableItems !== []) {

@@ -29,16 +29,16 @@ const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutler
               <span className="block text-xs text-gray-500">{useCutlery ? 'Included with your order' : 'No cutlery requested'}</span>
             </span>
           </div>
-          <span className="relative inline-flex shrink-0 items-center">
+          <span className="relative inline-flex h-6 w-11 shrink-0">
             <input
               type="checkbox"
               checked={useCutlery}
               onChange={(e) => onCutleryChange(e.target.checked)}
               aria-label="Include cutlery with my order"
               role="switch"
-              className="peer sr-only"
+              className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0"
             />
-            <span aria-hidden="true" className="menu-cutlery-switch block h-6 w-11 rounded-full bg-gray-300 transition-colors peer-checked:bg-[#276343] after:absolute after:left-[3px] after:top-[3px] after:size-[18px] after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-[20px] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#276343]" />
+            <span aria-hidden="true" className="menu-cutlery-switch pointer-events-none relative block h-6 w-11 rounded-full bg-gray-300 transition-colors peer-checked:bg-[#276343] after:absolute after:left-[3px] after:top-[3px] after:size-[18px] after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-[20px] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#276343]" />
           </span>
         </label>
       </div>

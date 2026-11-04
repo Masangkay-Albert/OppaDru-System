@@ -8,6 +8,7 @@ interface AddressCardProps {
   address: string;
   isDefault: boolean;
   isSelected: boolean;
+  availability?: 'checking' | 'deliverable' | 'out-of-range' | 'different-branch' | 'unknown';
   label?: string;
   details?: {
     block?: string;
@@ -29,6 +30,7 @@ const AddressCard: React.FC<AddressCardProps> = ({
   address,
   isDefault,
   isSelected,
+  availability,
   label,
   details,
   onSelect,
@@ -44,7 +46,7 @@ const AddressCard: React.FC<AddressCardProps> = ({
         isSelected
           ? 'border-[#2d6a4f] bg-[#f0fdf4]'
           : 'border-gray-200 hover:border-gray-300'
-      }`}
+      } ${availability === 'out-of-range' || availability === 'different-branch' ? 'checkout-address-undeliverable' : ''}`}
       onClick={onSelect}
     >
       <div className="flex items-start justify-between">
@@ -55,6 +57,15 @@ const AddressCard: React.FC<AddressCardProps> = ({
               <span className="checkout-default-badge text-xs bg-[#2d6a4f] text-white px-2 py-0.5 rounded-full flex-shrink-0">DEFAULT</span>
             )}
             {isSelected && <FiCheck className="checkout-address-selected-icon text-[#2d6a4f] flex-shrink-0" size={16} />}
+            {availability && (
+              <span className={`checkout-address-availability checkout-address-availability-${availability}`}>
+                {availability === 'deliverable' ? 'Deliverable'
+                  : availability === 'out-of-range' ? 'Out of range'
+                    : availability === 'different-branch' ? 'Different branch'
+                      : availability === 'checking' ? 'Checking…'
+                        : 'Could not check'}
+              </span>
+            )}
             {label && (
               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full flex-shrink-0">{label}</span>
             )}

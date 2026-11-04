@@ -19,7 +19,7 @@ class FranchiseManagementModuleTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_main_branch_is_exposed_to_admin_and_cannot_be_deleted_or_renamed_with_slug_change(): void
+    public function test_admin_can_delete_an_empty_main_branch_and_promote_a_replacement(): void
     {
         $adminToken = $this->createAdminToken();
         $mainBranch = Franchise::create([
@@ -61,10 +61,62 @@ class FranchiseManagementModuleTest extends TestCase
             'is_main' => true,
         ]);
 
+        $replacement = Franchise::create([
+            'name' => 'Replacement Branch',
+            'status' => 'active',
+            'is_active' => true,
+        ]);
         $this->deleteJson('/api/admin/franchises/'.$mainBranch->id, [], $headers)
+            ->assertOk()
+            ->assertJsonPath('replacement_main_branch_id', $replacement->id);
+        $this->assertDatabaseMissing('franchises', ['id' => $mainBranch->id]);
+        $this->assertDatabaseHas('franchises', ['id' => $replacement->id, 'is_main' => true]);
+    }
+
+    public function test_admin_cannot_delete_a_main_branch_with_linked_orders(): void
+    {
+        $adminToken = $this->createAdminToken();
+        $mainBranch = Franchise::create([
+            'name' => 'Main Branch with orders',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
+        Franchise::create(['name' => 'Replacement Branch', 'status' => 'active']);
+        Order::create([
+            'branch_id' => $mainBranch->id,
+            'franchise_id' => $mainBranch->id,
+            'email' => 'branch-order@test.local',
+            'phone' => '09170000001',
+            'items' => [],
+            'total' => 100,
+            'delivery_address' => 'Branch address',
+            'payment_method' => 'cash_on_delivery',
+            'status' => 'delivered',
+        ]);
+
+        $this->deleteJson('/api/admin/franchises/'.$mainBranch->id, [], [
+            'Authorization' => 'Bearer '.$adminToken,
+        ])
             ->assertStatus(409)
-            ->assertJsonPath('message', 'The main branch cannot be deleted.');
-        $this->assertDatabaseHas('franchises', ['id' => $mainBranch->id]);
+            ->assertJsonPath('message', 'This branch has linked orders, staff, inventory, products, or applications and cannot be deleted.');
+        $this->assertDatabaseHas('franchises', ['id' => $mainBranch->id, 'is_main' => true]);
+    }
+
+    public function test_admin_cannot_delete_the_only_remaining_main_branch(): void
+    {
+        $adminToken = $this->createAdminToken();
+        $mainBranch = Franchise::create([
+            'name' => 'Only Main Branch',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
+
+        $this->deleteJson('/api/admin/franchises/'.$mainBranch->id, [], [
+            'Authorization' => 'Bearer '.$adminToken,
+        ])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'At least one other branch must remain before the Main Branch can be deleted.');
+        $this->assertDatabaseHas('franchises', ['id' => $mainBranch->id, 'is_main' => true]);
     }
 
     public function test_admin_order_list_excludes_orders_from_franchise_branches(): void

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 class BranchRoutingService
 {
+    public const MAX_DELIVERY_RADIUS_KM = 10.0;
     public const NO_BRANCH_COORDINATES_MESSAGE = 'No delivery branches have location coordinates configured yet.';
     public const NO_ELIGIBLE_DELIVERY_BRANCH_MESSAGE = 'No branch is currently accepting online deliveries.';
 
@@ -63,7 +64,7 @@ class BranchRoutingService
             ->map(fn (Franchise $branch) => [
                 'branch' => $branch,
                 'distance' => $this->distance($branch, $coordinates),
-                'radius' => $this->deliveryRadius($branch),
+                'radius' => $this->effectiveDeliveryRadius($branch),
                 'open' => $this->isOpen($branch),
                 'load' => (int) ($loads[$branch->id] ?? 0),
             ]);
@@ -82,17 +83,11 @@ class BranchRoutingService
         if (! $selected) {
             $nearest = $evaluatedBranches->sortBy('distance')->first();
             $nearestBranch = $nearest['branch'];
-            $nearestMessage = sprintf(
-                'Nearest branch is %s, %.1f km away. Your address is outside its %.1f km delivery area. Please choose an address closer to a branch.',
-                $nearestBranch->name,
-                $nearest['distance'],
-                $nearest['radius'],
-            );
             Log::warning('No eligible delivery branch is within range of the selected address.', [
                 'customer_coordinates' => ['lat' => (float) $coordinates['lat'], 'lng' => (float) $coordinates['lng']],
                 'branches' => $diagnostics->values()->all(),
             ]);
-            throw new \InvalidArgumentException($nearestMessage);
+            throw new DeliveryOutOfRangeException($nearestBranch, (float) $nearest['distance']);
         }
         if (! $selected['open']) {
             throw new \InvalidArgumentException('The nearest branch is currently closed. Please try again during branch hours.');
@@ -125,7 +120,7 @@ class BranchRoutingService
             $distance = $coordinates && $this->validBranchCoordinates($branch)
                 ? round($this->distance($branch, $coordinates), 3)
                 : null;
-            $deliveryRadius = $this->deliveryRadius($branch);
+            $deliveryRadius = $this->effectiveDeliveryRadius($branch);
             if ($distance !== null && $distance > $deliveryRadius) {
                 $reasons[] = 'outside delivery radius';
             }
@@ -158,6 +153,11 @@ class BranchRoutingService
             : $configuredRadius;
 
         return min(100.0, max(0.0, (float) $radius));
+    }
+
+    private function effectiveDeliveryRadius(Franchise $branch): float
+    {
+        return min(self::MAX_DELIVERY_RADIUS_KM, $this->deliveryRadius($branch));
     }
 
     private function hasDeliveryEligibility(Franchise $branch): bool

@@ -20,15 +20,25 @@ export interface BranchResolution {
   pricing: { deliveryFee: number; deliveryDistanceKm: number; total: number };
 }
 
+export interface BranchResolutionDetails {
+  title?: string;
+  nearestBranch?: { id?: string; name?: string };
+  cartBranch?: { id?: string; name?: string | null };
+  servingBranch?: { id?: string; name?: string };
+  distanceKm?: number;
+}
+
 export class BranchResolutionError extends Error {
   readonly code?: string;
   readonly status?: number;
+  readonly details?: BranchResolutionDetails;
 
-  constructor(message: string, code?: string, status?: number) {
+  constructor(message: string, code?: string, status?: number, details?: BranchResolutionDetails) {
     super(message);
     this.name = 'BranchResolutionError';
     this.code = code;
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -80,15 +90,40 @@ export const resolveBranch = async (data: {
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify(data),
         });
-        const payload = await response.json().catch(() => ({}));
+        const payload: Record<string, unknown> = await response.json().catch(() => ({}));
         if (!response.ok) {
-          const validationMessage = payload.errors
-            ? Object.values(payload.errors as Record<string, string[]>).flat().join(' ')
-            : '';
+          const errors = payload.errors && typeof payload.errors === 'object'
+            ? Object.values(payload.errors as Record<string, unknown>).flatMap((messages) => Array.isArray(messages) ? messages.filter((message): message is string => typeof message === 'string') : [])
+            : [];
+          const nearest = payload.nearest_branch && typeof payload.nearest_branch === 'object'
+            ? payload.nearest_branch as Record<string, unknown>
+            : undefined;
+          const cartBranch = payload.cart_branch && typeof payload.cart_branch === 'object'
+            ? payload.cart_branch as Record<string, unknown>
+            : undefined;
+          const servingBranch = payload.serving_branch && typeof payload.serving_branch === 'object'
+            ? payload.serving_branch as Record<string, unknown>
+            : undefined;
           throw new BranchResolutionError(
-            validationMessage || payload.message || 'Sorry, we do not deliver to this address yet.',
+            errors.join(' ') || (typeof payload.message === 'string' ? payload.message : 'Sorry, we do not deliver to this address yet.'),
             typeof payload.code === 'string' ? payload.code : undefined,
             response.status,
+            {
+              title: typeof payload.title === 'string' ? payload.title : undefined,
+              nearestBranch: nearest ? {
+                id: typeof nearest.id === 'string' ? nearest.id : undefined,
+                name: typeof nearest.name === 'string' ? nearest.name : undefined,
+              } : undefined,
+              cartBranch: cartBranch ? {
+                id: typeof cartBranch.id === 'string' ? cartBranch.id : undefined,
+                name: typeof cartBranch.name === 'string' ? cartBranch.name : null,
+              } : undefined,
+              servingBranch: servingBranch ? {
+                id: typeof servingBranch.id === 'string' ? servingBranch.id : undefined,
+                name: typeof servingBranch.name === 'string' ? servingBranch.name : undefined,
+              } : undefined,
+              distanceKm: typeof payload.distance_km === 'number' ? payload.distance_km : undefined,
+            },
           );
         }
         return payload.data as BranchResolution;

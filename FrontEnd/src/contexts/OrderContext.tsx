@@ -398,6 +398,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const orderItems = validItems.map(item => ({
         product_id: item.id,
+        franchise_id: item.franchise_id,
         product_name: item.selectedSize ? `${item.name} (${item.selectedSize})` : item.name,
         product_price: Number(item.price),
         quantity: item.quantity,

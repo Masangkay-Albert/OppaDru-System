@@ -114,6 +114,13 @@ class BranchRoutingController extends Controller
                     'branch_diagnostics' => $result['branch_diagnostics'] ?? $this->routing->diagnostics($coordinates),
                 ] : []),
             ]]);
+        } catch (\App\Services\DeliveryOutOfRangeException $exception) {
+            $response = $exception->responsePayload();
+            if (config('app.debug') && isset($coordinates['lat'], $coordinates['lng'])) {
+                $response['branch_diagnostics'] = $this->routing->diagnostics($coordinates);
+            }
+
+            return response()->json($response, 422);
         } catch (\InvalidArgumentException $exception) {
             $message = $exception->getMessage();
             $code = match ($message) {

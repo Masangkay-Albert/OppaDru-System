@@ -20,12 +20,20 @@ import { productService } from '../../../services/productService';
 import type { DeliveryInstructions } from '../../../services/orderService';
 import { getCheckoutBranchId } from '../../../services/branchCartStorage';
 import type { PaymentResult } from '../components/checkout/paymentTypes';
-import { BranchResolutionError, resolveBranch, type BranchResolution } from '../../../services/branchRoutingService';
+import { BranchResolutionError, resolveBranch, type BranchResolution, type BranchResolutionDetails } from '../../../services/branchRoutingService';
+import { OrderServiceError } from '../../../services/orderService';
+import { getActiveBranches, setSelectedBranchId } from '../../../services/franchiseBranchService';
+import type { FranchiseBranch } from '../../../services/franchiseBranchService';
 import '../../../styles/checkout-page.css';
+
+interface CheckoutDeliveryError extends BranchResolutionDetails {
+  code: string;
+  message: string;
+}
 
 const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
-  const { cartItems, clearCart, activeBranchId, validateCartAgainstMenu, useCutlery } = useCart();
+  const { cartItems, clearCart, activeBranchId, setActiveBranchId, validateCartAgainstMenu, useCutlery } = useCart();
   const { placeOrder } = useOrder();
   const { showToast } = useToast();
   const { getActiveDiscount } = useSettings();
@@ -47,7 +55,9 @@ const CheckoutPage: React.FC = () => {
   const [additionalStreet, setAdditionalStreet] = useState('');
   const [deliveryInstructions, setDeliveryInstructions] = useState<DeliveryInstructions>({});
   const [branchResolution, setBranchResolution] = useState<BranchResolution | null>(null);
-  const [branchError, setBranchError] = useState('');
+  const [branchError, setBranchError] = useState<CheckoutDeliveryError | null>(null);
+  const [branchLoading, setBranchLoading] = useState(false);
+  const [activeBranches, setActiveBranches] = useState<FranchiseBranch[]>([]);
   const [validatedMenuBranchId, setValidatedMenuBranchId] = useState<string | null>(null);
   const [menuValidationFailure, setMenuValidationFailure] = useState<{ branchId: string; message: string } | null>(null);
   const menuValidationReady = Boolean(activeBranchId && validatedMenuBranchId === activeBranchId);
@@ -57,9 +67,19 @@ const CheckoutPage: React.FC = () => {
       ? menuValidationFailure.message
       : '';
   const [addressSelectionVersion, setAddressSelectionVersion] = useState(0);
-  const selectedBranchName = branchResolution?.branch.name || 'Select a delivery address';
+  const cartBranchName = activeBranches.find((branch) => branch.id === activeBranchId)?.name || 'your selected branch';
+  const selectedBranchName = activeBranches.find((branch) => branch.id === activeBranchId)?.name || 'Loading branch...';
   const orderRequestRef = useRef<Promise<void> | null>(null);
   const selectedAddressCoordinatesRef = useRef<Coordinates | null>(null);
+  const cartBranchIds = [...new Set(cartItems.map((item) => item.franchise_id).filter((id): id is string => Boolean(id)))];
+  const hasMixedCartBranches = cartBranchIds.length > 1;
+
+  /* eslint-disable react-hooks/set-state-in-effect -- Keep dependent discount state synchronized with eligibility changes. */
+  useEffect(() => {
+    void getActiveBranches().then(setActiveBranches).catch((error: unknown) => {
+      showToast(error instanceof Error ? error.message : 'Unable to load branch details.', 'error');
+    });
+  }, [showToast]);
 
   useEffect(() => {
     if (!activeBranchId || cartItems.length === 0) return;
@@ -94,6 +114,7 @@ const CheckoutPage: React.FC = () => {
 
     setDiscountType(activeDiscount.type === 'PWD' ? 'PWD' : 'Senior Citizen');
   }, [activeDiscount.type]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const {
     address,
@@ -117,24 +138,57 @@ const CheckoutPage: React.FC = () => {
     if (address.street.trim()) parts.push(address.street.trim());
     return parts.join(', ');
   };
+
+  const scrollToAddressList = () => {
+    document.getElementById('checkout-address-list')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const retryBranchResolution = () => {
+    selectedAddressCoordinatesRef.current = deliveryCoordinates;
+    setBranchError(null);
+    setAddressSelectionVersion((version) => version + 1);
+  };
+
+  const switchToServingBranch = (branchId: string, branchName: string) => {
+    const confirmed = window.confirm(
+      `Switch to ${branchName} menu? Your current cart stays saved under ${cartBranchName}.`,
+    );
+    if (!confirmed) return;
+    setSelectedBranchId(branchId);
+    setActiveBranchId(branchId);
+    showToast(`Switched to ${branchName}. Your ${cartBranchName} cart is saved.`, 'success');
+    navigate('/customer');
+  };
   const fullDeliveryAddress = buildFullDeliveryAddress();
 
+  /* eslint-disable react-hooks/set-state-in-effect -- Clear stale routing state as address and cart inputs change. */
   useEffect(() => {
     if (!fullDeliveryAddress.trim() || cartItems.length === 0) {
       selectedAddressCoordinatesRef.current = null;
       setDeliveryCoordinates(null);
       setBranchResolution(null);
-      setBranchError('');
+      setBranchError(null);
+      setBranchLoading(false);
       return;
     }
 
     let active = true;
     const controller = new AbortController();
+    if (hasMixedCartBranches) {
+      setBranchResolution(null);
+      setBranchError({
+        code: 'CART_BRANCH_MISMATCH',
+        message: 'Your cart has items from different branches. Remove items that do not belong to the same branch.',
+      });
+      setBranchLoading(false);
+      return () => { active = false; };
+    }
     const pinnedCoordinates = selectedAddressCoordinatesRef.current;
     selectedAddressCoordinatesRef.current = null;
     setDeliveryCoordinates(null);
     setBranchResolution(null);
-    setBranchError('');
+    setBranchError(null);
+    setBranchLoading(true);
 
     const timer = window.setTimeout(() => {
       void (async () => {
@@ -159,26 +213,44 @@ const CheckoutPage: React.FC = () => {
             setBranchResolution(result);
             setDeliveryCoordinates(result.customer_coordinates);
             setBranchError(activeBranchId && result.branch.id !== activeBranchId
-              ? `This address is served by ${result.branch.name}. Return to the menu and select that branch to use its separate cart.`
+              ? {
+                  code: 'BRANCH_MISMATCH',
+                  message: `Your cart has items from ${cartBranchName}, but this address is served by ${result.branch.name}. Items from different branches can't be ordered together.`,
+                  cartBranch: { id: activeBranchId, name: cartBranchName },
+                  servingBranch: { id: result.branch.id, name: result.branch.name },
+                }
               : result.unavailable_items.length
-                ? `Unavailable at this branch: ${result.unavailable_items.join(', ')}`
-                : '');
+                ? { code: 'UNAVAILABLE_ITEMS', message: `Unavailable at this branch: ${result.unavailable_items.join(', ')}` }
+                : null);
+            setBranchLoading(false);
             return;
           } catch (error: unknown) {
             if (!active || (error instanceof DOMException && error.name === 'AbortError')) return;
             const retryable = !(error instanceof BranchResolutionError)
               || (error.status !== undefined && error.status >= 500);
             if (retryable && attempt < 2) {
-              setBranchError('Server is waking up, retrying...');
+              setBranchError({ code: 'CHECKING', message: 'Checking delivery availability…' });
               await new Promise<void>((resolve) => window.setTimeout(resolve, 600 * (attempt + 1)));
               if (!active) return;
               continue;
             }
             setBranchResolution(null);
             setDeliveryCoordinates(null);
-            setBranchError(error instanceof Error
-              ? error.message
-              : 'Sorry, we do not deliver to this address yet.');
+            setBranchLoading(false);
+            const errorCode = error instanceof BranchResolutionError ? error.code : undefined;
+            const isUnlocatableAddress = errorCode === 'ADDRESS_NOT_FOUND' || errorCode === 'ADDRESS_TOO_BROAD';
+            setBranchError(error instanceof BranchResolutionError
+              ? {
+                  code: error.code || 'DELIVERY_CHECK_FAILED',
+                  message: isUnlocatableAddress
+                    ? error.message
+                    : 'We couldn’t check delivery availability. Please try again.',
+                  ...error.details,
+                }
+              : {
+                  code: 'DELIVERY_CHECK_FAILED',
+                  message: 'We couldn’t check delivery availability. Please try again.',
+                });
             return;
           }
         }
@@ -190,11 +262,14 @@ const CheckoutPage: React.FC = () => {
     fullDeliveryAddress,
     addressSelectionVersion,
     cartItems,
+    hasMixedCartBranches,
     deliveryType,
     voucherDiscount,
     activeDiscount.discountRate,
     activeBranchId,
+    cartBranchName,
   ]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Delivery fee calculated server-side; frontend shows estimate only
   const { total } = useCartCalculations({
@@ -248,11 +323,11 @@ const CheckoutPage: React.FC = () => {
       }
       const checkoutBranchId = getCheckoutBranchId(activeBranchId, branchResolution?.branch.id || null);
       if (!checkoutBranchId) {
-        showToast('Select the branch that serves your address to check out this branch cart.', 'error');
+        showToast(branchError?.message || 'Select the branch that serves your address to check out this branch cart.', 'error');
         return;
       }
       if (!branchResolution || branchError || !deliveryCoordinates) {
-        showToast(branchError || 'Please select a delivery address we can serve.', 'error');
+        showToast(branchError?.message || 'Please select a delivery address we can serve.', 'error');
         return;
       }
       const coords = deliveryCoordinates;
@@ -311,6 +386,17 @@ const CheckoutPage: React.FC = () => {
       }
 
     } catch (error) {
+      if (error instanceof OrderServiceError && ['OUT_OF_RANGE', 'BRANCH_MISMATCH', 'CART_BRANCH_MISMATCH'].includes(error.code || '')) {
+        setBranchError({
+          code: error.code || 'DELIVERY_CHECK_FAILED',
+          message: error.message,
+          title: error.title,
+          nearestBranch: error.nearestBranch,
+          cartBranch: error.cartBranch,
+          servingBranch: error.servingBranch,
+          distanceKm: error.distanceKm,
+        });
+      }
       showToast(error instanceof Error ? error.message : 'Failed to place order. Please try again.', 'error');
     } finally {
       setIsPlacingOrder(false);
@@ -358,7 +444,7 @@ const CheckoutPage: React.FC = () => {
     }
 
     if (!branchResolution || branchError) {
-      showToast(branchError || 'Please select a delivery address we can serve.', 'error');
+      showToast(branchError?.message || 'Please select a delivery address we can serve.', 'error');
       return;
     }
 
@@ -440,6 +526,8 @@ const CheckoutPage: React.FC = () => {
         <div className="checkout-layout grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="checkout-form-column lg:col-span-2">
             <CheckoutForm
+              cartItems={cartItems}
+              activeBranchId={activeBranchId}
               address={address}
               updateAddress={updateAddress}
               onAddressCoordinatesChange={(coordinates) => {
@@ -476,14 +564,21 @@ const CheckoutPage: React.FC = () => {
               branchId={branchResolution?.branch.id || activeBranchId}
             deliveryCoordinates={deliveryCoordinates || undefined}
             branchCoordinates={branchResolution ? { lat: branchResolution.branch.latitude, lng: branchResolution.branch.longitude } : undefined}
-            branchName={selectedBranchName}
+            branchName={branchResolution?.branch.name || branchError?.nearestBranch?.name}
             branchDistanceKm={branchResolution?.distance_km}
-            branchNotice={branchResolution?.notice || branchError}
+            deliveryError={branchError}
+            isCheckingDelivery={branchLoading}
+            cartBranchName={cartBranchName}
+            hasMixedCartBranches={hasMixedCartBranches}
             cartValidationNotice={menuValidationError || (!menuValidationReady ? 'Verifying current menu availability and prices…' : undefined)}
             onPickLocation={() => setShowDeliveryLocationPicker(true)}
-            canPickLocation={Boolean(address.street.trim()) && (!deliveryCoordinates || branchError.includes("couldn't locate"))}
+            onChooseAddress={scrollToAddressList}
+            onRetryDeliveryCheck={retryBranchResolution}
+            onSwitchBranch={switchToServingBranch}
+            onBlockedOrderClick={scrollToAddressList}
+            canPickLocation={Boolean(address.street.trim()) || Boolean(branchError)}
             isPlacingOrder={isPlacingOrder}
-            canPlaceOrder={Boolean(menuValidationReady && !menuValidationError && !cartItems.some((item) => item.cartIssue) && branchResolution && deliveryCoordinates && !branchError)}
+            canPlaceOrder={Boolean(menuValidationReady && !menuValidationError && !cartItems.some((item) => item.cartIssue) && branchResolution && deliveryCoordinates && !branchError && !hasMixedCartBranches && branchResolution.branch.id === activeBranchId)}
             />
           </div>
         </div>
@@ -516,7 +611,7 @@ const CheckoutPage: React.FC = () => {
           selectedAddressCoordinatesRef.current = coordinates;
           updateAddress('street', location.address);
           setDeliveryCoordinates(coordinates);
-          setBranchError('');
+          setBranchError(null);
           setAddressSelectionVersion((version) => version + 1);
           setShowDeliveryLocationPicker(false);
         }}

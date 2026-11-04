@@ -6,7 +6,7 @@ import AdminLayout from '../components/AdminLayout';
 import { ConfirmDialog } from '../components/AdminUI';
 import Select from '../../../components/ui/Select';
 import SearchInput from '../../../components/ui/SearchInput';
-import { createFranchiseAccount, deleteFranchiseAccount, getFranchiseAccounts, updateFranchiseAccount } from '../../../services/franchiseAdminService';
+import { createFranchiseAccount, deleteFranchise, deleteFranchiseAccount, getFranchiseAccounts, updateFranchiseAccount } from '../../../services/franchiseAdminService';
 import type { FranchiseAccount, FranchiseSummary } from '../../../services/franchiseAdminService';
 import { formatCurrency } from '../../../utils/formatters';
 import { useToast } from '../../customer-side/components/ToastProvider';
@@ -23,7 +23,9 @@ const AdminFranchisesPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [accountToDelete, setAccountToDelete] = useState<FranchiseAccount | null>(null);
+  const [mainBranchToDelete, setMainBranchToDelete] = useState<FranchiseSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deletingMainBranch, setDeletingMainBranch] = useState(false);
   const { showToast } = useToast();
 
   const load = async () => {
@@ -108,6 +110,21 @@ const AdminFranchisesPage: React.FC = () => {
     }
   };
 
+  const removeMainBranch = async () => {
+    if (!mainBranchToDelete) return;
+    setDeletingMainBranch(true);
+    try {
+      await deleteFranchise(mainBranchToDelete.id);
+      showToast(`${mainBranchToDelete.name} was permanently deleted.`, 'success');
+      setMainBranchToDelete(null);
+      await load();
+    } catch (deleteError) {
+      showToast(deleteError instanceof Error ? deleteError.message : 'Unable to delete branch.', 'error');
+    } finally {
+      setDeletingMainBranch(false);
+    }
+  };
+
   const activeCount = accounts.filter((account) => account.status === 'active').length;
   const locationCount = accounts.reduce((sum, account) => sum + Number(account.locations_count || 0), 0);
   const managerCount = accounts.reduce((sum, account) => sum + Number(account.managers_count || 0), 0);
@@ -151,6 +168,15 @@ const AdminFranchisesPage: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-2"><h2 className="text-base font-semibold text-[var(--oppa-text)]">{mainBranch.name}</h2><span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-800">Main</span><Status status={mainBranch.status || 'active'} /></div>
                   <p className="mt-0.5 break-words text-xs text-[var(--oppa-text-muted)]">{mainBranch.address || 'No address'} · ID: {mainBranch.id}</p>
                   <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600"><span>Delivery radius: {mainBranch.delivery_radius_km ?? 'Not set'} km</span></div>
+                </div>
+                <div className="flex shrink-0 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setMainBranchToDelete(mainBranch)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 size={13} /> Delete
+                  </button>
                 </div>
               </div>
             </article>
@@ -203,6 +229,14 @@ const AdminFranchisesPage: React.FC = () => {
         onConfirm={() => { void removeAccount(); }}
         onCancel={() => { if (!deleting) setAccountToDelete(null); }}
         busy={deleting}
+      />}
+      {mainBranchToDelete && <ConfirmDialog
+        title="Permanently delete Main Branch?"
+        description={`Delete “${mainBranchToDelete.name}” (${mainBranchToDelete.id})? The oldest remaining branch will become the Main Branch. This branch can only be deleted if it has no linked orders, staff, inventory, products, or applications.`}
+        confirmLabel="Delete Main Branch"
+        onConfirm={() => { void removeMainBranch(); }}
+        onCancel={() => { if (!deletingMainBranch) setMainBranchToDelete(null); }}
+        busy={deletingMainBranch}
       />}
     </AdminLayout>
   );

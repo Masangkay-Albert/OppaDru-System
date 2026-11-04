@@ -10,7 +10,9 @@ use App\Services\BranchRoutingService;
 use App\Services\FranchiseInventoryService;
 use App\Services\GeocodingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -502,14 +504,88 @@ trait FranchiseAdminActions
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $franchise = Franchise::findOrFail($id);
-        if ($franchise->is_main) {
-            return response()->json(['message' => 'The main branch cannot be deleted.'], 409);
+        return DB::transaction(function () use ($id) {
+            $franchise = Franchise::query()->lockForUpdate()->findOrFail($id);
+            if ($franchise->franchise_account_id) {
+                return response()->json([
+                    'message' => 'This branch belongs to a franchise account. Delete or manage it through that franchise account instead.',
+                ], 409);
+            }
+
+            if ($this->hasFranchiseDependencies($id)) {
+                return response()->json([
+                    'message' => 'This branch has linked orders, staff, inventory, products, or applications and cannot be deleted.',
+                ], 409);
+            }
+
+            $replacement = null;
+            if ($franchise->is_main) {
+                $replacement = Franchise::query()
+                    ->where('id', '!=', $id)
+                    ->orderByRaw("CASE WHEN status = 'active' AND is_active = true THEN 0 ELSE 1 END")
+                    ->orderBy('created_at')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $replacement) {
+                    return response()->json([
+                        'message' => 'At least one other branch must remain before the Main Branch can be deleted.',
+                    ], 409);
+                }
+
+                $replacement->is_main = true;
+                $replacement->save();
+            }
+
+            $franchise->delete();
+
+            return response()->json([
+                'message' => 'Franchise deleted successfully.',
+                'replacement_main_branch_id' => $replacement?->id,
+            ]);
+        });
+    }
+
+    private function hasFranchiseDependencies(string $id): bool
+    {
+        $tables = [
+            'franchise_users',
+            'franchise_inventory',
+            'employees',
+            'drivers',
+            'products',
+            'addon_groups',
+            'addons',
+            'system_settings',
+            'discount_applications',
+            'employee_pos_drafts',
+            'franchise_applications',
+        ];
+
+        foreach ($tables as $table) {
+            if (Schema::hasTable($table) && Schema::hasColumn($table, 'franchise_id')
+                && DB::table($table)->where('franchise_id', $id)->exists()) {
+                return true;
+            }
         }
 
-        $franchise->delete();
+        if (Schema::hasTable('orders')) {
+            $hasFranchiseId = Schema::hasColumn('orders', 'franchise_id');
+            $hasBranchId = Schema::hasColumn('orders', 'branch_id');
+            if (($hasFranchiseId || $hasBranchId) && DB::table('orders')->where(function ($query) use ($id, $hasFranchiseId, $hasBranchId) {
+                if ($hasFranchiseId) {
+                    $query->where('franchise_id', $id);
+                }
+                if ($hasBranchId) {
+                    $method = $hasFranchiseId ? 'orWhere' : 'where';
+                    $query->{$method}('branch_id', $id);
+                }
+            })->exists()) {
+                return true;
+            }
+        }
 
-        return response()->json(['message' => 'Franchise deleted successfully']);
+        return false;
     }
 
     private function emailUsedByOtherStaff(string $email): bool
