@@ -14,6 +14,7 @@ interface ToastContextType {
   showToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
   hideToast: (id: string) => void;
   confirmDialog: (options: ConfirmDialogOptions) => Promise<boolean>;
+  dismissDialog: () => void;
   promptDialog: (options: PromptDialogOptions) => Promise<string | null>;
 }
 
@@ -90,6 +91,7 @@ const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
     resolveDialogRef.current = null;
     setDialog(null);
   }, []);
+  const dismissDialog = useCallback(() => finishDialog(null), [finishDialog]);
 
   useEffect(() => {
     if (!dialog) return;
@@ -154,7 +156,7 @@ const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
   };
 
   return (
-    <ToastContext.Provider value={{ showToast, hideToast, confirmDialog, promptDialog }}>
+    <ToastContext.Provider value={{ showToast, hideToast, confirmDialog, dismissDialog, promptDialog }}>
       {children}
       <div className="pointer-events-none fixed inset-x-0 top-4 z-[9999] mx-auto w-full max-w-sm space-y-3 px-4 sm:left-auto sm:right-6 sm:top-6 sm:mx-0 sm:px-0">
         {toasts.map((toast) => (

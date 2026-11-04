@@ -625,13 +625,21 @@
   transform: translateY(-1px);
 }
 
-.menu-cart-actions > button:last-child {
-  min-height: 44px;
-  color: #59665d;
+.menu-cart-actions > .menu-cart-clear-button {
+  min-height: 40px;
+  border: 1px solid #fecaca;
+  color: #b42318;
 }
 
-.menu-cart-actions > button:last-child:hover {
-  color: #a8322e;
+.menu-cart-actions > .menu-cart-clear-button:hover {
+  border-color: #fca5a5;
+  color: #991b1b;
+  background-color: #fef2f2;
+}
+
+.menu-cart-actions > .menu-cart-clear-button:focus-visible {
+  outline: 2px solid #ef4444;
+  outline-offset: 2px;
 }
 
 .menu-page .lg\:hidden.fixed,

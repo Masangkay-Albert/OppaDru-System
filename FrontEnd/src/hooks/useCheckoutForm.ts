@@ -8,6 +8,8 @@ export interface Address {
   street: string;
   floor: string;
   note: string;
+  unit: string;
+  building: string;
 
 }
 
@@ -21,7 +23,15 @@ export const useCheckoutForm = () => {
   const { user } = useAuth();
   const resolvedUser = user ?? authService.getUserFromStorage();
 
-  const [address, setAddress] = useState<Address>({ block: '', lot: '', street: '', floor: '', note: '' }); 
+  const [address, setAddress] = useState<Address>({
+    block: '',
+    lot: '',
+    street: '',
+    floor: '',
+    note: '',
+    unit: '',
+    building: '',
+  });
   const [tempPerson, setTempPerson] = useState<TempPerson>({
     fullName: resolvedUser?.full_name || '',
     email: resolvedUser?.email || '',

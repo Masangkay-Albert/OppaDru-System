@@ -17,7 +17,7 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
 
   return (
     <div
-      className="px-5 py-4 hover:bg-[#fff9f5] transition cursor-pointer"
+      className="border-b border-gray-100 px-4 py-3 transition hover:bg-[#fff9f5] cursor-pointer last:border-b-0 sm:px-5"
       onClick={() => onEdit(item)}
       title="Click to edit add-ons"
     >
@@ -31,9 +31,9 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
         )}
 
         <div className="flex-1 min-w-0">
-          <div className="flex justify-between items-start gap-2">
-            <div className="min-w-0">
-              <span className="text-sm font-semibold text-[#1b4d3e] block truncate">{item.name}</span>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <span className="block whitespace-normal break-words text-sm font-semibold text-[#1b4d3e]">{item.name}</span>
               {item.selectedSize && (
                 <span className="text-xs font-medium text-[#7f4f24] mt-0.5 block">{item.selectedSize}</span>
               )}
@@ -46,20 +46,21 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
                 </span>
               )}
             </div>
-            {item.cartIssue && (
-              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" role="alert">
-                <p>{item.cartIssue === 'unavailable'
-                  ? 'This item is no longer available at the selected branch.'
-                  : `The price changed for this branch${item.currentBranchPrice != null ? ` to ₱${item.currentBranchPrice.toFixed(2)}` : ''}.`}</p>
-                {item.cartIssue === 'price-changed' && (
-                  <button type="button" onClick={(event) => { event.stopPropagation(); onUpdatePrice(); }} className="mt-2 font-semibold underline underline-offset-2">
-                    Accept new price
-                  </button>
-                )}
-              </div>
-            )}
             <span className="text-sm font-bold text-[#1b4d3e] whitespace-nowrap">{formatCurrency(baseTotal)}</span>
           </div>
+
+          {item.cartIssue && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" role="alert">
+              <p>{item.cartIssue === 'unavailable'
+                ? 'This item is no longer available at the selected branch.'
+                : `The price changed for this branch${item.currentBranchPrice != null ? ` to ₱${item.currentBranchPrice.toFixed(2)}` : ''}.`}</p>
+              {item.cartIssue === 'price-changed' && (
+                <button type="button" onClick={(event) => { event.stopPropagation(); onUpdatePrice(); }} className="mt-2 font-semibold underline underline-offset-2">
+                  Accept new price
+                </button>
+              )}
+            </div>
+          )}
 
           {item.selectedAddons && item.selectedAddons.length > 0 && (
             <div className="mt-1 space-y-0.5">
@@ -76,23 +77,27 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
             <p className="text-xs text-[#7f4f24]/60 italic mt-1">"{item.specialInstructions}"</p>
           )}
 
-          <div className="flex items-center justify-between mt-3">
+          <div className="mt-3 flex items-end justify-between gap-3">
             <div
-              className="flex items-center gap-2 bg-[#f7f3ee] rounded-full px-1 py-1"
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-0.5"
               onClick={(e) => e.stopPropagation()}
             >
               <button
+                type="button"
+                aria-label={`Decrease quantity of ${item.name}`}
                 onClick={() => onUpdateQuantity(item.cartItemId, item.quantity - 1)}
-                className="w-7 h-7 rounded-full bg-white text-[#2d6a4f] font-semibold shadow-sm hover:bg-[#2d6a4f] hover:text-white transition flex items-center justify-center"
+                className="flex size-8 items-center justify-center rounded-md text-base font-semibold text-[#2d6a4f] transition hover:bg-[#e3f1e6] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d6a4f]"
               >
                 -
               </button>
-              <span className="text-sm font-medium text-[#1b4d3e] min-w-[18px] text-center">
+              <span className="min-w-7 text-center text-sm font-semibold tabular-nums text-[#1b4d3e]">
                 {item.quantity}
               </span>
               <button
+                type="button"
+                aria-label={`Increase quantity of ${item.name}`}
                 onClick={() => onUpdateQuantity(item.cartItemId, item.quantity + 1)}
-                className="w-7 h-7 rounded-full bg-white text-[#2d6a4f] font-semibold shadow-sm hover:bg-[#2d6a4f] hover:text-white transition flex items-center justify-center"
+                className="flex size-8 items-center justify-center rounded-md text-base font-semibold text-[#2d6a4f] transition hover:bg-[#e3f1e6] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d6a4f]"
               >
                 +
               </button>
@@ -102,7 +107,9 @@ const CartItemComponent: React.FC<CartItemProps> = ({ item, onUpdateQuantity, on
                 e.stopPropagation();
                 onRemove();
               }}
-              className="text-[#d94f4f]/70 hover:text-[#d94f4f] transition p-1.5 hover:bg-[#d94f4f]/10 rounded-full"
+              type="button"
+              aria-label={`Remove ${item.name} from cart`}
+              className="flex size-9 shrink-0 items-center justify-center rounded-lg text-red-500 transition hover:bg-red-50 hover:text-red-700 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
               title="Remove item"
             >
               <FiTrash2 className="w-4 h-4" />

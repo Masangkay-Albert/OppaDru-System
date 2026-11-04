@@ -9,7 +9,6 @@ const PaymentConfirmPage: React.FC = () => {
   const { reference } = useParams<{ reference: string }>();
   const [searchParams] = useSearchParams();
 
-  const returnUrl = searchParams.get('returnUrl');
   const [amount, setAmount] = useState(parseFloat(searchParams.get('amount') || '0'));
   const [status, setStatus] = useState<'confirming' | 'loading' | 'success' | 'error'>('confirming');
   const [message, setMessage] = useState<string>('');
@@ -101,12 +100,6 @@ const PaymentConfirmPage: React.FC = () => {
         reference,
       }, window.location.origin);
       localStorage.setItem(`gcash_payment_confirmed_${reference}`, Date.now().toString());
-      if (returnUrl) {
-        setTimeout(() => {
-          const sep = returnUrl.includes('?') ? '&' : '?';
-          window.location.href = `${returnUrl}${sep}payment_reference=${reference}&payment_status=confirmed`;
-        }, 1200);
-      }
     } catch (error) {
       isConfirmingRef.current = false;
       setStatus('error');
@@ -148,15 +141,7 @@ const PaymentConfirmPage: React.FC = () => {
             <p className="text-sm text-gray-500">Amount</p>
             <p className="text-xl font-bold text-[#2d6a4f]">{formatCurrency(amount)}</p>
           </div>
-          <p className="text-xs text-gray-400 mt-4">This window will close automatically...</p>
-          {returnUrl && (
-            <a
-              href={`${returnUrl}${returnUrl.includes('?') ? '&' : '?'}payment_reference=${reference}&payment_status=confirmed`}
-              className="mt-4 block w-full py-3 bg-[#2d6a4f] text-white rounded-xl font-bold hover:bg-[#1b4332] transition shadow-md"
-            >
-              Return to Register Now →
-            </a>
-          )}
+          <p className="text-xs text-gray-500 mt-4">Your payment is confirmed. You can close this page when you’re ready.</p>
         </div>
       </div>
     );

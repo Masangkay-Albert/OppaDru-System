@@ -4,7 +4,7 @@ import type { OrderStatus } from '../utils/constants';
 import { useAuth } from './Authcontext';
 import { orderService } from '../services/orderService';
 import { authService } from '../services/authService';
-import type { CreateOrderData } from '../services/orderService';
+import type { CreateOrderData, DeliveryInstructions } from '../services/orderService';
 
 export interface Order {
   id: string;
@@ -13,6 +13,8 @@ export interface Order {
   total: number;
   address: string;
   status: OrderStatus;
+  cancellationRemainingSeconds?: number | null;
+  cancellationRemainingReceivedAt?: number;
   statusHistory?: Array<{ status: string; createdAt?: string | null }>;
   paymentMethod: string;
   payment_status?: string;
@@ -22,6 +24,7 @@ export interface Order {
   timestamp: string;
   graceStartedAt?: number;
   deliveryAddress?: string;
+  deliveryInstructions?: DeliveryInstructions | null;
   coords?: { lat: number; lng: number };
   deliveryAddressCoords?: { lat: number; lng: number };
   branchId?: string | null;
@@ -84,6 +87,7 @@ interface OrderContextType {
     discountProof?: File | null,
     franchiseId?: string | null,
     promoCode?: string | null,
+    deliveryInstructions?: DeliveryInstructions,
   ) => Promise<string | null>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   clearOrder: () => void;
@@ -178,6 +182,10 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       total: Number(apiOrder.total),
       address: apiOrder.delivery_address || '',
       status: apiOrder.status as OrderStatus,
+      cancellationRemainingSeconds: Number.isFinite(Number(apiOrder.cancellation_remaining_seconds))
+        ? Number(apiOrder.cancellation_remaining_seconds)
+        : null,
+      cancellationRemainingReceivedAt: performance.now(),
       statusHistory: Array.isArray(apiOrder.status_history) ? apiOrder.status_history.map((entry: any) => ({
         status: String(entry.status || ''),
         createdAt: entry.created_at || entry.createdAt || null,
@@ -190,6 +198,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timestamp: createdAt,
       graceStartedAt: new Date(createdAt).getTime(),
       deliveryAddress: apiOrder.delivery_address,
+      deliveryInstructions: apiOrder.delivery_instructions || null,
       deliveryAddressCoords: deliveryCoords,
       branchId: apiOrder.branch_id || apiOrder.franchise_id || null,
       branch: branch,
@@ -267,15 +276,21 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const legacyOrders = readJson<Order[]>(`orders_user_${userId}`) || [];
     const legacyCurrent = readJson<Order>(`currentOrder_user_${userId}`);
     const legacyTracking = readJson<Order>('active_order_tracking');
-    const cacheOrders = mergeOrderLists(
+    const cacheOrders: Order[] = mergeOrderLists(
       versionedOrders.filter(ownedByCurrentUser),
       legacyOrders.filter(ownedByCurrentUser),
-    );
+    ).map((order): Order => ({
+      ...order,
+      cancellationRemainingSeconds: null,
+      cancellationRemainingReceivedAt: undefined,
+    }));
     [legacyCurrent, legacyTracking].forEach((order) => {
       if (ownedByCurrentUser(order) && !cacheOrders.some((saved) => saved.id === order!.id)) cacheOrders.push(order!);
     });
     const savedCurrent = readJson<Order>(keys.current) || readJson<Order>(keys.tracking) || legacyCurrent || legacyTracking;
-    const current = ownedByCurrentUser(savedCurrent) ? savedCurrent! : latestActiveOrder(cacheOrders) || latestOrder(cacheOrders);
+    const current = ownedByCurrentUser(savedCurrent)
+      ? { ...savedCurrent!, cancellationRemainingSeconds: null, cancellationRemainingReceivedAt: undefined }
+      : latestActiveOrder(cacheOrders) || latestOrder(cacheOrders);
     if (cacheOrders.length) localStorage.setItem(keys.orders, JSON.stringify(cacheOrders));
     if (current) {
       localStorage.setItem(keys.current, JSON.stringify(current));
@@ -361,6 +376,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     discountProof?: File | null,
     franchiseId?: string | null,
     promoCode?: string | null,
+    deliveryInstructions?: DeliveryInstructions,
   ): Promise<string | null> => {
     const token = authService.getToken();
     const activeUser = token ? user ?? authService.getUserFromStorage() : null;
@@ -402,6 +418,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         items: orderItems,
         total,
         delivery_address: address,
+        delivery_instructions: deliveryInstructions,
         payment_method: paymentMethod as 'cash_on_delivery' | 'gcash' | 'credit_card',
         delivery_type: deliveryType,
         phone: phone || '',

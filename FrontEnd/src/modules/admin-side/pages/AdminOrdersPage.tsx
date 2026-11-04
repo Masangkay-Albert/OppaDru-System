@@ -1,18 +1,41 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle, X, Eye, Package, CalendarDays, Copy, Globe2, Store, RotateCcw } from 'lucide-react';
+import { CheckCircle, X, Eye, Package, Copy, Globe2, Store, RotateCcw, Clock3 } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { AdminDate, Avatar, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
 import { formatCurrency } from '../../../utils/formatters';
 import { getScheduledOrderDetails } from '../../../utils/orderUtils';
 import Select from '../../../components/ui/Select';
+import type { SelectOption } from '../../../components/ui/Select';
 import OrdersFilterBar from '../../shared/components/OrdersFilterBar';
+
+const statusOptionsBase = [
+  { value: 'all', label: 'All', color: undefined },
+  { value: 'pending', label: 'Pending', color: 'pending' },
+  { value: 'preparing', label: 'Preparing', color: 'preparing' },
+  { value: 'prepared', label: 'Prepared', color: 'prepared' },
+  { value: 'on_the_way', label: 'On the way', color: 'on_the_way' },
+  { value: 'delivered', label: 'Delivered', color: 'delivered' },
+  { value: 'cancelled', label: 'Cancelled', color: 'cancelled' },
+] as const;
+const validStatusFilters = new Set(statusOptionsBase.map(({ value }) => value));
+
+const readInitialFilter = (key: string, fallback = '') => new URLSearchParams(window.location.search).get(key) || fallback;
+const readInitialChannel = (): 'all' | 'online' | 'onsite' => {
+  const channel = readInitialFilter('channel', 'all');
+  return channel === 'online' || channel === 'onsite' ? channel : 'all';
+};
+const readInitialStatus = () => {
+  const status = readInitialFilter('status', 'all');
+  return validStatusFilters.has(status as typeof statusOptionsBase[number]['value']) ? status : 'all';
+};
 
 const statusLabels: Record<string, string> = {
   pending: 'Pending',
   preparing: 'Preparing',
+  prepared: 'Prepared',
   ready: 'Ready',
   scheduled: 'Scheduled',
   on_the_way: 'On the way',
@@ -25,10 +48,10 @@ const AdminOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
-  const [channelFilter, setChannelFilter] = useState<'all' | 'online' | 'onsite'>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dateFilter, setDateFilter] = useState<string>('');
+  const [channelFilter, setChannelFilter] = useState<'all' | 'online' | 'onsite'>(readInitialChannel);
+  const [statusFilter, setStatusFilter] = useState<string>(readInitialStatus);
+  const [searchTerm, setSearchTerm] = useState(() => readInitialFilter('search'));
+  const [dateFilter, setDateFilter] = useState<string>(() => readInitialFilter('date'));
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -38,12 +61,25 @@ const AdminOrdersPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<'date' | 'total'>('date');
   const [notice, setNotice] = useState('');
   const routeOrderId = useRef((location.state as { orderId?: string } | null)?.orderId);
+  const previousOrderStatuses = useRef(new Map<string, string>());
 
   const loadOrders = useCallback(async (forceRefresh = false, showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
       const allOrders = await getAllOrders(forceRefresh);
       const freshOrders = Array.isArray(allOrders) ? allOrders : [];
+      const cancelledOrder = freshOrders.find((order) => {
+        const previousStatus = previousOrderStatuses.current.get(order.id);
+        return previousStatus !== undefined
+          && previousStatus !== 'cancelled'
+          && String(order.status).toLowerCase() === 'cancelled';
+      });
+      if (cancelledOrder) {
+        setNotice(`Order ${cancelledOrder.order_number || cancelledOrder.id} was cancelled by the customer.`);
+      }
+      previousOrderStatuses.current = new Map(
+        freshOrders.map((order) => [order.id, String(order.status || '').toLowerCase()]),
+      );
       setOrders(freshOrders);
       setLoadError(false);
       setSelectedOrder((current) => current
@@ -52,7 +88,7 @@ const AdminOrdersPage: React.FC = () => {
       );
       if (routeOrderId.current && freshOrders.some((order) => order.id === routeOrderId.current)) {
         routeOrderId.current = undefined;
-        navigate(location.pathname, { replace: true, state: null });
+        navigate(`${location.pathname}${window.location.search}`, { replace: true, state: null });
       }
     } catch {
       if (showLoading) {
@@ -63,6 +99,29 @@ const AdminOrdersPage: React.FC = () => {
       if (showLoading) setLoading(false);
     }
   }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    const syncFiltersFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      const nextStatus = params.get('status') || 'all';
+      const nextChannel = params.get('channel') || 'all';
+      setStatusFilter(validStatusFilters.has(nextStatus as typeof statusOptionsBase[number]['value']) ? nextStatus : 'all');
+      setChannelFilter(nextChannel === 'online' || nextChannel === 'onsite' ? nextChannel : 'all');
+      setSearchTerm(params.get('search') || '');
+      setDateFilter(params.get('date') || '');
+      setCurrentPage(1);
+    };
+    window.addEventListener('popstate', syncFiltersFromUrl);
+    return () => window.removeEventListener('popstate', syncFiltersFromUrl);
+  }, []);
+
+  const updateFilterQuery = (key: string, value: string, defaultValue: string) => {
+    const params = new URLSearchParams(location.search);
+    if (value === defaultValue) params.delete(key);
+    else params.set(key, value);
+    const query = params.toString();
+    navigate(`${location.pathname}${query ? `?${query}` : ''}`, { replace: true, state: location.state });
+  };
 
   useEffect(() => {
     const initialLoad = window.setTimeout(() => { void loadOrders(true); }, 0);
@@ -123,14 +182,8 @@ const AdminOrdersPage: React.FC = () => {
         return false;
       }
 
-      if (statusFilter !== 'all') {
-        if (statusFilter === 'scheduled') {
-          if (order.status !== 'scheduled' && !isScheduledOrder(order)) {
-            return false;
-          }
-        } else if (order.status !== statusFilter) {
-          return false;
-        }
+      if (statusFilter !== 'all' && String(order.status).toLowerCase() !== statusFilter) {
+        return false;
       }
 
       if (dateFilter !== '') {
@@ -150,14 +203,17 @@ const AdminOrdersPage: React.FC = () => {
     });
   }, [orders, channelFilter, statusFilter, dateFilter, sortOrder, searchTerm, sortBy]);
 
-  const statusTabs = [
-    { label: 'All', value: 'all' },
-    { label: 'Pending', value: 'pending' },
-    { label: 'On the way', value: 'on_the_way' },
-    { label: 'Delivered', value: 'delivered' },
-    { label: 'Cancelled', value: 'cancelled' },
-  ];
   const statusCounts = (status: string) => orders.filter((order) => status === 'all' || String(order.status).toLowerCase() === status).length;
+  const statusOptions: SelectOption<string>[] = statusOptionsBase.map((option) => ({
+    value: option.value,
+    label: option.label,
+    icon: option.color ? <span aria-hidden="true" className={`admin-order-status-dot admin-order-status-dot--${option.color}`} /> : undefined,
+    badge: <span className="admin-orders-option-count">{statusCounts(option.value)}</span>,
+  }));
+  const updateFilter = (key: string, value: string, defaultValue: string) => {
+    updateFilterQuery(key, value, defaultValue);
+    setCurrentPage(1);
+  };
 
   const hasActiveFilters = channelFilter !== 'all' || dateFilter !== '' || searchTerm !== '' || statusFilter !== 'all';
   const paginatedOrders = filteredOrders.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
@@ -185,6 +241,10 @@ const AdminOrdersPage: React.FC = () => {
     setStatusFilter('all');
     setDateFilter('');
     setCurrentPage(1);
+    const params = new URLSearchParams(location.search);
+    ['search', 'channel', 'status', 'date'].forEach((key) => params.delete(key));
+    const query = params.toString();
+    navigate(`${location.pathname}${query ? `?${query}` : ''}`, { replace: true, state: location.state });
   };
 
   const formatPrice = (price: number | string) => {
@@ -261,24 +321,20 @@ const AdminOrdersPage: React.FC = () => {
       <PageHeader title="Orders" subtitle="Track online and onsite orders in real time." />
 
       <section className="admin-orders-controls">
-        <div className="admin-orders-tabs-row">
-          <div role="tablist" aria-label="Filter orders by status" className="admin-orders-tabs">
-            {statusTabs.map((tab) => <button key={tab.value} type="button" role="tab" aria-selected={statusFilter === tab.value} onClick={() => { setStatusFilter(tab.value); setCurrentPage(1); }} className={`admin-orders-tab ${statusFilter === tab.value ? 'is-active' : ''}`}>
-              <span>{tab.label}</span><span className="admin-orders-tab-count">{statusCounts(tab.value)}</span>
-            </button>)}
-          </div>
-          <span className="admin-orders-result-count">Showing <strong>{filteredOrders.length}</strong> of <strong>{orders.length}</strong> orders</span>
-        </div>
-
         <OrdersFilterBar
           search={searchTerm}
-          onSearchChange={(value) => { setSearchTerm(value); setCurrentPage(1); }}
+          onSearchChange={(value) => { setSearchTerm(value); updateFilter('search', value, ''); }}
           channel={channelFilter}
-          onChannelChange={(value) => { setChannelFilter(value); setCurrentPage(1); }}
+          onChannelChange={(value) => { setChannelFilter(value); updateFilter('channel', value, 'all'); }}
           date={dateFilter}
-          onDateChange={(value) => { setDateFilter(value); setCurrentPage(1); }}
+          onDateChange={(value) => { setDateFilter(value); updateFilter('date', value, ''); }}
           onClear={hasActiveFilters ? clearFilters : undefined}
+          status={statusFilter}
+          statusOptions={statusOptions}
+          onStatusChange={(value) => { setStatusFilter(value); updateFilter('status', value, 'all'); }}
+          statusCount={statusCounts(statusFilter)}
         />
+        <span className="admin-orders-result-count">Showing <strong>{filteredOrders.length}</strong> of <strong>{orders.length}</strong> orders</span>
       </section>
 
       {loading ? (
@@ -291,7 +347,7 @@ const AdminOrdersPage: React.FC = () => {
         </div>
       ) : filteredOrders.length === 0 ? (
         <div className="admin-card">
-          <EmptyState icon={<Package size={23} />} title={hasActiveFilters ? 'No orders match these filters' : 'No orders yet'} description={hasActiveFilters ? 'Try adjusting your filters.' : 'New orders will appear here as customers place them.'} action={hasActiveFilters ? <button type="button" onClick={clearFilters} className="admin-orders-retry">Clear filters</button> : undefined} />
+          <EmptyState icon={<Package size={23} />} title={hasActiveFilters ? 'No orders found' : 'No orders yet'} description={hasActiveFilters ? 'Try changing or clearing your filters.' : 'New orders will appear here as customers place them.'} action={hasActiveFilters ? <button type="button" onClick={clearFilters} className="admin-orders-retry">Clear filters</button> : undefined} />
         </div>
       ) : (
         <div className="admin-orders-table-shell">
@@ -311,11 +367,11 @@ const AdminOrdersPage: React.FC = () => {
                 <th scope="col" className="branch-column">Branch</th>
                 <th scope="col">Items</th>
                 <th scope="col" className="total-heading" aria-sort={sortBy === 'total' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                  <button type="button" onClick={() => { setSortBy('total'); setSortOrder(sortBy === 'total' && sortOrder === 'desc' ? 'asc' : 'desc'); }} aria-label={`Sort total ${sortBy === 'total' && sortOrder === 'desc' ? 'ascending' : 'descending'}`}>Total <span aria-hidden="true">{sortBy === 'total' ? (sortOrder === 'desc' ? '↓' : '↑') : '↕'}</span></button>
+                  <button type="button" onClick={() => { setSortBy('total'); setSortOrder(sortBy === 'total' && sortOrder === 'desc' ? 'asc' : 'desc'); }} aria-label={`Sort total ${sortBy === 'total' && sortOrder === 'desc' ? 'ascending' : 'descending'}`}>Total <span className={sortBy === 'total' ? 'is-active' : ''} aria-hidden="true">{sortBy === 'total' ? (sortOrder === 'desc' ? '↓' : '↑') : '↕'}</span></button>
                 </th>
                 <th scope="col">Status</th>
                 <th scope="col" aria-sort={sortBy === 'date' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                  <button type="button" onClick={() => { setSortBy('date'); setSortOrder(sortBy === 'date' && sortOrder === 'desc' ? 'asc' : 'desc'); }} aria-label={`Sort date ${sortBy === 'date' && sortOrder === 'desc' ? 'oldest first' : 'newest first'}`}>Date <span aria-hidden="true">{sortBy === 'date' ? (sortOrder === 'desc' ? '↓' : '↑') : '↕'}</span></button>
+                  <button type="button" onClick={() => { setSortBy('date'); setSortOrder(sortBy === 'date' && sortOrder === 'desc' ? 'asc' : 'desc'); }} aria-label={`Sort date ${sortBy === 'date' && sortOrder === 'desc' ? 'oldest first' : 'newest first'}`}>Date <span className={sortBy === 'date' ? 'is-active' : ''} aria-hidden="true">{sortBy === 'date' ? (sortOrder === 'desc' ? '↓' : '↑') : '↕'}</span></button>
                 </th>
                 <th scope="col" className="action-heading">View</th>
               </tr>
@@ -374,12 +430,11 @@ const AdminOrdersPage: React.FC = () => {
                       <span>{formatCurrency(order.total || 0)}</span>
                     </td>
                     <td data-label="Status" className="status-cell">
-                      <div>
+                      <div className="admin-order-status-group">
                         <StatusBadge status={statusLabels[order.status] || order.status} />
                         {isScheduledOrder(order) && (
-                          <span className="admin-order-scheduled" title={getScheduledDisplay(order)}>
-                            <CalendarDays size={12} />
-                            Scheduled
+                          <span className="admin-order-scheduled-icon" title={`Scheduled: ${getScheduledDisplay(order)}`} aria-label={`Scheduled: ${getScheduledDisplay(order)}`}>
+                            <Clock3 size={14} aria-hidden="true" />
                           </span>
                         )}
                       </div>
@@ -391,11 +446,11 @@ const AdminOrdersPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={(event) => { event.stopPropagation(); setSelectedOrder(order); }}
-                        title="View order details"
+                        title="View order"
+                        aria-label="View order"
                         className="admin-order-view"
                       >
-                        <Eye size={14} aria-hidden="true" />
-                        <span>View</span>
+                        <Eye size={16} aria-hidden="true" />
                       </button>
                     </td>
                   </tr>
@@ -412,7 +467,10 @@ const AdminOrdersPage: React.FC = () => {
                 <article key={order.id} className="admin-order-card">
                   <div className="admin-order-card-heading">
                     <span className="admin-order-card-id" title={orderId}>{getCompactOrderId(orderId)}</span>
-                    <StatusBadge status={statusLabels[order.status] || order.status} />
+                    <span className="admin-order-status-group">
+                      <StatusBadge status={statusLabels[order.status] || order.status} />
+                      {isScheduledOrder(order) && <span className="admin-order-scheduled-icon" title={`Scheduled: ${getScheduledDisplay(order)}`} aria-label={`Scheduled: ${getScheduledDisplay(order)}`}><Clock3 size={14} aria-hidden="true" /></span>}
+                    </span>
                   </div>
                   <div className="admin-order-card-customer">
                     <Avatar name={order.customerName || order.email || 'Guest'} className="size-9" />
@@ -429,8 +487,8 @@ const AdminOrdersPage: React.FC = () => {
                     <div><span className="admin-order-card-label">Total</span><strong>{formatCurrency(order.total || 0)}</strong></div>
                     <div><span className="admin-order-card-label">Date</span><AdminDate value={getOrderDate(order)} /></div>
                   </div>
-                  <button type="button" onClick={() => setSelectedOrder(order)} className="admin-order-view admin-order-card-view">
-                    <Eye size={14} aria-hidden="true" /> View order
+                  <button type="button" aria-label="View order" title="View order" onClick={() => setSelectedOrder(order)} className="admin-order-view admin-order-card-view">
+                    <Eye size={16} aria-hidden="true" />
                   </button>
                 </article>
               );

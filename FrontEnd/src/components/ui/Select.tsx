@@ -31,6 +31,7 @@ interface SelectProps<Value extends string | number = string> {
   id?: string;
   autoFocus?: boolean;
   'aria-label'?: string;
+  renderValue?: (option: SelectOption<Value> | undefined) => ReactNode;
 }
 
 export default function Select<Value extends string | number = string>({
@@ -52,6 +53,7 @@ export default function Select<Value extends string | number = string>({
   id,
   autoFocus = false,
   'aria-label': ariaLabel,
+  renderValue,
 }: SelectProps<Value>) {
   const generatedId = useId();
   const triggerId = id || `${generatedId}-trigger`;
@@ -233,7 +235,7 @@ export default function Select<Value extends string | number = string>({
       />
       <div
         ref={menuRef}
-        className={`select-menu fixed z-[201] overflow-hidden rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-1.5 shadow-lg ${
+        className={`select-menu fixed z-[201] overflow-hidden rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-2 shadow-lg ${
           opensUp ? 'select-menu--up' : ''
         }`}
         style={triggerRect ? {
@@ -313,7 +315,7 @@ export default function Select<Value extends string | number = string>({
                 disabled={option.disabled}
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => selectOption(option)}
-                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${
+                className={`flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${
                   isSelected
                     ? 'bg-[var(--oppa-green-soft)] font-semibold text-[var(--oppa-green-dark)]'
                     : isActive
@@ -370,7 +372,7 @@ export default function Select<Value extends string | number = string>({
       >
         {icon && <span className="shrink-0 text-[var(--oppa-text-muted)]">{icon}</span>}
         <span className={`min-w-0 flex-1 truncate ${selectedOption ? '' : 'text-[var(--oppa-text-muted)]'}`}>
-          {selectedOption?.label ?? placeholder}
+          {renderValue ? renderValue(selectedOption) : selectedOption?.label ?? placeholder}
         </span>
         <LuChevronDown size={17} aria-hidden="true" className={`shrink-0 text-[var(--oppa-text-muted)] transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>

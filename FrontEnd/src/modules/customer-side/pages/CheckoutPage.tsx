@@ -17,6 +17,7 @@ import { useCartCalculations } from '../../../hooks/useCartCalculations';
 import { useSettings } from '../../../contexts/SettingsContext';
 import { getAvailableDates, generateTimeSlots } from '../../../services/checkoutService';
 import { productService } from '../../../services/productService';
+import type { DeliveryInstructions } from '../../../services/orderService';
 import { getCheckoutBranchId } from '../../../services/branchCartStorage';
 import type { PaymentResult } from '../components/checkout/paymentTypes';
 import { BranchResolutionError, resolveBranch, type BranchResolution } from '../../../services/branchRoutingService';
@@ -44,6 +45,7 @@ const CheckoutPage: React.FC = () => {
   const [discountProof, setDiscountProof] = useState<File | null>(null);
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates | null>(null);
   const [additionalStreet, setAdditionalStreet] = useState('');
+  const [deliveryInstructions, setDeliveryInstructions] = useState<DeliveryInstructions>({});
   const [branchResolution, setBranchResolution] = useState<BranchResolution | null>(null);
   const [branchError, setBranchError] = useState('');
   const [validatedMenuBranchId, setValidatedMenuBranchId] = useState<string | null>(null);
@@ -294,7 +296,8 @@ const CheckoutPage: React.FC = () => {
         discountType,
         discountProof,
         checkoutBranchId,
-        appliedPromo?.code || null
+        appliedPromo?.code || null,
+        deliveryInstructions,
       );
 
       if (placedOrderId) {
@@ -444,6 +447,7 @@ const CheckoutPage: React.FC = () => {
                 setAddressSelectionVersion((version) => version + 1);
               }}
               onStreetDetailChange={setAdditionalStreet}
+              onDeliveryInstructionsChange={setDeliveryInstructions}
               tempPerson={tempPerson}
               updatePerson={updatePerson}
               deliveryType={deliveryType}

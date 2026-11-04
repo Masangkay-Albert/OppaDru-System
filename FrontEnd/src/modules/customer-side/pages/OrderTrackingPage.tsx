@@ -5,10 +5,12 @@ import 'leaflet/dist/leaflet.css';
 import { useAuth } from '../../../contexts/Authcontext';
 import { useOrder, type Order } from '../../../contexts/OrderContext';
 import { OrderServiceError, orderService } from '../../../services/orderService';
+import { useToast } from '../components/ToastProvider';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import { ORDER_STATUS, STATUS_COLORS } from '../../../utils/constants';
 import {
   getOrderCreatedAtMs,
+  getOrderCancellationRemainingSeconds,
   normalizeOrderStatus,
   ORDER_CANCELLATION_WINDOW_SECONDS,
 } from '../../../utils/orderManagement';
@@ -29,6 +31,7 @@ const OrderTrackingPageContent: React.FC = () => {
   const { id: routeOrderId } = useParams<{ id: string }>();
   const { user, isLoading: authLoading } = useAuth();
   const { orders, currentOrder, refreshOrderById } = useOrder();
+  const { showToast, confirmDialog, dismissDialog } = useToast();
   const locationState = location.state as TrackingLocationState | null;
   const cachedOrder = useMemo(() => {
     const requestedId = routeOrderId || locationState?.orderId;
@@ -43,10 +46,11 @@ const OrderTrackingPageContent: React.FC = () => {
   const [notFound, setNotFound] = useState(false);
   const [retryVersion, setRetryVersion] = useState(0);
   const [cancelError, setCancelError] = useState('');
-  const [tick, setTick] = useState(Date.now());
+  const [tick, setTick] = useState(0);
   const [routePoints, setRoutePoints] = useState<[number, number][]>([]);
   const [simulatedProgress, setSimulatedProgress] = useState(0);
   const [dismissedDeliveredNoticeId, setDismissedDeliveredNoticeId] = useState<string | null>(null);
+  const [isConfirmingCancellation, setIsConfirmingCancellation] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setTick(Date.now()), 1000);
@@ -106,25 +110,36 @@ const OrderTrackingPageContent: React.FC = () => {
   const deliveredDriverName = order?.driver?.name?.trim() || 'Driver details unavailable';
   const routeProgress = isDelivered ? 100 : simulatedProgress;
   const statusColor = STATUS_COLORS[status as keyof typeof STATUS_COLORS] || 'bg-gray-100 text-gray-700';
-  const createdAt = order ? getOrderCreatedAtMs(order) : 0;
-  const cancelSeconds = status === ORDER_STATUS.PENDING && createdAt > 0
-    ? Math.max(0, ORDER_CANCELLATION_WINDOW_SECONDS - ((tick - createdAt) / 1000))
-    : 0;
+  const cancelSeconds = useMemo(
+    () => order ? getOrderCancellationRemainingSeconds(order) : 0,
+    [order, tick],
+  );
   const canCancel = status === ORDER_STATUS.PENDING && cancelSeconds > 0;
+
+  useEffect(() => {
+    if (!isConfirmingCancellation || status === ORDER_STATUS.PENDING) return;
+
+    const timer = window.setTimeout(() => {
+      dismissDialog();
+      setIsConfirmingCancellation(false);
+      showToast('This order has already started and can no longer be cancelled.', 'warning');
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isConfirmingCancellation, status, dismissDialog, showToast]);
 
   const getBarProgress = () => {
     switch (status) {
-      case 'pending': return 20;
+      case 'pending': return 0;
       case 'confirmed':
-      case 'preparing': return 40;
+      case 'preparing': return 25;
       case 'prepared':
-      case 'ready': return 60;
-      case 'on_the_way': return 60 + simulatedProgress * 0.35;
+      case 'ready': return 50;
+      case 'on_the_way': return 75 + simulatedProgress * 0.25;
       case 'arriving':
       case 'arrived': return 95;
       case 'delivered':
       case 'completed': return 100;
-      default: return 20;
+      default: return 0;
     }
   };
 
@@ -143,13 +158,49 @@ const OrderTrackingPageContent: React.FC = () => {
   }, [status, routePoints.length, onTheWayEntry?.createdAt]);
 
   const handleCancelOrder = async () => {
-    if (!order || !canCancel) return;
+    if (!order || !canCancel) {
+      showToast('Cancellation period has ended.', 'warning');
+      return;
+    }
+
+    setIsConfirmingCancellation(true);
+    const expiryTimer = window.setTimeout(() => {
+      dismissDialog();
+      setIsConfirmingCancellation(false);
+      showToast('Cancellation period has ended.', 'warning');
+    }, cancelSeconds * 1000);
     setCancelError('');
     try {
+      const confirmed = await confirmDialog({
+        title: 'Cancel this order?',
+        message: 'This will cancel your order and notify the branch.',
+        cancelLabel: 'Keep Order',
+        confirmLabel: 'Yes, Cancel',
+        danger: true,
+      });
+      if (!confirmed) return;
+      if (getOrderCancellationRemainingSeconds(order) <= 0) {
+        showToast('Cancellation period has ended.', 'warning');
+        return;
+      }
+
       await orderService.updateOrderStatus(order.id, ORDER_STATUS.CANCELLED);
-      await refreshOrderById(order.id);
+      showToast('Order cancelled successfully.', 'success');
+      try {
+        await refreshOrderById(order.id);
+      } catch (refreshError) {
+        const detail = refreshError instanceof Error ? ` ${refreshError.message}` : '';
+        const message = `Your order was cancelled, but its latest status could not be refreshed.${detail}`;
+        setCancelError(message);
+        showToast(message, 'error');
+      }
     } catch (error) {
-      setCancelError(error instanceof Error ? error.message : 'Unable to cancel this order.');
+      const message = error instanceof Error ? error.message : 'Unable to cancel this order.';
+      setCancelError(message);
+      showToast(message, 'error');
+    } finally {
+      window.clearTimeout(expiryTimer);
+      setIsConfirmingCancellation(false);
     }
   };
 
@@ -217,9 +268,14 @@ const OrderTrackingPageContent: React.FC = () => {
         </div>
 
         {status === ORDER_STATUS.PENDING && (
-          <div className="mb-3 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <span>{canCancel ? `You have ${Math.ceil(cancelSeconds)} seconds to cancel your order.` : 'Order can no longer be cancelled.'}</span>
-            {canCancel && <button onClick={handleCancelOrder} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600">Cancel Order</button>}
+          <div className="mb-3 flex flex-col gap-2 rounded-xl border border-red-100 bg-white px-4 py-3 text-sm text-gray-600 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <span>{canCancel ? `Cancel within ${Math.ceil(cancelSeconds)} seconds.` : 'Cancellation period has ended.'}</span>
+            {canCancel && <button disabled={isConfirmingCancellation} onClick={handleCancelOrder} className="min-h-10 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 active:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50">Cancel Order ({Math.ceil(cancelSeconds)}s)</button>}
+            {canCancel && (
+              <div className="h-1 w-full overflow-hidden rounded-full bg-red-100 sm:max-w-40" aria-hidden="true">
+                <div className="h-full rounded-full bg-red-400 transition-[width] duration-300" style={{ width: `${Math.min(100, (cancelSeconds / ORDER_CANCELLATION_WINDOW_SECONDS) * 100)}%` }} />
+              </div>
+            )}
           </div>
         )}
         {cancelError && <p role="alert" className="mb-3 text-sm text-red-700">{cancelError}</p>}

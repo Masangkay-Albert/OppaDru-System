@@ -117,16 +117,25 @@ trait OrderManagementActions
             }
 
             $createdAt = $order->created_at;
-            $elapsedSeconds = $createdAt ? now()->getTimestamp() - $createdAt->getTimestamp() : null;
+            $now = now();
+            $elapsedMilliseconds = $createdAt
+                ? (($now->getTimestamp() * 1000) + (int) $now->format('v'))
+                    - (($createdAt->getTimestamp() * 1000) + (int) $createdAt->format('v'))
+                : null;
             $cancellationWindow = (int) config('orders.customer_cancellation_window_seconds', 30);
+            if ($order->status !== 'pending') {
+                return response()->json([
+                    'message' => 'This order has already started and can no longer be cancelled.',
+                ], 422);
+            }
+
             if (
                 ! $createdAt
-                || $elapsedSeconds < 0
-                || $elapsedSeconds >= $cancellationWindow
-                || $order->status !== 'pending'
+                || $elapsedMilliseconds < 0
+                || $elapsedMilliseconds >= $cancellationWindow * 1000
             ) {
                 return response()->json([
-                    'message' => "Order cancellation is only allowed within {$cancellationWindow} seconds of creation.",
+                    'message' => 'Cancellation period has ended.',
                 ], 422);
             }
 

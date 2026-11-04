@@ -179,6 +179,15 @@ class KitchenOrderChannelTest extends TestCase
             'branch_id' => $mainBranch->id,
             'franchise_id' => $mainBranch->id,
             'fulfillment_type' => 'delivery',
+            'delivery_instructions' => [
+                'block' => '12',
+                'lot' => '15',
+                'street' => 'Apolinario Street',
+                'floor' => '1st',
+                'unit' => 'B',
+                'building' => 'Building B',
+                'note' => 'malapit po sa court',
+            ],
         ]);
         $driver = Driver::create([
             'name' => 'Main System Driver',
@@ -215,7 +224,13 @@ class KitchenOrderChannelTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1)
             ->assertJsonPath('0.id', $order->id)
-            ->assertJsonPath('0.status', 'prepared');
+            ->assertJsonPath('0.status', 'prepared')
+            ->assertJsonPath('0.deliveryInstructions.block', '12')
+            ->assertJsonPath('0.deliveryInstructions.lot', '15')
+            ->assertJsonPath('0.deliveryInstructions.floor', '1st')
+            ->assertJsonPath('0.deliveryInstructions.unit', 'B')
+            ->assertJsonPath('0.deliveryInstructions.building', 'Building B')
+            ->assertJsonPath('0.deliveryInstructions.note', 'malapit po sa court');
 
         $this->patchJson('/api/driver/orders/'.$order->id.'/status', [
             'status' => 'on_the_way',

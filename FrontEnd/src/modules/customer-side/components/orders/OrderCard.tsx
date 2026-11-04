@@ -14,7 +14,11 @@ import {
   getScheduledOrderDetails,
   getStatusColor,
 } from '../../../../utils/orderUtils';
-import { canCancelOrder, getOrderCancellationRemainingSeconds } from '../../../../utils/orderManagement';
+import {
+  canCancelOrder,
+  getOrderCancellationRemainingSeconds,
+  ORDER_CANCELLATION_WINDOW_SECONDS,
+} from '../../../../utils/orderManagement';
 import { formatCurrency } from '../../../../utils/formatters';
 
 interface OrderCardProps {
@@ -24,7 +28,6 @@ interface OrderCardProps {
   onTrack: (orderId: string, event: React.MouseEvent) => void;
   onCancel: (order: any) => void;
   onEdit: (order: any) => void;
-  graceStartedAtByOrder: Record<string, number>;
 }
 
 export const OrderCard: React.FC<OrderCardProps> = ({
@@ -33,7 +36,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   onToggleDetails,
   onTrack,
   onCancel,
-  graceStartedAtByOrder,
 }) => {
   const scheduleDetails = getScheduledOrderDetails(order);
   const isFinal = ['delivered', 'cancelled', 'completed', 'failed'].includes(String(order.status || '').toLowerCase());
@@ -179,26 +181,32 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             </div>
 
             {order.status === ORDER_STATUS.PENDING && (() => {
-              const canCancelThisOrder = canCancelOrder(order, graceStartedAtByOrder);
+              const cancelSeconds = getOrderCancellationRemainingSeconds(order);
+              const canCancelThisOrder = canCancelOrder(order);
 
               return (
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-gray-100 pt-4">
                   <div className="text-xs text-gray-500">
                     {canCancelThisOrder ? (
                       <span>
-                        You can cancel this order for {Math.ceil(getOrderCancellationRemainingSeconds(order, graceStartedAtByOrder))}s
+                        Cancel within {Math.ceil(cancelSeconds)}s
                       </span>
                     ) : (
-                      <span>The cancellation window has closed.</span>
+                      <span>Cancellation period has ended.</span>
                     )}
                   </div>
                   {canCancelThisOrder ? (
                     <div className="flex gap-2">
-                      <button type="button" onClick={() => onCancel(order)} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100">
-                        <FiTrash2 size={12} /> Cancel Order
+                      <button type="button" onClick={() => onCancel(order)} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 active:bg-red-100">
+                        <FiTrash2 size={12} /> Cancel Order ({Math.ceil(cancelSeconds)}s)
                       </button>
                     </div>
                   ) : null}
+                  {canCancelThisOrder && (
+                    <div className="h-1 w-full overflow-hidden rounded-full bg-red-100 sm:max-w-40" aria-hidden="true">
+                      <div className="h-full rounded-full bg-red-400 transition-[width] duration-300" style={{ width: `${Math.min(100, (cancelSeconds / ORDER_CANCELLATION_WINDOW_SECONDS) * 100)}%` }} />
+                    </div>
+                  )}
                 </div>
               );
             })()}

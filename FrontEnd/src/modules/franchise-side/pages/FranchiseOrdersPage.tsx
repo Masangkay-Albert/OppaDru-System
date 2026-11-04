@@ -81,11 +81,13 @@ const FranchiseOrdersPage: React.FC = () => {
   const [date, setDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [cancellationNotice, setCancellationNotice] = useState('');
   const [reload, setReload] = useState(0);
   const [selectedOrder, setSelectedOrder] = useState<BranchOrder | null>(null);
   const [copiedOrderId, setCopiedOrderId] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
   const orderDetailsPanelRef = useRef<HTMLElement>(null);
+  const previousOrderStatuses = useRef(new Map<string, string>());
   const branchName = franchiseUser?.branch?.name || franchiseUser?.franchise?.name || 'Current branch';
 
   useEffect(() => {
@@ -101,6 +103,20 @@ const FranchiseOrdersPage: React.FC = () => {
       if (!response.ok) throw new Error(payload.message || 'Could not load branch orders.');
       setError('');
       const nextOrders = Array.isArray(payload.data) ? payload.data as BranchOrder[] : [];
+      const newlyCancelledOrders = nextOrders.filter((order) => {
+        const previousStatus = previousOrderStatuses.current.get(order.id);
+        return previousStatus !== undefined
+          && previousStatus !== 'cancelled'
+          && String(order.status).toLowerCase() === 'cancelled';
+      });
+      if (newlyCancelledOrders.length === 1) {
+        setCancellationNotice(`Order ${newlyCancelledOrders[0].order_number || newlyCancelledOrders[0].id} was cancelled by the customer.`);
+      } else if (newlyCancelledOrders.length > 1) {
+        setCancellationNotice(`${newlyCancelledOrders.length} orders were cancelled by customers.`);
+      }
+      previousOrderStatuses.current = new Map(
+        nextOrders.map((order) => [order.id, String(order.status || '').toLowerCase()]),
+      );
       setOrders(nextOrders);
       setSelectedOrder((current) => {
         const updated = current && nextOrders.find((order) => order.id === current.id);
@@ -189,6 +205,7 @@ const FranchiseOrdersPage: React.FC = () => {
       <div className="mx-auto max-w-[1500px]">
         <PageHeader title="Orders" subtitle="Track this branch’s online and onsite orders. Statuses update as authorized kitchen and delivery roles process each order." />
 
+        {cancellationNotice && <div role="status" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><span>{cancellationNotice}</span><button type="button" aria-label="Dismiss cancellation notice" onClick={() => setCancellationNotice('')} className="rounded-lg p-1 text-red-700 transition hover:bg-red-100"><X size={16} /></button></div>}
         {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="font-semibold underline">Retry</button></div>}
         <section className="admin-orders-controls">
         <div className="admin-orders-tabs-row">

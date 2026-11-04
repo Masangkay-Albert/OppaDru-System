@@ -1,5 +1,6 @@
 // src/modules/customer-side/components/cart/CartSummary.tsx
 import React from 'react';
+import { Utensils } from 'lucide-react';
 import { formatCurrency } from '../../../../utils/formatters';
 
 interface CartSummaryProps {
@@ -11,34 +12,31 @@ interface CartSummaryProps {
 
 const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutlery, onCutleryChange }) => {
   return (
-    <div className="menu-cart-summary border-t border-gray-200 bg-white rounded-b-xl">
-      <div className="px-5 py-3 space-y-2 text-sm">
-        <div className="flex justify-between items-center">
+    <div className="menu-cart-summary border-t border-gray-200 bg-white">
+      <div className="space-y-4 px-5 pt-4 text-sm">
+        <div className="flex items-center justify-between">
           <span className="text-gray-500">Subtotal</span>
-          <span className="text-gray-800 font-medium">{hasItems ? formatCurrency(subtotal) : '—'}</span>
+          <span className="font-bold text-gray-800">{hasItems ? formatCurrency(subtotal) : '—'}</span>
         </div>
-      </div>
 
-      <div className="px-5 py-3 border-t border-gray-100">
-        <label className="flex items-center justify-between cursor-pointer">
+        <label className="flex min-h-10 cursor-pointer items-center justify-between">
           <div className="flex items-center gap-2">
-            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
-            </svg>
+            <Utensils className="size-5 text-gray-500" aria-hidden="true" />
             <span className="text-sm text-gray-700">Cutlery</span>
           </div>
-          <div className="relative">
+          <span className="relative">
             <input
               type="checkbox"
               checked={useCutlery}
               onChange={(e) => onCutleryChange(e.target.checked)}
-              className="sr-only peer"
+              aria-label="Include cutlery"
+              className="peer sr-only"
             />
-            <div className="menu-cutlery-switch w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-[#2d6a4f] after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
-          </div>
+            <span className="menu-cutlery-switch block h-5 w-10 rounded-full bg-gray-200 transition-colors peer-checked:bg-[#2d6a4f] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#2d6a4f] after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-5" />
+          </span>
         </label>
         {!useCutlery && (
-          <p className="text-xs text-gray-400 mt-2">No cutlery provided. Thanks for reducing waste!</p>
+          <p className="-mt-2 pb-1 text-xs text-gray-400">No cutlery provided. Thanks for reducing waste!</p>
         )}
       </div>
     </div>

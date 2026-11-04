@@ -44,9 +44,9 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
   const handleClearCart = async () => {
     if (!hasItems) return;
     const confirmed = await confirmDialog({
-      title: 'Clear this cart?',
-      message: 'This will clear items from the currently selected branch only.',
-      confirmLabel: 'Clear cart',
+      title: 'Clear cart?',
+      message: 'Clear all items from your cart? This action cannot be undone.',
+      confirmLabel: 'Clear',
       danger: true,
     });
     if (confirmed) clearCart();
@@ -79,7 +79,7 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {cartItems.map((item) => (
             <CartItemComponent
               key={item.cartItemId}
@@ -101,29 +101,32 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
         onCutleryChange={setUseCutlery}
       />
 
-      <div className="menu-cart-actions p-4 border-t border-gray-200 bg-white">
+      <div className="menu-cart-actions space-y-3 border-t border-gray-200 bg-white p-4">
         {hasItems ? (
           <button
             onClick={handleCheckout}
-            className="w-full py-3 bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] text-white rounded-xl font-semibold hover:shadow-lg transition-all hover:scale-[1.02]"
+            className="min-h-12 w-full rounded-xl bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] py-3 font-bold text-white shadow-sm transition hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d6a4f] focus-visible:ring-offset-2"
           >
             Checkout
           </button>
         ) : (
           <button
             disabled
-            className="w-full py-3 bg-gray-100 text-gray-400 rounded-xl font-semibold cursor-not-allowed"
+            className="min-h-12 w-full cursor-not-allowed rounded-xl bg-gray-100 py-3 font-semibold text-gray-400"
           >
             See summary
           </button>
         )}
-        <button
-          onClick={() => void handleClearCart()}
-          className="w-full mt-3 py-2 text-gray-400 text-sm hover:text-red-500 transition flex items-center justify-center gap-2"
-        >
-          <FiTrash2 className="w-4 h-4" />
-          Clear Cart
-        </button>
+        {hasItems && (
+          <button
+            type="button"
+            onClick={() => void handleClearCart()}
+            className="menu-cart-clear-button inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:border-red-300 hover:bg-red-50 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+          >
+            <FiTrash2 className="size-4" aria-hidden="true" />
+            Clear Cart
+          </button>
+        )}
       </div>
 
       {editingItem && (

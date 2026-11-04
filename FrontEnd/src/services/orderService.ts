@@ -9,12 +9,23 @@ export interface OrderItem {
     special_instructions?: string;
 }
 
+export interface DeliveryInstructions {
+    block?: string;
+    lot?: string;
+    street?: string;
+    floor?: string;
+    unit?: string;
+    building?: string;
+    note?: string;
+}
+
 export interface CreateOrderData {
     email: string;
     franchise_id?: string;
     items: OrderItem[];
     total: number;
     delivery_address: string;
+    delivery_instructions?: DeliveryInstructions;
     payment_method: 'cash_on_delivery' | 'gcash' | 'credit_card';
     delivery_type?: 'standard' | 'priority' | 'scheduled';
     phone: string;
@@ -53,10 +64,12 @@ export interface Order {
     franchise?: { id?: string; name?: string; latitude?: number; longitude?: number; address?: string } | null;
     total: number;
     status: string;
+    cancellation_remaining_seconds?: number;
     status_history?: Array<{ status: string; created_at?: string | null }>;
     payment_method: string;
     payment_status?: string;
     delivery_address: string;
+    delivery_instructions?: DeliveryInstructions | null;
     delivery_coordinates?: { lat: number; lng: number } | null;
     delivery_type?: 'standard' | 'priority' | 'scheduled';
     delivery_fee?: number;
@@ -138,6 +151,9 @@ class OrderService {
             formData.append('items', JSON.stringify(data.items));
             formData.append('total', String(data.total));
             formData.append('delivery_address', data.delivery_address);
+            if (data.delivery_instructions) {
+                formData.append('delivery_instructions', JSON.stringify(data.delivery_instructions));
+            }
             formData.append('payment_method', data.payment_method);
             if (data.delivery_type) formData.append('delivery_type', data.delivery_type);
             formData.append('phone', data.phone);

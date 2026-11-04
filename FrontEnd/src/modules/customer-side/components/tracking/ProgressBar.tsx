@@ -11,6 +11,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ status, progress }) => {
   const steps = [
     { label: "Order placed" },
     { label: "Preparing" },
+    { label: "Prepared" },
     { label: "On the way" },
     { label: "Delivered" }
   ];
@@ -21,24 +22,24 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ status, progress }) => {
       case ORDER_STATUS.CONFIRMED:
       case ORDER_STATUS.PREPARING: return 1;
       case ORDER_STATUS.PREPARED:
-      case ORDER_STATUS.READY: return 1;
-      case ORDER_STATUS.ON_WAY: return 2;
+      case ORDER_STATUS.READY: return 2;
+      case ORDER_STATUS.ON_WAY: return 3;
       case ORDER_STATUS.ARRIVING:
-      case ORDER_STATUS.ARRIVED: return 2;
+      case ORDER_STATUS.ARRIVED: return 3;
       case ORDER_STATUS.DELIVERED:
-      case ORDER_STATUS.COMPLETED: return 3;
+      case ORDER_STATUS.COMPLETED: return 4;
       default: return 0;
     }
   };
 
   const currentStep = getCurrentStep();
-  const fillProgress = Math.min(100, Math.max(0, ((progress - 12.5) / 75) * 100));
+  const fillProgress = Math.min(100, Math.max(0, progress));
 
   return (
     <div role="group" aria-label="Order progress" className="relative">
-      <div className="relative z-10 grid grid-cols-4">
+      <div className="relative z-10 grid grid-cols-5">
         {steps.map((step, index) => (
-          <div key={step.label} className={`relative z-10 flex min-w-0 flex-col items-center gap-2 text-center text-[11px] transition-colors duration-300 sm:text-sm ${index <= currentStep ? 'font-semibold text-[#2d6a4f]' : 'text-gray-400'}`}>
+          <div key={step.label} className={`relative z-10 flex min-w-0 flex-col items-center gap-2 text-center text-[10px] transition-colors duration-300 sm:text-sm ${index <= currentStep ? 'font-semibold text-[#2d6a4f]' : 'text-gray-400'}`}>
             <span className={`grid size-3.5 place-items-center rounded-full border-2 transition-colors duration-300 sm:size-4 ${
               index < currentStep
                 ? 'border-[#2d6a4f] bg-[#2d6a4f]'
@@ -48,11 +49,11 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ status, progress }) => {
             }`}>
               {index < currentStep && <span className="size-1.5 rounded-full bg-white" />}
             </span>
-            <span className="whitespace-nowrap">{step.label}</span>
+            <span className="max-w-full whitespace-normal leading-tight">{step.label}</span>
           </div>
         ))}
       </div>
-      <div className="absolute left-[12.5%] right-[12.5%] top-[7px] z-0 h-1.5 overflow-hidden rounded-full bg-gray-200 sm:top-2">
+      <div className="absolute left-[10%] right-[10%] top-[7px] z-0 h-1.5 overflow-hidden rounded-full bg-gray-200 sm:top-2">
         <div 
           className="h-full rounded-full bg-[#2d6a4f] transition-all duration-1000 ease-in-out"
           style={{ width: `${fillProgress}%` }}

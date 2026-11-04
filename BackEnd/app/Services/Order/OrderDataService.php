@@ -26,6 +26,15 @@ class OrderDataService
     public function formatOrder(Order $order): array
     {
         $createdAt = $order->created_at ? $order->created_at->toISOString() : null;
+        $cancellationWindow = (int) config('orders.customer_cancellation_window_seconds', 30);
+        $now = now();
+        $cancellationElapsedMilliseconds = $order->created_at
+            ? (($now->getTimestamp() * 1000) + (int) $now->format('v'))
+                - (($order->created_at->getTimestamp() * 1000) + (int) $order->created_at->format('v'))
+            : ($cancellationWindow * 1000);
+        $cancellationRemaining = strtolower((string) $order->status) === 'pending'
+            ? max(0, (($cancellationWindow * 1000) - max(0, $cancellationElapsedMilliseconds)) / 1000)
+            : 0;
 
         $baseUrl = (function_exists('request') && request()?->hasHeader('host'))
             ? rtrim(request()->root(), '/')
@@ -63,6 +72,7 @@ class OrderDataService
             'franchise' => $branch ? $branch->only(['id', 'name', 'address', 'latitude', 'longitude']) : null,
             'total' => $order->total,
             'status' => $order->status,
+            'cancellation_remaining_seconds' => $cancellationRemaining,
             'status_history' => $order->status_history ?: [[
                 'status' => (string) $order->status,
                 'created_at' => $order->created_at?->toIso8601String(),
@@ -74,6 +84,7 @@ class OrderDataService
             'payment_method' => $order->payment_method,
             'payment_status' => $order->payment_status,
             'delivery_address' => $order->delivery_address,
+            'delivery_instructions' => $order->delivery_instructions,
             'delivery_coordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)
                 ? ['lat' => (float) $order->delivery_lat, 'lng' => (float) $order->delivery_lng]
                 : ($order->delivery_coordinates ?: null),

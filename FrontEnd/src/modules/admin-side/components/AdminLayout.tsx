@@ -156,7 +156,6 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             {menu === 'profile' && <div className="absolute right-0 top-12 w-60 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-2 shadow-xl">
               <div className="border-b border-[var(--oppa-border)] px-3 py-2"><p className="truncate text-sm font-semibold text-[var(--oppa-text)]">{admin?.fullName || 'Administrator'}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{admin?.email || 'Admin account'}</p></div>
               {admin?.role === 'system_administrator' && <Link to="/admin/admins" onClick={() => setMenu(null)} className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Registered Admins</Link>}
-              <Link to="/admin/settings/pricing" onClick={() => setMenu(null)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Settings</Link>
               <button onClick={handleExit} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"><LogOut size={15} />Exit</button>
             </div>}
           </div>

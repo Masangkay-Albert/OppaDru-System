@@ -64,7 +64,7 @@ class OrderPlacementTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_customer_cannot_cancel_a_pending_order_after_thirty_seconds(): void
+    public function test_customer_cannot_cancel_a_pending_order_at_thirty_seconds(): void
     {
         $customer = User::create([
             'full_name' => 'Late Cancellation Customer',
@@ -87,14 +87,76 @@ class OrderPlacementTest extends TestCase
             'delivery_type' => 'standard',
         ]);
 
-        Carbon::setTestNow($order->created_at->copy()->addSeconds(31));
+        Carbon::setTestNow($order->created_at->copy()->addSeconds(30));
         $this->actingAs($customer, 'api')
             ->patchJson('/api/orders/'.$order->id.'/status', ['status' => 'cancelled'])
             ->assertUnprocessable()
-            ->assertJsonPath('message', 'Order cancellation is only allowed within 30 seconds of creation.');
+            ->assertJsonPath('message', 'Cancellation period has ended.');
         $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'pending']);
 
         Carbon::setTestNow();
+    }
+
+    public function test_customer_order_response_includes_server_calculated_cancellation_time(): void
+    {
+        $customer = User::create([
+            'full_name' => 'Countdown Customer',
+            'email' => 'countdown@example.com',
+            'phone' => '09171234569',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $order = Order::create([
+            'id' => 'CUSTOMER-CANCEL-COUNTDOWN',
+            'email' => $customer->email,
+            'user_id' => $customer->id,
+            'total' => 100,
+            'status' => 'pending',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Test delivery address',
+            'phone' => $customer->phone,
+            'items' => [],
+            'delivery_type' => 'standard',
+        ]);
+
+        Carbon::setTestNow($order->created_at->copy()->addSeconds(12));
+        $this->actingAs($customer, 'api')
+            ->getJson('/api/orders/user/'.$order->id)
+            ->assertOk()
+            ->assertJsonPath('cancellation_remaining_seconds', 18);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_customer_cannot_cancel_after_order_status_has_advanced(): void
+    {
+        $customer = User::create([
+            'full_name' => 'Started Order Customer',
+            'email' => 'started-order@example.com',
+            'phone' => '09171234570',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $order = Order::create([
+            'id' => 'CUSTOMER-CANCEL-STARTED',
+            'email' => $customer->email,
+            'user_id' => $customer->id,
+            'total' => 100,
+            'status' => 'preparing',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Test delivery address',
+            'phone' => $customer->phone,
+            'items' => [],
+            'delivery_type' => 'standard',
+        ]);
+
+        $this->actingAs($customer, 'api')
+            ->patchJson('/api/orders/'.$order->id.'/status', ['status' => 'cancelled'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'This order has already started and can no longer be cancelled.');
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'preparing']);
     }
 
     public function test_main_system_onsite_order_is_assigned_to_the_main_branch(): void
@@ -177,6 +239,15 @@ class OrderPlacementTest extends TestCase
                 ],
                 'total' => 0,
                 'delivery_address' => 'Block 1, Lot 2, Dasmarinas, Cavite',
+                'delivery_instructions' => [
+                    'block' => '1',
+                    'lot' => '2',
+                    'street' => 'Mabini Street',
+                    'floor' => '2nd',
+                    'unit' => 'A',
+                    'building' => 'Building A',
+                    'note' => 'Gate code 1234',
+                ],
                 'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'cash_on_delivery',
                 'phone' => '09171234567',
@@ -187,12 +258,17 @@ class OrderPlacementTest extends TestCase
             ->assertJsonPath('order.total', '462.00')
             ->assertJsonPath('order.delivery_fee', '49.00')
             ->assertJsonPath('order.service_fee', '15.00')
-            ->assertJsonPath('order.items.0.product_id', $product->id);
+            ->assertJsonPath('order.items.0.product_id', $product->id)
+            ->assertJsonPath('order.delivery_instructions.floor', '2nd')
+            ->assertJsonPath('order.delivery_instructions.unit', 'A')
+            ->assertJsonPath('order.delivery_instructions.building', 'Building A')
+            ->assertJsonPath('order.delivery_instructions.note', 'Gate code 1234');
 
         $this->getJson('/api/orders/user')
             ->assertOk()
             ->assertJsonPath('0.id', $orderResponse->json('order.id'))
-            ->assertJsonPath('0.delivery_type', 'standard');
+            ->assertJsonPath('0.delivery_type', 'standard')
+            ->assertJsonPath('0.delivery_instructions.note', 'Gate code 1234');
     }
 
     public function test_customer_order_history_uses_the_authenticated_account(): void

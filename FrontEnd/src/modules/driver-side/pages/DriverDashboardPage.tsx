@@ -46,6 +46,15 @@ export interface DriverOrder {
   deliveryType?: string;
   created_at: string;
   deliveryAddress?: string;
+  deliveryInstructions?: {
+    block?: string | null;
+    lot?: string | null;
+    street?: string | null;
+    floor?: string | null;
+    unit?: string | null;
+    building?: string | null;
+    note?: string | null;
+  } | null;
   address?: string;
   phone?: string;
   deliveryCoordinates?: { lat: number; lng: number } | null;
@@ -550,6 +559,33 @@ const DriverDashboardPage: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {selectedOrder.deliveryInstructions && Object.values(selectedOrder.deliveryInstructions).some((value) => String(value || '').trim()) && (
+                <div className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3.5">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-highlight-text)]">Additional Delivery Details</p>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    {([
+                      ['Block', selectedOrder.deliveryInstructions.block],
+                      ['Lot', selectedOrder.deliveryInstructions.lot],
+                      ['Street', selectedOrder.deliveryInstructions.street],
+                      ['Floor', selectedOrder.deliveryInstructions.floor],
+                      ['Unit', selectedOrder.deliveryInstructions.unit],
+                      ['Building', selectedOrder.deliveryInstructions.building],
+                    ] as const).filter(([, value]) => String(value || '').trim()).map(([label, value]) => (
+                      <div key={label} className="min-w-0">
+                        <dt className="text-xs text-[var(--oppa-text-muted)]">{label}</dt>
+                        <dd className="break-words font-medium text-[var(--oppa-text)]">{value}</dd>
+                      </div>
+                    ))}
+                    {selectedOrder.deliveryInstructions.note?.trim() && (
+                      <div className="col-span-2 min-w-0">
+                        <dt className="text-xs text-[var(--oppa-text-muted)]">Note to Rider</dt>
+                        <dd className="whitespace-pre-wrap break-words font-medium text-[var(--oppa-text)]">{selectedOrder.deliveryInstructions.note}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              )}
 
               {selectedOrder.deliveryCoordinates ? (
                 <div className="overflow-hidden rounded-xl border border-[var(--oppa-border)]">

@@ -87,6 +87,7 @@ class DriverOrderController extends Controller
                 
                 // Extra fields drivers need
                 'deliveryAddress' => $order->delivery_address, 
+                'deliveryInstructions' => $order->delivery_instructions,
                 'phone' => $order->phone,
                 'deliveryCoordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)
                     ? ['lat' => (float) $order->delivery_lat, 'lng' => (float) $order->delivery_lng]

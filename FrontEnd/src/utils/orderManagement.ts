@@ -50,20 +50,18 @@ export const canManageOrder = (
 };
 
 export const getOrderCancellationRemainingSeconds = (
-  order: any,
-  graceStartedAtByOrder?: Record<string, number>
+  order: any
 ) => {
   if (!order || normalizeOrderStatus(order.status) !== ORDER_STATUS.PENDING) return 0;
 
-  const startedAt = graceStartedAtByOrder?.[String(order.id)] ?? getGraceStartedAt(order);
-  const elapsed = (Date.now() - startedAt) / 1000;
-  return Math.max(0, ORDER_CANCELLATION_WINDOW_SECONDS - elapsed);
+  const remaining = Number(order.cancellationRemainingSeconds);
+  const receivedAt = Number(order.cancellationRemainingReceivedAt);
+  if (!Number.isFinite(remaining) || !Number.isFinite(receivedAt)) return 0;
+
+  return Math.max(0, remaining - (performance.now() - receivedAt) / 1000);
 };
 
-export const canCancelOrder = (
-  order: any,
-  graceStartedAtByOrder?: Record<string, number>
-) => getOrderCancellationRemainingSeconds(order, graceStartedAtByOrder) > 0;
+export const canCancelOrder = (order: any) => getOrderCancellationRemainingSeconds(order) > 0;
 
 export const getOrderFeeBreakdown = (order: any) => {
   const productSubtotal = (order?.items || []).reduce((sum: number, item: any) => {

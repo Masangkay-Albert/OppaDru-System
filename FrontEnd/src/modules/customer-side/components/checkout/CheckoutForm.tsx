@@ -15,6 +15,8 @@ interface AddressFormState {
   note: string;
   block: string;
   lot: string;
+  unit: string;
+  building: string;
 }
 
 interface CheckoutFormProps {
@@ -33,6 +35,7 @@ interface CheckoutFormProps {
   onDiscountProofChange?: (file: File | null) => void;
   onAddressCoordinatesChange?: (coordinates: { lat: number; lng: number } | null) => void;
   onStreetDetailChange?: (street: string) => void;
+  onDeliveryInstructionsChange?: (details: AddressDetails) => void;
 }
 
 const CheckoutForm: React.FC<CheckoutFormProps> = ({
@@ -50,6 +53,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   onDiscountProofChange,
   onAddressCoordinatesChange,
   onStreetDetailChange,
+  onDeliveryInstructionsChange,
 }) => {
   const { user } = useAuth();
   const [showLocationPicker, setShowLocationPicker] = useState(false);
@@ -79,10 +83,13 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       if (street) {
         updateAddress('street', street);
       }
-      if (details?.floor) updateAddress('floor', details.floor);
-      if (details?.note) updateAddress('note', details.note);
+      updateAddress('floor', details?.floor || '');
+      updateAddress('note', details?.note || '');
       updateAddress('block', details?.block || '');
       updateAddress('lot', details?.lot || '');
+      updateAddress('unit', details?.unit || '');
+      updateAddress('building', details?.building || '');
+      onDeliveryInstructionsChange?.(details || {});
     }
   });
 
@@ -105,10 +112,13 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
     if (selectedAddressId) {
       updateDetails(selectedAddressId, details);
       onStreetDetailChange?.(details.street || '');
-      if (details.floor) updateAddress('floor', details.floor);
-      if (details.note) updateAddress('note', details.note);
+      updateAddress('floor', details.floor || '');
+      updateAddress('note', details.note || '');
       updateAddress('block', details.block || '');
       updateAddress('lot', details.lot || '');
+      updateAddress('unit', details.unit || '');
+      updateAddress('building', details.building || '');
+      onDeliveryInstructionsChange?.(details);
     }
   };
 

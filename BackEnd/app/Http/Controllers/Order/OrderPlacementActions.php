@@ -105,6 +105,7 @@ trait OrderPlacementActions
 
         $this->decodeArrayInput($request, 'items');
         $this->decodeArrayInput($request, 'delivery_coordinates');
+        $this->decodeArrayInput($request, 'delivery_instructions');
 
         $validator = Validator::make($request->all(), [
             'email' => 'required|string|email',
@@ -118,6 +119,14 @@ trait OrderPlacementActions
             'items.*.special_instructions' => 'nullable|string',
             'total' => 'nullable|numeric|min:0',
             'delivery_address' => 'required|string',
+            'delivery_instructions' => 'nullable|array',
+            'delivery_instructions.block' => 'nullable|string|max:100',
+            'delivery_instructions.lot' => 'nullable|string|max:100',
+            'delivery_instructions.street' => 'nullable|string|max:255',
+            'delivery_instructions.floor' => 'nullable|string|max:100',
+            'delivery_instructions.unit' => 'nullable|string|max:100',
+            'delivery_instructions.building' => 'nullable|string|max:255',
+            'delivery_instructions.note' => 'nullable|string|max:1000',
             'payment_method' => 'required|string|in:cash_on_delivery,gcash,credit_card',
             'delivery_type' => 'nullable|string|in:standard,priority,scheduled',
             'fulfillment_type' => 'nullable|string|in:pickup,delivery',
@@ -397,6 +406,7 @@ trait OrderPlacementActions
                     'total' => $total,
                     'delivery_type' => $request->input('delivery_type', 'standard'),
                     'delivery_address' => $request->delivery_address,
+                    'delivery_instructions' => $request->input('delivery_instructions'),
                     'delivery_coordinates' => $request->input('delivery_coordinates'),
                     'delivery_fee' => $pricing['deliveryFee'],
                     'delivery_distance_km' => $pricing['deliveryDistanceKm'],

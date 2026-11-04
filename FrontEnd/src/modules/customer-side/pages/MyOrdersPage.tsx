@@ -11,6 +11,7 @@ import {
   canCancelOrder,
   canManageOrder,
   getOrderCreatedAtMs,
+  getOrderCancellationRemainingSeconds,
   normalizeOrderStatus,
 } from '../../../utils/orderManagement';
 import { OrderCard } from '../components/orders/OrderCard';
@@ -22,7 +23,7 @@ import { useToast } from '../components/ToastProvider';
 const MyOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { orders, refreshOrders, isLoading } = useOrder();
-  const { showToast } = useToast();
+  const { showToast, confirmDialog, dismissDialog } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -32,6 +33,7 @@ const MyOrdersPage: React.FC = () => {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [, setTick] = useState(Date.now());
   const [graceStartedAtByOrder, setGraceStartedAtByOrder] = useState<Record<string, number>>({});
+  const [confirmingCancellationOrderId, setConfirmingCancellationOrderId] = useState<string | null>(null);
 
   const sortedOrders = useMemo(() => {
     return [...orders].sort((a, b) => {
@@ -45,6 +47,19 @@ const MyOrdersPage: React.FC = () => {
     const interval = window.setInterval(() => setTick(Date.now()), 1000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!confirmingCancellationOrderId) return;
+    const order = orders.find((candidate) => candidate.id === confirmingCancellationOrderId);
+    if (!order || normalizeOrderStatus(order.status) === ORDER_STATUS.PENDING) return;
+
+    const timer = window.setTimeout(() => {
+      dismissDialog();
+      setConfirmingCancellationOrderId(null);
+      showToast('This order has already started and can no longer be cancelled.', 'warning');
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [confirmingCancellationOrderId, orders, dismissDialog, showToast]);
 
   useEffect(() => {
     const pendingOrders = sortedOrders.filter(order => normalizeOrderStatus(order.status) === ORDER_STATUS.PENDING);
@@ -103,16 +118,40 @@ const MyOrdersPage: React.FC = () => {
   };
 
   const handleCancelOrder = async (order: any) => {
-    if (!canCancelOrder(order, graceStartedAtByOrder)) return;
+    if (!canCancelOrder(order)) {
+      showToast('Cancellation period has ended.', 'warning');
+      return;
+    }
 
+    setConfirmingCancellationOrderId(order.id);
+    const remainingMs = getOrderCancellationRemainingSeconds(order) * 1000;
+    const expiryTimer = window.setTimeout(() => {
+      dismissDialog();
+      setConfirmingCancellationOrderId(null);
+      showToast('Cancellation period has ended.', 'warning');
+    }, remainingMs);
     try {
+      const confirmed = await confirmDialog({
+        title: 'Cancel this order?',
+        message: 'This will cancel your order and notify the branch.',
+        cancelLabel: 'Keep Order',
+        confirmLabel: 'Yes, Cancel',
+        danger: true,
+      });
+      if (!confirmed || !canCancelOrder(order)) {
+        if (confirmed) showToast('Cancellation period has ended.', 'warning');
+        return;
+      }
+
       await orderService.updateOrderStatus(order.id, ORDER_STATUS.CANCELLED);
-      setGraceStartedAtByOrder({});
+      showToast('Order cancelled successfully.', 'success');
       await refreshOrders();
-      navigate('/customer/orders', { replace: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to cancel this order.';
-      console.error(message);
+      showToast(message, 'error');
+    } finally {
+      window.clearTimeout(expiryTimer);
+      setConfirmingCancellationOrderId(null);
     }
   };
 
@@ -315,7 +354,6 @@ const MyOrdersPage: React.FC = () => {
                 onTrack={handleTrackOrder}
                 onCancel={handleCancelOrder}
                 onEdit={openEditOrder}
-                graceStartedAtByOrder={graceStartedAtByOrder}
               />
             ))
           )}
