@@ -9,6 +9,8 @@ const KitchenLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     try {
       return JSON.parse(sessionStorage.getItem('employee_auth') || 'null') as {
       franchise_id?: string | null;
+      fullName?: string;
+      name?: string;
       franchise?: { id?: string; name?: string } | null;
       } | null;
     } catch {
@@ -24,7 +26,13 @@ const KitchenLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   };
 
   return (
-    <EmployeeDashboardLayout role="kitchen" branchName={branchName} branchId={branchId} onSignOut={handleLogout}>
+    <EmployeeDashboardLayout
+      role="kitchen"
+      branchName={branchName}
+      branchId={branchId}
+      userName={employee?.fullName || employee?.name}
+      onSignOut={handleLogout}
+    >
       {children}
     </EmployeeDashboardLayout>
   );

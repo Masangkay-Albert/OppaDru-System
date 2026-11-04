@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import StaffBranchBadge from '../shared/components/StaffBranchBadge';
 import {
   CalendarClock, CheckCircle, ChefHat, Eye, Flame,
 } from 'lucide-react';
@@ -50,8 +49,6 @@ const KitchenDashboardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<KitchenTab>('pending');
   const [sortOrder, setSortOrder] = useState<KitchenSort>('desc');
   const [staffName, setStaffName] = useState('Kitchen Staff');
-  const [branchName, setBranchName] = useState('Main system');
-  const [branchId, setBranchId] = useState<string | null>(null);
   const [scheduledCount, setScheduledCount] = useState(0);
   const [newCount, setNewCount] = useState(0);
   const [scheduledDateFilter, setScheduledDateFilter] = useState<ScheduledDateFilter>('all');
@@ -82,8 +79,6 @@ const KitchenDashboardPage: React.FC = () => {
     }
     const timer = window.setTimeout(() => {
       setStaffName(employee.fullName || employee.name || 'Kitchen Staff');
-      setBranchName(employee.franchise?.name || 'Main system');
-      setBranchId(employee.franchise?.id || employee.franchise_id || null);
       document.title = `${employee.franchise?.name || 'Main system'} | Kitchen Dashboard | Oppa Dru`;
     }, 0);
     return () => window.clearTimeout(timer);
@@ -296,7 +291,7 @@ const KitchenDashboardPage: React.FC = () => {
       <EmployeeDashboardHeader
         title="Kitchen Dashboard"
         name={staffName}
-        context={<StaffBranchBadge name={branchName} id={branchId} />}
+        showIdentity={false}
       />
 
       {promotionNotice && (
@@ -307,7 +302,7 @@ const KitchenDashboardPage: React.FC = () => {
         </div>
       )}
 
-      <div className="relative z-20 mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative z-20 mb-4 flex min-w-0 flex-wrap items-center justify-between gap-3">
         <EmployeeDashboardTabs<KitchenTab>
           tabs={tabs.map((tab) => ({
             id: tab,
@@ -317,7 +312,7 @@ const KitchenDashboardPage: React.FC = () => {
           activeTab={activeTab}
           onChange={setActiveTab}
         />
-        <div className="admin-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           {activeTab === 'scheduled' && (
             <>
               <Select aria-label="Filter scheduled orders by date" value={scheduledDateFilter} onChange={(value) => setScheduledDateFilter(value as ScheduledDateFilter)} options={[{ value: 'all', label: 'All dates' }, { value: 'today', label: 'Today' }, { value: 'tomorrow', label: 'Tomorrow' }, { value: 'week', label: 'This Week' }, { value: 'custom', label: 'Custom' }]} className="shrink-0" />
@@ -361,7 +356,6 @@ const KitchenDashboardPage: React.FC = () => {
                     <div className="min-w-0">
                       <StatusBadge status={order.status} />
                       <p className="mt-2 font-mono text-xs text-[var(--oppa-text-muted)]">{order.order_number || order.id}</p>
-                      {(order.branch_name || order.branchName) && <p className="mt-1 truncate text-xs font-medium text-[var(--oppa-green)]">{order.branch_name || order.branchName}</p>}
                       <p className="font-medium text-[var(--oppa-text)]">{order.customerName}</p>
                       {renderBadges(order)}
                     </div>
@@ -406,7 +400,7 @@ const KitchenDashboardPage: React.FC = () => {
                 const mayStart = !order.isScheduled || !order.prepStartTime || new Date(order.prepStartTime).getTime() <= now;
                 return (
                   <tr key={order.id} className={`border-b border-[var(--oppa-border)]/60 transition-colors duration-200 ease-out last:border-0 hover:bg-[var(--oppa-green-soft)]/50 ${group.key === 'priority' ? 'bg-orange-50/30 dark:bg-orange-950/20' : ''}`}>
-                    <td className="px-4 py-3 align-middle"><span className="font-mono text-xs">{order.order_number || order.id}</span>{(order.branch_name || order.branchName) && <span className="mt-1 block truncate text-xs font-medium text-[var(--oppa-green)]">{order.branch_name || order.branchName}</span>}{renderBadges(order)}</td>
+                    <td className="px-4 py-3 align-middle"><span className="font-mono text-xs">{order.order_number || order.id}</span>{renderBadges(order)}</td>
                     <td className="px-4 py-3 font-medium">{order.customerName || 'Customer'}</td>
                     <td className="px-4 py-3 text-[var(--oppa-text-muted)]">
                       {order.isScheduled && order.scheduledFor ? <><strong className="block text-[var(--oppa-text)]">{formatKitchenManilaDateTime(order.scheduledFor)}</strong>{scheduleState && <span className="text-xs">{scheduleState.detail}</span>}</> : <OrderDateTime date={order.created_at} />}

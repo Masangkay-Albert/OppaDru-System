@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { ArrowLeft, Eye, EyeOff, KeyRound, Mail, Phone, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import LoginBrandPanel from "../../../components/LoginBrandPanel";
 import { useToast } from "../components/ToastProvider";
 import { authService } from "../../../services/authService";
 
@@ -90,23 +89,27 @@ const ForgotPasswordPage: React.FC = () => {
     }
   };
 
-  const inputClassName = "min-h-11 w-full rounded-xl border border-[var(--oppa-border)] px-3.5 py-2.5 text-sm transition-colors placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20";
+  const inputClassName = "min-h-12 w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--oppa-text)] transition-colors placeholder:text-gray-400 hover:border-[var(--oppa-green)]/45 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-4 focus:ring-[var(--oppa-green)]/10 disabled:cursor-not-allowed disabled:bg-gray-50";
   const passwordValid = passwordRules.every((rule) => rule.test(password));
 
   return (
-    <div className="min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)] lg:grid lg:grid-cols-2">
-      <LoginBrandPanel title="Recover Your Account" description="Verify your identity and get back to enjoying your favorites." />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--oppa-cream)] px-4 py-8 text-[var(--oppa-text)] sm:px-6">
+      <div aria-hidden="true" className="pointer-events-none absolute -left-32 -top-40 size-96 rounded-full bg-[var(--oppa-green-soft)]/70 blur-3xl" />
+      <div aria-hidden="true" className="pointer-events-none absolute -bottom-48 -right-32 size-[28rem] rounded-full bg-white/80 blur-3xl" />
 
-      <main className="flex min-h-screen items-center justify-center px-5 py-8 sm:px-8">
-        <div className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-sm sm:p-8">
-          <div className="mb-6 text-center">
-            <div className="mb-3 inline-flex size-11 items-center justify-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]">
+      <main className="relative flex w-full max-w-[28rem] items-center justify-center">
+        <div className="w-full rounded-3xl border border-[var(--oppa-border)]/90 bg-white p-6 shadow-[0_20px_60px_-32px_rgba(28,61,46,0.28)] sm:p-8">
+          <div className="mb-7 text-center">
+            <div className="mb-3 inline-flex size-12 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] ring-4 ring-[var(--oppa-green-soft)]/40">
               {step === 1 ? <ShieldCheck className="size-5" aria-hidden="true" /> : <KeyRound className="size-5" aria-hidden="true" />}
             </div>
-            <h1 className="font-serif text-3xl font-semibold text-[var(--oppa-green)]">
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--oppa-text-muted)]">
+              Account recovery
+            </p>
+            <h1 className="font-serif text-3xl font-semibold tracking-tight text-[var(--oppa-green)]">
               {step === 1 ? "Verify identity" : "Set a new password"}
             </h1>
-            <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[var(--oppa-text-muted)]">
               {step === 1
                 ? "Confirm your account email and registered phone."
                 : "Choose a strong password for your account."}
@@ -125,18 +128,13 @@ const ForgotPasswordPage: React.FC = () => {
 
           {step === 1 ? (
             <>
-              <div className="mb-5 rounded-xl bg-gray-100 p-1" role="group" aria-label="Verification method">
-                <span className="flex min-h-10 w-1/2 items-center justify-center rounded-lg bg-white px-2 text-sm font-medium text-[var(--oppa-green)] shadow-sm">
-                  Phone number
-                </span>
-              </div>
-              <form onSubmit={handleVerify} className="space-y-4" aria-busy={isSubmitting}>
+              <form onSubmit={handleVerify} className="space-y-5" aria-busy={isSubmitting}>
                 <div>
-                  <label htmlFor="recovery-email" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
+                  <label htmlFor="recovery-email" className="mb-2 block text-sm font-semibold text-[var(--oppa-text)]">
                     Account email
                   </label>
                   <div className="relative">
-                    <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                    <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
                     <input
                       id="recovery-email"
                       name="email"
@@ -152,11 +150,11 @@ const ForgotPasswordPage: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="recovery-phone" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
+                  <label htmlFor="recovery-phone" className="mb-2 block text-sm font-semibold text-[var(--oppa-text)]">
                     Registered phone number
                   </label>
                   <div className="relative">
-                    <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                    <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
                     <input
                       id="recovery-phone"
                       name="phone"
@@ -174,7 +172,7 @@ const ForgotPasswordPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="min-h-11 w-full rounded-xl bg-[var(--oppa-green)] py-3 font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-1 min-h-12 w-full rounded-xl bg-[var(--oppa-green)] py-3 font-semibold text-white shadow-sm transition hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSubmitting ? "Verifying..." : "Verify identity"}
                 </button>
@@ -265,7 +263,7 @@ const ForgotPasswordPage: React.FC = () => {
           )}
 
           {step === 1 && (
-            <p className="mt-4 text-center text-xs text-[var(--oppa-text-muted)]">
+            <p className="mt-5 text-center text-xs leading-5 text-[var(--oppa-text-muted)]">
               Don&apos;t have a phone number saved? Contact support.
             </p>
           )}
@@ -273,7 +271,7 @@ const ForgotPasswordPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate("/login")}
-            className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--oppa-green)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
+            className="mt-6 inline-flex min-h-10 items-center gap-2 rounded-lg text-sm font-semibold text-[var(--oppa-green)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
             Back to login
