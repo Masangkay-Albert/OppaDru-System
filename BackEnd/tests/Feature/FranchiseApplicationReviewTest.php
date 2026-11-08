@@ -9,6 +9,7 @@ use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
 use App\Models\FranchiseApplicationEvent;
 use App\Models\FranchiseUser;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
@@ -82,9 +83,10 @@ class FranchiseApplicationReviewTest extends TestCase
             'status' => 'for_interview',
         ], $headers)->assertUnprocessable();
 
+        $interviewAt = now()->addDays(3)->setTime(10, 0)->toIso8601String();
         $interviewReview = [
             'status' => 'for_interview',
-            'interview_at' => '2026-11-01T10:00:00+08:00',
+            'interview_at' => $interviewAt,
             'interview_type' => 'online',
             'interview_notes' => 'Bring the operating plan.',
             'interview_meeting_url' => 'https://meet.example.test/franchise-interview',
@@ -95,6 +97,11 @@ class FranchiseApplicationReviewTest extends TestCase
             'interview_at' => now()->subDay()->toIso8601String(),
         ], $headers)->assertUnprocessable()
             ->assertJsonPath('errors.interview_at.0', 'Choose a current or future interview date and time.');
+        $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
+            ...$interviewReview,
+            'interview_at' => now('Asia/Manila')->addYear()->setTime(10, 0)->toIso8601String(),
+        ], $headers)->assertUnprocessable()
+            ->assertJsonPath('errors.interview_at.0', 'Choose an interview date within this calendar year.');
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, $interviewReview, $headers)->assertOk()
             ->assertJsonPath('data.status', 'for_interview');
@@ -121,7 +128,9 @@ class FranchiseApplicationReviewTest extends TestCase
         $this->assertDatabaseHas('franchise_application_events', [
             'application_id' => $application->id,
             'title' => 'Interview scheduled',
-            'message' => 'Interview scheduled for November 1, 2026 10:00 AM (Philippine time).',
+            'message' => 'Interview scheduled for '.CarbonImmutable::parse($interviewAt)
+                ->setTimezone('Asia/Manila')
+                ->format('F j, Y g:i A').' (Philippine time).',
             'is_internal' => false,
         ]);
         $this->assertSame(
@@ -150,7 +159,7 @@ class FranchiseApplicationReviewTest extends TestCase
 
         $onsiteInterview = [
             'status' => 'for_interview',
-            'interview_at' => '2026-11-01T10:00:00+08:00',
+            'interview_at' => now()->addDays(3)->setTime(10, 0)->toIso8601String(),
             'interview_type' => 'onsite',
             'interview_notes' => 'Discuss the operating plan.',
         ];
@@ -190,7 +199,7 @@ class FranchiseApplicationReviewTest extends TestCase
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'for_interview',
-            'interview_at' => '2026-11-01T10:00:00+08:00',
+            'interview_at' => now()->addDays(3)->setTime(10, 0)->toIso8601String(),
         ], $headers)->assertOk();
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
@@ -284,6 +293,43 @@ class FranchiseApplicationReviewTest extends TestCase
                 ->pluck('status')
                 ->all(),
         );
+    }
+
+    public function test_admin_can_download_an_applicant_document_from_the_configured_storage_disk(): void
+    {
+        Storage::fake('s3');
+        config(['filesystems.default' => 's3']);
+
+        $adminToken = $this->createAdminToken();
+        $applicant = $this->createVerifiedApplicant();
+        $submission = $this->post('/api/franchise-applications', [
+            'contact_name' => 'Franchise Applicant',
+            'phone' => '09170000000',
+            'location' => 'Cebu City',
+            'applicant_address' => 'Cebu City, Cebu',
+            'business_experience' => 'Five years operating a restaurant.',
+            'investment_capacity' => 2500000,
+            'has_proposed_property' => true,
+            'opening_timeline' => '6_to_12_months',
+            'documents' => [
+                UploadedFile::fake()->createWithContent('business-plan.pdf', 'business plan content'),
+            ],
+        ], [
+            'Authorization' => 'Bearer '.$applicant['token'],
+            'Accept' => 'application/json',
+        ])->assertCreated();
+
+        $application = FranchiseApplication::findOrFail($submission->json('data.id'));
+        $this->assertSame('s3', $application->documents[0]['disk']);
+        Storage::disk('s3')->assertExists($application->documents[0]['path']);
+
+        Auth::forgetGuards();
+        $download = $this->get('/api/admin/franchise-applications/'.$application->id.'/documents/0', [
+            'Authorization' => 'Bearer '.$adminToken,
+            'Accept' => 'application/json',
+        ])->assertOk()
+            ->assertHeader('content-disposition');
+        $this->assertSame('business plan content', $download->streamedContent());
     }
 
     public function test_applicant_cannot_update_status_and_admin_cannot_skip_to_activation(): void

@@ -93,13 +93,14 @@ trait FranchiseApplicationApplicantActions
 
                 $documents = [];
                 foreach ($request->file('documents', []) as $file) {
-                    $path = Storage::disk('local')->putFile('franchise-applications/'.$application->id, $file);
+                    $path = Storage::disk()->putFile('franchise-applications/'.$application->id, $file);
                     if (! $path) {
                         throw new RuntimeException('A supporting document could not be saved. Please try again.');
                     }
                     $storedPaths[] = $path;
                     $documents[] = [
                         'path' => $path,
+                        'disk' => config('filesystems.default'),
                         'name' => basename($file->getClientOriginalName()),
                         'mime_type' => $file->getMimeType(),
                         'size' => $file->getSize(),
@@ -123,7 +124,7 @@ trait FranchiseApplicationApplicantActions
             });
         } catch (Throwable $exception) {
             if ($storedPaths !== []) {
-                Storage::disk('local')->delete($storedPaths);
+                Storage::disk()->delete($storedPaths);
             }
             throw $exception;
         }
@@ -299,13 +300,14 @@ trait FranchiseApplicationApplicantActions
                 }
                 foreach ($uploadGroups as $group) {
                     foreach ($group['files'] as $file) {
-                        $path = Storage::disk('local')->putFile('franchise-applications/'.$application->id, $file);
+                        $path = Storage::disk()->putFile('franchise-applications/'.$application->id, $file);
                         if (! $path) {
                             throw new RuntimeException('A supporting document could not be saved. Please try again.');
                         }
                         $storedPaths[] = $path;
                         $storedDocument = [
                             'path' => $path,
+                            'disk' => config('filesystems.default'),
                             'name' => basename($file->getClientOriginalName()),
                             'mime_type' => $file->getMimeType(),
                             'size' => $file->getSize(),
@@ -354,7 +356,7 @@ trait FranchiseApplicationApplicantActions
             });
         } catch (Throwable $exception) {
             if ($storedPaths !== []) {
-                Storage::disk('local')->delete($storedPaths);
+                Storage::disk()->delete($storedPaths);
             }
             throw $exception;
         }
@@ -461,9 +463,10 @@ trait FranchiseApplicationApplicantActions
         $file = $request->file('proof');
         $storedPath = null;
         $replacedPath = null;
+        $replacedDisk = 'local';
 
         try {
-            $application = DB::transaction(function () use ($applicantId, $file, $id, $referenceNumber, $contactEmail, $request, &$storedPath, &$replacedPath) {
+            $application = DB::transaction(function () use ($applicantId, $file, $id, $referenceNumber, $contactEmail, $request, &$storedPath, &$replacedPath, &$replacedDisk) {
                 $applicationQuery = FranchiseApplication::query()->lockForUpdate();
                 if ($applicantId !== null) {
                     $applicationQuery->where('franchise_applicant_id', $applicantId)->whereKey($id);
@@ -487,7 +490,7 @@ trait FranchiseApplicationApplicantActions
                     ], 409));
                 }
 
-                $storedPath = Storage::disk('local')->putFile('franchise-application-payment-proofs/'.$application->id, $file);
+                $storedPath = Storage::disk()->putFile('franchise-application-payment-proofs/'.$application->id, $file);
                 if (! $storedPath) {
                     throw new RuntimeException('The proof of payment could not be saved. Please try again.');
                 }
@@ -496,11 +499,13 @@ trait FranchiseApplicationApplicantActions
                 foreach ($documents as $index => $document) {
                     if (($document['document_type'] ?? null) === 'payment_proof') {
                         $replacedPath = $document['path'] ?? $replacedPath;
+                        $replacedDisk = $document['disk'] ?? 'local';
                         unset($documents[$index]);
                     }
                 }
                 $documents[] = [
                     'path' => $storedPath,
+                    'disk' => config('filesystems.default'),
                     'name' => basename($file->getClientOriginalName()),
                     'mime_type' => $file->getMimeType(),
                     'size' => $file->getSize(),
@@ -527,13 +532,13 @@ trait FranchiseApplicationApplicantActions
             });
         } catch (Throwable $exception) {
             if ($storedPath) {
-                Storage::disk('local')->delete($storedPath);
+                Storage::disk()->delete($storedPath);
             }
             throw $exception;
         }
 
         if ($replacedPath) {
-            Storage::disk('local')->delete($replacedPath);
+            Storage::disk($replacedDisk)->delete($replacedPath);
         }
 
         return response()->json([
@@ -587,11 +592,12 @@ trait FranchiseApplicationApplicantActions
         }
 
         $file = $application->documents[$document] ?? null;
-        if (! is_array($file) || empty($file['path']) || ! Storage::disk('local')->exists($file['path'])) {
+        $disk = is_array($file) ? Storage::disk($file['disk'] ?? 'local') : null;
+        if (! is_array($file) || empty($file['path']) || ! $disk?->exists($file['path'])) {
             abort(404);
         }
 
-        $stream = Storage::disk('local')->readStream($file['path']);
+        $stream = $disk->readStream($file['path']);
         if (! is_resource($stream)) {
             abort(404);
         }

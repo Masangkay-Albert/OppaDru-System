@@ -44,6 +44,11 @@ const toManilaDateTimeInput = (value: string): string => {
 const manilaDateTimeInputToIso = (value: string): string =>
   value ? new Date(`${value}:00+08:00`).toISOString() : '';
 
+const currentManilaYear = (): number =>
+  Number(new Intl.DateTimeFormat('en', { timeZone: manilaTimeZone, year: 'numeric' }).format(new Date()));
+
+const maximumManilaDateTime = (): string => `${currentManilaYear()}-12-31T23:59`;
+
 const minimumManilaDateTime = (): string =>
   toManilaDateTimeInput(new Date(Date.now() + 60_000).toISOString());
 
@@ -584,7 +589,9 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
   }, []);
 
   const storedStatus = application?.status === 'pending' ? 'submitted' : application?.status || 'submitted';
-  const currentStatus = storedStatus === 'additional_information_required'
+  const currentStatus = storedStatus === 'submitted'
+    ? 'under_review'
+    : storedStatus === 'additional_information_required'
     ? application?.events?.some((event) => event.title === 'Status updated' && event.status === 'location_assessment')
       ? 'location_assessment'
       : 'under_review'
@@ -678,11 +685,16 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
     const nextStatus = advanceStatus(status);
     const interviewAtIso = interviewAt ? manilaDateTimeInputToIso(interviewAt) : '';
     const interviewIsPast = Boolean(interviewAtIso) && new Date(interviewAtIso).getTime() < Date.now();
-    if (status === 'for_interview' && (!interviewAt || interviewIsPast)) {
+    const schedulingInterview = nextStatus === 'for_interview';
+    if (schedulingInterview && (!interviewAt || interviewIsPast)) {
       setError('Add an interview date to continue.');
       return;
     }
-    if (interviewType === 'onsite' && status === 'for_interview' && !interviewLocation.trim()) {
+    if (interviewAt && Number(interviewAt.slice(0, 4)) !== currentManilaYear()) {
+      setError('Choose an interview date within this calendar year.');
+      return;
+    }
+    if (schedulingInterview && interviewType === 'onsite' && !interviewLocation.trim()) {
       setError('Enter the onsite interview location before continuing.');
       return;
     }
@@ -899,10 +911,10 @@ const AdminFranchiseApplicationDetailPage: React.FC = () => {
                 </button>
               </>}
               {currentStatus === 'location_assessment' && <label className="block text-sm font-medium">Instructions for the applicant<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={3} maxLength={2000} placeholder="Explain the next step or list the requested documents." className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>}
-              {currentStatus === 'for_interview' && <div className="rounded-xl border border-[var(--oppa-border)] p-3">
-                <h3 className="mb-3 text-sm font-semibold">Interview record (Philippine time)</h3>
-                <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Date and time<input type="datetime-local" min={minimumInterviewAt} value={interviewAt} onChange={(event) => setInterviewAt(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
-                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Past dates and times are unavailable. Choose today or a future date.</p>
+              {['under_review', 'for_interview'].includes(currentStatus) && <div className="rounded-xl border border-[var(--oppa-border)] p-3">
+                <h3 className="mb-3 text-sm font-semibold">{currentStatus === 'under_review' ? 'Schedule interview (Philippine time)' : 'Interview record (Philippine time)'}</h3>
+                <label className="block text-xs font-medium text-[var(--oppa-text-muted)]">Date and time<input type="datetime-local" min={minimumInterviewAt} max={maximumManilaDateTime()} required={currentStatus === 'under_review'} value={interviewAt} onChange={(event) => setInterviewAt(event.target.value)} className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>
+                <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Choose a future date within this calendar year.</p>
                 <Select label="Interview type" value={interviewType} onChange={(value) => setInterviewType(value as 'online' | 'onsite')} options={[{ value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} />
                 {interviewType === 'online' ? <>
                   <label className="mt-3 block text-xs font-medium text-[var(--oppa-text-muted)]">Online meeting link<input type="url" maxLength={2048} value={interviewMeetingUrl} onChange={(event) => setInterviewMeetingUrl(event.target.value)} placeholder="https://meet.google.com/… or https://zoom.us/…" className="mt-1.5 w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm text-[var(--oppa-text)]" /></label>

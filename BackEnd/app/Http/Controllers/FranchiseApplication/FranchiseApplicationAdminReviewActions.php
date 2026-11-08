@@ -213,6 +213,13 @@ trait FranchiseApplicationAdminReviewActions
                     'errors' => ['interview_at' => ['Choose a current or future interview date and time.']],
                 ], 422));
             }
+            if ($requestedInterviewAt
+                && $requestedInterviewAt->setTimezone('Asia/Manila')->year !== now('Asia/Manila')->year) {
+                abort(response()->json([
+                    'message' => 'Interview date and time must be within the current calendar year.',
+                    'errors' => ['interview_at' => ['Choose an interview date within this calendar year.']],
+                ], 422));
+            }
 
             $application->status = $targetStatus;
             $application->reviewed_by_admin_id = $admin?->id;
