@@ -245,6 +245,7 @@ trait FranchiseApplicationApplicantActions
                 $application = $applicationQuery->firstOrFail();
                 $documents = $application->documents ?? [];
                 $requiredDocuments = $application->required_documents ?? [];
+                $hasConfirmedPacket = (bool) $application->required_documents_confirmed_at;
                 $latestPacketRequestId = FranchiseApplicationEvent::query()
                     ->where('application_id', $application->id)
                     ->where('title', 'Document packet requested')
@@ -255,22 +256,21 @@ trait FranchiseApplicationApplicantActions
                     ->whereIn('title', ['Additional information submitted', 'Document packet submitted', 'Documents submitted'])
                     ->orderByDesc('id')
                     ->value('id');
-                $hasOpenPacketRequest = $latestPacketRequestId
+                $hasOpenPacketRequest = $hasConfirmedPacket
+                    && $latestPacketRequestId
                     && (! $latestPacketSubmissionId || $latestPacketRequestId > $latestPacketSubmissionId);
                 $hasConfiguredRequirements = collect($requiredDocuments)
                     ->contains(fn (array $document) => ($document['required'] ?? false)
                         && ($document['status'] ?? null) !== 'not_applicable');
-                $isLocationAssessment = $application->status === 'location_assessment' && $hasConfiguredRequirements;
+                $isLocationAssessment = $application->status === 'location_assessment'
+                    && $hasConfiguredRequirements
+                    && $hasOpenPacketRequest;
                 if ($application->status !== 'additional_information_required'
                     && ! $hasOpenPacketRequest
                     && ! $isLocationAssessment) {
-                    abort(response()->json(['message' => 'A document packet can only be submitted after the franchise team moves the application to Location Assessment or requests a packet.'], 409));
+                    abort(response()->json(['message' => 'A document packet can only be submitted after the franchise team confirms and requests it.'], 409));
                 }
-                $requestedForCombinedReview = FranchiseApplicationEvent::query()
-                    ->where('application_id', $application->id)
-                    ->where('title', 'Status updated')
-                    ->where('status', 'location_assessment')
-                    ->exists() || (bool) $hasOpenPacketRequest || $isLocationAssessment;
+                $requestedForCombinedReview = (bool) $hasOpenPacketRequest;
                 if ($requestedForCombinedReview && ! $hasConfiguredRequirements) {
                     abort(response()->json(['message' => 'The franchise team has not configured any required documents yet.'], 409));
                 }
@@ -372,6 +372,9 @@ trait FranchiseApplicationApplicantActions
         $application = FranchiseApplication::query()
             ->where('franchise_applicant_id', $request->user()->id)
             ->findOrFail($id);
+        if (! $this->hasConfirmedDocumentPacketRequest($application)) {
+            abort(404);
+        }
         $requiredDocument = $application->required_documents[$document] ?? null;
         if (! is_array($requiredDocument)
             || empty($requiredDocument['template_path'])
@@ -412,6 +415,9 @@ trait FranchiseApplicationApplicantActions
             ->whereRaw('LOWER(reference_number) = ?', [strtolower(trim((string) $request->input('reference_number')))])
             ->whereRaw('LOWER(email) = ?', [strtolower(trim((string) $request->input('email')))])
             ->firstOrFail();
+        if (! $this->hasConfirmedDocumentPacketRequest($application)) {
+            abort(404);
+        }
         $requiredDocument = $application->required_documents[$request->integer('document')] ?? null;
         if (! is_array($requiredDocument)
             || empty($requiredDocument['template_path'])
@@ -617,6 +623,7 @@ trait FranchiseApplicationApplicantActions
 
     private function applicantApplication(FranchiseApplication $application): array
     {
+        $hasConfirmedPacket = $this->hasConfirmedDocumentPacketRequest($application);
         $application->makeHidden([
             'user_id',
             'franchise_applicant_id',
@@ -629,10 +636,15 @@ trait FranchiseApplicationApplicantActions
         $application->documents = collect($application->documents ?? [])
             ->map(fn (array $document) => collect($document)->only(['name', 'mime_type', 'size', 'uploaded_at', 'required_document_label', 'document_type'])->all())
             ->all();
-        $application->required_documents = collect($application->required_documents ?? [])
+        $application->required_documents = collect($hasConfirmedPacket ? ($application->required_documents ?? []) : [])
             ->map(fn (array $document) => collect($document)->except(['template_path'])->all())
             ->all();
 
         return $application->toArray();
+    }
+
+    private function hasConfirmedDocumentPacketRequest(FranchiseApplication $application): bool
+    {
+        return (bool) $application->required_documents_confirmed_at;
     }
 }

@@ -40,8 +40,10 @@ type GeographicOption = {
 type Draft = { form: ApplicationForm; step: number };
 type FormFieldName = keyof ApplicationForm;
 
+const franchiseBusinessNamePrefix = 'Oppa Dru Korean Fried Chicken';
+
 const initialForm: ApplicationForm = {
-  franchise_name: '', contact_name: '', email: '', phone: '', province: '', city: '', street: '',
+  franchise_name: franchiseBusinessNamePrefix, contact_name: '', email: '', phone: '', province: '', city: '', street: '',
   business_experience: '', investment_capacity: '', location: '', location_province: '', location_city: '',
   location_barangay: '', location_area: '', has_proposed_property: '',
   opening_timeline: '', business_information: '', notes: '',
@@ -108,6 +110,10 @@ const readDraft = (): { draft: Draft | null; error: string } => {
       return { draft: null, error: 'We couldn’t read your saved draft. You can start a new application.' };
     }
     const form = { ...initialForm, ...parsed.form };
+    const savedBusinessName = form.franchise_name.trim();
+    form.franchise_name = savedBusinessName.startsWith(franchiseBusinessNamePrefix)
+      ? savedBusinessName
+      : franchiseBusinessNamePrefix;
     if (!parsed.form.location_province && !parsed.form.location_area && form.location) {
       form.location_area = form.location;
     }
@@ -1032,8 +1038,18 @@ const FranchiseApplicationPage: React.FC = () => {
                       invalid={!!fieldErrors.investment_capacity}
                       describedBy={fieldDescription('investment_capacity', !!fieldErrors.investment_capacity)} />
                   </FormField>
-                  <FormField id="franchise_name" label="Proposed business name" helper="Optional — the team can help you choose a final name.">
-                    <input id="franchise_name" maxLength={255} value={form.franchise_name} onChange={(event) => updateField('franchise_name', event.target.value)} placeholder="Name for your proposed location" className="franchise-control" />
+                  <FormField id="franchise_name" label="Proposed business name" helper="Enter the proposed branch location to complete the name.">
+                    <div className="franchise-business-name">
+                      <span aria-hidden="true">{franchiseBusinessNamePrefix} -</span>
+                      <input id="franchise_name" maxLength={255 - franchiseBusinessNamePrefix.length - 3} value={form.franchise_name.startsWith(franchiseBusinessNamePrefix)
+                        ? form.franchise_name.slice(franchiseBusinessNamePrefix.length).replace(/^\s*-\s*/, '')
+                        : ''} onChange={(event) => {
+                          const location = event.target.value.trimStart();
+                          updateField('franchise_name', location
+                            ? `${franchiseBusinessNamePrefix} - ${location}`
+                            : franchiseBusinessNamePrefix);
+                        }} placeholder="Branch location" className="franchise-business-name-location" />
+                    </div>
                   </FormField>
                 </div>
               </FormSection>
@@ -1414,7 +1430,7 @@ const SearchableSelect: React.FC<{
   };
 
   return (
-    <div className="franchise-searchable-select">
+    <div className={`franchise-searchable-select${isOpen ? ' is-open' : ''}`}>
       <input id={id} required={required} role="combobox" aria-autocomplete="list" aria-expanded={isOpen}
         aria-controls={listId} aria-activedescendant={isOpen && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
         autoComplete="off" maxLength={150} value={value} disabled={disabled}

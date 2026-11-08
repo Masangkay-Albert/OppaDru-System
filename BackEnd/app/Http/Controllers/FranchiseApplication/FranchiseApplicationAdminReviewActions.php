@@ -281,8 +281,13 @@ trait FranchiseApplicationAdminReviewActions
                     '['.now()->toDateTimeString().'] '.$request->input('admin_notes'),
                 ])));
             }
+            if ($requestDocumentPacket) {
+                $application->required_documents_confirmed_at = now();
+            }
             $application->save();
-            $this->requestDocumentPacketIfReady($application, $admin);
+            if ($requestDocumentPacket) {
+                $this->requestDocumentPacketIfReady($application, $admin);
+            }
 
             if ($previousStatus !== $targetStatus || $previousInstructions !== $application->next_step_instructions) {
                 $this->recordEvent(
@@ -402,6 +407,7 @@ trait FranchiseApplicationAdminReviewActions
             'franchise_fee_payment_reference' => 'sometimes|nullable|string|max:255',
             'franchise_fee_payment_reject_reason' => 'sometimes|nullable|string|max:2000',
             'required_documents' => 'present|array|max:8',
+            'confirm_required_documents' => 'sometimes|boolean',
             'required_documents.*.label' => 'required|string|max:255|distinct',
             'required_documents.*.category' => 'nullable|string|in:agreement_signing,payment,application_documents,location_readiness,permits_compliance,training,operational_preparation,other',
             'required_documents.*.required' => 'required|boolean',
@@ -478,6 +484,20 @@ trait FranchiseApplicationAdminReviewActions
                 $previousDocuments = $application->required_documents ?? [];
                 $previousFeeStatus = $application->franchise_fee_payment_status;
                 $documents = $request->input('required_documents');
+                if ($request->boolean('confirm_required_documents')) {
+                    if ($application->status !== 'location_assessment') {
+                        abort(response()->json([
+                            'message' => 'Required documents can only be confirmed during Location Assessment.',
+                        ], 409));
+                    }
+                    $hasRequiredDocuments = collect($documents)->contains(fn (array $document) => ($document['required'] ?? false)
+                        && ($document['status'] ?? null) !== 'not_applicable');
+                    if (! $hasRequiredDocuments) {
+                        abort(response()->json([
+                            'message' => 'Add at least one required document before confirming the applicant request.',
+                        ], 409));
+                    }
+                }
                 foreach ($documents as $index => &$document) {
                     $previous = collect($previousDocuments)->firstWhere('label', $document['label']);
                     $template = $request->file("required_document_templates.$index");
@@ -539,6 +559,9 @@ trait FranchiseApplicationAdminReviewActions
                     $application->franchise_fee_payment_reference = $request->input('franchise_fee_payment_reference');
                 }
                 $application->required_documents = $documents;
+                $application->required_documents_confirmed_at = $request->boolean('confirm_required_documents')
+                    ? now()
+                    : null;
                 if ($request->has('franchise_fee_payment_status')) {
                     $application->franchise_fee_payment_reject_reason = $feeStatus === 'rejected'
                         ? trim((string) $request->input('franchise_fee_payment_reject_reason'))
@@ -603,7 +626,9 @@ trait FranchiseApplicationAdminReviewActions
                         'Your payment proof needs attention. Reason: '.trim((string) $request->input('franchise_fee_payment_reject_reason')),
                     );
                 }
-                $packetRequested = $this->requestDocumentPacketIfReady($application, $admin);
+                if ($request->boolean('confirm_required_documents')) {
+                    $packetRequested = $this->requestDocumentPacketIfReady($application, $admin);
+                }
                 if ($request->filled('internal_notes')) {
                     $this->recordEvent(
                         $application,

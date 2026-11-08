@@ -59,10 +59,11 @@ export const ConfirmDialog: React.FC<{
   title: string;
   description: string;
   confirmLabel?: string;
+  busyLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
   busy?: boolean;
-}> = ({ title, description, confirmLabel = 'Delete', onConfirm, onCancel, busy = false }) => {
+}> = ({ title, description, confirmLabel = 'Delete', busyLabel = 'Removing…', onConfirm, onCancel, busy = false }) => {
   const dialogRef = useRef<HTMLElement | null>(null);
   const cancelStateRef = useRef({ onCancel, busy });
 
@@ -115,7 +116,7 @@ export const ConfirmDialog: React.FC<{
         <p id="confirm-description" className="mt-2 text-sm text-[var(--oppa-text-muted)]">{description}</p>
         <div className="mt-6 flex justify-end gap-2">
           <button type="button" onClick={onCancel} disabled={busy} className="rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Cancel</button>
-          <button type="button" onClick={onConfirm} disabled={busy} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">{busy ? 'Removing…' : confirmLabel}</button>
+          <button type="button" onClick={onConfirm} disabled={busy} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">{busy ? busyLabel : confirmLabel}</button>
         </div>
       </section>
     </div>

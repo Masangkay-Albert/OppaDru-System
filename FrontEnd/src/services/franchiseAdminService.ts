@@ -93,6 +93,7 @@ export interface FranchiseApplication {
     submitted_document_index?: number | null;
     reject_reason?: string | null;
   }>;
+  required_documents_confirmed_at?: string | null;
   requirements_reviewed_at?: string | null;
   location_readiness?: string;
   permit_compliance_status?: string;
@@ -602,6 +603,7 @@ export const updateFranchiseApplicationRequirements = async (id: string | number
   operational_preparation_status?: string;
   internal_notes?: string;
   required_document_templates?: Record<number, File>;
+  confirm_required_documents?: boolean;
 }) => {
   const form = new FormData();
   const scalarFields: Record<string, string | undefined> = {
@@ -622,6 +624,7 @@ export const updateFranchiseApplicationRequirements = async (id: string | number
     if (value !== undefined) form.append(key, value);
   });
   form.append('_method', 'PATCH');
+  if (data.confirm_required_documents) form.append('confirm_required_documents', '1');
   form.append('required_documents', JSON.stringify(data.required_documents));
   Object.entries(data.required_document_templates || {}).forEach(([index, file]) => {
     form.append(`required_document_templates[${index}]`, file);
