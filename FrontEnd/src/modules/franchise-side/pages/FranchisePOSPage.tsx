@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, Drumstick, Heart, Minus, Plus, QrCode, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, UserRound, Utensils, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, CreditCard, Drumstick, Heart, Minus, Plus, QrCode, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, UserRound, Utensils, X } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import SearchInput from '../../../components/ui/SearchInput';
@@ -174,8 +174,9 @@ const FranchisePOSPage: React.FC = () => {
   const [customerNotes, setCustomerNotes] = useState('');
   const [tableNumber, setTableNumber] = useState('');
   const [diningOption, setDiningOption] = useState<'dine_in' | 'takeout'>('takeout');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gcash'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gcash' | 'credit_card'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
+  const [terminalReference, setTerminalReference] = useState('');
   const [, setPaymentCheckoutUrl] = useState('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [isStartingPayment, setIsStartingPayment] = useState(false);
@@ -392,6 +393,9 @@ const FranchisePOSPage: React.FC = () => {
   const total = discountType ? Math.max(0, vatExemptBase - discountAmount) : subtotal;
   const tenderedAmount = Number(cashTendered || 0);
   const changeDue = Math.max(0, Math.round((tenderedAmount - total) * 100) / 100);
+  useEffect(() => {
+    setTerminalReference('');
+  }, [total]);
   const topProductIds = useMemo(() => new Set(topProducts.map((product) => product.productId)), [topProducts]);
   const quantityForProduct = (productId: string) =>
     lines.filter((line) => line.product.id === productId).reduce((quantity, line) => quantity + line.quantity, 0);
@@ -428,7 +432,9 @@ const FranchisePOSPage: React.FC = () => {
   const phoneIsValid = !phoneDigits || /^09\d{9}$/.test(phoneDigits);
   const paymentIsValid = paymentMethod === 'cash'
     ? tenderedAmount >= total
-    : Boolean(paymentReference.trim() && paymentConfirmed);
+    : paymentMethod === 'gcash'
+      ? Boolean(paymentReference.trim() && paymentConfirmed)
+      : Boolean(terminalReference.trim());
   const chargeDisabled = !lines.length || isSubmitting || isLoading
     || Boolean(discountType && (!discountIdNumber.trim() || !discountCardholderName.trim()))
     || !phoneIsValid || !paymentIsValid;
@@ -444,6 +450,8 @@ const FranchisePOSPage: React.FC = () => {
             ? `Enter cash tendered ≥ ${formatPeso(total)}.`
             : paymentMethod === 'gcash' && !paymentConfirmed
               ? 'Complete and verify the GCash payment.'
+              : paymentMethod === 'credit_card' && !terminalReference.trim()
+                ? 'Enter the card terminal reference.'
               : '';
 
   const adjustProductQuantity = (product: BranchProduct, adjustment: number) => {
@@ -681,6 +689,10 @@ const FranchisePOSPage: React.FC = () => {
       setError('Complete and verify the GCash payment before placing the order.');
       return;
     }
+    if (paymentMethod === 'credit_card' && !terminalReference.trim()) {
+      setError('Enter the card terminal reference before placing the order.');
+      return;
+    }
     if (paymentMethod === 'cash' && tenderedAmount < total) {
       setError('Cash received must be at least the order total.');
       return;
@@ -702,6 +714,7 @@ const FranchisePOSPage: React.FC = () => {
           dining_option: diningOption,
           payment_method: paymentMethod,
           payment_reference: paymentMethod === 'gcash' ? paymentReference.trim() : undefined,
+          terminal_reference: paymentMethod === 'credit_card' ? terminalReference.trim() : undefined,
           cash_tendered: paymentMethod === 'cash' ? tenderedAmount : undefined,
           discount_type: discountType || undefined,
           discount_id_number: discountType ? discountIdNumber.trim() : undefined,
@@ -749,6 +762,7 @@ const FranchisePOSPage: React.FC = () => {
       void loadTopProducts();
       void loadDailySales();
       setPaymentReference('');
+      setTerminalReference('');
       setPaymentCheckoutUrl('');
       setPaymentConfirmed(false);
       setDiscountType('');
@@ -920,12 +934,17 @@ const FranchisePOSPage: React.FC = () => {
               </section>
               <section className="cashier-surface rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                 <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-8 items-center justify-center rounded-full bg-[#e3efe7] text-sm font-extrabold text-[#1f6b45]">4</span>Payment</h2>
-                <div className="grid grid-cols-2 gap-2">{[{ value: 'cash', label: 'Cash', Icon: null }, { value: 'gcash', label: 'GCash', Icon: Smartphone }].map(({ value, label, Icon }) => <button key={value} type="button" aria-pressed={paymentMethod === value} onClick={() => { setPaymentMethod(value as typeof paymentMethod); if (value === 'gcash') { if (!paymentReference) { void startGatewayPayment(); } else if (!paymentConfirmed) { setShowGCashModal(true); } } else { setPaymentReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); } }} className={`relative flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-sm font-semibold transition-colors ${paymentMethod === value ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>{paymentMethod === value && <Check size={15} className="absolute right-2 top-2" aria-hidden="true" />}{Icon ? <Icon size={22} /> : <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-full border-2 border-current text-lg font-bold leading-none">₱</span>}{label}</button>)}</div>
+                <div className="grid grid-cols-3 gap-2">{[{ value: 'cash', label: 'Cash', Icon: null }, { value: 'gcash', label: 'GCash', Icon: Smartphone }, { value: 'credit_card', label: 'Card Terminal', Icon: CreditCard }].map(({ value, label, Icon }) => <button key={value} type="button" aria-pressed={paymentMethod === value} onClick={() => { setPaymentMethod(value as typeof paymentMethod); if (value === 'gcash') { if (!paymentReference) { void startGatewayPayment(); } else if (!paymentConfirmed) { setShowGCashModal(true); } } else { setPaymentReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); } if (value !== 'credit_card') setTerminalReference(''); }} className={`relative flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-sm font-semibold transition-colors ${paymentMethod === value ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>{paymentMethod === value && <Check size={15} className="absolute right-2 top-2" aria-hidden="true" />}{Icon ? <Icon size={22} /> : <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-full border-2 border-current text-lg font-bold leading-none">₱</span>}{label}</button>)}</div>
                 {paymentMethod === 'cash' && <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
                   <div className="flex items-center justify-between gap-2"><label htmlFor="cash-tendered" className="text-xs font-bold uppercase text-gray-700">Cash tendered</label><span className="text-xs text-gray-600">Amount due <strong className="tabular-nums text-gray-900">{formatPeso(total)}</strong></span></div>
                   <div className="relative mt-2"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-gray-600">₱</span><input id="cash-tendered" type="number" inputMode="decimal" min="0" step="0.01" value={cashTendered} onChange={(event) => setCashTendered(event.target.value)} placeholder="0.00" className="min-h-14 w-full rounded-lg border border-gray-300 bg-white py-3 pl-9 pr-3 text-xl font-bold tabular-nums focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20" /></div>
                   <div className="mt-3 flex flex-wrap gap-2">{[{ amount: total, label: 'Exact' }, ...quickCashAmounts.map((amount) => ({ amount, label: formatPeso(amount) }))].map(({ amount, label }) => <button key={`${amount}-${label}`} type="button" onClick={() => setCashTendered(String(amount))} className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold tabular-nums hover:border-[#2d6a4f]">{label}</button>)}</div>
                   <p className="mt-3 flex min-h-11 items-center justify-between border-t border-gray-200 pt-3 text-sm" aria-live="polite"><span className="font-semibold">Change Due</span><strong className={`text-lg tabular-nums ${tenderedAmount < total ? 'text-red-700' : 'text-[#2d6a4f]'}`}>{tenderedAmount < total ? `Insufficient: ${formatPeso(total - tenderedAmount)} short` : formatPeso(changeDue)}</strong></p>
+                </div>}
+                {paymentMethod === 'credit_card' && <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                  <label htmlFor="card-terminal-reference" className="text-sm font-semibold text-gray-700">Card terminal reference</label>
+                  <input id="card-terminal-reference" value={terminalReference} onChange={(event) => setTerminalReference(event.target.value)} maxLength={100} placeholder="Enter the approved terminal transaction reference" className="mt-2 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base" />
+                  <p className="mt-2 text-xs text-gray-600">Confirm the card payment on the physical terminal before recording this order.</p>
                 </div>}
                 {paymentMethod === 'gcash' && (
                   <div className="mt-4 space-y-3 rounded-2xl border border-emerald-300 bg-emerald-50/70 p-4 text-sm shadow-xs">
@@ -1074,7 +1093,7 @@ const FranchisePOSPage: React.FC = () => {
         {removedLine && <div role="status" aria-live="polite" className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-xl bg-gray-900 px-4 py-3 text-sm text-white shadow-xl xl:bottom-5">Item removed <button type="button" onClick={undoRemove} className="font-bold underline underline-offset-2">Undo</button></div>}
       </div>
 
-      {completedOrder && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onKeyDown={(event) => { if (event.key === 'Escape') setCompletedOrder(null); }}><section role="dialog" aria-modal="true" aria-labelledby="branch-pos-receipt-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center gap-2 text-[#2d6a4f]"><CheckCircle2 size={22} className="cashier-success-check" /><h2 id="branch-pos-receipt-title" className="text-lg font-bold">Order processed successfully</h2></div><p className="text-center font-serif text-lg font-bold">OPPA DRU KOREAN FRIED CHICKEN</p><p className="text-center text-xs text-gray-600">ONSITE REGISTER RECEIPT · {branchName}</p>{branchAddress && <p className="mb-4 text-center text-xs text-gray-500">{branchAddress}</p>}<div className="space-y-2 border-y border-dashed py-3 text-sm"><p className="flex justify-between"><span>Order #</span><strong>{completedOrder.order_number}</strong></p><p className="flex justify-between"><span>Customer</span><span>{completedOrder.customerName}</span></p><p className="flex justify-between"><span>Dining</span><span>{completedOrder.diningOption === 'dine_in' ? 'Dine-in' : 'Takeout'}</span></p>{(completedOrder.items || []).map((item, index) => { const quantity = Number(item.quantity || 1); const itemAmount = Number(item.product_price || 0) * quantity + (item.selected_addons || []).reduce((sum, addon) => sum + Number(addon.price || 0) * Math.max(1, Number(addon.quantity || 1)) * quantity, 0); return <p key={`${item.product_name}-${index}`} className="flex justify-between"><span>{quantity}x {item.product_name}</span><span className="tabular-nums">{formatPeso(itemAmount)}</span></p>; })}<p className="flex justify-between font-bold"><span>Total</span><span className="tabular-nums">{formatPeso(Number(completedOrder.total))}</span></p><p className="flex justify-between text-xs text-gray-600"><span>Payment</span><span className="uppercase">{completedOrder.payment_method.replace('_', ' ')}</span></p>{completedOrder.payment_method === 'cash' && <><p className="flex justify-between text-xs"><span>Cash Tendered</span><span className="tabular-nums">{formatPeso(Number(completedOrder.cashTendered || 0))}</span></p><p className="flex justify-between text-xs"><span>Change</span><span className="tabular-nums">{formatPeso(Number(completedOrder.changeDue || 0))}</span></p></>}{completedOrder.includeCutlery && <p className="text-xs">Cutlery / utensils included</p>}</div><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => window.print()} className="min-h-11 rounded-xl border px-3 text-sm font-semibold">Print Receipt</button><button type="button" onClick={() => { setCompletedOrder(null); setSuccess(''); setCustomerName(''); setPhone(''); setCustomerNotes(''); setTableNumber(''); setDiscountCardholderName(''); setDiscountIdNumber(''); setCashTendered(''); setPaymentMethod('cash'); setDiningOption('takeout'); }} className="min-h-11 rounded-xl bg-[#2d6a4f] px-3 text-sm font-semibold text-white">New Order</button><Link to={cashierMode ? '/cashier/branch-orders' : '/franchise/orders'} onClick={() => setCompletedOrder(null)} className="col-span-2 flex min-h-11 items-center justify-center rounded-xl border border-[#2d6a4f] px-3 text-sm font-semibold text-[#1c3d2e]">View Order</Link></div></section></div>}
+      {completedOrder && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onKeyDown={(event) => { if (event.key === 'Escape') setCompletedOrder(null); }}><section role="dialog" aria-modal="true" aria-labelledby="branch-pos-receipt-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center gap-2 text-[#2d6a4f]"><CheckCircle2 size={22} className="cashier-success-check" /><h2 id="branch-pos-receipt-title" className="text-lg font-bold">Order processed successfully</h2></div><p className="text-center font-serif text-lg font-bold">OPPA DRU KOREAN FRIED CHICKEN</p><p className="text-center text-xs text-gray-600">ONSITE REGISTER RECEIPT · {branchName}</p>{branchAddress && <p className="mb-4 text-center text-xs text-gray-500">{branchAddress}</p>}<div className="space-y-2 border-y border-dashed py-3 text-sm"><p className="flex justify-between"><span>Order #</span><strong>{completedOrder.order_number}</strong></p><p className="flex justify-between"><span>Customer</span><span>{completedOrder.customerName}</span></p><p className="flex justify-between"><span>Dining</span><span>{completedOrder.diningOption === 'dine_in' ? 'Dine-in' : 'Takeout'}</span></p>{(completedOrder.items || []).map((item, index) => { const quantity = Number(item.quantity || 1); const itemAmount = Number(item.product_price || 0) * quantity + (item.selected_addons || []).reduce((sum, addon) => sum + Number(addon.price || 0) * Math.max(1, Number(addon.quantity || 1)) * quantity, 0); return <p key={`${item.product_name}-${index}`} className="flex justify-between"><span>{quantity}x {item.product_name}</span><span className="tabular-nums">{formatPeso(itemAmount)}</span></p>; })}<p className="flex justify-between font-bold"><span>Total</span><span className="tabular-nums">{formatPeso(Number(completedOrder.total))}</span></p><p className="flex justify-between text-xs text-gray-600"><span>Payment</span><span className="uppercase">{completedOrder.payment_method.replace('_', ' ')}</span></p>{completedOrder.payment_method === 'cash' && <><p className="flex justify-between text-xs"><span>Cash Tendered</span><span className="tabular-nums">{formatPeso(Number(completedOrder.cashTendered || 0))}</span></p><p className="flex justify-between text-xs"><span>Change</span><span className="tabular-nums">{formatPeso(Number(completedOrder.changeDue || 0))}</span></p></>}{completedOrder.includeCutlery && <p className="text-xs">Cutlery / utensils included</p>}</div><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => window.print()} className="min-h-11 rounded-xl border px-3 text-sm font-semibold">Print Receipt</button><button type="button" onClick={() => { setCompletedOrder(null); setSuccess(''); setCustomerName(''); setPhone(''); setCustomerNotes(''); setTableNumber(''); setDiscountCardholderName(''); setDiscountIdNumber(''); setCashTendered(''); setPaymentMethod('cash'); setPaymentReference(''); setTerminalReference(''); setDiningOption('takeout'); }} className="min-h-11 rounded-xl bg-[#2d6a4f] px-3 text-sm font-semibold text-white">New Order</button><Link to={cashierMode ? '/cashier/branch-orders' : '/franchise/orders'} onClick={() => setCompletedOrder(null)} className="col-span-2 flex min-h-11 items-center justify-center rounded-xl border border-[#2d6a4f] px-3 text-sm font-semibold text-[#1c3d2e]">View Order</Link></div></section></div>}
 
       {configuringProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={() => setConfiguringProduct(null)}>

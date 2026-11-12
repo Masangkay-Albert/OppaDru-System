@@ -133,6 +133,7 @@ class CashierPopularMealsTest extends TestCase
         $employee->save();
         $headers = ['Authorization' => 'Bearer '.$token];
 
+        $this->makeProduct($branch, 'Branch Meal', 100);
         $branchOrder = $this->createSale($branch, 'Branch Meal', 3);
         $this->createSale($otherBranch, 'Other Branch Meal', 10);
         Cache::forget('popular_meals_'.$branch->id.'_'.now()->format('Y_m').'_lim_10');

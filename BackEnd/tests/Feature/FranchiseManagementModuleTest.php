@@ -32,7 +32,7 @@ class FranchiseManagementModuleTest extends TestCase
             'is_active' => true,
             'accepts_online_orders' => true,
             'delivery_enabled' => true,
-            'delivery_radius_km' => 25,
+            'delivery_radius_km' => 20,
             'is_main' => true,
         ]);
         $headers = ['Authorization' => 'Bearer '.$adminToken];
@@ -51,7 +51,7 @@ class FranchiseManagementModuleTest extends TestCase
             'is_active' => true,
             'accepts_online_orders' => true,
             'delivery_enabled' => true,
-            'delivery_radius_km' => 25,
+            'delivery_radius_km' => 20,
         ], $headers)->assertOk();
 
         $this->assertDatabaseHas('franchises', [

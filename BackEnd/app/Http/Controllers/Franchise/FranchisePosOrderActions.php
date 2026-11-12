@@ -28,6 +28,9 @@ trait FranchisePosOrderActions
         if (! $this->canProcessBranchPos($user)) {
             return response()->json(['message' => 'Cashier access or explicit POS permission is required.'], 403);
         }
+        if (! $request->filled('payment_reference') && $request->filled('terminal_reference')) {
+            $request->merge(['payment_reference' => $request->input('terminal_reference')]);
+        }
         $cashierEmployeeId = $user instanceof Employee ? $user->id : null;
         $franchiseUserId = $user instanceof FranchiseUser ? $user->id : null;
         $employeePosRequest = $request->is('api/employee/pos/orders');
@@ -45,8 +48,9 @@ trait FranchisePosOrderActions
             'phone' => 'nullable|string|max:50',
             'table_number' => 'nullable|string|max:30',
             'dining_option' => 'required|string|in:dine_in,takeout',
-            'payment_method' => 'required|string|in:cash,gcash',
-            'payment_reference' => 'required_if:payment_method,gcash|nullable|string|max:100',
+            'payment_method' => 'required|string|in:cash,gcash,credit_card',
+            'payment_reference' => 'required_if:payment_method,gcash,credit_card|nullable|string|max:100',
+            'terminal_reference' => 'nullable|string|max:100',
             'cash_tendered' => 'nullable|numeric|min:0',
             'discount_type' => 'nullable|string|in:PWD,Senior Citizen',
             'discount_id_number' => 'required_with:discount_type|nullable|string|max:100',
@@ -336,7 +340,7 @@ trait FranchisePosOrderActions
                     'payment_status' => 'paid',
                     'payment_reference' => $paymentMethod === 'cash'
                         ? 'CASH-'.strtoupper(Str::random(8))
-                        : $gatewayPayment->reference,
+                        : ($gatewayPayment?->reference ?? $request->input('payment_reference')),
                     'phone' => trim((string) $request->input('phone', '')),
                     'items' => $orderItems,
                     'vat' => $discountType ? 0 : round($total * 12 / 112, 2),

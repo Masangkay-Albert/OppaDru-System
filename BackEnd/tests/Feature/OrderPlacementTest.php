@@ -6,6 +6,7 @@ use App\Models\DiscountApplication;
 use App\Models\DiscountVerificationRequest;
 use App\Models\Addon;
 use App\Models\AddonGroup;
+use App\Models\Employee;
 use App\Models\Franchise;
 use App\Models\FranchiseAccount;
 use App\Models\FranchiseInventory;
@@ -166,17 +167,39 @@ class OrderPlacementTest extends TestCase
             'name' => 'Main System',
             'status' => 'active',
             'is_main' => true,
+            'is_active' => true,
         ]);
+        $product = Product::create([
+            'name' => 'Walk-in Chicken',
+            'description' => 'Main system POS item',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => '',
+            'franchise_id' => $mainBranch->id,
+            'is_available' => true,
+        ]);
+        $cashier = Employee::create([
+            'franchise_id' => $mainBranch->id,
+            'fullName' => 'Main Branch Cashier',
+            'email' => 'main-cashier@example.test',
+            'password' => Hash::make('Staff@123'),
+            'position' => 'cashier',
+            'is_active' => true,
+        ]);
+        $login = $this->postJson('/api/employee/login', [
+            'email' => $cashier->email,
+            'password' => 'Staff@123',
+        ])->assertOk();
 
-        $response = $this->postJson('/api/orders/onsite', [
+        $response = $this->postJson('/api/employee/pos/orders', [
             'items' => [[
-                'product_name' => 'Walk-in Chicken',
-                'product_price' => 199,
+                'product_id' => $product->id,
                 'quantity' => 1,
             ]],
-            'total' => 199,
             'payment_method' => 'cash',
-        ])->assertCreated()
+            'dining_option' => 'takeout',
+            'cash_tendered' => 199,
+        ], ['Authorization' => 'Bearer '.$login->json('token')])->assertCreated()
             ->assertJsonPath('order.branch_id', $mainBranch->id)
             ->assertJsonPath('order.branch_name', 'Main System')
             ->assertJsonPath('order.franchise_id', $mainBranch->id);
@@ -390,6 +413,7 @@ class OrderPlacementTest extends TestCase
 
     public function test_cod_order_is_counted_only_after_delivery_and_only_once(): void
     {
+        $this->createOnlineDeliveryBranch('COD Order Branch');
         $user = User::create([
             'full_name' => 'COD Customer',
             'email' => 'cod-customer@example.com',
@@ -423,6 +447,7 @@ class OrderPlacementTest extends TestCase
                 ]],
                 'total' => 0,
                 'delivery_address' => 'COD delivery address',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'cash_on_delivery',
                 'phone' => $user->phone,
             ]);
@@ -484,6 +509,7 @@ class OrderPlacementTest extends TestCase
 
     public function test_successful_online_payment_is_saved_as_paid_at_the_rounded_order_total(): void
     {
+        $branch = $this->createOnlineDeliveryBranch('Online Payment Branch');
         $user = User::create([
             'full_name' => 'GCash Customer',
             'email' => 'gcash-customer@example.com',
@@ -506,6 +532,7 @@ class OrderPlacementTest extends TestCase
             'amount' => 263,
             'status' => 'paid',
             'paid_at' => now(),
+            'metadata' => ['franchise_id' => $branch->id],
         ]);
         $loginResponse = $this->postJson('/api/login', [
             'email' => $user->email,
@@ -524,6 +551,7 @@ class OrderPlacementTest extends TestCase
                 ]],
                 'total' => 263,
                 'delivery_address' => 'Online payment delivery address',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'gcash',
                 'payment_reference' => $payment->reference,
                 'phone' => $user->phone,
@@ -1042,6 +1070,12 @@ class OrderPlacementTest extends TestCase
             'phone' => '09170000008',
             'address' => 'Payment Link St',
             'status' => 'active',
+            'latitude' => 14.3194,
+            'longitude' => 120.9943,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 10,
         ]);
         $product = Product::create([
             'name' => 'Payment Link Meal',
@@ -1082,6 +1116,7 @@ class OrderPlacementTest extends TestCase
             ]],
             'total' => 1,
             'delivery_address' => 'Payment Link St',
+            'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
             'payment_method' => 'gcash',
             'payment_reference' => $payment->reference,
             'phone' => $customer->phone,
@@ -1182,6 +1217,12 @@ class OrderPlacementTest extends TestCase
             'phone' => '09170000011',
             'address' => 'Gateway St',
             'status' => 'active',
+            'latitude' => 14.3194,
+            'longitude' => 120.9943,
+            'is_active' => true,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 10,
         ]);
         $otherBranch = Franchise::create([
             'name' => 'Other Gateway Branch',
@@ -1214,6 +1255,7 @@ class OrderPlacementTest extends TestCase
             'franchise_id' => $branch->id,
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
             'delivery_type' => 'standard',
+            'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
             'voucher_discount' => 0,
             'discount_rate' => 0,
         ])->assertCreated();
@@ -1226,6 +1268,7 @@ class OrderPlacementTest extends TestCase
             'franchise_id' => $branch->id,
             'items' => [['product_id' => $otherProduct->id, 'quantity' => 1]],
             'delivery_type' => 'standard',
+            'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
             'voucher_discount' => 0,
             'discount_rate' => 0,
         ])->assertUnprocessable();
@@ -1355,6 +1398,7 @@ class OrderPlacementTest extends TestCase
 
     public function test_customer_can_place_a_priority_order(): void
     {
+        $this->createOnlineDeliveryBranch('Priority Order Branch');
         $user = User::create([
             'full_name' => 'Priority Customer',
             'email' => 'priority@example.com',
@@ -1390,6 +1434,7 @@ class OrderPlacementTest extends TestCase
                 ]],
                 'total' => 0,
                 'delivery_address' => 'Block 3, Lot 6, Dasmarinas, Cavite',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'cash_on_delivery',
                 'delivery_type' => 'priority',
                 'phone' => '09177654321',
@@ -1402,6 +1447,7 @@ class OrderPlacementTest extends TestCase
 
     public function test_admin_order_list_includes_pending_orders_after_the_grace_window(): void
     {
+        $this->createOnlineDeliveryBranch('Grace Window Branch');
         $user = User::create([
             'full_name' => 'Grace Window Customer',
             'email' => 'grace@example.com',
@@ -1437,6 +1483,7 @@ class OrderPlacementTest extends TestCase
                 ]],
                 'total' => 0,
                 'delivery_address' => 'Block 4, Lot 7, Dasmarinas, Cavite',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'cash_on_delivery',
                 'phone' => '09178889999',
             ]);
@@ -1451,6 +1498,7 @@ class OrderPlacementTest extends TestCase
 
     public function test_order_cancellation_is_rejected_after_the_backend_window_closes(): void
     {
+        $this->createOnlineDeliveryBranch('Late Cancellation Branch');
         $user = User::create([
             'full_name' => 'Late Cancellation Customer',
             'email' => 'cancel@example.com',
@@ -1485,6 +1533,7 @@ class OrderPlacementTest extends TestCase
                     'quantity' => 1,
                 ]],
                 'delivery_address' => 'Sampaloc, Dasmarinas',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'cash_on_delivery',
                 'phone' => '09171239999',
             ]);
@@ -1499,7 +1548,7 @@ class OrderPlacementTest extends TestCase
 
         $response
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Order cancellation is only allowed within 30 seconds of creation.');
+            ->assertJsonPath('message', 'Cancellation period has ended.');
     }
 
     public function test_discount_application_decision_sends_email_to_customer(): void
@@ -1685,6 +1734,7 @@ class OrderPlacementTest extends TestCase
 
     public function test_discount_verification_request_can_be_created_and_approved_by_admin(): void
     {
+        $this->createOnlineDeliveryBranch('Discount Verification Branch');
         $user = User::create([
             'full_name' => 'PWD Customer',
             'email' => 'pwd@example.com',
@@ -1724,6 +1774,7 @@ class OrderPlacementTest extends TestCase
                     'quantity' => 1,
                 ]],
                 'delivery_address' => 'Block 10, Lot 2, Dasmarinas, Cavite',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'cash_on_delivery',
                 'phone' => '09171234568',
                 'discount_type' => 'PWD',
@@ -1765,5 +1816,19 @@ class OrderPlacementTest extends TestCase
         $this->assertSame('approved', $order->discount_status);
         $this->assertSame('PWD', $order->discount_type);
         $this->assertGreaterThan(0, (float) $order->discount_amount);
+    }
+
+    private function createOnlineDeliveryBranch(string $name): Franchise
+    {
+        return Franchise::create([
+            'name' => $name,
+            'status' => 'active',
+            'is_active' => true,
+            'latitude' => 14.3194,
+            'longitude' => 120.9943,
+            'accepts_online_orders' => true,
+            'delivery_enabled' => true,
+            'delivery_radius_km' => 10,
+        ]);
     }
 }

@@ -59,6 +59,10 @@ class FranchiseeLoginTest extends TestCase
             'training_status' => 'complete',
             'operational_preparation_status' => 'complete',
         ])->save();
+        $this->mock(GeocodingService::class, fn ($mock) => $mock
+            ->shouldReceive('geocodeAddress')
+            ->once()
+            ->andReturn(['lat' => 10.3157, 'lng' => 123.8854, 'matchedQuery' => 'Cebu City']));
         $adminToken = 'franchisee-login-admin-token';
         Admin::create([
             'full_name' => 'Franchise Admin',

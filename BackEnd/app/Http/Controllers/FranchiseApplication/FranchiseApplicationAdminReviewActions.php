@@ -559,9 +559,11 @@ trait FranchiseApplicationAdminReviewActions
                     $application->franchise_fee_payment_reference = $request->input('franchise_fee_payment_reference');
                 }
                 $application->required_documents = $documents;
-                $application->required_documents_confirmed_at = $request->boolean('confirm_required_documents')
-                    ? now()
-                    : null;
+                if ($request->has('confirm_required_documents')) {
+                    $application->required_documents_confirmed_at = $request->boolean('confirm_required_documents')
+                        ? now()
+                        : null;
+                }
                 if ($request->has('franchise_fee_payment_status')) {
                     $application->franchise_fee_payment_reject_reason = $feeStatus === 'rejected'
                         ? trim((string) $request->input('franchise_fee_payment_reject_reason'))

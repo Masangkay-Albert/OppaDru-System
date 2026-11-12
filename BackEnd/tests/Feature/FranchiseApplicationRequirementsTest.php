@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Admin;
+use App\Models\FranchiseApplicant;
 use App\Models\FranchiseApplication;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -29,10 +29,10 @@ class FranchiseApplicationRequirementsTest extends TestCase
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id.'/requirements', $this->requirementsData(), $headers)
             ->assertOk()
-            ->assertJsonPath('data.status', 'submitted')
+            ->assertJsonPath('data.status', 'under_review')
             ->assertJsonPath('data.agreement_status', 'drafting');
 
-        $this->assertSame('submitted', $application->fresh()->status);
+        $this->assertSame('under_review', $application->fresh()->status);
 
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'under_review',
@@ -44,7 +44,7 @@ class FranchiseApplicationRequirementsTest extends TestCase
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'requirements_pending',
         ], $headers)->assertStatus(409)
-            ->assertJsonPath('message', 'The application cannot move from conditionally_approved to requirements_pending.');
+            ->assertJsonPath('message', 'Record the signed franchise agreement before moving to payment and business setup.');
         $this->patchJson('/api/admin/franchise-applications/'.$application->id, [
             'status' => 'agreement_pending',
         ], $headers)->assertOk();
@@ -197,7 +197,7 @@ class FranchiseApplicationRequirementsTest extends TestCase
     private function createVerifiedApplicant(): array
     {
         $token = Str::random(40);
-        $user = User::create([
+        $applicant = FranchiseApplicant::create([
             'full_name' => 'Franchise Applicant',
             'email' => 'applicant@example.test',
             'phone' => '09170000000',
@@ -206,7 +206,7 @@ class FranchiseApplicationRequirementsTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        return ['user' => $user, 'token' => $token];
+        return ['applicant' => $applicant, 'token' => $token];
     }
 
     private function createAdminToken(): string

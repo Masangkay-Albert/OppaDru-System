@@ -219,6 +219,7 @@ class FranchiseApplicationReviewTest extends TestCase
             'required_documents' => json_encode([
                 ['label' => 'Property application form', 'required' => true, 'status' => 'pending', 'template_name' => null],
             ]),
+            'confirm_required_documents' => true,
             'required_document_templates' => [
                 0 => UploadedFile::fake()->create('property-application-form.pdf', 100, 'application/pdf'),
             ],
@@ -461,6 +462,7 @@ class FranchiseApplicationReviewTest extends TestCase
             'required_documents' => json_encode([
                 ['label' => 'Location plan', 'category' => 'location_readiness', 'required' => true, 'status' => 'pending'],
             ]),
+            'confirm_required_documents' => true,
         ];
         $this->post('/api/admin/franchise-applications/'.$application->id.'/requirements', $requirementsPayload, $adminHeaders)
             ->assertOk()
@@ -525,6 +527,7 @@ class FranchiseApplicationReviewTest extends TestCase
             'franchise_fee_amount' => '500000',
             'franchise_fee_payment_status' => 'pending',
             'required_documents' => json_encode($requiredDocuments),
+            'confirm_required_documents' => true,
             'required_document_templates' => $templates,
             'location_readiness' => 'pending',
             'permit_compliance_status' => 'pending',
@@ -605,6 +608,7 @@ class FranchiseApplicationReviewTest extends TestCase
             'franchise_fee_amount' => '500000',
             'franchise_fee_payment_status' => 'pending',
             'required_documents' => json_encode($reviewedDocuments),
+            'confirm_required_documents' => true,
             'required_document_templates' => [],
             'location_readiness' => 'pending',
             'permit_compliance_status' => 'pending',

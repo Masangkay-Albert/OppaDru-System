@@ -699,6 +699,7 @@ class FranchiseAccessTest extends TestCase
 
         Order::create([
             'franchise_id' => $franchiseA->id,
+            'branch_id' => $franchiseA->id,
             'email' => 'customer-a@example.com',
             'phone' => '09170000021',
             'items' => [['product_id' => 'franchise-product-1', 'product_name' => 'North House Special', 'product_price' => 150, 'quantity' => 1]],
@@ -1267,7 +1268,7 @@ class FranchiseAccessTest extends TestCase
         ], $headers)->assertUnprocessable();
     }
 
-    public function test_franchise_pos_creates_gateway_payment_for_server_calculated_total(): void
+    public function test_franchise_pos_creates_simulated_checkout_for_server_calculated_total(): void
     {
         $branch = Franchise::create([
             'name' => 'Payment Branch',
@@ -1299,22 +1300,7 @@ class FranchiseAccessTest extends TestCase
         ])->assertOk();
         $headers = ['Authorization' => 'Bearer ' . $login->json('token')];
 
-        config([
-            'services.paymongo.secret_key' => 'sk_test_branch',
-            'services.paymongo.base_url' => 'https://paymongo.test',
-            'app.frontend_url' => 'https://frontend.test',
-        ]);
-        Http::fake([
-            'https://paymongo.test/sources' => Http::response([
-                'data' => [
-                    'id' => 'src_branch_pos',
-                    'attributes' => [
-                        'status' => 'pending',
-                        'redirect' => ['checkout_url' => 'https://paymongo.test/checkout'],
-                    ],
-                ],
-            ]),
-        ]);
+        config(['app.frontend_url' => 'https://frontend.test']);
 
         $response = $this->postJson('/api/franchise/pos/payments/gcash', [
             'items' => [[
@@ -1327,9 +1313,13 @@ class FranchiseAccessTest extends TestCase
 
         $reference = $response->json('data.reference');
         $this->assertSame(100.0, (float) $response->json('data.amount'));
-        $this->assertSame('https://paymongo.test/checkout', $response->json('data.checkout_url'));
+        $this->assertSame(
+            'https://frontend.test/payment/confirm/'.$reference.'?amount=100&returnUrl=%2Ffranchise%2Fpos',
+            $response->json('data.checkout_url'),
+        );
         $this->assertDatabaseHas('payments', [
             'reference' => $reference,
+            'provider' => 'simulated_gcash',
             'amount' => 100,
             'status' => 'pending',
         ]);

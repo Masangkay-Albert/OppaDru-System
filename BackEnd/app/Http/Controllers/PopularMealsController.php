@@ -127,7 +127,7 @@ class PopularMealsController extends Controller
             ->keyBy('id');
         $meals = array_values(array_filter(
             $meals,
-            fn (array $meal): bool => $products->has($meal['product_id'] ?? null),
+            fn (array $meal): bool => empty($meal['product_id']) || $products->has($meal['product_id']),
         ));
 
         $baseUrl = (function_exists('request') && request()?->hasHeader('host'))
