@@ -186,4 +186,21 @@ class InputLimitsTest extends TestCase
         ], $headers)->assertUnprocessable()
             ->assertJsonValidationErrors('new_password');
     }
+
+    public function test_customer_registration_rejects_emails_longer_than_the_form_limit(): void
+    {
+        $email = str_repeat('a', 39).'@example.test';
+        $this->assertSame(52, strlen($email));
+
+        $this->postJson('/api/register', [
+            'full_name' => 'Valid Customer',
+            'email' => $email,
+            'phone' => '09171234567',
+            'password' => 'Password1!',
+            'password_confirmation' => 'Password1!',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+
+        $this->assertDatabaseMissing('users', ['email' => $email]);
+    }
 }

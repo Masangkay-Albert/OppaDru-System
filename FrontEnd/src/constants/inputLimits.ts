@@ -12,6 +12,7 @@ export const INPUT_LIMITS = {
   announcementBody: { max: 1000 },
   search: { max: 100 },
   email: { max: 254 },
+  registrationEmail: { max: 50 },
   password: { min: 8, max: 64 },
   username: { min: 4, max: 30 },
   promoCode: { min: 4, max: 20 },

@@ -44,6 +44,7 @@ return [
     'application_text' => 5000,
     'search' => 100,
     'email' => 254,
+    'registration_email' => 50,
     'password' => [
         'min' => 8,
         'max' => 64,

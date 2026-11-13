@@ -230,7 +230,8 @@ const RegistrationPage: React.FC = () => {
                 <LimitedInput
                   type="email"
                   required
-                  maxLength={INPUT_LIMITS.email.max}
+                  maxLength={INPUT_LIMITS.registrationEmail.max}
+                  showCounter
                   value={email}
                   onChange={handleEmailChange}
                   onBlur={handleEmailBlur}
