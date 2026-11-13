@@ -2,6 +2,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Boxes, PackageCheck, PackageX, TriangleAlert } from 'lucide-react';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
+import {
+  adjustBranchIngredient,
+  getBranchIngredientInventory,
+  receiveBranchTransfer,
+  submitRestockRequest,
+} from '../../../services/franchiseIngredientInventoryService';
+import type {
+  BranchIngredientInventory,
+  BranchIngredient,
+} from '../../../services/franchiseIngredientInventoryService';
 import { formatCurrency } from '../../../utils/formatters';
 import StatCard from '../../admin-side/components/StatCard';
 import { PageHeader } from '../../admin-side/components/AdminUI';
@@ -23,6 +33,7 @@ interface InventoryItem {
 }
 
 type InventoryFilter = 'all' | 'available' | 'low' | 'out' | 'unavailable';
+type InventoryTab = 'products' | 'ingredients';
 
 const FranchiseInventoryPage: React.FC = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -34,6 +45,12 @@ const FranchiseInventoryPage: React.FC = () => {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [inventoryTab, setInventoryTab] = useState<InventoryTab>('products');
+  const [ingredientInventory, setIngredientInventory] = useState<BranchIngredientInventory | null>(null);
+  const [ingredientEdit, setIngredientEdit] = useState<Record<number, { type: 'stock_in' | 'stock_out' | 'waste' | 'adjustment'; quantity: string; reason: string }>>({});
+  const [restockIngredient, setRestockIngredient] = useState('');
+  const [restockQuantity, setRestockQuantity] = useState('');
+  const [restockNotes, setRestockNotes] = useState('');
 
   const loadInventory = useCallback(async () => {
     try {
@@ -43,6 +60,8 @@ const FranchiseInventoryPage: React.FC = () => {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || 'Could not load branch inventory.');
       setItems(Array.isArray(payload.data?.items) ? payload.data.items : []);
+      const ingredients = await getBranchIngredientInventory();
+      setIngredientInventory(ingredients);
     } catch (loadError) {
       setError(loadError instanceof Error && loadError.name === 'TimeoutError'
         ? 'Inventory is taking too long to load. Please retry.'
@@ -88,20 +107,110 @@ const FranchiseInventoryPage: React.FC = () => {
     }
   };
 
+  const saveIngredientMovement = async (ingredient: BranchIngredient) => {
+    const values = ingredientEdit[ingredient.id] || { type: 'stock_in' as const, quantity: '', reason: '' };
+    setBusyId(`ingredient-${ingredient.id}`);
+    setError('');
+    setMessage('');
+    try {
+      await adjustBranchIngredient(ingredient.id, {
+        type: values.type,
+        quantity: Number(values.quantity),
+        reason: values.reason.trim(),
+      });
+      setMessage(`${ingredient.name} stock updated and recorded.`);
+      await loadInventory();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Could not update ingredient stock.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const requestRestock = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    setMessage('');
+    try {
+      await submitRestockRequest({
+        items: [{ ingredient_id: Number(restockIngredient), quantity: Number(restockQuantity) }],
+        notes: restockNotes.trim(),
+      });
+      setRestockQuantity('');
+      setRestockNotes('');
+      setMessage('Restock request sent to the main branch.');
+      await loadInventory();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not submit restock request.');
+    }
+  };
+
+  const confirmTransfer = async (transferId: number) => {
+    setError('');
+    try {
+      await receiveBranchTransfer(transferId);
+      setMessage('Stock transfer marked as received.');
+      await loadInventory();
+    } catch (receiveError) {
+      setError(receiveError instanceof Error ? receiveError.message : 'Could not confirm stock transfer.');
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="mx-auto max-w-[1500px]">
         <PageHeader title="Inventory" subtitle="Manage branch stock and availability without changing the shared catalog." />
 
+        <div role="tablist" aria-label="Inventory type" className="flex gap-2">
+          <button type="button" role="tab" aria-selected={inventoryTab === 'products'} onClick={() => setInventoryTab('products')} className={`rounded-xl px-4 py-2 text-sm font-semibold ${inventoryTab === 'products' ? 'bg-[var(--oppa-green)] text-white' : 'border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)]'}`}>Product stock</button>
+          <button type="button" role="tab" aria-selected={inventoryTab === 'ingredients'} onClick={() => setInventoryTab('ingredients')} className={`rounded-xl px-4 py-2 text-sm font-semibold ${inventoryTab === 'ingredients' ? 'bg-[var(--oppa-green)] text-white' : 'border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)]'}`}>Ingredient stock</button>
+        </div>
+
         {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button onClick={() => { setError(''); setIsLoading(true); void loadInventory(); }} className="font-semibold underline">Retry</button></div>}
         {message && <p role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{message}</p>}
-        {!isLoading && items.length > 0 && <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {inventoryTab === 'products' && !isLoading && items.length > 0 && <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard icon={Boxes} label="Products tracked" value={items.length} />
           <StatCard icon={PackageCheck} label="Available" value={items.filter((item) => item.branch_available).length} />
           <StatCard icon={TriangleAlert} label="Low stock" value={items.filter((item) => item.low_stock).length} accent="amber" />
           <StatCard icon={PackageX} label="Out of stock" value={items.filter((item) => item.branch_stock_tracked && item.branch_stock === 0).length} accent="red" />
         </section>}
-        {isLoading ? <p className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading branch inventory...</p> : items.length === 0 ? (
+        {inventoryTab === 'ingredients' ? (
+          <div className="space-y-4">
+            {ingredientInventory?.expiring_soon.length ? <section role="alert" className="rounded-xl border border-orange-300 bg-orange-50 p-4 text-sm text-orange-950"><strong>{ingredientInventory.expiring_soon.length} ingredient batch{ingredientInventory.expiring_soon.length === 1 ? '' : 'es'} expiring soon:</strong> {ingredientInventory.expiring_soon.slice(0, 4).map((batch) => `${batch.ingredient.name} by ${batch.expires_at}`).join(', ')}</section> : null}
+            <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm">
+              <div className="border-b border-[var(--oppa-border)] px-4 py-4"><h2 className="font-semibold text-[var(--oppa-text)]">Branch ingredient stock</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Ingredient stock is separate from product-level franchise inventory.</p></div>
+              <div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="bg-[var(--oppa-green-soft)]/70 text-xs uppercase text-[var(--oppa-text-muted)]"><tr>{['Ingredient', 'On hand', 'Reorder', 'Status', 'Movement', 'Quantity', 'Reason', ''].map((title) => <th key={title} className="px-3 py-3">{title}</th>)}</tr></thead><tbody className="divide-y divide-[var(--oppa-border)]">
+                {(ingredientInventory?.ingredients || []).map((ingredient) => {
+                  const edit = ingredientEdit[ingredient.id] || { type: 'stock_in' as const, quantity: '', reason: '' };
+                  return <tr key={ingredient.id}>
+                    <td className="px-3 py-3"><strong>{ingredient.name}</strong><span className="block text-xs text-[var(--oppa-text-muted)]">{ingredient.category}</span></td>
+                    <td className="px-3 py-3">{Number(ingredient.quantity).toLocaleString('en-PH', { maximumFractionDigits: 3 })} {ingredient.unit}</td>
+                    <td className="px-3 py-3">{Number(ingredient.reorder_level).toLocaleString('en-PH', { maximumFractionDigits: 3 })} {ingredient.unit}</td>
+                    <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${ingredient.status === 'out_of_stock' ? 'bg-red-100 text-red-800' : ingredient.status === 'low_stock' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>{ingredient.status.replaceAll('_', ' ')}</span></td>
+                    <td className="px-3 py-3"><select aria-label={`Movement for ${ingredient.name}`} value={edit.type} onChange={(event) => setIngredientEdit((current) => ({ ...current, [ingredient.id]: { ...edit, type: event.target.value as typeof edit.type } }))} className="h-9 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2"><option value="stock_in">Stock in</option><option value="stock_out">Stock out</option><option value="adjustment">Adjust total</option><option value="waste">Waste</option></select></td>
+                    <td className="px-3 py-3"><input type="number" min="0" step="0.001" value={edit.quantity} onChange={(event) => setIngredientEdit((current) => ({ ...current, [ingredient.id]: { ...edit, quantity: event.target.value } }))} className="h-9 w-28 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2" aria-label={`Quantity for ${ingredient.name}`} /></td>
+                    <td className="px-3 py-3"><input value={edit.reason} onChange={(event) => setIngredientEdit((current) => ({ ...current, [ingredient.id]: { ...edit, reason: event.target.value } }))} className="h-9 w-40 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2" aria-label={`Reason for ${ingredient.name}`} /></td>
+                    <td className="px-3 py-3"><button type="button" disabled={busyId === `ingredient-${ingredient.id}` || !edit.quantity} onClick={() => void saveIngredientMovement(ingredient)} className="rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busyId === `ingredient-${ingredient.id}` ? 'Saving…' : 'Save'}</button></td>
+                  </tr>;
+                })}
+                </tbody></table></div>
+            </section>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <form onSubmit={(event) => { void requestRestock(event); }} className="space-y-3 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4">
+                <h3 className="font-semibold text-[var(--oppa-text)]">Request stock from main branch</h3>
+                <select required value={restockIngredient} onChange={(event) => setRestockIngredient(event.target.value)} className="h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm"><option value="">Select ingredient</option>{ingredientInventory?.ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}</select>
+                <input required type="number" min="0.001" step="0.001" value={restockQuantity} onChange={(event) => setRestockQuantity(event.target.value)} placeholder="Requested quantity" className="h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm" />
+                <textarea value={restockNotes} onChange={(event) => setRestockNotes(event.target.value)} maxLength={2000} placeholder="Notes (optional)" className="w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 text-sm" />
+                <button type="submit" className="rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">Submit request</button>
+              </form>
+              <section className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4">
+                <h3 className="font-semibold text-[var(--oppa-text)]">Restock requests and transfers</h3>
+                <ul className="mt-3 space-y-3 text-sm">{ingredientInventory?.restock_requests.map((request) => <li key={`request-${request.id}`} className="border-b border-[var(--oppa-border)] pb-2"><strong>Request #{request.id}</strong> · {request.status}<p className="text-xs text-[var(--oppa-text-muted)]">{request.items.map((item) => `${item.ingredient.name} × ${item.requested_quantity}`).join(', ')}</p></li>)}
+                  {ingredientInventory?.transfers.map((transfer) => <li key={`transfer-${transfer.id}`} className="flex items-center justify-between gap-2 border-b border-[var(--oppa-border)] pb-2"><span><strong>{transfer.reference}</strong> · {transfer.status}<span className="block text-xs text-[var(--oppa-text-muted)]">{transfer.items.map((item) => `${item.ingredient.name} × ${item.quantity}`).join(', ')}</span></span>{transfer.status === 'dispatched' && <button type="button" onClick={() => void confirmTransfer(transfer.id)} className="rounded-lg border border-[var(--oppa-border)] px-3 py-1.5 text-xs font-semibold">Confirm receipt</button>}</li>)}</ul>
+              </section>
+            </div>
+          </div>
+        ) : isLoading ? <p className="rounded-2xl border border-[var(--oppa-border)] bg-white p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading branch inventory...</p> : items.length === 0 ? (
           <section className="rounded-2xl border border-[var(--oppa-border)] bg-white p-10 text-center text-sm text-[var(--oppa-text-muted)]">No inventory data available yet.</section>
         ) : (
           <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-sm">

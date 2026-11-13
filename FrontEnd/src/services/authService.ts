@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api';
+import { API_URL } from './apiConfig';
 
 const getApiErrorMessage = async (response: Response, fallback: string): Promise<string> => {
   const error = await response.json().catch(() => ({}));
@@ -246,6 +246,13 @@ class AuthService {
   clearAuth(): void {
     localStorage.removeItem(this.userKey);
     localStorage.removeItem(this.tokenKey);
+  }
+
+  expireSession(): void {
+    this.clearAuth();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('customer-auth-expired'));
+    }
   }
 
   isAuthenticated(): boolean {

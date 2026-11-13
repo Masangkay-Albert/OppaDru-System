@@ -22,6 +22,8 @@ use App\Http\Controllers\DeliveryProofController;
 use App\Http\Controllers\DiscountVerificationController;
 use App\Http\Controllers\DiscountApplicationController;
 use App\Http\Controllers\ProofImageController;
+use App\Http\Controllers\MainBranchInventoryController;
+use App\Http\Controllers\BranchInventoryController;
 use App\Http\Controllers\FranchiseApplicationController;
 use App\Http\Controllers\FranchiseAuthController;
 use App\Http\Controllers\FranchiseApplicantAuthController;
@@ -83,6 +85,10 @@ Route::prefix('franchise')->group(function () {
         Route::get('/dashboard', [FranchiseController::class, 'dashboard']);
         Route::get('/summary', [FranchiseController::class, 'branchSummary']);
         Route::get('/inventory', [FranchiseController::class, 'inventorySummary']);
+        Route::get('/inventory/ingredients', [BranchInventoryController::class, 'index'])->middleware('franchise.role:owner,manager');
+        Route::post('/inventory/ingredients/{ingredient}/adjustments', [BranchInventoryController::class, 'adjust'])->middleware('franchise.role:owner,manager');
+        Route::post('/inventory/restock-requests', [BranchInventoryController::class, 'requestRestock'])->middleware('franchise.role:owner,manager');
+        Route::patch('/inventory/transfers/{transfer}/receive', [BranchInventoryController::class, 'receiveTransfer'])->middleware('franchise.role:owner,manager');
         Route::patch('/inventory/{productId}', [FranchiseController::class, 'updateInventory'])->middleware('franchise.role:owner,manager');
         Route::get('/fulfillment', [FranchiseController::class, 'fulfillmentSummary']);
         Route::get('/reports', [FranchiseController::class, 'branchReports'])->middleware('franchise.role:owner,manager');
@@ -235,6 +241,29 @@ Route::middleware('franchise.applicant.access')->group(function () {
 });
 
 Route::middleware(['admin.access'])->prefix('admin')->group(function () {
+    Route::get('/inventory/suppliers', [MainBranchInventoryController::class, 'suppliers']);
+    Route::post('/inventory/suppliers', [MainBranchInventoryController::class, 'storeSupplier']);
+    Route::put('/inventory/suppliers/{supplier}', [MainBranchInventoryController::class, 'updateSupplier']);
+    Route::delete('/inventory/suppliers/{supplier}', [MainBranchInventoryController::class, 'deleteSupplier']);
+    Route::get('/inventory/export', [MainBranchInventoryController::class, 'export']);
+    Route::post('/inventory/import', [MainBranchInventoryController::class, 'import']);
+    Route::get('/inventory/recipes', [MainBranchInventoryController::class, 'recipes']);
+    Route::get('/inventory/reports', [MainBranchInventoryController::class, 'reports']);
+    Route::get('/inventory/restock-requests', [MainBranchInventoryController::class, 'restockRequests']);
+    Route::post('/inventory/transfers', [MainBranchInventoryController::class, 'createTransfer']);
+    Route::patch('/inventory/restock-requests/{restockRequest}/reject', [MainBranchInventoryController::class, 'rejectRestockRequest']);
+    Route::get('/inventory/summary', [MainBranchInventoryController::class, 'summary']);
+    Route::get('/inventory/movements', [MainBranchInventoryController::class, 'movements']);
+    Route::post('/inventory/{ingredient}/receive', [MainBranchInventoryController::class, 'receive']);
+    Route::post('/inventory/{ingredient}/count', [MainBranchInventoryController::class, 'countStock']);
+    Route::put('/inventory/products/{product}/recipes', [MainBranchInventoryController::class, 'saveRecipes']);
+    Route::get('/inventory/{ingredient}/movements', [MainBranchInventoryController::class, 'ingredientMovements']);
+    Route::post('/inventory/{ingredient}/adjustments', [MainBranchInventoryController::class, 'adjust']);
+    Route::patch('/inventory/{ingredient}/archive', [MainBranchInventoryController::class, 'archive']);
+    Route::get('/inventory', [MainBranchInventoryController::class, 'index']);
+    Route::post('/inventory', [MainBranchInventoryController::class, 'store']);
+    Route::put('/inventory/{ingredient}', [MainBranchInventoryController::class, 'update']);
+
     Route::get('/branches/routing-diagnostics', [BranchRoutingController::class, 'diagnostics']);
     Route::get('/announcements', [AnnouncementController::class, 'index']);
     Route::post('/announcements', [AnnouncementController::class, 'store']);

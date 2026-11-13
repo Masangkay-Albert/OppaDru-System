@@ -49,6 +49,8 @@ const AdminFranchiseDetailPage = lazy(() => import("./modules/admin-side/pages/A
 const AdminFranchiseAccountDetailPage = lazy(() => import("./modules/admin-side/pages/AdminFranchiseAccountDetailPage"));
 const AdminFranchiseApplicationsPage = lazy(() => import("./modules/admin-side/pages/AdminFranchiseApplicationsPage"));
 const AdminFranchiseApplicationDetailPage = lazy(() => import("./modules/admin-side/pages/AdminFranchiseApplicationDetailPage"));
+const AdminInventoryPage = lazy(() => import("./modules/admin-side/pages/AdminInventoryPage"));
+const AdminInventoryHistoryPage = lazy(() => import("./modules/admin-side/pages/AdminInventoryHistoryPage"));
 
 // ============ FRANCHISE PAGES ============
 const FranchiseLoginPage = lazy(() => import("./modules/franchise-side/pages/FranchiseLoginPage"));
@@ -151,6 +153,8 @@ function App() {
                       <Route path="/admin/customers" element={<ProtectedAdminRoute><AdminCustomersPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/employees" element={<ProtectedAdminRoute><AdminEmployeesPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/reports" element={<ProtectedAdminRoute><AdminReportsPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/inventory" element={<ProtectedAdminRoute><AdminInventoryPage /></ProtectedAdminRoute>} />
+                      <Route path="/admin/inventory/history" element={<ProtectedAdminRoute><AdminInventoryHistoryPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/admins" element={<ProtectedAdminRoute systemAdministratorOnly><AdminAdminsPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/franchises" element={<ProtectedAdminRoute><AdminFranchisesPage /></ProtectedAdminRoute>} />
                       <Route path="/admin/franchise-accounts/:id" element={<ProtectedAdminRoute><AdminFranchiseAccountDetailPage /></ProtectedAdminRoute>} />

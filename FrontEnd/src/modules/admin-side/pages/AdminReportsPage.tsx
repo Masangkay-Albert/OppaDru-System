@@ -7,6 +7,8 @@ import { getCurrentAdmin } from '../../../services/adminAuthService';
 import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
 import { formatCurrency } from '../../../utils/formatters';
 import { generateSalesReportPdf } from '../../../utils/reportPdfGenerator';
+import { getInventoryReport } from '../../../services/mainBranchInventoryService';
+import type { InventoryReport } from '../../../services/mainBranchInventoryService';
 import { PageHeader, Toast } from '../components/AdminUI';
 import Select from '../../../components/ui/Select';
 import {
@@ -169,6 +171,9 @@ const AdminReportsPage: React.FC = () => {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [notice, setNotice] = useState('');
   const [noticeTone, setNoticeTone] = useState<'success' | 'error'>('success');
+  const [inventoryReport, setInventoryReport] = useState<InventoryReport | null>(null);
+  const [inventoryReportError, setInventoryReportError] = useState('');
+  const [inventoryReportLoading, setInventoryReportLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -194,6 +199,17 @@ const AdminReportsPage: React.FC = () => {
       })
       .catch(() => {
         if (isMounted) setGoalError('Sales target could not be loaded.');
+      });
+
+    getInventoryReport()
+      .then((report) => {
+        if (isMounted) setInventoryReport(report);
+      })
+      .catch((error: unknown) => {
+        if (isMounted) setInventoryReportError(error instanceof Error ? error.message : 'Inventory reports could not be loaded.');
+      })
+      .finally(() => {
+        if (isMounted) setInventoryReportLoading(false);
       });
 
     return () => {
@@ -503,6 +519,42 @@ const AdminReportsPage: React.FC = () => {
           onStyleChange={setTimelineStyle}
         />
       </div>
+
+      <section aria-labelledby="inventory-reports-title" className="admin-card space-y-4 p-5">
+        <div>
+          <h2 id="inventory-reports-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">Ingredient and food-cost reports</h2>
+          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Inventory usage, waste, count variance, and recipe-based food cost.</p>
+        </div>
+        {inventoryReportLoading ? <p role="status" className="py-5 text-sm text-[var(--oppa-text-muted)]">Loading inventory reports…</p>
+          : inventoryReportError ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{inventoryReportError}</p>
+            : inventoryReport ? <>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <MetricCard icon={<FileText size={18} />} label="Current inventory value" value={formatCurrency(inventoryReport.inventory_value)} detail="Based on current quantity × unit cost" />
+                <MetricCard icon={<BarChart3 size={18} />} label="Ingredients used" value={inventoryReport.ingredient_usage.length} detail="Ingredients with recorded order usage" />
+                <MetricCard icon={<Store size={18} />} label="Waste entries" value={inventoryReport.waste.length} detail="Ingredients with logged spoilage" />
+              </div>
+              <div className="grid gap-5 lg:grid-cols-2">
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-[var(--oppa-text)]">Ingredient usage vs sales</h3>
+                  {inventoryReport.ingredient_usage.length ? <div className="overflow-x-auto"><table className="admin-table w-full min-w-[380px] text-left text-sm"><thead><tr><th className="px-3 py-2">Ingredient</th><th className="px-3 py-2">Used</th></tr></thead><tbody className="divide-y divide-[var(--oppa-border)]">{inventoryReport.ingredient_usage.map((item) => <tr key={item.ingredient_name}><td className="px-3 py-2">{item.ingredient_name}</td><td className="px-3 py-2">{item.quantity.toLocaleString('en-PH', { maximumFractionDigits: 3 })} {item.unit}</td></tr>)}</tbody></table></div> : <p className="text-sm text-[var(--oppa-text-muted)]">No recipe-based ingredient usage recorded yet.</p>}
+                </div>
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-[var(--oppa-text)]">Waste and spoilage</h3>
+                  {inventoryReport.waste.length ? <div className="overflow-x-auto"><table className="admin-table w-full min-w-[380px] text-left text-sm"><thead><tr><th className="px-3 py-2">Ingredient</th><th className="px-3 py-2">Wasted</th></tr></thead><tbody className="divide-y divide-[var(--oppa-border)]">{inventoryReport.waste.map((item) => <tr key={item.ingredient_name}><td className="px-3 py-2">{item.ingredient_name}</td><td className="px-3 py-2">{item.quantity.toLocaleString('en-PH', { maximumFractionDigits: 3 })} {item.unit}</td></tr>)}</tbody></table></div> : <p className="text-sm text-[var(--oppa-text-muted)]">No waste has been logged.</p>}
+                </div>
+              </div>
+              <div className="grid gap-5 lg:grid-cols-2">
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-[var(--oppa-text)]">Stock count variance</h3>
+                  {inventoryReport.variance.length ? <div className="overflow-x-auto"><table className="admin-table w-full min-w-[420px] text-left text-sm"><thead><tr><th className="px-3 py-2">Ingredient</th><th className="px-3 py-2">Variance</th><th className="px-3 py-2">Reason</th></tr></thead><tbody className="divide-y divide-[var(--oppa-border)]">{inventoryReport.variance.map((item, index) => <tr key={`${item.ingredient_name}-${item.occurred_at}-${index}`}><td className="px-3 py-2">{item.ingredient_name}</td><td className="px-3 py-2">{Number(item.variance) > 0 ? '+' : ''}{Number(item.variance).toLocaleString('en-PH', { maximumFractionDigits: 3 })} {item.unit}</td><td className="px-3 py-2">{item.reason || '—'}</td></tr>)}</tbody></table></div> : <p className="text-sm text-[var(--oppa-text-muted)]">No stock count variances recorded.</p>}
+                </div>
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-[var(--oppa-text)]">Food cost % per product</h3>
+                  <div className="overflow-x-auto"><table className="admin-table w-full min-w-[420px] text-left text-sm"><thead><tr><th className="px-3 py-2">Product</th><th className="px-3 py-2">Sales</th><th className="px-3 py-2">Cost / portion</th><th className="px-3 py-2">Food cost</th></tr></thead><tbody className="divide-y divide-[var(--oppa-border)]">{inventoryReport.food_cost_by_product.map((item) => <tr key={item.product_id}><td className="px-3 py-2">{item.product_name}</td><td className="px-3 py-2">{formatCurrency(item.sales)}</td><td className="px-3 py-2">{formatCurrency(item.ingredient_cost_per_portion)}</td><td className="px-3 py-2">{item.food_cost_percent === null ? '—' : `${item.food_cost_percent}%`}</td></tr>)}</tbody></table></div>
+                </div>
+              </div>
+            </> : null}
+      </section>
 
     </AdminLayout>
   );

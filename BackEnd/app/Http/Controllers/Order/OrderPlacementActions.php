@@ -485,6 +485,7 @@ trait OrderPlacementActions
                     'discount_reviewed_at' => null,
                 ]);
 
+                app(\App\Services\InventoryService::class)->deductForOrder($order);
                 if ($lockedPromo) {
                     $lockedPromo->increment('times_used');
                 }

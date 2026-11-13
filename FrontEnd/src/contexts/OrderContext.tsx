@@ -319,6 +319,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       persistCurrentOrder(selectedCurrent);
     } catch (error) {
       if (error instanceof Error && error.message.includes('(401)')) {
+        authService.expireSession();
         console.warn('Your customer session is no longer valid. Sign in again to refresh your order history.');
       } else {
         console.error('Failed to fetch orders:', error);

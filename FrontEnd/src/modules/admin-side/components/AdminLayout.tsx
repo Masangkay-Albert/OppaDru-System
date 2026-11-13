@@ -1,14 +1,17 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  BadgeCheck, Briefcase, Car, ChevronDown, ChevronsLeft, ChevronsRight,
+  BadgeCheck, Boxes, Briefcase, Car, ChevronDown, ChevronsLeft, ChevronsRight,
   FileBarChart, Home, LayoutDashboard, LogOut, Megaphone, Menu, Moon, Package,
   SlidersHorizontal, ShoppingBag, Store, Sun, Tag, Users, X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 import { applyTheme, getSavedTheme } from '../../../services/theme';
 import SearchInput from '../../../components/ui/SearchInput';
+import { API_URL } from '../../../services/apiConfig';
+import { fetchWithAdminAuth } from '../../../services/adminAuthService';
 
 interface AdminErrorBoundaryState { hasError: boolean }
 
@@ -28,13 +31,20 @@ class AdminErrorBoundary extends React.Component<React.PropsWithChildren, AdminE
   }
 }
 
-const navGroups = [
+interface AdminNavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: 'inventory';
+}
+
+const navGroups: Array<{ title: string; items: AdminNavItem[] }> = [
   { title: 'Overview', items: [{ to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard }] },
   { title: 'Catalog', items: [{ to: '/admin/products', label: 'Products', icon: Package }, { to: '/admin/addons', label: 'Add-ons', icon: SlidersHorizontal }] },
   { title: 'Sales & Marketing', items: [{ to: '/admin/orders', label: 'Orders', icon: ShoppingBag }, { to: '/admin/promos', label: 'Promos', icon: Tag }, { to: '/admin/discount-approvals', label: 'Discount Approvals', icon: BadgeCheck }, { to: '/admin/reports', label: 'Reports', icon: FileBarChart }] },
   { title: 'Communication', items: [{ to: '/admin/announcements', label: 'Announcements', icon: Megaphone }] },
   { title: 'People', items: [{ to: '/admin/customers', label: 'Customers', icon: Users }, { to: '/admin/admins', label: 'Admins', icon: Users }, { to: '/admin/employees', label: 'Employees', icon: Briefcase }] },
-  { title: 'Operations', items: [{ to: '/admin/franchises', label: 'Franchises', icon: Store }, { to: '/admin/franchise-applications', label: 'Franchise Apps', icon: BadgeCheck }, { to: '/admin/delivery', label: 'Delivery', icon: Car }] },
+  { title: 'Operations', items: [{ to: '/admin/inventory', label: 'Inventory', icon: Boxes, badge: 'inventory' }, { to: '/admin/franchises', label: 'Franchises', icon: Store }, { to: '/admin/franchise-applications', label: 'Franchise Apps', icon: BadgeCheck }, { to: '/admin/delivery', label: 'Delivery', icon: Car }] },
 ];
 
 let adminSidebarScrollTop = 0;
@@ -49,8 +59,32 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menu, setMenu] = useState<'profile' | null>(null);
   const [dark, setDark] = useState(() => getSavedTheme() === 'dark');
+  const [inventoryAttentionCount, setInventoryAttentionCount] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    const loadInventoryAttention = async () => {
+      try {
+        const response = await fetchWithAdminAuth(`${API_URL}/admin/inventory/summary`);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.message || 'Could not load inventory alert count.');
+        if (active) setInventoryAttentionCount(Number(payload.data?.needs_restocking || 0));
+      } catch (error) {
+        console.error('Could not load the inventory sidebar alert count.', error);
+      }
+    };
+    const refreshOnFocus = () => { void loadInventoryAttention(); };
+    void loadInventoryAttention();
+    window.addEventListener('inventory-updated', refreshOnFocus);
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      active = false;
+      window.removeEventListener('inventory-updated', refreshOnFocus);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [location.pathname]);
 
   useLayoutEffect(() => {
     if (navRef.current) navRef.current.scrollTop = adminSidebarScrollTop;
@@ -79,7 +113,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     .filter((group) => group.items.length > 0), [admin?.role]);
   const allNav = useMemo(() => visibleNavGroups.flatMap((group) => group.items), [visibleNavGroups]);
   const matches = allNav.filter((item) => item.label.toLowerCase().includes(query.toLowerCase())).slice(0, 6);
-  const pageName = allNav.find((item) => item.to === location.pathname)?.label || 'Admin';
+  const pageName = allNav.find((item) => item.to === location.pathname || (item.to === '/admin/inventory' && location.pathname.startsWith('/admin/inventory/')))?.label || 'Admin';
   const adminInitial = (admin?.fullName || 'A').trim().charAt(0).toUpperCase();
   const handleExit = () => { logout(); navigate('/admin/login'); };
 
@@ -100,11 +134,12 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <section key={group.title}>
               <h2 className={`mb-1 px-3 text-[11px] font-bold uppercase tracking-[.14em] text-white/70 ${collapsed ? 'md:sr-only' : ''}`}>{group.title}</h2>
               <div className="space-y-1">
-                {group.items.map(({ to, label, icon: Icon }) => (
+                {group.items.map(({ to, label, icon: Icon, badge }) => (
                   <NavLink key={to} to={to} title={collapsed ? label : undefined} onClick={() => { setMobileOpen(false); setMenu(null); }}
                     className={({ isActive }) => `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${collapsed ? 'md:justify-center md:px-0' : ''} ${isActive ? 'bg-white text-[var(--oppa-green-dark)] shadow-sm' : 'text-white/85 hover:bg-white/10 hover:text-white'}`}>
                     <Icon size={18} aria-hidden="true" />
                     <span className={collapsed ? 'md:sr-only' : ''}>{label}</span>
+                    {badge === 'inventory' && inventoryAttentionCount > 0 && <span aria-label={`${inventoryAttentionCount} ingredients need restocking`} className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-300 px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-950">{inventoryAttentionCount > 99 ? '99+' : inventoryAttentionCount}</span>}
                     {collapsed && <span role="tooltip" className="pointer-events-none absolute left-[calc(100%+10px)] z-50 hidden whitespace-nowrap rounded-md bg-gray-950 px-2 py-1 text-xs text-white shadow-lg group-hover:block group-focus-visible:block">{label}</span>}
                   </NavLink>
                 ))}

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { FiUser, FiCalendar, FiSave, FiCheckCircle, FiUpload, FiClock, FiTrash2, FiX, FiShield } from 'react-icons/fi';
 import { useSettings } from '../../../../contexts/SettingsContext';
 import { useAuth } from '../../../../contexts/Authcontext';
+import { API_URL } from '../../../../services/apiConfig';
+import { authService } from '../../../../services/authService';
 
-const getAuthToken = () => localStorage.getItem('auth_token');
+const getAuthToken = () => authService.getToken();
 const getToday = () => {
   const today = new Date();
   const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -106,7 +108,7 @@ const DiscountSection: React.FC = () => {
       if (formData.expiryDate) form.append('expiry_date', formData.expiryDate);
       form.append('proof_image', formData.proofImage);
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/discount/applications`, {
+      const response = await fetch(`${API_URL}/discount/applications`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -150,7 +152,7 @@ const DiscountSection: React.FC = () => {
 
     setIsRemoving(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/discount/applications/me`, {
+      const response = await fetch(`${API_URL}/discount/applications/me`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -199,6 +199,13 @@ class Order extends Model
             }
             $model->status_history = $history;
         });
+        static::updated(function (self $model) {
+            $refundedStatus = $model->wasChanged('status') && strtolower((string) $model->status) === 'refunded';
+            $refundedPayment = $model->wasChanged('payment_status') && strtolower((string) $model->payment_status) === 'refunded';
+            if ($refundedStatus || $refundedPayment) {
+                app(\App\Services\InventoryService::class)->reverseOrder($model);
+            }
+        });
     }
 
     public function scopeCountedAsRevenue(Builder $query): Builder

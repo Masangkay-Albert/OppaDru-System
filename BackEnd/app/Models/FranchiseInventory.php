@@ -20,6 +20,7 @@ class FranchiseInventory extends Model
         'branch_image',
         'is_archived',
         'is_hidden',
+        'ingredient_unavailable',
     ];
 
     protected $casts = [
@@ -28,5 +29,6 @@ class FranchiseInventory extends Model
         'branch_price' => 'decimal:2',
         'is_archived' => 'boolean',
         'is_hidden' => 'boolean',
+        'ingredient_unavailable' => 'boolean',
     ];
 }

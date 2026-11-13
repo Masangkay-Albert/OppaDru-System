@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
 import { useAuth } from './Authcontext';
+import { API_URL } from '../services/apiConfig';
+import { authService } from '../services/authService';
 
 export interface Address {
   id: string;
@@ -139,7 +141,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshPricing = useCallback(async () => {
-    const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/settings/pricing`);
+    const response = await fetch(`${API_URL}/settings/pricing`);
     if (!response.ok) {
       throw new Error(`Failed to load pricing settings (${response.status}).`);
     }
@@ -173,16 +175,17 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     let authorizationFailed = false;
 
     const syncDiscountApplication = async () => {
-      const token = localStorage.getItem('auth_token');
+      const token = authService.getToken();
       if (!token || isRequestInFlight || authorizationFailed) return;
 
       isRequestInFlight = true;
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://oppadru-system-1.onrender.com/api'}/discount/applications/me`, {
+        const response = await fetch(`${API_URL}/discount/applications/me`, {
           headers: { Authorization: ['Bearer', token].join(' ') },
         });
         if (response.status === 401) {
           authorizationFailed = true;
+          authService.expireSession();
           console.warn('Your customer session is no longer valid. Sign in again to refresh discount information.');
           return;
         }

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authService } from '../services/authService';
 import type { User, RegisterData } from '../services/authService';
 
@@ -32,6 +32,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const expireSession = () => setUser(null);
+    window.addEventListener('customer-auth-expired', expireSession);
+    return () => window.removeEventListener('customer-auth-expired', expireSession);
+  }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);

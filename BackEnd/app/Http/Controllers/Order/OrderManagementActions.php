@@ -21,15 +21,20 @@ trait OrderManagementActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $order = Order::findOrFail($id);
-        $order->status = $request->status;
-        $order->save();
+        return DB::transaction(function () use ($request, $id) {
+            $order = Order::query()->lockForUpdate()->findOrFail($id);
+            $order->status = $request->status;
+            $order->save();
+            if ($request->status === 'cancelled') {
+                app(\App\Services\InventoryService::class)->reverseOrder($order, $request->user());
+            }
 
-        return response()->json([
-            'success' => true,
-            'order' => $order,
-            'message' => 'Order status updated successfully!',
-        ]);
+            return response()->json([
+                'success' => true,
+                'order' => $order,
+                'message' => 'Order status updated successfully!',
+            ]);
+        });
     }
 
     public function update(Request $request, $id)
@@ -141,6 +146,7 @@ trait OrderManagementActions
 
             $order->status = 'cancelled';
             $order->save();
+            app(\App\Services\InventoryService::class)->reverseOrder($order, $request->user());
 
             if ($order->promo_id) {
                 Promo::query()

@@ -62,7 +62,8 @@ class FranchiseInventoryService
             $stock = $inventory->get($product->id);
             $stockQuantity = $stock?->stock_quantity;
             $branchAvailable = (bool) ($stock?->is_available ?? ($hasBranchInventory && $product->is_available))
-                && ($stockQuantity === null || $stockQuantity > 0);
+                && ($stockQuantity === null || $stockQuantity > 0)
+                && ! (bool) ($stock?->ingredient_unavailable ?? false);
 
             return array_merge($product->toArray(), [
                 'name' => $stock?->branch_name ?? $product->name,

@@ -125,6 +125,8 @@ export const ConfirmDialog: React.FC<{
 
 const badgeMap: Record<string, { label: string; style: string }> = {
   active: { label: 'Active', style: 'bg-emerald-100 text-emerald-800' },
+  in_stock: { label: 'In stock', style: 'bg-emerald-100 text-emerald-800' },
+  low_stock: { label: 'Low stock', style: 'bg-amber-100 text-amber-900' },
   assigned: { label: 'Assigned', style: 'bg-emerald-100 text-emerald-800' },
   inactive: { label: 'Inactive', style: 'bg-slate-200 text-slate-800' },
   available: { label: 'Available', style: 'bg-emerald-100 text-emerald-800' },
@@ -210,6 +212,7 @@ export const RowActionsMenu: React.FC<{
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const showMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -222,11 +225,15 @@ export const RowActionsMenu: React.FC<{
   };
   useEffect(() => {
     if (!open) return;
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
     const dismiss = (event: MouseEvent) => {
       if (event.target instanceof Node && !root.current?.contains(event.target) && !menuRef.current?.contains(event.target)) setOpen(false);
     };
     const keydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
     };
     const closeMenu = () => setOpen(false);
     document.addEventListener('mousedown', dismiss);
@@ -240,10 +247,34 @@ export const RowActionsMenu: React.FC<{
       window.removeEventListener('scroll', closeMenu, true);
     };
   }, [open]);
+  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const menuItems = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'));
+    const currentIndex = menuItems.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      (event.key === 'Home' ? menuItems[0] : menuItems[menuItems.length - 1])?.focus();
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      const nextIndex = currentIndex < 0
+        ? direction > 0 ? 0 : menuItems.length - 1
+        : (currentIndex + direction + menuItems.length) % menuItems.length;
+      menuItems[nextIndex]?.focus();
+    } else if (event.key === 'Tab') {
+      event.preventDefault();
+      const focusable = Array.from(document.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )).filter((element) => !menuRef.current?.contains(element) && element.getClientRects().length > 0);
+      const triggerIndex = triggerRef.current ? focusable.indexOf(triggerRef.current) : -1;
+      const next = focusable[triggerIndex + (event.shiftKey ? -1 : 1)];
+      setOpen(false);
+      (next || triggerRef.current)?.focus();
+    }
+  };
   return <div ref={root} className="relative inline-flex">
-    <button type="button" aria-label={`Actions for ${label}`} aria-haspopup="menu" aria-expanded={open} title="More actions" onClick={showMenu} className="inline-flex size-9 items-center justify-center rounded-full border border-[var(--oppa-border)] text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><MoreHorizontal size={18} /></button>
+    <button ref={triggerRef} type="button" aria-label={`Actions for ${label}`} aria-haspopup="menu" aria-expanded={open} title="More actions" onClick={showMenu} className="inline-flex size-9 items-center justify-center rounded-full border border-[var(--oppa-border)] text-[var(--oppa-text-muted)] transition-all duration-200 ease-out hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><MoreHorizontal size={18} aria-hidden="true" /></button>
     {open && position && createPortal(
-      <div ref={menuRef} role="menu" aria-label={`${label} actions`} style={{ top: position.top, right: position.right }} className="fixed z-[200] min-w-44 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-1 shadow-xl">
+      <div ref={menuRef} role="menu" aria-label={`${label} actions`} onKeyDown={handleMenuKeyDown} style={{ top: position.top, right: position.right }} className="fixed z-[200] min-w-44 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-1 shadow-xl">
         {items.map((item) => <button key={item.label} role="menuitem" type="button" title={item.title} disabled={item.disabled} onClick={(event) => { event.stopPropagation(); setOpen(false); item.onSelect(); }} className={`block w-full rounded-lg px-3 py-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-45 ${item.destructive ? 'text-red-700 hover:bg-red-50' : 'text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]'}`}>{item.label}</button>)}
       </div>,
       document.body,

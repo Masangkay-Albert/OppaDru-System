@@ -8,6 +8,7 @@ interface StatCardProps {
   icon: LucideIcon;
   tone?: 'default' | 'warning';
   accent?: 'green' | 'amber' | 'red';
+  warningAccent?: 'amber' | 'red';
   trend?: string;
   trendDirection?: 'up' | 'down';
   sparkline?: number[];
@@ -22,8 +23,9 @@ const accents = {
   red: 'bg-red-100 text-red-800',
 };
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, tone = 'default', accent = 'green', trend, trendDirection = 'up', sparkline, context, loading = false, unavailable = false }) => {
+const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, tone = 'default', accent = 'green', warningAccent = 'red', trend, trendDirection = 'up', sparkline, context, loading = false, unavailable = false }) => {
   const hasWarning = tone === 'warning' && Number(value) > 0;
+  const warningColor = warningAccent === 'amber';
   const numericValue = typeof value === 'number' ? value : Number(value);
   const [displayValue, setDisplayValue] = useState(typeof numericValue === 'number' && Number.isFinite(numericValue) ? 0 : value);
   useEffect(() => {
@@ -46,7 +48,7 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, tone = 'd
   const max = Math.max(...points, 1);
   const polyline = points.map((point, index) => `${(index / (points.length - 1 || 1)) * 100},${30 - (point / max) * 26}`).join(' ');
   return (
-    <div className={`admin-card relative flex min-h-36 items-start justify-between overflow-hidden p-4 pb-10 sm:p-5 sm:pb-10 ${hasWarning ? 'border-red-200 bg-red-50/70' : ''}`}>
+    <div className={`admin-card relative flex min-h-36 items-start justify-between overflow-hidden p-4 pb-10 sm:p-5 sm:pb-10 ${hasWarning ? warningColor ? 'border-amber-200 bg-amber-50/70' : 'border-red-200 bg-red-50/70' : ''}`}>
       <div className="min-w-0">
         <p className="tabular-nums text-2xl font-bold tracking-tight text-[var(--oppa-text)] sm:text-3xl">
           {loading ? <span aria-label={`Loading ${label.toLowerCase()}`} className="inline-block h-8 w-16" /> : unavailable ? '—' : displayValue}
@@ -57,10 +59,10 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, tone = 'd
             {trendDirection === 'up' ? '▲' : '▼'} {trend}
           </span>}
           {trend && <span className="text-[10px] text-[var(--oppa-text-muted)]">vs last week</span>}
-          {!trend && context && <span className={`text-[10px] ${hasWarning ? 'font-medium text-red-800' : tone === 'warning' ? 'font-medium text-green-800' : 'text-[var(--oppa-text-muted)]'}`}>{context}</span>}
+          {!trend && context && <span className={`text-[10px] ${hasWarning ? warningColor ? 'font-medium text-amber-900' : 'font-medium text-red-800' : tone === 'warning' ? 'font-medium text-green-800' : 'text-[var(--oppa-text-muted)]'}`}>{context}</span>}
         </div>
       </div>
-      <div className={`rounded-xl p-2.5 ${hasWarning ? 'bg-red-100 text-red-700' : accents[hasWarning ? 'red' : accent]}`}>
+      <div className={`rounded-xl p-2.5 ${hasWarning ? warningColor ? 'bg-amber-100 text-amber-900' : 'bg-red-100 text-red-700' : accents[accent]}`}>
           <Icon size={21} aria-hidden="true" />
       </div>
       {points.length > 1 && <svg aria-hidden="true" viewBox="0 0 100 34" className={`absolute bottom-3 right-4 h-7 w-16 ${hasWarning ? 'text-red-500' : 'text-[var(--oppa-green)]'}`}>

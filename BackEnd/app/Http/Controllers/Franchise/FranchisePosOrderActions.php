@@ -360,6 +360,7 @@ trait FranchisePosOrderActions
                     'discount_requested_at' => $discountType ? now() : null,
                     'discount_reviewed_at' => $discountType ? now() : null,
                 ]);
+                app(\App\Services\InventoryService::class)->deductForOrder($order);
                 $orderDataService->syncOrderItems($order, $orderItems);
                 if ($gatewayPayment) {
                     $gatewayPayment->update(['order_id' => $order->id]);
