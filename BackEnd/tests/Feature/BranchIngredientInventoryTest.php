@@ -10,6 +10,7 @@ use App\Models\IngredientRecipe;
 use App\Models\InventoryRestockRequest;
 use App\Models\InventoryRestockRequestItem;
 use App\Models\MainBranchIngredient;
+use App\Models\MainBranchStockMovement;
 use App\Models\Order;
 use App\Models\Product;
 use App\Services\InventoryService;
@@ -98,6 +99,61 @@ class BranchIngredientInventoryTest extends TestCase
             ->assertJsonPath('data.summary.total', 1)
             ->assertJsonPath('data.ingredients.0.name', 'Rice')
             ->assertJsonPath('data.available_ingredients.0.name', 'Flour');
+    }
+
+    public function test_branch_inventory_does_not_show_globally_archived_ingredients(): void
+    {
+        $branch = $this->branch('Archived Catalog Branch');
+        $ingredient = $this->ingredient('Archived ingredient');
+        $ingredient->update(['is_archived' => true]);
+        BranchIngredientStock::create([
+            'branch_id' => $branch->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity' => 4,
+            'reorder_level' => 1,
+        ]);
+
+        $this->getJson('/api/franchise/inventory/ingredients', $this->userHeaders($branch, 'manager'))
+            ->assertOk()
+            ->assertJsonCount(0, 'data.ingredients')
+            ->assertJsonCount(0, 'data.available_ingredients');
+    }
+
+    public function test_recent_inventory_activity_is_scoped_to_main_and_each_branch(): void
+    {
+        $mainActivityBranch = $this->branch('Main Activity Branch One');
+        $otherActivityBranch = $this->branch('Main Activity Branch Two');
+        $ingredient = $this->ingredient('Activity carrots');
+        $movementData = [
+            'ingredient_id' => $ingredient->id,
+            'ingredient_name' => $ingredient->name,
+            'unit' => $ingredient->unit,
+            'type' => 'stock_in',
+            'quantity' => 1,
+            'quantity_change' => 1,
+            'quantity_before' => 0,
+            'quantity_after' => 1,
+            'performed_by' => 'System Administrator',
+            'occurred_at' => now(),
+        ];
+        $mainMovement = MainBranchStockMovement::create([...$movementData, 'branch_id' => null]);
+        $firstBranchMovement = MainBranchStockMovement::create([...$movementData, 'branch_id' => $mainActivityBranch->id]);
+        $otherBranchMovement = MainBranchStockMovement::create([...$movementData, 'branch_id' => $otherActivityBranch->id]);
+
+        $this->getJson('/api/admin/inventory', $this->adminHeaders())
+            ->assertOk()
+            ->assertJsonCount(1, 'data.recent_movements')
+            ->assertJsonPath('data.recent_movements.0.id', $mainMovement->id);
+
+        $this->getJson('/api/franchise/inventory/ingredients', $this->userHeaders($mainActivityBranch, 'owner'))
+            ->assertOk()
+            ->assertJsonCount(1, 'data.recent_movements')
+            ->assertJsonPath('data.recent_movements.0.id', $firstBranchMovement->id);
+
+        $this->getJson('/api/franchise/inventory/ingredients', $this->userHeaders($otherActivityBranch, 'owner'))
+            ->assertOk()
+            ->assertJsonCount(1, 'data.recent_movements')
+            ->assertJsonPath('data.recent_movements.0.id', $otherBranchMovement->id);
     }
 
     public function test_dashboard_reports_branch_ingredient_counts(): void
@@ -208,6 +264,94 @@ class BranchIngredientInventoryTest extends TestCase
         ]);
     }
 
+    public function test_new_branch_ingredient_names_enforce_the_shared_name_limit(): void
+    {
+        $branch = $this->branch('Ingredient Name Limit Branch');
+        $headers = $this->userHeaders($branch, 'manager');
+        $ingredient = [
+            'category' => 'Packaging',
+            'unit' => 'pack',
+            'initial_quantity' => 0,
+            'reorder_level' => 1,
+        ];
+
+        $this->postJson('/api/franchise/inventory/ingredients', [...$ingredient, 'name' => 'A'], $headers)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('name');
+        $this->postJson('/api/franchise/inventory/ingredients', [...$ingredient, 'name' => 'Napkins😀'], $headers)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('name');
+        $this->postJson('/api/franchise/inventory/ingredients', [...$ingredient, 'name' => str_repeat('N', 51)], $headers)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('name');
+
+        $this->postJson('/api/franchise/inventory/ingredients', [...$ingredient, 'name' => str_repeat('N', 50)], $headers)
+            ->assertCreated()
+            ->assertJsonPath('data.name', str_repeat('N', 50));
+    }
+
+    public function test_branch_total_prices_convert_purchase_units_and_keep_costs_branch_scoped(): void
+    {
+        $branch = $this->branch('Priced Branch');
+        $otherBranch = $this->branch('Other Priced Branch');
+        $headers = $this->userHeaders($branch, 'manager');
+        $ingredient = MainBranchIngredient::create([
+            'name' => 'Branch-priced trays',
+            'category' => 'Dry goods',
+            'unit' => 'pcs',
+            'purchase_unit' => 'tray',
+            'conversion_factor' => 30,
+            'quantity' => 0,
+            'reorder_level' => 1,
+            'unit_cost' => 80,
+        ]);
+        BranchIngredientStock::create([
+            'branch_id' => $otherBranch->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity' => 10,
+            'reorder_level' => 1,
+            'unit_cost' => 20,
+            'inventory_value' => 200,
+        ]);
+
+        $this->postJson('/api/franchise/inventory/ingredients', [
+            'ingredient_id' => $ingredient->id,
+            'initial_quantity' => 3,
+            'reorder_level' => 1,
+            'total_price_paid' => '100.00',
+        ], $headers)->assertCreated()
+            ->assertJsonPath('data.stock_value', '100.00');
+
+        $this->postJson("/api/franchise/inventory/ingredients/{$ingredient->id}/receive", [
+            'quantity' => 2,
+            'total_price_paid' => '540.00',
+        ], $headers)->assertOk()
+            ->assertJsonPath('data.quantity', '63.000')
+            ->assertJsonPath('data.stock_value', '640.00');
+
+        $branchStock = BranchIngredientStock::where('branch_id', $branch->id)
+            ->where('ingredient_id', $ingredient->id)
+            ->firstOrFail();
+        $this->assertSame('10.16', $branchStock->unit_cost);
+        $this->assertSame('640.00', $branchStock->inventory_value);
+        $this->assertSame('80.00', $ingredient->fresh()->unit_cost);
+        $this->assertDatabaseHas('branch_ingredient_stocks', [
+            'branch_id' => $otherBranch->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity' => 10,
+            'unit_cost' => 20,
+            'inventory_value' => 200,
+        ]);
+        $this->assertDatabaseHas('stock_movements', [
+            'branch_id' => $branch->id,
+            'ingredient_id' => $ingredient->id,
+            'purchase_quantity' => 2,
+            'purchase_unit' => 'tray',
+            'unit_cost' => 9,
+            'total_cost' => 540,
+        ]);
+    }
+
     public function test_archiving_hides_branch_stock_without_deleting_it_or_its_history(): void
     {
         $branch = $this->branch('Archive Branch');
@@ -230,6 +374,67 @@ class BranchIngredientInventoryTest extends TestCase
         $this->getJson('/api/franchise/inventory/ingredients', $headers)
             ->assertOk()
             ->assertJsonCount(0, 'data.ingredients');
+    }
+
+    public function test_requested_ingredient_can_be_archived_before_stock_is_received(): void
+    {
+        $branch = $this->branch('Requested Archive Branch');
+        $ingredient = $this->ingredient('Requested beans');
+        $headers = $this->userHeaders($branch, 'owner');
+
+        $this->postJson('/api/franchise/inventory/restock-requests', [
+            'items' => [['ingredient_id' => $ingredient->id, 'quantity' => 3]],
+        ], $headers)->assertCreated();
+
+        $this->assertDatabaseHas('branch_ingredient_stocks', [
+            'branch_id' => $branch->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity' => 0,
+            'is_archived' => false,
+        ]);
+
+        $this->patchJson("/api/franchise/inventory/ingredients/{$ingredient->id}/archive", [], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.is_archived', true);
+
+        $this->assertDatabaseHas('branch_ingredient_stocks', [
+            'branch_id' => $branch->id,
+            'ingredient_id' => $ingredient->id,
+            'is_archived' => true,
+        ]);
+        $this->assertDatabaseHas('inventory_restock_requests', [
+            'branch_id' => $branch->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_branch_stock_use_and_count_work_without_a_note(): void
+    {
+        $branch = $this->branch('Optional Note Branch');
+        $ingredient = $this->ingredient('Optional note rice');
+        $headers = $this->userHeaders($branch, 'manager');
+        BranchIngredientStock::create([
+            'branch_id' => $branch->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity' => 4,
+            'reorder_level' => 1,
+        ]);
+
+        $this->postJson("/api/franchise/inventory/ingredients/{$ingredient->id}/adjustments", [
+            'type' => 'stock_out',
+            'quantity' => 1,
+        ], $headers)->assertOk()->assertJsonPath('data.saved', true);
+
+        $this->postJson("/api/franchise/inventory/ingredients/{$ingredient->id}/adjustments", [
+            'type' => 'count_adjustment',
+            'quantity' => 2,
+        ], $headers)->assertOk()->assertJsonPath('data.saved', true);
+
+        $this->assertDatabaseHas('branch_ingredient_stocks', [
+            'branch_id' => $branch->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity' => 2,
+        ]);
     }
 
     public function test_untracked_recipe_ingredients_are_skipped_and_reversal_is_idempotent(): void

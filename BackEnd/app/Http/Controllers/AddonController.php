@@ -76,7 +76,13 @@ class AddonController extends Controller
         if (!$this->checkAdminAuth($request)) return response()->json(['message' => 'Unauthorized'], 401);
 
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
+            'name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.category_or_supplier_name.min'),
+                'max:'.config('input_limits.category_or_supplier_name.max'),
+                'regex:'.config('input_limits.business_name.pattern'),
+            ],
             'selection_type' => 'required|in:single,multiple',
             'supports_quantity' => 'boolean',
             'max_selections' => 'nullable|integer|min:1',
@@ -93,12 +99,29 @@ class AddonController extends Controller
     public function updateGroup(Request $request, AddonGroup $addonGroup)
     {
         if (!$this->checkAdminAuth($request)) return response()->json(['message' => 'Unauthorized'], 401);
-        $addonGroup->update($request->validate([
-            'name' => 'sometimes|string|max:255', 'selection_type' => 'sometimes|in:single,multiple',
+        $requestedName = $request->input('name');
+        $nameUnchanged = $request->exists('name')
+            && is_string($requestedName)
+            && trim($requestedName) === trim((string) $addonGroup->name);
+        $nameRules = ['sometimes', 'string'];
+        if ($request->exists('name') && ! $nameUnchanged) {
+            $nameRules = [
+                ...$nameRules,
+                'min:'.config('input_limits.category_or_supplier_name.min'),
+                'max:'.config('input_limits.category_or_supplier_name.max'),
+                'regex:'.config('input_limits.business_name.pattern'),
+            ];
+        }
+        $validated = $request->validate([
+            'name' => $nameRules, 'selection_type' => 'sometimes|in:single,multiple',
             'supports_quantity' => 'sometimes|boolean', 'max_selections' => 'nullable|integer|min:1',
             'applicable_categories' => 'sometimes|array', 'applicable_categories.*' => 'string|not_in:fruity-soda-milk,fresh-lemonade',
             'is_active' => 'sometimes|boolean', 'sort_order' => 'sometimes|integer|min:0',
-        ]));
+        ]);
+        if ($nameUnchanged) {
+            $validated['name'] = $addonGroup->getRawOriginal('name');
+        }
+        $addonGroup->update($validated);
         return response()->json($addonGroup);
     }
 
@@ -107,8 +130,14 @@ class AddonController extends Controller
         if (!$this->checkAdminAuth($request)) return response()->json(['message' => 'Unauthorized'], 401);
 
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'price' => 'required|numeric|min:0.01',
+            'name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.category_or_supplier_name.min'),
+                'max:'.config('input_limits.category_or_supplier_name.max'),
+                'regex:'.config('input_limits.business_name.pattern'),
+            ],
+            'price' => ['required', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0.01', 'max:'.config('input_limits.amount')],
             'image' => 'nullable|string',
             'is_active' => 'boolean',
             'sort_order' => 'integer|min:0',
@@ -125,9 +154,30 @@ class AddonController extends Controller
     {
         if (!$this->checkAdminAuth($request)) return response()->json(['message' => 'Unauthorized'], 401);
 
+        $requestedName = $request->input('name');
+        $nameUnchanged = $request->exists('name')
+            && is_string($requestedName)
+            && trim($requestedName) === trim((string) $addon->name);
+        $requestedPrice = (string) $request->input('price');
+        $priceUnchanged = $request->exists('price')
+            && preg_match('/^\d+(?:\.\d{1,2})?$/', $requestedPrice) === 1
+            && bccomp($requestedPrice, (string) $addon->getRawOriginal('price'), 2) === 0;
+        $nameRules = ['sometimes', 'string'];
+        if ($request->exists('name') && ! $nameUnchanged) {
+            $nameRules = [
+                ...$nameRules,
+                'min:'.config('input_limits.category_or_supplier_name.min'),
+                'max:'.config('input_limits.category_or_supplier_name.max'),
+                'regex:'.config('input_limits.business_name.pattern'),
+            ];
+        }
+        $priceRules = ['sometimes', 'numeric'];
+        if ($request->exists('price') && ! $priceUnchanged) {
+            $priceRules = [...$priceRules, 'regex:/^\d+(?:\.\d{1,2})?$/', 'min:0.01', 'max:'.config('input_limits.amount')];
+        }
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
-            'price' => 'sometimes|numeric|min:0.01',
+            'name' => $nameRules,
+            'price' => $priceRules,
             'image' => 'sometimes|nullable|string',
             'is_active' => 'sometimes|boolean',
             'sort_order' => 'sometimes|integer|min:0',
@@ -137,7 +187,14 @@ class AddonController extends Controller
             return response()->json(['message' => 'Price must be a positive number greater than 0.', 'errors' => $validator->errors()], 422);
         }
 
-        $addon->update($validator->validated());
+        $validated = $validator->validated();
+        if ($nameUnchanged) {
+            $validated['name'] = $addon->getRawOriginal('name');
+        }
+        if ($priceUnchanged) {
+            $validated['price'] = $addon->getRawOriginal('price');
+        }
+        $addon->update($validated);
         return response()->json($addon);
     }
 

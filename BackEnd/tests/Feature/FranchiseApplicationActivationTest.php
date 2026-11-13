@@ -254,6 +254,14 @@ class FranchiseApplicationActivationTest extends TestCase
             'can_process_pos' => true,
         ], ['Authorization' => 'Bearer '.$adminToken])->assertStatus(409);
 
+        $application->forceFill(['status' => 'approved_for_opening'])->save();
+        $this->postJson('/api/admin/franchise-applications/'.$application->id.'/activate', [
+            ...$this->activationData(),
+            'manager_full_name' => str_repeat('M', 61),
+            'manager_password' => str_repeat('P', 65),
+        ], ['Authorization' => 'Bearer '.$adminToken])->assertUnprocessable()
+            ->assertJsonValidationErrors(['manager_full_name', 'manager_password']);
+
         $this->assertSame(0, Franchise::count());
         $this->assertSame(0, FranchiseUser::count());
     }

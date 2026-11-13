@@ -20,10 +20,19 @@ class EmployeeController extends Controller
     // Create a new employee
     public function store(Request $request)
     {
+        if ($request->exists('email')) {
+            $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
+        }
         $validated = $request->validate([
-            'fullName' => 'required|string|max:255',
-            'email'    => 'required|string|email|max:255|unique:employees,email',
-            'password' => 'required|string|min:6',
+            'fullName' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
+            'email'    => 'required|string|email|max:'.config('input_limits.email').'|unique:employees,email',
+            'password' => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max')],
             'position' => 'required|in:cashier,kitchen staff,staff',
             'franchise_id' => 'prohibited',
         ]);
@@ -52,15 +61,46 @@ class EmployeeController extends Controller
         }
 
         $employee = Employee::where('franchise_id', $mainBranchId)->findOrFail($id);
+        $requestedName = $request->input('fullName');
+        $nameUnchanged = $request->exists('fullName')
+            && is_string($requestedName)
+            && trim($requestedName) === trim((string) $employee->fullName);
+        $requestedEmail = $request->input('email');
+        $emailUnchanged = $request->exists('email')
+            && is_string($requestedEmail)
+            && strcasecmp(trim($requestedEmail), trim((string) $employee->email)) === 0;
+        $nameRules = ['sometimes', 'required', 'string'];
+        if ($request->exists('fullName') && ! $nameUnchanged) {
+            $nameRules = [
+                ...$nameRules,
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ];
+        }
+        $emailRules = ['sometimes', 'required', 'string', 'email', 'unique:employees,email,'.$employee->id.',id'];
+        if ($request->exists('email') && ! $emailUnchanged) {
+            $emailRules[] = 'max:'.config('input_limits.email');
+        }
+        if ($request->exists('email')) {
+            $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
+        }
         $validated = $request->validate([
-            'fullName' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|string|email|max:255|unique:employees,email,' . $employee->id . ',id',
+            'fullName' => $nameRules,
+            'email' => $emailRules,
             'position' => 'sometimes|required|in:cashier,kitchen staff,staff',
             'franchise_id' => 'missing',
             'is_active' => 'sometimes|boolean',
         ]);
 
-        if (isset($validated['email'])) {
+        if ($nameUnchanged) {
+            $validated['fullName'] = $employee->getRawOriginal('fullName');
+        }
+        if ($emailUnchanged) {
+            $validated['email'] = $employee->getRawOriginal('email');
+        }
+
+        if (isset($validated['email']) && ! $emailUnchanged) {
             $validated['email'] = strtolower(trim($validated['email']));
             if ($this->emailUsedByOtherStaff($validated['email'])) {
                 return response()->json(['message' => 'This email address is already assigned to another staff account.'], 422);
@@ -98,7 +138,7 @@ class EmployeeController extends Controller
     public function resetPassword(Request $request, $id)
     {
         $request->validate([
-            'password' => 'required|string|min:6'
+            'password' => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max')],
         ]);
 
         $mainBranchId = Franchise::where('is_main', true)->value('id');

@@ -19,7 +19,7 @@ class CustomerPasswordRecoveryController extends Controller
     {
         $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
         $validated = $request->validate([
-            'email' => ['required', 'email', 'max:255'],
+            'email' => ['required', 'email', 'max:'.config('input_limits.email')],
             'phone' => ['required', 'string', 'max:32'],
         ]);
 
@@ -76,12 +76,13 @@ class CustomerPasswordRecoveryController extends Controller
     {
         $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
         $validated = $request->validate([
-            'email' => ['required', 'email', 'max:255'],
+            'email' => ['required', 'email', 'max:'.config('input_limits.email')],
             'reset_token' => ['required', 'string'],
             'password' => [
                 'required',
                 'string',
-                'min:8',
+                'min:'.config('input_limits.password.min'),
+                'max:'.config('input_limits.password.max'),
                 'confirmed',
                 'regex:/^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>]).+$/',
             ],

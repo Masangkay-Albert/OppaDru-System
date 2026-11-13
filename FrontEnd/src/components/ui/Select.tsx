@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { LuCheck, LuChevronDown, LuSearch } from 'react-icons/lu';
+import { INPUT_LIMITS } from '../../constants/inputLimits';
 
 export interface SelectOption<Value extends string | number = string> {
   value: Value;
@@ -258,8 +259,9 @@ export default function Select<Value extends string | number = string>({
               aria-controls={listId}
               aria-activedescendant={activeOptionId}
               value={query}
+              maxLength={INPUT_LIMITS.search.max}
               onChange={(event) => {
-                setQuery(event.target.value);
+                setQuery(event.target.value.slice(0, INPUT_LIMITS.search.max));
                 const nextIndex = filteredOptions.findIndex((option) => !option.disabled);
                 setActiveIndex(nextIndex);
               }}

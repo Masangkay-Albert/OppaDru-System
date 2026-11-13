@@ -19,7 +19,14 @@ export interface IngredientRecipe {
   ingredient_id: number;
   quantity: number | string;
   unit: string;
-  ingredient: { id: number; name: string; unit: string; quantity?: number | string; unit_cost?: number | string | null };
+  ingredient: {
+    id: number;
+    name: string;
+    unit: string;
+    quantity?: number | string;
+    unit_cost?: number | string | null;
+    average_unit_cost?: number | string | null;
+  };
 }
 
 export interface MainBranchIngredient {
@@ -33,6 +40,10 @@ export interface MainBranchIngredient {
   usable_quantity?: number | string;
   reorder_level: number | string;
   unit_cost: number | string | null;
+  average_unit_cost?: number | string | null;
+  inventory_value?: number | string | null;
+  stock_value?: number | string;
+  purchase_history?: MainBranchStockMovement[];
   supplier: string | null;
   supplier_id: number | null;
   supplier_relation?: InventorySupplier | null;
@@ -55,6 +66,9 @@ export interface MainBranchStockMovement {
   created_at: string;
   occurred_at: string | null;
   unit_cost: number | string | null;
+  total_cost?: number | string | null;
+  purchase_quantity?: number | string | null;
+  purchase_unit?: string | null;
   order_id: string | null;
   invoice_reference: string | null;
   supplier?: { id: number; name: string } | null;
@@ -66,7 +80,7 @@ export interface InventorySummary {
   low_stock: number;
   out_of_stock: number;
   needs_restocking: number;
-  stock_value: number;
+  stock_value: number | string;
 }
 
 export interface InventoryListResponse {
@@ -116,11 +130,7 @@ export const adjustIngredientStock = (id: number, values: { type: StockMovementT
 
 export const receiveIngredientStock = (id: number, values: {
   quantity: number;
-  unit_cost: number;
-  supplier_id: number | null;
-  occurred_at: string;
-  invoice_reference: string;
-  expires_at?: string;
+  total_price_paid?: string;
 }) => request<MainBranchIngredient>(`/admin/inventory/${id}/receive`, { method: 'POST', body: JSON.stringify(values) });
 
 export const countIngredientStock = (id: number, values: { quantity: number; reason: string }) =>
@@ -160,8 +170,8 @@ export interface InventoryReport {
   ingredient_usage: Array<{ ingredient_name: string; quantity: number; unit: string }>;
   waste: Array<{ ingredient_name: string; quantity: number; unit: string }>;
   variance: Array<{ ingredient_name: string; variance: number | string; unit: string; reason: string | null; occurred_at: string }>;
-  inventory_value: number;
-  food_cost_by_product: Array<{ product_id: string; product_name: string; sales: number; ingredient_cost_per_portion: number; food_cost_percent: number | null }>;
+  inventory_value: number | string;
+  food_cost_by_product: Array<{ product_id: string; product_name: string; sales: number; ingredient_cost_per_portion: number | string; food_cost_percent: number | null }>;
 }
 
 export const getInventoryReport = (filters: { from?: string; to?: string } = {}) => {

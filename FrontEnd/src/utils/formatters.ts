@@ -26,6 +26,14 @@ export const formatPeso = (amount: NumericValue): string => {
   }).format(safeAmount);
 };
 
+export const formatUnitPrice = (amount: NumericValue): string => {
+  const safeAmount = toFiniteNumber(amount);
+  const showFourDecimals = Math.abs(safeAmount * 100 - Math.round(safeAmount * 100)) > 0.000001;
+  return `₱${new Intl.NumberFormat('en-PH', {
+    maximumFractionDigits: showFourDecimals ? 4 : 2,
+  }).format(safeAmount)}`;
+};
+
 export const formatDate = (date: Date): string => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };

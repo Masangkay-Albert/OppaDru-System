@@ -4,6 +4,8 @@ import { useAuth } from "../../../contexts/Authcontext";
 import { authService } from "../../../services/authService";
 import { LogIn, Mail, Lock, Eye, EyeOff, ChevronDown, ArrowLeft, Shield, Truck, BriefcaseBusiness, ChefHat, Store } from "lucide-react";
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
+import { INPUT_LIMITS } from "../../../constants/inputLimits";
+import { LimitedInput } from "../../../components/ui/LimitedInput";
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -130,14 +132,15 @@ const LoginPage: React.FC = () => {
               </label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input
+                <LimitedInput
                   id="customer-email"
                   name="email"
                   type="email"
                   autoComplete="email"
                   required
+                  maxLength={INPUT_LIMITS.email.max}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value.toLowerCase())}
                   aria-invalid={Boolean(error)}
                   aria-describedby={error ? "login-error" : undefined}
                   className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm transition-colors placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20"

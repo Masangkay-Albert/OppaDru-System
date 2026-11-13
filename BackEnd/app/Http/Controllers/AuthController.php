@@ -18,15 +18,25 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->merge(['email' => strtolower(trim((string) $request->email))]);
+        $phone = $request->input('phone');
+        if (is_string($phone) && preg_match('/^\+639\d{9}$/', $phone) === 1) {
+            $request->merge(['phone' => '0'.substr($phone, 3)]);
+        }
 
         $validator = Validator::make($request->all(), [
-            'full_name' => 'required|string|max:255',
+            'full_name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
             'email' => [
-                'required', 'string', 'email', 'max:255',
+                'required', 'string', 'email', 'max:'.config('input_limits.email'),
                 Rule::unique('users', 'email')->where(fn ($query) => $query->whereRaw('LOWER(email) = ?', [$request->email])),
             ],
-            'phone' => 'nullable|string|max:20',
-            'password' => 'required|string|min:8|confirmed',
+            'phone' => ['nullable', 'string', 'max:13', 'regex:'.config('input_limits.phone')],
+            'password' => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max'), 'confirmed'],
         ]);
 
         if ($validator->fails()) {
@@ -80,7 +90,7 @@ class AuthController extends Controller
     {
         $request->merge(['email' => strtolower(trim((string) $request->email))]);
         $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email',
+            'email' => ['required', 'string', 'email', 'max:'.config('input_limits.email')],
             'password' => 'required|string',
         ]);
 
@@ -122,7 +132,7 @@ class AuthController extends Controller
     public function forgotPassword(Request $request)
     {
         $validated = $request->validate([
-            'email' => ['required', 'string', 'email', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:'.config('input_limits.email')],
         ]);
 
         $email = strtolower(trim((string) $validated['email']));
@@ -188,11 +198,12 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'token' => ['required', 'string'],
-            'email' => ['required', 'email'],
+            'email' => ['required', 'email', 'max:'.config('input_limits.email')],
             'password' => [
                 'required',
                 'string',
-                'min:8',
+                'min:'.config('input_limits.password.min'),
+                'max:'.config('input_limits.password.max'),
                 'confirmed',
                 'regex:/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/',
             ],
@@ -256,17 +267,48 @@ class AuthController extends Controller
     public function updateProfile(Request $request)
     {
         $user = $request->user();
+        $requestedName = $request->input('full_name');
+        $nameUnchanged = $request->exists('full_name')
+            && is_string($requestedName)
+            && trim($requestedName) === trim((string) $user->full_name);
+        $requestedPhone = $request->input('phone');
+        if (is_string($requestedPhone) && preg_match('/^\+639\d{9}$/', $requestedPhone) === 1) {
+            $requestedPhone = '0'.substr($requestedPhone, 3);
+            $request->merge(['phone' => $requestedPhone]);
+        }
+        $phoneUnchanged = $request->exists('phone')
+            && (string) $requestedPhone === (string) $user->phone;
+        $nameRules = ['sometimes', 'required', 'string'];
+        if ($request->exists('full_name') && ! $nameUnchanged) {
+            $nameRules = [
+                ...$nameRules,
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ];
+        }
+        $phoneRules = ['sometimes', 'nullable', 'string'];
+        if ($request->exists('phone') && ! $phoneUnchanged) {
+            $phoneRules = [...$phoneRules, 'max:13', 'regex:'.config('input_limits.phone')];
+        }
 
         $validator = Validator::make($request->all(), [
-            'full_name' => 'sometimes|string|max:255',
-            'phone' => 'nullable|string|max:20',
+            'full_name' => $nameRules,
+            'phone' => $phoneRules,
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $user->update($request->only(['full_name', 'phone']));
+        $validated = $validator->validated();
+        if ($nameUnchanged) {
+            unset($validated['full_name']);
+        }
+        if ($phoneUnchanged) {
+            unset($validated['phone']);
+        }
+        $user->update($validated);
 
         return response()->json([
             'user' => $user,
@@ -278,7 +320,13 @@ class AuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'current_password' => 'required|string',
-            'new_password' => 'required|string|min:6|confirmed',
+            'new_password' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.password.min'),
+                'max:'.config('input_limits.password.max'),
+                'confirmed',
+            ],
         ]);
 
         if ($validator->fails()) {

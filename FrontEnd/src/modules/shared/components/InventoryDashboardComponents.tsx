@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Boxes, ChevronDown, ChevronUp, History, MoreHorizontal, PackagePlus, Plus, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, Boxes, ChevronDown, ChevronUp, History, MoreHorizontal, Plus, SlidersHorizontal } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SearchInput from '../../../components/ui/SearchInput';
 import { AdminDate, EmptyState, RowActionsMenu } from '../../admin-side/components/AdminUI';
-import { formatCurrency } from '../../../utils/formatters';
+import { formatPeso, formatUnitPrice } from '../../../utils/formatters';
 import { formatInventoryQuantity } from '../../../utils/inventoryFormatters';
 import type { StockMovementType } from '../../../services/mainBranchInventoryService';
 
@@ -18,6 +18,10 @@ export interface InventoryIngredient {
   usable_quantity?: number | string;
   reorder_level: number | string;
   unit_cost: number | string | null;
+  average_unit_cost?: number | string | null;
+  stock_value?: number | string | null;
+  inventory_value?: number | string | null;
+  purchase_history?: InventoryPurchase[];
   supplier?: string | null;
   supplier_id?: number | null;
   purchase_unit?: string | null;
@@ -38,6 +42,29 @@ interface InventoryMovement {
   performed_by: string;
   occurred_at: string | null;
   created_at: string;
+  quantity?: number | string;
+  purchase_quantity?: number | string | null;
+  purchase_unit?: string | null;
+  total_cost?: number | string | null;
+  unit_cost?: number | string | null;
+  supplier?: { id: number; name: string } | null;
+  invoice_reference?: string | null;
+}
+
+interface InventoryPurchase {
+  id: number;
+  type: StockMovementType;
+  quantity: number | string;
+  purchase_quantity?: number | string | null;
+  purchase_unit?: string | null;
+  unit: string;
+  total_cost?: number | string | null;
+  unit_cost?: number | string | null;
+  occurred_at: string | null;
+  created_at: string;
+  supplier?: { name: string } | null;
+  invoice_reference?: string | null;
+  performed_by: string;
 }
 
 interface InventorySummaryData {
@@ -45,7 +72,7 @@ interface InventorySummaryData {
   low_stock: number;
   out_of_stock: number;
   needs_restocking: number;
-  stock_value: number;
+  stock_value: number | string;
 }
 
 const statusFor = (ingredient: InventoryIngredient): 'out_of_stock' | 'low_stock' | 'in_stock' => {
@@ -79,6 +106,12 @@ const friendlyDate = (value: string | null) => {
   if (dateKey(date) === dateKey(today)) return `Today, ${time}`;
   if (dateKey(date) === dateKey(yesterday)) return `Yesterday, ${time}`;
   return `${date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })}, ${time}`;
+};
+
+const eachPrice = (value: number | string | null | undefined, showPrecision = false) => {
+  if (value === null || value === undefined) return null;
+  if (!showPrecision) return `₱${Number(value).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`;
+  return formatUnitPrice(value);
 };
 
 const IngredientStatus: React.FC<{ ingredient: InventoryIngredient }> = ({ ingredient }) => {
@@ -189,7 +222,7 @@ export const InventorySummaryCards: React.FC<{
   needsRestockingSelected: boolean;
   onNeedsRestocking: () => void;
 }> = ({ summary, loading, needsRestockingSelected, onNeedsRestocking }) => (
-  <section aria-label="Inventory summary" className="grid gap-3 sm:grid-cols-3">
+  <section aria-label="Inventory summary" className="grid gap-3 sm:grid-cols-2">
     <article className="admin-card flex min-h-28 items-center justify-between p-4 sm:p-5">
       <div>
         <p className="text-2xl font-bold tabular-nums text-[var(--oppa-text)]">{loading ? '—' : summary.total}</p>
@@ -211,14 +244,6 @@ export const InventorySummaryCards: React.FC<{
       </div>
       <span className="rounded-xl bg-amber-100 p-2.5 text-amber-900 dark:bg-amber-950 dark:text-amber-200"><AlertTriangle size={21} aria-hidden="true" /></span>
     </button>
-    <article className="admin-card flex min-h-28 items-center justify-between p-4 sm:p-5">
-      <div>
-        <p className="text-2xl font-bold tabular-nums text-[var(--oppa-text)]">{loading ? '—' : formatCurrency(summary.stock_value)}</p>
-        <h2 className="mt-1 text-sm text-[var(--oppa-text-muted)]">Stock value</h2>
-        <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Based on recorded unit costs</p>
-      </div>
-      <span className="rounded-xl bg-emerald-100 p-2.5 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"><PackagePlus size={21} aria-hidden="true" /></span>
-    </article>
   </section>
 );
 
@@ -282,9 +307,7 @@ interface IngredientListProps {
   onToggleDetails: (ingredient: InventoryIngredient) => void;
   onAddStock: (ingredient: InventoryIngredient) => void;
   onUseStock: (ingredient: InventoryIngredient) => void;
-  onReceiveStock?: (ingredient: InventoryIngredient) => void;
   onAdjustStock: (ingredient: InventoryIngredient) => void;
-  onLogWaste: (ingredient: InventoryIngredient) => void;
   onCountStock: (ingredient: InventoryIngredient) => void;
   onEditIngredient: (ingredient: InventoryIngredient) => void;
   onArchiveIngredient: (ingredient: InventoryIngredient) => void;
@@ -293,15 +316,13 @@ interface IngredientListProps {
 }
 
 interface GenericIngredientListProps<TIngredient extends InventoryIngredient> extends Omit<IngredientListProps, 'ingredients'
-  | 'onToggleDetails' | 'onAddStock' | 'onUseStock' | 'onReceiveStock' | 'onAdjustStock'
-  | 'onLogWaste' | 'onCountStock' | 'onEditIngredient' | 'onArchiveIngredient' | 'onViewHistory'> {
+  | 'onToggleDetails' | 'onAddStock' | 'onUseStock' | 'onAdjustStock'
+  | 'onCountStock' | 'onEditIngredient' | 'onArchiveIngredient' | 'onViewHistory'> {
   ingredients: TIngredient[];
   onToggleDetails: (ingredient: TIngredient) => void;
   onAddStock: (ingredient: TIngredient) => void;
   onUseStock: (ingredient: TIngredient) => void;
-  onReceiveStock?: (ingredient: TIngredient) => void;
   onAdjustStock: (ingredient: TIngredient) => void;
-  onLogWaste: (ingredient: TIngredient) => void;
   onCountStock: (ingredient: TIngredient) => void;
   onEditIngredient: (ingredient: TIngredient) => void;
   onArchiveIngredient: (ingredient: TIngredient) => void;
@@ -323,9 +344,7 @@ export const IngredientList = <TIngredient extends InventoryIngredient,>({
   onToggleDetails,
   onAddStock,
   onUseStock,
-  onReceiveStock,
   onAdjustStock,
-  onLogWaste,
   onCountStock,
   onEditIngredient,
   onArchiveIngredient,
@@ -335,10 +354,28 @@ export const IngredientList = <TIngredient extends InventoryIngredient,>({
   const details = (ingredient: TIngredient) => (
     <dl className="grid gap-x-6 gap-y-3 rounded-xl bg-[var(--oppa-cream)] p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
       <div><dt className="text-xs text-[var(--oppa-text-muted)]" title="Low-stock warning starts at this amount">Reorder level</dt><dd className="mt-1 font-semibold text-[var(--oppa-text)]">{formatInventoryQuantity(ingredient.reorder_level, ingredient.unit)}</dd></div>
-      <div><dt className="text-xs text-[var(--oppa-text-muted)]">Unit cost</dt><dd className="mt-1 font-semibold text-[var(--oppa-text)]">{ingredient.unit_cost === null ? 'Not set' : formatCurrency(Number(ingredient.unit_cost))}</dd></div>
+      <div><dt className="text-xs text-[var(--oppa-text-muted)]">Average price</dt><dd className="mt-1 font-semibold text-[var(--oppa-text)]">{eachPrice(ingredient.average_unit_cost ?? ingredient.unit_cost, true) ? `${eachPrice(ingredient.average_unit_cost ?? ingredient.unit_cost, true)} each` : 'Not set'}</dd></div>
       <div><dt className="text-xs text-[var(--oppa-text-muted)]">Supplier</dt><dd className="mt-1 font-semibold text-[var(--oppa-text)]">{ingredient.supplier_relation?.name || ingredient.supplier || 'Not set'}</dd></div>
       <div><dt className="text-xs text-[var(--oppa-text-muted)]">Last updated</dt><dd className="mt-1 font-semibold text-[var(--oppa-text)]"><AdminDate value={ingredient.updated_at} /></dd></div>
       {ingredient.notes && <div className="sm:col-span-2 lg:col-span-4"><dt className="text-xs text-[var(--oppa-text-muted)]">Notes</dt><dd className="mt-1 text-[var(--oppa-text)]">{ingredient.notes}</dd></div>}
+      {ingredient.purchase_history && ingredient.purchase_history.length > 0 && <div className="sm:col-span-2 lg:col-span-4">
+        <dt className="text-xs text-[var(--oppa-text-muted)]">Purchase history</dt>
+        <dd className="mt-2 space-y-2">
+          {ingredient.purchase_history.map((purchase) => {
+            const purchaseQuantity = purchase.purchase_quantity ?? purchase.quantity;
+            const purchaseUnit = purchase.purchase_unit || purchase.unit;
+            const totalPaid = purchase.total_cost !== null && purchase.total_cost !== undefined
+              ? formatPeso(purchase.total_cost)
+              : purchase.unit_cost !== null && purchase.unit_cost !== undefined
+                ? formatPeso(Number(purchase.quantity) * Number(purchase.unit_cost))
+                : 'Price not recorded';
+            return <div key={purchase.id} className="rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2">
+              <p className="font-semibold text-[var(--oppa-text)]">{friendlyDate(purchase.occurred_at || purchase.created_at)} · {formatInventoryQuantity(purchaseQuantity, purchaseUnit)} · {totalPaid} total paid</p>
+              <p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">{eachPrice(purchase.unit_cost, true) ? `${eachPrice(purchase.unit_cost, true)} each` : 'Unit price not recorded'} · {purchase.supplier?.name || 'No supplier'} · Invoice {purchase.invoice_reference || '—'} · {purchase.performed_by}</p>
+            </div>;
+          })}
+        </dd>
+      </div>}
     </dl>
   );
   const actions = (ingredient: TIngredient) => !canManage ? null : <div className="flex items-center gap-2">
@@ -346,9 +383,7 @@ export const IngredientList = <TIngredient extends InventoryIngredient,>({
     <button type="button" aria-label={`Use stock from ${ingredient.name}`} onClick={() => onUseStock(ingredient)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] sm:flex-none"><span aria-hidden="true">−</span>Use</button>
     <RowActionsMenu label={ingredient.name} items={[
       { label: 'Edit details', onSelect: () => onEditIngredient(ingredient) },
-      ...(onReceiveStock ? [{ label: 'Receive with supplier', onSelect: () => onReceiveStock(ingredient) }] : []),
       { label: 'Adjust stock', onSelect: () => onAdjustStock(ingredient) },
-      { label: 'Log waste', onSelect: () => onLogWaste(ingredient) },
       { label: 'Record stock count', onSelect: () => onCountStock(ingredient) },
       { label: 'View stock history', onSelect: () => onViewHistory(ingredient) },
       { label: 'Archive', onSelect: () => onArchiveIngredient(ingredient), destructive: true },
@@ -404,7 +439,14 @@ export const IngredientList = <TIngredient extends InventoryIngredient,>({
                 return <React.Fragment key={ingredient.id}>
                   <tr className="hover:bg-[var(--oppa-cream)]/50">
                     <td className="px-4 py-3"><p className="font-semibold text-[var(--oppa-text)]">{ingredient.name}</p><div className="mt-0.5 flex items-center gap-2"><p className="text-xs text-[var(--oppa-text-muted)]">{ingredient.category}</p>{detailToggle(ingredient)}</div></td>
-                    <td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums text-[var(--oppa-text)]">{formatInventoryQuantity(ingredient.quantity, ingredient.unit)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-semibold tabular-nums text-[var(--oppa-text)]">
+                      {formatInventoryQuantity(ingredient.quantity, ingredient.unit)}
+                      <span className="mt-0.5 block text-xs font-normal text-[var(--oppa-text-muted)]">
+                        {ingredient.unit_cost === null
+                          ? 'Add price'
+                          : `${formatPeso(Number(ingredient.stock_value ?? ingredient.inventory_value ?? Number(ingredient.quantity) * Number(ingredient.unit_cost)))} total · ${eachPrice(ingredient.average_unit_cost ?? ingredient.unit_cost)} each`}
+                      </span>
+                    </td>
                     <td className="px-4 py-3"><div className="flex items-center justify-between gap-3"><IngredientStatus ingredient={ingredient} /><div className="shrink-0">{actions(ingredient)}</div></div></td>
                   </tr>
                   {expanded && <tr><td colSpan={3} className="px-4 pb-4">{details(ingredient)}</td></tr>}
@@ -422,7 +464,7 @@ export const IngredientList = <TIngredient extends InventoryIngredient,>({
                 <IngredientStatus ingredient={ingredient} />
               </div>
               <div className="flex items-center justify-between gap-3">
-                <div><p className="text-xs text-[var(--oppa-text-muted)]">Stock</p><p className="font-semibold tabular-nums text-[var(--oppa-text)]">{formatInventoryQuantity(ingredient.quantity, ingredient.unit)}</p></div>
+                <div><p className="text-xs text-[var(--oppa-text-muted)]">Stock</p><p className="font-semibold tabular-nums text-[var(--oppa-text)]">{formatInventoryQuantity(ingredient.quantity, ingredient.unit)}</p><p className="text-xs text-[var(--oppa-text-muted)]">{ingredient.unit_cost === null ? 'Add price' : `${formatPeso(Number(ingredient.stock_value ?? ingredient.inventory_value ?? Number(ingredient.quantity) * Number(ingredient.unit_cost)))} total · ${eachPrice(ingredient.average_unit_cost ?? ingredient.unit_cost)} each`}</p></div>
                 {detailToggle(ingredient)}
               </div>
               {expanded && details(ingredient)}

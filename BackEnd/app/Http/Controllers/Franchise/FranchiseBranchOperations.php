@@ -127,13 +127,20 @@ trait FranchiseBranchOperations
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
+        $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255',
-            'phone' => 'nullable|string|max:50',
-            'password' => 'required|string|min:8',
+            'name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
+            'email' => 'required|string|email|max:'.config('input_limits.email'),
+            'phone' => ['nullable', 'string', 'max:13', 'regex:'.config('input_limits.phone')],
+            'password' => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max')],
             'role' => 'required|string|in:cashier,kitchen_staff,driver',
-            'vehicle_type' => 'required_if:role,driver|nullable|string|max:100',
+            'vehicle_type' => 'required_if:role,driver|nullable|in:motorcycle,bike',
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -270,7 +277,9 @@ trait FranchiseBranchOperations
             return response()->json(['message' => 'Franchise access required'], 403);
         }
 
-        $validated = $request->validate(['password' => 'required|string|min:8']);
+        $validated = $request->validate([
+            'password' => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max')],
+        ]);
         $staff = match ($type) {
             'employee' => Employee::where('franchise_id', $user->franchise_id)->findOrFail($id),
             'driver' => Driver::where('franchise_id', $user->franchise_id)->findOrFail($id),

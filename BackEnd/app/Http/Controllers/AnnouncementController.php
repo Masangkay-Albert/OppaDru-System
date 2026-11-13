@@ -118,8 +118,13 @@ class AnnouncementController extends Controller
         }
 
         $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'content' => 'required|string',
+            'title' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.announcement_title.min'),
+                'max:'.config('input_limits.announcement_title.max'),
+            ],
+            'content' => 'required|string|max:'.config('input_limits.announcement_body'),
             'target_audience' => 'nullable|in:all,customers',
             'image' => 'nullable|image|max:10240', // 10MB max
             'image_url' => 'nullable|string',
@@ -233,9 +238,29 @@ class AnnouncementController extends Controller
             return response()->json(['success' => false, 'message' => 'Announcement not found.'], 404);
         }
 
+        $requestedTitle = $request->input('title');
+        $titleUnchanged = $request->exists('title')
+            && is_string($requestedTitle)
+            && trim($requestedTitle) === trim((string) $announcement->title);
+        $requestedContent = $request->input('content');
+        $contentUnchanged = $request->exists('content')
+            && is_string($requestedContent)
+            && trim($requestedContent) === trim((string) $announcement->content);
+        $titleRules = ['sometimes', 'required', 'string'];
+        if ($request->exists('title') && ! $titleUnchanged) {
+            $titleRules = [
+                ...$titleRules,
+                'min:'.config('input_limits.announcement_title.min'),
+                'max:'.config('input_limits.announcement_title.max'),
+            ];
+        }
+        $contentRules = ['sometimes', 'required', 'string'];
+        if ($request->exists('content') && ! $contentUnchanged) {
+            $contentRules[] = 'max:'.config('input_limits.announcement_body');
+        }
         $validated = $request->validate([
-            'title' => 'sometimes|required|string|max:255',
-            'content' => 'sometimes|required|string',
+            'title' => $titleRules,
+            'content' => $contentRules,
             'target_audience' => 'nullable|in:all,customers',
             'image' => 'nullable|image|max:10240',
             'image_url' => 'nullable|string',
@@ -246,6 +271,12 @@ class AnnouncementController extends Controller
             'scheduled_at' => 'nullable|date',
             'author_name' => 'nullable|string|max:100',
         ]);
+        if ($titleUnchanged) {
+            $validated['title'] = $announcement->getRawOriginal('title');
+        }
+        if ($contentUnchanged) {
+            $validated['content'] = $announcement->getRawOriginal('content');
+        }
 
         // Process image removal
         if ($request->boolean('remove_image')) {

@@ -10,6 +10,7 @@ use App\Models\InventoryTransfer;
 use App\Models\MainBranchIngredient;
 use App\Models\MainBranchStockMovement;
 use App\Models\StockBatch;
+use App\Services\InventoryCosting;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,24 +31,37 @@ class BranchInventoryController extends Controller
     public function index(Request $request, InventoryService $inventory)
     {
         $branchId = (string) $request->user()->franchise_id;
-        $stocks = BranchIngredientStock::query()
-            ->with('ingredient:id,name,category,unit,unit_cost,reorder_level')
+        $branchStocks = BranchIngredientStock::query()
+            ->with('ingredient:id,name,category,unit,purchase_unit,conversion_factor,reorder_level,is_archived')
             ->where('branch_id', $branchId)
             ->where('is_archived', false)
             ->get()
-            ->filter(fn (BranchIngredientStock $stock) => $stock->ingredient && ! $stock->ingredient->is_archived)
-            ->map(function (BranchIngredientStock $stock) use ($inventory, $branchId) {
+            ->filter(fn (BranchIngredientStock $stock) => $stock->ingredient && ! $stock->ingredient->is_archived);
+        $purchaseHistory = MainBranchStockMovement::query()
+            ->with('supplier:id,name')
+            ->where('branch_id', $branchId)
+            ->whereIn('ingredient_id', $branchStocks->pluck('ingredient_id'))
+            ->whereIn('type', ['stock_in', 'opening_stock'])
+            ->where('quantity_change', '>', 0)
+            ->whereRaw('LOWER(COALESCE(reason, \'\')) NOT LIKE ?', ['%transfer%'])
+            ->latest('occurred_at')
+            ->latest('id')
+            ->get()
+            ->groupBy('ingredient_id');
+        $stocks = $branchStocks->map(function (BranchIngredientStock $stock) use ($inventory, $branchId, $purchaseHistory) {
                 $ingredient = $stock->ingredient;
                 $usableQuantity = $inventory->availableQuantity($ingredient->id, $branchId);
+                $payload = $this->ingredientPayload($stock, $usableQuantity);
+                $payload['purchase_history'] = ($purchaseHistory->get($ingredient->id) ?? collect())->take(5)->values();
 
-                return $this->ingredientPayload($stock, $usableQuantity);
+                return $payload;
             });
         $trackedIds = $stocks->pluck('id');
         $availableIngredients = MainBranchIngredient::query()
             ->where('is_archived', false)
             ->whereNotIn('id', $trackedIds)
             ->orderBy('name')
-            ->get(['id', 'name', 'category', 'unit', 'reorder_level', 'unit_cost']);
+            ->get(['id', 'name', 'category', 'unit', 'purchase_unit', 'conversion_factor', 'reorder_level']);
         $expiring = StockBatch::query()
             ->with('ingredient:id,name,unit')
             ->where('branch_id', $branchId)
@@ -67,7 +81,10 @@ class BranchInventoryController extends Controller
                     'low_stock' => $stocks->filter(fn ($stock) => $stock['status'] === 'low_stock')->count(),
                     'out_of_stock' => $stocks->filter(fn ($stock) => $stock['status'] === 'out_of_stock')->count(),
                     'needs_restocking' => $stocks->filter(fn ($stock) => in_array($stock['status'], ['low_stock', 'out_of_stock'], true))->count(),
-                    'stock_value' => round($stocks->sum(fn ($stock) => (float) $stock['quantity'] * (float) ($stock['unit_cost'] ?? 0)), 2),
+                    'stock_value' => $stocks->reduce(
+                        fn (string $total, $stock) => bcadd($total, (string) $stock['stock_value'], 2),
+                        '0.00',
+                    ),
                 ],
                 'recent_movements' => MainBranchStockMovement::query()
                     ->where('branch_id', $branchId)
@@ -96,17 +113,30 @@ class BranchInventoryController extends Controller
     {
         $validated = $request->validate([
             'ingredient_id' => ['nullable', 'required_without:name', 'integer', Rule::exists('main_branch_ingredients', 'id')->where('is_archived', 0)],
-            'name' => 'required_without:ingredient_id|string|max:160',
+            'name' => [
+                'required_without:ingredient_id',
+                'string',
+                'min:'.config('input_limits.ingredient_name.min'),
+                'max:'.config('input_limits.ingredient_name.max'),
+                'regex:'.config('input_limits.ingredient_name.pattern'),
+            ],
             'category' => ['required_with:name', 'string', Rule::in(self::INGREDIENT_CATEGORIES)],
             'unit' => ['required_with:name', 'string', Rule::in($this->inventoryUnits())],
             'purchase_unit' => ['nullable', 'string', Rule::in($this->inventoryUnits())],
-            'conversion_factor' => 'nullable|numeric|gt:0|max:999999.999999',
+            'conversion_factor' => 'nullable|numeric|gt:0|max:'.config('input_limits.inventory_conversion'),
             'supplier_id' => ['nullable', 'integer', Rule::exists('inventory_suppliers', 'id')],
-            'initial_quantity' => 'nullable|numeric|min:0|max:999999999.999',
-            'reorder_level' => 'required|numeric|min:0|max:999999999.999',
+            'initial_quantity' => 'nullable|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
+            'reorder_level' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
             'unit_cost' => 'nullable|numeric|min:0|max:999999999.99',
-            'notes' => 'nullable|string|max:255',
+            'total_price_paid' => ['nullable', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('inventory.max_total_price_paid')],
+            'notes' => 'nullable|string|max:'.config('input_limits.long_text'),
         ]);
+        if (($validated['total_price_paid'] ?? null) !== null && bccomp((string) ($validated['initial_quantity'] ?? 0), '0', 3) <= 0) {
+            return response()->json([
+                'message' => 'Enter a quantity before adding a total price.',
+                'errors' => ['initial_quantity' => ['Enter a quantity before adding a total price.']],
+            ], 422);
+        }
         $branchId = (string) $request->user()->franchise_id;
         $actor = $request->user();
 
@@ -131,7 +161,7 @@ class BranchInventoryController extends Controller
                         'conversion_factor' => $validated['conversion_factor'] ?? 1,
                         'quantity' => 0,
                         'reorder_level' => $validated['reorder_level'],
-                        'unit_cost' => $validated['unit_cost'] ?? null,
+                        'unit_cost' => null,
                         'supplier_id' => $validated['supplier_id'] ?? null,
                         'notes' => $validated['notes'] ?? null,
                     ]);
@@ -148,7 +178,9 @@ class BranchInventoryController extends Controller
                     $stock->update([
                         'is_archived' => false,
                         'reorder_level' => $validated['reorder_level'],
-                        'unit_cost' => $validated['unit_cost'] ?? $ingredient->unit_cost,
+                        'unit_cost' => ($validated['total_price_paid'] ?? null) !== null
+                            ? null
+                            : ($validated['unit_cost'] ?? $stock->unit_cost),
                         'notes' => $validated['notes'] ?? null,
                     ]);
                 } else {
@@ -157,17 +189,34 @@ class BranchInventoryController extends Controller
                         'ingredient_id' => $ingredient->id,
                         'quantity' => 0,
                         'reorder_level' => $validated['reorder_level'],
-                        'unit_cost' => $validated['unit_cost'] ?? $ingredient->unit_cost,
+                        'unit_cost' => ($validated['total_price_paid'] ?? null) !== null
+                            ? null
+                            : ($validated['unit_cost'] ?? null),
                         'notes' => $validated['notes'] ?? null,
                     ]);
                 }
                 $initialQuantity = (float) ($validated['initial_quantity'] ?? 0);
                 if ($initialQuantity > 0) {
-                    $inventory->moveBranch($branchId, $ingredient->id, 'opening_stock', $initialQuantity, 'Starting branch stock', $actor);
+                    $inventory->moveBranch(
+                        $branchId,
+                        $ingredient->id,
+                        'opening_stock',
+                        $initialQuantity,
+                        'Starting branch stock',
+                        $actor,
+                        ($validated['total_price_paid'] ?? null) === null ? [] : [
+                            'total_cost' => InventoryCosting::normalizeMoney($validated['total_price_paid']),
+                            'unit_cost' => InventoryCosting::unitCost(
+                                $validated['total_price_paid'],
+                                (string) $initialQuantity,
+                                4,
+                            ),
+                        ],
+                    );
                 }
                 $inventory->refreshBranchAvailability($ingredient->id, $branchId);
 
-                return $stock->refresh()->load('ingredient:id,name,category,unit');
+                return $stock->refresh()->load('ingredient:id,name,category,unit,purchase_unit,conversion_factor');
             }, 3);
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
@@ -180,16 +229,35 @@ class BranchInventoryController extends Controller
     {
         abort_if($ingredient->is_archived, 404);
         $validated = $request->validate([
-            'reorder_level' => 'required|numeric|min:0|max:999999999.999',
+            'reorder_level' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
             'unit_cost' => 'nullable|numeric|min:0|max:999999999.99',
-            'notes' => 'nullable|string|max:255',
+            'total_price_paid' => ['nullable', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('inventory.max_total_price_paid')],
+            'notes' => 'nullable|string|max:'.config('input_limits.long_text'),
         ]);
         $stock = BranchIngredientStock::query()
             ->where('branch_id', (string) $request->user()->franchise_id)
             ->where('ingredient_id', $ingredient->id)
             ->where('is_archived', false)
             ->firstOrFail();
+        $totalPricePaid = $validated['total_price_paid'] ?? null;
+        unset($validated['total_price_paid']);
+        if ($totalPricePaid !== null) {
+            unset($validated['unit_cost']);
+            try {
+                app(InventoryService::class)->setBranchStockPrice(
+                    (string) $request->user()->franchise_id,
+                    $ingredient->id,
+                    $totalPricePaid,
+                );
+            } catch (\InvalidArgumentException $exception) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                    'errors' => ['total_price_paid' => [$exception->getMessage()]],
+                ], 422);
+            }
+        }
         $stock->update($validated);
+        $stock->refresh();
 
         return response()->json(['data' => $this->ingredientPayload($stock->load('ingredient:id,name,category,unit'), app(InventoryService::class)->availableQuantity($ingredient->id, (string) $request->user()->franchise_id))]);
     }
@@ -198,13 +266,21 @@ class BranchInventoryController extends Controller
     {
         abort_if($ingredient->is_archived, 404);
         $branchId = (string) $request->user()->franchise_id;
-        $stock = BranchIngredientStock::query()
-            ->where('branch_id', $branchId)
-            ->where('ingredient_id', $ingredient->id)
-            ->where('is_archived', false)
-            ->firstOrFail();
-        $stock->update(['is_archived' => true]);
-        $inventory->refreshBranchAvailability($ingredient->id, $branchId);
+        DB::transaction(function () use ($branchId, $ingredient, $inventory) {
+            $stock = BranchIngredientStock::query()
+                ->where('branch_id', $branchId)
+                ->where('ingredient_id', $ingredient->id)
+                ->lockForUpdate()
+                ->first();
+            $stock ??= BranchIngredientStock::create([
+                'branch_id' => $branchId,
+                'ingredient_id' => $ingredient->id,
+                'quantity' => 0,
+                'reorder_level' => $ingredient->reorder_level,
+            ]);
+            $stock->update(['is_archived' => true]);
+            $inventory->refreshBranchAvailability($ingredient->id, $branchId);
+        });
 
         return response()->json(['data' => ['ingredient_id' => $ingredient->id, 'is_archived' => true]]);
     }
@@ -214,27 +290,18 @@ class BranchInventoryController extends Controller
         abort_if($ingredient->is_archived, 404);
         $validated = $request->validate([
             'type' => ['required', Rule::in(['stock_in', 'stock_out', 'waste', 'adjustment', 'count_adjustment'])],
-            'quantity' => 'required|numeric|min:0|max:999999999.999',
-            'reason' => 'nullable|string|max:2000',
+            'quantity' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
+            'reason' => ['nullable', 'string', 'min:'.config('input_limits.reason.min'), 'max:'.config('input_limits.reason.max')],
         ]);
-        if (in_array($validated['type'], ['adjustment', 'count_adjustment', 'waste'], true)) {
-            $request->validate(['reason' => 'required|string|max:2000']);
-        }
-
         try {
             $branchId = (string) $request->user()->franchise_id;
-            BranchIngredientStock::query()
-                ->where('branch_id', $branchId)
-                ->where('ingredient_id', $ingredient->id)
-                ->where('is_archived', false)
-                ->firstOrFail();
             if (in_array($validated['type'], ['adjustment', 'count_adjustment'], true)) {
                 $inventory->setBranchQuantity(
                     $branchId,
                     $ingredient->id,
                     (float) $validated['quantity'],
                     $validated['type'],
-                    $validated['reason'],
+                    $validated['reason'] ?? null,
                     $request->user(),
                 );
             } else {
@@ -254,6 +321,58 @@ class BranchInventoryController extends Controller
         return response()->json(['data' => ['ingredient_id' => $ingredient->id, 'saved' => true]]);
     }
 
+    public function receive(Request $request, MainBranchIngredient $ingredient, InventoryService $inventory)
+    {
+        abort_if($ingredient->is_archived, 404);
+        $validated = $request->validate([
+            'quantity' => 'required|numeric|gt:0|max:'.config('input_limits.inventory_quantity'),
+            'unit_cost' => 'nullable|numeric|min:0|max:999999999.99',
+            'total_price_paid' => ['nullable', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('inventory.max_total_price_paid')],
+            'supplier_id' => ['nullable', 'integer', Rule::exists('inventory_suppliers', 'id')],
+            'occurred_at' => 'nullable|date',
+            'invoice_reference' => 'nullable|string|max:160',
+            'expires_at' => 'nullable|date|after_or_equal:today',
+            'reason' => ['nullable', 'string', 'min:'.config('input_limits.reason.min'), 'max:'.config('input_limits.reason.max')],
+        ]);
+
+        try {
+            $branchId = (string) $request->user()->franchise_id;
+            BranchIngredientStock::query()
+                ->where('branch_id', $branchId)
+                ->where('ingredient_id', $ingredient->id)
+                ->where('is_archived', false)
+                ->firstOrFail();
+            $inventory->receiveBranch(
+                $branchId,
+                $ingredient->id,
+                (float) $validated['quantity'],
+                isset($validated['unit_cost']) ? (float) $validated['unit_cost'] : null,
+                $validated['total_price_paid'] ?? null,
+                $validated['reason'] ?? 'Stock received',
+                $request->user(),
+                [
+                    'supplier_id' => $validated['supplier_id'] ?? null,
+                    'occurred_at' => $validated['occurred_at'] ?? now(),
+                    'invoice_reference' => $validated['invoice_reference'] ?? null,
+                    'expires_at' => $validated['expires_at'] ?? null,
+                ],
+            );
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        return response()->json([
+            'data' => $this->ingredientPayload(
+                BranchIngredientStock::query()
+                    ->where('branch_id', (string) $request->user()->franchise_id)
+                    ->where('ingredient_id', $ingredient->id)
+                    ->with('ingredient:id,name,category,unit,purchase_unit,conversion_factor')
+                    ->firstOrFail(),
+                $inventory->availableQuantity($ingredient->id, (string) $request->user()->franchise_id),
+            ),
+        ]);
+    }
+
     public function history(Request $request)
     {
         $validated = $request->validate([
@@ -264,6 +383,7 @@ class BranchInventoryController extends Controller
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
         $query = MainBranchStockMovement::query()
+            ->with('supplier:id,name')
             ->where('branch_id', (string) $request->user()->franchise_id)
             ->when($validated['ingredient_id'] ?? null, fn ($builder, $id) => $builder->where('ingredient_id', $id))
             ->when($validated['type'] ?? null, fn ($builder, $type) => $builder->where('type', $type))
@@ -286,7 +406,7 @@ class BranchInventoryController extends Controller
 
         return response()->streamDownload(function () use ($stocks) {
             $output = fopen('php://output', 'w');
-            fputcsv($output, ['ingredient_id', 'name', 'category', 'unit', 'quantity', 'reorder_level', 'unit_cost', 'notes']);
+            fputcsv($output, ['ingredient_id', 'name', 'category', 'unit', 'quantity', 'reorder_level', 'unit_cost', 'total_price_paid', 'notes']);
             foreach ($stocks as $stock) {
                 fputcsv($output, [
                     $stock->ingredient_id,
@@ -296,6 +416,7 @@ class BranchInventoryController extends Controller
                     $stock->quantity,
                     $stock->reorder_level,
                     $stock->unit_cost,
+                    (float) $stock->quantity > 0 ? $this->stockValue($stock) : null,
                     $stock->notes,
                 ]);
             }
@@ -311,8 +432,12 @@ class BranchInventoryController extends Controller
             return response()->json(['message' => 'The CSV file could not be read.'], 422);
         }
         $columns = array_map(fn ($value) => strtolower(trim((string) $value)), fgetcsv($handle) ?: []);
-        $expected = ['ingredient_id', 'name', 'category', 'unit', 'quantity', 'reorder_level', 'unit_cost', 'notes'];
-        if ($columns !== $expected) {
+        $expected = ['ingredient_id', 'name', 'category', 'unit', 'quantity', 'reorder_level', 'unit_cost'];
+        $optionalColumns = array_slice($columns, count($expected));
+        if (array_slice($columns, 0, count($expected)) !== $expected
+            || count($columns) > count($expected) + 2
+            || array_diff($optionalColumns, ['total_price_paid', 'notes'])
+            || count($columns) !== count(array_unique($columns))) {
             fclose($handle);
 
             return response()->json(['message' => 'Use the exported branch inventory CSV format.'], 422);
@@ -335,13 +460,18 @@ class BranchInventoryController extends Controller
             $row = array_combine($columns, array_pad(array_slice($values, 0, count($columns)), count($columns), ''));
             $validator = validator($row, [
                 'ingredient_id' => ['required', 'integer', Rule::exists('main_branch_ingredients', 'id')->where('is_archived', 0)],
-                'quantity' => 'required|numeric|min:0|max:999999999.999',
-                'reorder_level' => 'required|numeric|min:0|max:999999999.999',
+                'quantity' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
+                'reorder_level' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
                 'unit_cost' => 'nullable|numeric|min:0|max:999999999.99',
-                'notes' => 'nullable|string|max:255',
+                'total_price_paid' => ['nullable', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('inventory.max_total_price_paid')],
+                'notes' => 'nullable|string|max:'.config('input_limits.long_text'),
             ]);
             if ($validator->fails()) {
                 $errors[] = ['row' => $line, 'errors' => $validator->errors()->all()];
+                continue;
+            }
+            if (($row['total_price_paid'] ?? '') !== '' && bccomp((string) $row['quantity'], '0', 3) <= 0) {
+                $errors[] = ['row' => $line, 'errors' => ['Enter a quantity before adding a total price.']];
                 continue;
             }
             if (isset($seenIngredients[(string) $row['ingredient_id']])) {
@@ -365,12 +495,16 @@ class BranchInventoryController extends Controller
                         'ingredient_id' => $ingredient->id,
                         'quantity' => 0,
                         'reorder_level' => $row['reorder_level'],
-                        'unit_cost' => $row['unit_cost'] !== '' ? $row['unit_cost'] : $ingredient->unit_cost,
+                        'unit_cost' => ($row['total_price_paid'] ?? '') !== ''
+                            ? null
+                            : ($row['unit_cost'] !== '' ? $row['unit_cost'] : null),
                         'notes' => $row['notes'] ?: null,
                     ]);
                     $stock->update([
                         'reorder_level' => $row['reorder_level'],
-                        'unit_cost' => $row['unit_cost'] !== '' ? $row['unit_cost'] : $stock->unit_cost,
+                        'unit_cost' => ($row['total_price_paid'] ?? '') !== ''
+                            ? null
+                            : ($row['unit_cost'] !== '' ? $row['unit_cost'] : $stock->unit_cost),
                         'notes' => $row['notes'] ?: null,
                     ]);
                     $inventory->setBranchQuantity(
@@ -381,6 +515,9 @@ class BranchInventoryController extends Controller
                         'CSV stock count import',
                         $request->user(),
                     );
+                    if (($row['total_price_paid'] ?? '') !== '') {
+                        $inventory->setBranchStockPrice($branchId, $ingredient->id, $row['total_price_paid']);
+                    }
                 }, 3);
                 $imported++;
             } catch (\InvalidArgumentException $exception) {
@@ -397,8 +534,8 @@ class BranchInventoryController extends Controller
         $validated = $request->validate([
             'items' => 'required|array|min:1|max:100',
             'items.*.ingredient_id' => ['required', 'integer', 'distinct', Rule::exists('main_branch_ingredients', 'id')->where('is_archived', 0)],
-            'items.*.quantity' => 'required|numeric|gt:0|max:999999999.999',
-            'notes' => 'nullable|string|max:2000',
+            'items.*.quantity' => 'required|numeric|gt:0|max:'.config('input_limits.inventory_quantity'),
+            'notes' => 'nullable|string|max:'.config('input_limits.long_text'),
         ]);
         $user = $request->user();
         $restockRequest = DB::transaction(function () use ($validated, $user) {
@@ -409,9 +546,24 @@ class BranchInventoryController extends Controller
                 'notes' => $validated['notes'] ?? null,
             ]);
             foreach ($validated['items'] as $item) {
+                $ingredient = MainBranchIngredient::query()->lockForUpdate()->findOrFail((int) $item['ingredient_id']);
+                $stock = BranchIngredientStock::query()
+                    ->where('branch_id', (string) $user->franchise_id)
+                    ->where('ingredient_id', $ingredient->id)
+                    ->lockForUpdate()
+                    ->first();
+                if ($stock?->is_archived) {
+                    $stock->update(['is_archived' => false]);
+                }
+                $stock ??= BranchIngredientStock::create([
+                    'branch_id' => (string) $user->franchise_id,
+                    'ingredient_id' => $ingredient->id,
+                    'quantity' => 0,
+                    'reorder_level' => $ingredient->reorder_level,
+                ]);
                 InventoryRestockRequestItem::create([
                     'request_id' => $restockRequest->id,
-                    'ingredient_id' => $item['ingredient_id'],
+                    'ingredient_id' => $ingredient->id,
                     'requested_quantity' => $item['quantity'],
                 ]);
             }
@@ -435,14 +587,18 @@ class BranchInventoryController extends Controller
                 }
                 $inventory = app(InventoryService::class);
                 foreach ($lockedTransfer->items as $item) {
+                    $sourceMovement = $item->source_movement_id
+                        ? MainBranchStockMovement::query()->find($item->source_movement_id)
+                        : null;
                     $inventory->receiveTransferItem(
                         (string) $lockedTransfer->destination_branch_id,
                         (int) $item->ingredient_id,
                         (float) $item->quantity,
-                        null,
+                        $sourceMovement?->unit_cost === null ? null : (string) $sourceMovement->unit_cost,
                         $item->batch_lots ?? [],
                         $request->user(),
                         'Received transfer '.$lockedTransfer->reference,
+                        $sourceMovement?->total_cost === null ? null : (string) $sourceMovement->total_cost,
                     );
                 }
                 $lockedTransfer->update(['status' => 'received', 'received_at' => now()]);
@@ -477,10 +633,29 @@ class BranchInventoryController extends Controller
             'usable_quantity' => $usableQuantity,
             'reorder_level' => $stock->reorder_level,
             'unit_cost' => $stock->unit_cost,
+            'average_unit_cost' => $stock->inventory_value !== null && $quantity > 0
+                ? InventoryCosting::unitCost((string) $stock->inventory_value, (string) $stock->quantity, 4)
+                : $stock->unit_cost,
+            'inventory_value' => $stock->inventory_value,
             'notes' => $stock->notes,
+            'purchase_unit' => $ingredient->purchase_unit,
+            'conversion_factor' => $ingredient->conversion_factor,
             'updated_at' => $stock->updated_at,
             'status' => $usableQuantity <= 0 ? 'out_of_stock' : ($usableQuantity <= $reorderLevel ? 'low_stock' : 'in_stock'),
-            'stock_value' => round($quantity * (float) ($stock->unit_cost ?? 0), 2),
+            'stock_value' => InventoryCosting::currentValue(
+                $stock->inventory_value === null ? null : (string) $stock->inventory_value,
+                (string) $stock->quantity,
+                $stock->unit_cost === null ? null : (string) $stock->unit_cost,
+            ) ?? '0.00',
         ];
+    }
+
+    private function stockValue(BranchIngredientStock $stock): ?string
+    {
+        return InventoryCosting::currentValue(
+            $stock->inventory_value === null ? null : (string) $stock->inventory_value,
+            (string) $stock->quantity,
+            $stock->unit_cost === null ? null : (string) $stock->unit_cost,
+        );
     }
 }

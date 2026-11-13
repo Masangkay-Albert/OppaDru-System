@@ -13,6 +13,7 @@ use App\Models\MainBranchIngredient;
 use App\Models\MainBranchStockMovement;
 use App\Models\Product;
 use App\Models\StockBatch;
+use App\Services\InventoryCosting;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +51,28 @@ class MainBranchInventoryController extends Controller
             ->orderBy('name')
             ->get();
         $this->attachUsableQuantities($ingredients);
+        $purchaseHistory = MainBranchStockMovement::query()
+            ->with('supplier:id,name')
+            ->whereNull('branch_id')
+            ->whereIn('ingredient_id', $ingredients->pluck('id'))
+            ->whereIn('type', ['stock_in', 'opening_stock'])
+            ->where('quantity_change', '>', 0)
+            ->whereRaw('LOWER(COALESCE(reason, \'\')) NOT LIKE ?', ['%transfer%'])
+            ->latest('occurred_at')
+            ->latest('id')
+            ->get()
+            ->groupBy('ingredient_id');
+        foreach ($ingredients as $ingredient) {
+            $ingredient->setAttribute('average_unit_cost', $ingredient->inventory_value !== null && (float) $ingredient->quantity > 0
+                ? InventoryCosting::unitCost((string) $ingredient->inventory_value, (string) $ingredient->quantity, 4)
+                : $ingredient->unit_cost);
+            $ingredient->setAttribute('stock_value', InventoryCosting::currentValue(
+                $ingredient->inventory_value === null ? null : (string) $ingredient->inventory_value,
+                (string) $ingredient->quantity,
+                $ingredient->unit_cost === null ? null : (string) $ingredient->unit_cost,
+            ) ?? '0.00');
+            $ingredient->setAttribute('purchase_history', ($purchaseHistory->get($ingredient->id) ?? collect())->take(5)->values());
+        }
 
         return response()->json([
             'data' => [
@@ -62,6 +85,7 @@ class MainBranchInventoryController extends Controller
                 'summary' => $this->calculateSummary($ingredients),
                 'recent_movements' => MainBranchStockMovement::query()
                     ->with(['ingredient:id,name,unit', 'supplier:id,name'])
+                    ->whereNull('branch_id')
                     ->latest()
                     ->limit(5)
                     ->get(),
@@ -81,7 +105,7 @@ class MainBranchInventoryController extends Controller
     {
         $ingredients = MainBranchIngredient::query()
             ->where('is_archived', false)
-            ->get(['id', 'quantity', 'reorder_level', 'unit_cost']);
+            ->get(['id', 'quantity', 'reorder_level', 'unit_cost', 'inventory_value']);
         $this->attachUsableQuantities($ingredients);
 
         return response()->json(['data' => $this->calculateSummary($ingredients)]);
@@ -90,22 +114,40 @@ class MainBranchInventoryController extends Controller
     public function store(Request $request, InventoryService $inventory)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:160',
+            'name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.ingredient_name.min'),
+                'max:'.config('input_limits.ingredient_name.max'),
+                'regex:'.config('input_limits.ingredient_name.pattern'),
+            ],
             'category' => ['required', 'string', Rule::in(self::CATEGORIES)],
             'unit' => ['required', 'string', Rule::in($this->inventoryUnits())],
             'purchase_unit' => ['nullable', 'string', Rule::in($this->inventoryUnits())],
-            'conversion_factor' => 'nullable|numeric|gt:0|max:999999.999999',
-            'quantity' => 'required|numeric|min:0|max:999999999.999',
-            'reorder_level' => 'required|numeric|min:0|max:999999999.999',
+            'conversion_factor' => 'nullable|numeric|gt:0|max:'.config('input_limits.inventory_conversion'),
+            'quantity' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
+            'reorder_level' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
             'unit_cost' => 'nullable|numeric|min:0|max:999999999.99',
+            'total_price_paid' => ['nullable', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('inventory.max_total_price_paid')],
             'supplier_id' => 'nullable|integer|exists:inventory_suppliers,id',
-            'notes' => 'nullable|string|max:5000',
+            'notes' => 'nullable|string|max:'.config('input_limits.long_text'),
         ]);
+        if (($validated['total_price_paid'] ?? null) !== null && bccomp((string) $validated['quantity'], '0', 3) <= 0) {
+            return response()->json([
+                'message' => 'Enter a quantity before adding a total price.',
+                'errors' => ['quantity' => ['Enter a quantity before adding a total price.']],
+            ], 422);
+        }
         $this->ensureUniqueName($validated['name']);
 
         $quantity = (float) $validated['quantity'];
+        $totalPricePaid = $validated['total_price_paid'] ?? null;
+        unset($validated['total_price_paid']);
+        if ($totalPricePaid !== null) {
+            $validated['unit_cost'] = null;
+        }
         unset($validated['quantity']);
-        $ingredient = DB::transaction(function () use ($validated, $quantity, $request, $inventory) {
+        $ingredient = DB::transaction(function () use ($validated, $quantity, $totalPricePaid, $request, $inventory) {
             $ingredient = MainBranchIngredient::create([
                 ...$validated,
                 'purchase_unit' => $validated['purchase_unit'] ?? $validated['unit'],
@@ -119,6 +161,10 @@ class MainBranchInventoryController extends Controller
                     $quantity,
                     'Opening stock',
                     $request->user(),
+                    $totalPricePaid === null ? [] : [
+                        'total_cost' => InventoryCosting::normalizeMoney($totalPricePaid),
+                        'unit_cost' => InventoryCosting::unitCost($totalPricePaid, (string) $quantity, 4),
+                    ],
                 );
             }
 
@@ -130,19 +176,59 @@ class MainBranchInventoryController extends Controller
 
     public function update(Request $request, MainBranchIngredient $ingredient)
     {
+        $requestedName = $request->input('name');
+        $nameUnchanged = is_string($requestedName)
+            && trim($requestedName) === trim((string) $ingredient->name);
+        $nameRules = ['required', 'string'];
+        if (! $nameUnchanged) {
+            $nameRules = [
+                ...$nameRules,
+                'min:'.config('input_limits.ingredient_name.min'),
+                'max:'.config('input_limits.ingredient_name.max'),
+                'regex:'.config('input_limits.ingredient_name.pattern'),
+            ];
+        }
+        $requestedNotes = $request->input('notes');
+        $notesUnchanged = $request->exists('notes')
+            && is_string($requestedNotes)
+            && trim($requestedNotes) === trim((string) $ingredient->notes);
+        $notesRules = ['nullable', 'string'];
+        if ($request->exists('notes') && ! $notesUnchanged) {
+            $notesRules[] = 'max:'.config('input_limits.long_text');
+        }
         $validated = $request->validate([
-            'name' => 'required|string|max:160',
+            'name' => $nameRules,
             'category' => 'required|string|max:100',
             'unit' => ['required', 'string', Rule::in($this->inventoryUnits())],
             'purchase_unit' => ['nullable', 'string', Rule::in($this->inventoryUnits())],
-            'conversion_factor' => 'required|numeric|gt:0|max:999999.999999',
-            'reorder_level' => 'required|numeric|min:0|max:999999999.999',
+            'conversion_factor' => 'required|numeric|gt:0|max:'.config('input_limits.inventory_conversion'),
+            'reorder_level' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
             'unit_cost' => 'nullable|numeric|min:0|max:999999999.99',
+            'total_price_paid' => ['nullable', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('inventory.max_total_price_paid')],
             'supplier_id' => 'nullable|integer|exists:inventory_suppliers,id',
-            'notes' => 'nullable|string|max:5000',
+            'notes' => $notesRules,
         ]);
+        if ($nameUnchanged) {
+            $validated['name'] = $ingredient->name;
+        }
+        if ($notesUnchanged) {
+            $validated['notes'] = $ingredient->notes;
+        }
         $this->ensureUniqueName($validated['name'], $ingredient->id);
 
+        $totalPricePaid = $validated['total_price_paid'] ?? null;
+        unset($validated['total_price_paid']);
+        if ($totalPricePaid !== null) {
+            unset($validated['unit_cost']);
+            try {
+                app(InventoryService::class)->setMainStockPrice($ingredient->id, $totalPricePaid);
+            } catch (\InvalidArgumentException $exception) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                    'errors' => ['total_price_paid' => [$exception->getMessage()]],
+                ], 422);
+            }
+        }
         $ingredient->fill($validated)->save();
 
         return response()->json(['data' => $ingredient->fresh()->load('supplierRelation:id,name')]);
@@ -152,17 +238,16 @@ class MainBranchInventoryController extends Controller
     {
         $validated = $request->validate([
             'type' => ['required', Rule::in(['stock_in', 'stock_out', 'waste', 'adjustment'])],
-            'quantity' => 'required|numeric|min:0|max:999999999.999',
-            'reason' => 'nullable|string|max:2000',
+            'quantity' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
+            'total_price_paid' => ['nullable', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('inventory.max_total_price_paid')],
+            'reason' => ['nullable', 'string', 'min:'.config('input_limits.reason.min'), 'max:'.config('input_limits.reason.max')],
         ]);
-
-        if ($validated['type'] === 'adjustment') {
-            $request->validate(['reason' => 'required|string|max:2000']);
-        } elseif ((float) $validated['quantity'] <= 0) {
-            return response()->json(['message' => 'Enter a quantity greater than zero.'], 422);
+        if (($validated['total_price_paid'] ?? null) !== null && $validated['type'] !== 'stock_in') {
+            return response()->json(['message' => 'A total price can only be recorded when adding stock.'], 422);
         }
-        if ($validated['type'] === 'waste') {
-            $request->validate(['reason' => 'required|string|max:2000']);
+
+        if ($validated['type'] !== 'adjustment' && (float) $validated['quantity'] <= 0) {
+            return response()->json(['message' => 'Enter a quantity greater than zero.'], 422);
         }
 
         try {
@@ -171,7 +256,7 @@ class MainBranchInventoryController extends Controller
                     $ingredient->id,
                     (float) $validated['quantity'],
                     'adjustment',
-                    $validated['reason'],
+                    $validated['reason'] ?? null,
                     $request->user(),
                 );
             } else {
@@ -181,6 +266,14 @@ class MainBranchInventoryController extends Controller
                     (float) $validated['quantity'],
                     $validated['reason'] ?? null,
                     $request->user(),
+                    ($validated['total_price_paid'] ?? null) === null ? [] : [
+                        'total_cost' => InventoryCosting::normalizeMoney($validated['total_price_paid']),
+                        'unit_cost' => InventoryCosting::unitCost(
+                            $validated['total_price_paid'],
+                            (string) $validated['quantity'],
+                            4,
+                        ),
+                    ],
                 );
             }
         } catch (\InvalidArgumentException $exception) {
@@ -193,20 +286,21 @@ class MainBranchInventoryController extends Controller
     public function receive(Request $request, MainBranchIngredient $ingredient, InventoryService $inventory)
     {
         $validated = $request->validate([
-            'quantity' => 'required|numeric|gt:0|max:999999999.999',
-            'unit_cost' => 'required|numeric|min:0|max:999999999.99',
+            'quantity' => 'required|numeric|gt:0|max:'.config('input_limits.inventory_quantity'),
+            'unit_cost' => 'nullable|numeric|min:0|max:999999999.99',
+            'total_price_paid' => ['nullable', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('inventory.max_total_price_paid')],
             'supplier_id' => 'nullable|integer|exists:inventory_suppliers,id',
             'occurred_at' => 'nullable|date',
             'invoice_reference' => 'nullable|string|max:160',
             'expires_at' => 'nullable|date|after_or_equal:today',
-            'reason' => 'nullable|string|max:2000',
+            'reason' => ['nullable', 'string', 'min:'.config('input_limits.reason.min'), 'max:'.config('input_limits.reason.max')],
         ]);
 
         try {
             $inventory->receive(
                 $ingredient->id,
                 (float) $validated['quantity'],
-                (float) $validated['unit_cost'],
+                isset($validated['unit_cost']) ? (float) $validated['unit_cost'] : null,
                 $validated['reason'] ?? 'Stock received',
                 $request->user(),
                 [
@@ -215,6 +309,7 @@ class MainBranchInventoryController extends Controller
                     'invoice_reference' => $validated['invoice_reference'] ?? null,
                     'expires_at' => $validated['expires_at'] ?? null,
                 ],
+                $validated['total_price_paid'] ?? null,
             );
         } catch (\InvalidArgumentException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
@@ -226,8 +321,8 @@ class MainBranchInventoryController extends Controller
     public function countStock(Request $request, MainBranchIngredient $ingredient, InventoryService $inventory)
     {
         $validated = $request->validate([
-            'quantity' => 'required|numeric|min:0|max:999999999.999',
-            'reason' => 'required|string|max:2000',
+            'quantity' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
+            'reason' => ['nullable', 'string', 'min:'.config('input_limits.reason.min'), 'max:'.config('input_limits.reason.max')],
         ]);
 
         try {
@@ -235,7 +330,7 @@ class MainBranchInventoryController extends Controller
                 $ingredient->id,
                 (float) $validated['quantity'],
                 'count_adjustment',
-                $validated['reason'],
+                $validated['reason'] ?? null,
                 $request->user(),
             );
         } catch (\InvalidArgumentException $exception) {
@@ -294,27 +389,107 @@ class MainBranchInventoryController extends Controller
     public function storeSupplier(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:180|unique:inventory_suppliers,name',
-            'contact_person' => 'nullable|string|max:160',
-            'phone' => 'nullable|string|max:60',
-            'email' => 'nullable|email|max:180',
+            'name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.category_or_supplier_name.min'),
+                'max:'.config('input_limits.category_or_supplier_name.max'),
+                'regex:'.config('input_limits.business_name.pattern'),
+                'unique:inventory_suppliers,name',
+            ],
+            'contact_person' => [
+                'nullable',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
+            'phone' => ['nullable', 'string', 'max:13', 'regex:'.config('input_limits.phone')],
+            'email' => 'nullable|email|max:'.config('input_limits.email'),
             'lead_time_days' => 'nullable|integer|min:0|max:3650',
-            'notes' => 'nullable|string|max:5000',
+            'notes' => 'nullable|string|max:'.config('input_limits.long_text'),
         ]);
+        if (isset($validated['email'])) {
+            $validated['email'] = strtolower(trim($validated['email']));
+        }
+        if (isset($validated['phone'])) {
+            $digits = preg_replace('/\D/', '', $validated['phone']);
+            $validated['phone'] = str_starts_with($digits, '63') ? '0'.substr($digits, 2) : $digits;
+        }
 
         return response()->json(['data' => InventorySupplier::create($validated)], 201);
     }
 
     public function updateSupplier(Request $request, InventorySupplier $supplier)
     {
+        $unchanged = static function (string $field) use ($request, $supplier): bool {
+            if (! $request->exists($field)) {
+                return false;
+            }
+            $submitted = $request->input($field);
+            $current = $supplier->getAttribute($field);
+
+            return $submitted === $current
+                || (is_string($submitted) && is_string($current) && trim($submitted) === trim($current));
+        };
+        $unchangedFields = [];
+        foreach (['name', 'contact_person', 'phone', 'email', 'lead_time_days', 'notes'] as $field) {
+            $unchangedFields[$field] = $unchanged($field);
+        }
+        $nameRules = ['required', 'string', Rule::unique('inventory_suppliers', 'name')->ignore($supplier->id)];
+        if (! $unchangedFields['name']) {
+            $nameRules = [
+                ...$nameRules,
+                'min:'.config('input_limits.category_or_supplier_name.min'),
+                'max:'.config('input_limits.category_or_supplier_name.max'),
+                'regex:'.config('input_limits.business_name.pattern'),
+            ];
+        }
+        $contactPersonRules = ['nullable', 'string'];
+        if (! $unchangedFields['contact_person']) {
+            $contactPersonRules = [
+                ...$contactPersonRules,
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ];
+        }
+        $phoneRules = ['nullable', 'string'];
+        if (! $unchangedFields['phone']) {
+            $phoneRules = [...$phoneRules, 'max:13', 'regex:'.config('input_limits.phone')];
+        }
+        $emailRules = ['nullable', 'email'];
+        if (! $unchangedFields['email']) {
+            $emailRules[] = 'max:'.config('input_limits.email');
+        }
+        $leadTimeRules = ['nullable', 'integer'];
+        if (! $unchangedFields['lead_time_days']) {
+            $leadTimeRules = [...$leadTimeRules, 'min:0', 'max:3650'];
+        }
+        $notesRules = ['nullable', 'string'];
+        if (! $unchangedFields['notes']) {
+            $notesRules[] = 'max:'.config('input_limits.long_text');
+        }
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:180', Rule::unique('inventory_suppliers', 'name')->ignore($supplier->id)],
-            'contact_person' => 'nullable|string|max:160',
-            'phone' => 'nullable|string|max:60',
-            'email' => 'nullable|email|max:180',
-            'lead_time_days' => 'nullable|integer|min:0|max:3650',
-            'notes' => 'nullable|string|max:5000',
+            'name' => $nameRules,
+            'contact_person' => $contactPersonRules,
+            'phone' => $phoneRules,
+            'email' => $emailRules,
+            'lead_time_days' => $leadTimeRules,
+            'notes' => $notesRules,
         ]);
+        foreach ($unchangedFields as $field => $isUnchanged) {
+            if ($isUnchanged) {
+                $validated[$field] = $supplier->getAttribute($field);
+            }
+        }
+        if (! $unchangedFields['email'] && isset($validated['email'])) {
+            $validated['email'] = strtolower(trim($validated['email']));
+        }
+        if (! $unchangedFields['phone'] && isset($validated['phone'])) {
+            $digits = preg_replace('/\D/', '', $validated['phone']);
+            $validated['phone'] = str_starts_with($digits, '63') ? '0'.substr($digits, 2) : $digits;
+        }
         $supplier->update($validated);
 
         return response()->json(['data' => $supplier->fresh()]);
@@ -345,7 +520,7 @@ class MainBranchInventoryController extends Controller
         if ($restockRequest->status !== 'pending') {
             return response()->json(['message' => 'Only pending restock requests can be rejected.'], 422);
         }
-        $validated = $request->validate(['notes' => 'nullable|string|max:2000']);
+        $validated = $request->validate(['notes' => 'nullable|string|max:'.config('input_limits.long_text')]);
         $restockRequest->update([
             'status' => 'rejected',
             'reviewed_by' => $request->user()?->id,
@@ -362,8 +537,8 @@ class MainBranchInventoryController extends Controller
             'request_id' => 'nullable|integer|exists:inventory_restock_requests,id',
             'items' => 'required|array|min:1|max:100',
             'items.*.ingredient_id' => ['required', 'integer', 'distinct', Rule::exists('main_branch_ingredients', 'id')->where('is_archived', 0)],
-            'items.*.quantity' => 'required|numeric|gt:0|max:999999999.999',
-            'notes' => 'nullable|string|max:2000',
+            'items.*.quantity' => 'required|numeric|gt:0|max:'.config('input_limits.inventory_quantity'),
+            'notes' => 'nullable|string|max:'.config('input_limits.long_text'),
         ]);
         $mainBranchId = Franchise::query()->where('is_main', true)->value('id');
         if (! $mainBranchId) {
@@ -422,10 +597,11 @@ class MainBranchInventoryController extends Controller
                         (string) $validated['branch_id'],
                         (int) $item['ingredient_id'],
                         (float) $item['quantity'],
-                        $dispatch['movement']->unit_cost === null ? null : (float) $dispatch['movement']->unit_cost,
+                        $dispatch['movement']->unit_cost === null ? null : (string) $dispatch['movement']->unit_cost,
                         $dispatch['batch_lots'],
                         $request->user(),
                         'Stock transfer '.$transfer->reference,
+                        $dispatch['movement']->total_cost === null ? null : (string) $dispatch['movement']->total_cost,
                     );
                     InventoryTransferItem::create([
                         'transfer_id' => $transfer->id,
@@ -470,8 +646,8 @@ class MainBranchInventoryController extends Controller
         $columns = $header ? array_map(fn ($value) => strtolower(trim((string) $value)), $header) : [];
         $optionalColumns = array_slice($columns, count($expected));
         if (array_slice($columns, 0, count($expected)) !== $expected
-            || count($columns) > count($expected) + 2
-            || array_diff($optionalColumns, ['supplier', 'notes'])
+            || count($columns) > count($expected) + 3
+            || array_diff($optionalColumns, ['total_price_paid', 'supplier', 'notes'])
             || count($columns) !== count(array_unique($columns))) {
             fclose($handle);
 
@@ -499,17 +675,28 @@ class MainBranchInventoryController extends Controller
                 $row[$column] = $values[$index] ?? '';
             }
             $validator = validator($row, [
-                'name' => 'required|string|max:160',
+                'name' => [
+                    'required',
+                    'string',
+                    'min:'.config('input_limits.ingredient_name.min'),
+                    'max:'.config('input_limits.ingredient_name.max'),
+                    'regex:'.config('input_limits.ingredient_name.pattern'),
+                ],
                 'category' => ['required', 'string', Rule::in(self::CATEGORIES)],
                 'unit' => ['required', 'string', Rule::in($this->inventoryUnits())],
-                'quantity' => 'required|numeric|min:0|max:999999999.999',
-                'reorder_level' => 'required|numeric|min:0|max:999999999.999',
+                'quantity' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
+                'reorder_level' => 'required|numeric|min:0|max:'.config('input_limits.inventory_quantity'),
                 'unit_cost' => 'nullable|numeric|min:0|max:999999999.99',
+                'total_price_paid' => ['nullable', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('inventory.max_total_price_paid')],
                 'supplier' => 'nullable|string|max:180',
-                'notes' => 'nullable|string|max:5000',
+                'notes' => 'nullable|string|max:'.config('input_limits.long_text'),
             ]);
             if ($validator->fails()) {
                 $errors[] = ['row' => $line, 'errors' => $validator->errors()->all()];
+                continue;
+            }
+            if (($row['total_price_paid'] ?? '') !== '' && bccomp((string) $row['quantity'], '0', 3) <= 0) {
+                $errors[] = ['row' => $line, 'errors' => ['Enter a quantity before adding a total price.']];
                 continue;
             }
             $normalizedName = mb_strtolower(trim($row['name']));
@@ -545,12 +732,24 @@ class MainBranchInventoryController extends Controller
                         'conversion_factor' => 1,
                         'quantity' => 0,
                         'reorder_level' => $row['reorder_level'],
-                        'unit_cost' => $row['unit_cost'] === '' ? null : $row['unit_cost'],
+                        'unit_cost' => ($row['total_price_paid'] ?? '') !== ''
+                            ? null
+                            : ($row['unit_cost'] === '' ? null : $row['unit_cost']),
                         'supplier_id' => $supplierId,
                         'notes' => $row['notes'] ?? null,
                     ]);
                     if ((float) $row['quantity'] > 0) {
-                        $inventory->move($ingredient->id, 'opening_stock', (float) $row['quantity'], 'CSV import opening stock', $request->user());
+                        $inventory->move(
+                            $ingredient->id,
+                            'opening_stock',
+                            (float) $row['quantity'],
+                            'CSV import opening stock',
+                            $request->user(),
+                            ($row['total_price_paid'] ?? '') === '' ? [] : [
+                                'total_cost' => InventoryCosting::normalizeMoney($row['total_price_paid']),
+                                'unit_cost' => InventoryCosting::unitCost($row['total_price_paid'], (string) $row['quantity'], 4),
+                            ],
+                        );
                     }
                 });
                 $imported++;
@@ -571,7 +770,7 @@ class MainBranchInventoryController extends Controller
 
         return response()->streamDownload(function () use ($ingredients) {
             $output = fopen('php://output', 'w');
-            fputcsv($output, ['name', 'category', 'unit', 'quantity', 'reorder_level', 'unit_cost', 'supplier', 'notes']);
+            fputcsv($output, ['name', 'category', 'unit', 'quantity', 'reorder_level', 'unit_cost', 'total_price_paid', 'supplier', 'notes']);
             foreach ($ingredients as $ingredient) {
                 fputcsv($output, [
                     $ingredient->name,
@@ -580,6 +779,13 @@ class MainBranchInventoryController extends Controller
                     $ingredient->quantity,
                     $ingredient->reorder_level,
                     $ingredient->unit_cost,
+                    (float) $ingredient->quantity > 0
+                        ? InventoryCosting::currentValue(
+                            $ingredient->inventory_value === null ? null : (string) $ingredient->inventory_value,
+                            (string) $ingredient->quantity,
+                            $ingredient->unit_cost === null ? null : (string) $ingredient->unit_cost,
+                        )
+                        : null,
                     $ingredient->supplierRelation?->name ?? $ingredient->supplier,
                     $ingredient->notes,
                 ]);
@@ -591,7 +797,21 @@ class MainBranchInventoryController extends Controller
     public function recipes(InventoryService $inventory)
     {
         $products = Product::query()->orderBy('name')->get(['id', 'name', 'price', 'franchise_id']);
-        $recipes = IngredientRecipe::query()->with('ingredient:id,name,unit,quantity,unit_cost')->get()->groupBy('product_id');
+        $recipes = IngredientRecipe::query()
+            ->with('ingredient:id,name,unit,quantity,unit_cost,inventory_value')
+            ->get()
+            ->groupBy('product_id');
+        foreach ($recipes as $productRecipes) {
+            foreach ($productRecipes as $recipe) {
+                $ingredient = $recipe->ingredient;
+                if ($ingredient && $ingredient->inventory_value !== null && (float) $ingredient->quantity > 0) {
+                    $ingredient->setAttribute(
+                        'average_unit_cost',
+                        InventoryCosting::unitCost((string) $ingredient->inventory_value, (string) $ingredient->quantity, 4),
+                    );
+                }
+            }
+        }
 
         return response()->json([
             'data' => [
@@ -610,7 +830,7 @@ class MainBranchInventoryController extends Controller
         $validated = $request->validate([
             'recipes' => 'required|array|max:100',
             'recipes.*.ingredient_id' => 'required|integer|distinct|exists:main_branch_ingredients,id',
-            'recipes.*.quantity' => 'required|numeric|gt:0|max:999999.999999',
+            'recipes.*.quantity' => 'required|numeric|gt:0|max:'.config('input_limits.inventory_quantity'),
             'recipes.*.unit' => ['required', 'string', Rule::in($this->inventoryUnits())],
         ]);
 
@@ -671,12 +891,21 @@ class MainBranchInventoryController extends Controller
         }
 
         $foodCosts = [];
-        foreach (IngredientRecipe::query()->with('ingredient:id,unit_cost')->get() as $recipe) {
-            if ($recipe->ingredient?->unit_cost === null) {
+        foreach (IngredientRecipe::query()->with('ingredient:id,quantity,unit_cost,inventory_value')->get() as $recipe) {
+            $ingredient = $recipe->ingredient;
+            if ($ingredient?->inventory_value !== null && (float) $ingredient->quantity > 0) {
+                $unitCost = InventoryCosting::unitCost((string) $ingredient->inventory_value, (string) $ingredient->quantity, 8);
+            } else {
+                $unitCost = $ingredient?->unit_cost;
+            }
+            if ($unitCost === null) {
                 continue;
             }
-            $foodCosts[$recipe->product_id] = ($foodCosts[$recipe->product_id] ?? 0)
-                + ((float) $recipe->quantity * (float) $recipe->ingredient->unit_cost);
+            $foodCosts[$recipe->product_id] = bcadd(
+                $foodCosts[$recipe->product_id] ?? '0',
+                bcmul((string) $recipe->quantity, (string) $unitCost, 8),
+                8,
+            );
         }
         $products = Product::query()->get(['id', 'name', 'price'])->map(function (Product $product) use ($foodCosts, $productSales) {
             $foodCost = $foodCosts[$product->id] ?? 0;
@@ -686,8 +915,8 @@ class MainBranchInventoryController extends Controller
                 'product_id' => $product->id,
                 'product_name' => $product->name,
                 'sales' => round($productSales[$product->id] ?? 0, 2),
-                'ingredient_cost_per_portion' => round($foodCost, 2),
-                'food_cost_percent' => $price > 0 ? round($foodCost / $price * 100, 2) : null,
+                'ingredient_cost_per_portion' => InventoryCosting::roundMoney((string) $foodCost),
+                'food_cost_percent' => $price > 0 ? round((float) $foodCost / $price * 100, 2) : null,
             ];
         });
 
@@ -710,8 +939,9 @@ class MainBranchInventoryController extends Controller
                     'reason' => $movement->reason,
                     'occurred_at' => $movement->occurred_at,
                 ])->values(),
-                'inventory_value' => MainBranchIngredient::query()->where('is_archived', false)->get()
-                    ->sum(fn ($ingredient) => (float) $ingredient->quantity * (float) ($ingredient->unit_cost ?? 0)),
+                'inventory_value' => $this->exactInventoryValue(
+                    MainBranchIngredient::query()->where('is_archived', false)->get(['quantity', 'unit_cost', 'inventory_value']),
+                ),
                 'food_cost_by_product' => $products->values(),
             ],
         ]);
@@ -739,17 +969,30 @@ class MainBranchInventoryController extends Controller
             (float) ($item->usable_quantity ?? $item->quantity) > 0
                 && (float) ($item->usable_quantity ?? $item->quantity) <= (float) $item->reorder_level
         )->count();
-        $stockValue = $ingredients->sum(fn ($item) =>
-            $item->unit_cost === null ? 0 : (float) $item->quantity * (float) $item->unit_cost
-        );
+        $stockValue = $this->exactInventoryValue($ingredients);
 
         return [
             'total' => $total,
             'low_stock' => $lowStock,
             'out_of_stock' => $outOfStock,
             'needs_restocking' => $lowStock + $outOfStock,
-            'stock_value' => round($stockValue, 2),
+            'stock_value' => $stockValue,
         ];
+    }
+
+    private function exactInventoryValue(iterable $ingredients): string
+    {
+        $total = '0.00';
+        foreach ($ingredients as $ingredient) {
+            $value = InventoryCosting::currentValue(
+                $ingredient->inventory_value === null ? null : (string) $ingredient->inventory_value,
+                (string) $ingredient->quantity,
+                $ingredient->unit_cost === null ? null : (string) $ingredient->unit_cost,
+            );
+            $total = bcadd($total, $value ?? '0.00', 2);
+        }
+
+        return $total;
     }
 
     private function attachUsableQuantities(Collection $ingredients): void

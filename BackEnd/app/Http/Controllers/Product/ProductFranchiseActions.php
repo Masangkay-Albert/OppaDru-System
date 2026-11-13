@@ -104,9 +104,15 @@ trait ProductFranchiseActions
         $payload['image'] = $this->normalizeProductImage($request->input('image'));
 
         $validator = Validator::make($payload, [
-            'name' => 'required|string|max:255',
-            'description' => 'required|string',
-            'price' => 'required|numeric|min:0.01',
+            'name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.product_name.min'),
+                'max:'.config('input_limits.product_name.max'),
+                'regex:'.config('input_limits.product_name.pattern'),
+            ],
+            'description' => 'required|string|max:'.config('input_limits.short_description'),
+            'price' => ['required', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0.01', 'max:'.config('input_limits.amount')],
             'category' => 'required|string',
             'image' => 'nullable|string',
             'is_available' => 'sometimes|boolean',
@@ -206,10 +212,55 @@ trait ProductFranchiseActions
             $payload['image'] = $this->normalizeProductImage($request->input('image'));
         }
 
+        $currentValues = [
+            'name' => $product->name,
+            'description' => $product->description,
+            'price' => $product->price,
+        ];
+        if ($product->franchise_id === null) {
+            $branchInventory = FranchiseInventory::query()
+                ->where('franchise_id', $franchiseUser->franchise_id)
+                ->where('product_id', $product->id)
+                ->first();
+            $currentValues = [
+                'name' => $branchInventory?->branch_name ?? $product->name,
+                'description' => $branchInventory?->branch_description ?? $product->description,
+                'price' => $branchInventory?->branch_price ?? $product->price,
+            ];
+        }
+        $requestedName = $request->input('name');
+        $nameUnchanged = $request->exists('name')
+            && is_string($requestedName)
+            && trim($requestedName) === trim((string) $currentValues['name']);
+        $requestedDescription = $request->input('description');
+        $descriptionUnchanged = $request->exists('description')
+            && is_string($requestedDescription)
+            && trim($requestedDescription) === trim((string) $currentValues['description']);
+        $requestedPrice = (string) $request->input('price');
+        $priceUnchanged = $request->exists('price')
+            && preg_match('/^\d+(?:\.\d{1,2})?$/', $requestedPrice) === 1
+            && bccomp($requestedPrice, (string) $currentValues['price'], 2) === 0;
+        $nameRules = ['sometimes', 'string'];
+        if ($request->exists('name') && ! $nameUnchanged) {
+            $nameRules = [
+                ...$nameRules,
+                'min:'.config('input_limits.product_name.min'),
+                'max:'.config('input_limits.product_name.max'),
+                'regex:'.config('input_limits.product_name.pattern'),
+            ];
+        }
+        $descriptionRules = ['sometimes', 'string'];
+        if ($request->exists('description') && ! $descriptionUnchanged) {
+            $descriptionRules[] = 'max:'.config('input_limits.short_description');
+        }
+        $priceRules = ['sometimes', 'numeric'];
+        if ($request->exists('price') && ! $priceUnchanged) {
+            $priceRules = [...$priceRules, 'regex:/^\d+(?:\.\d{1,2})?$/', 'min:0.01', 'max:'.config('input_limits.amount')];
+        }
         $validator = Validator::make($payload, [
-            'name' => 'sometimes|string|max:255',
-            'description' => 'sometimes|string',
-            'price' => 'sometimes|numeric|min:0.01',
+            'name' => $nameRules,
+            'description' => $descriptionRules,
+            'price' => $priceRules,
             'category' => 'sometimes|string',
             'image' => 'nullable|string',
             'is_available' => 'sometimes|boolean',
@@ -217,6 +268,17 @@ trait ProductFranchiseActions
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $payload = $validator->validated();
+        if ($nameUnchanged) {
+            unset($payload['name']);
+        }
+        if ($descriptionUnchanged) {
+            unset($payload['description']);
+        }
+        if ($priceUnchanged) {
+            unset($payload['price']);
         }
 
         if ($product->franchise_id === null) {

@@ -3,6 +3,8 @@ import { ArrowLeft, BriefcaseBusiness, Eye, EyeOff, Lock, Mail, Phone, UserRound
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import LoginBrandPanel from '../../../components/LoginBrandPanel';
 import { franchiseApplicantAuthService } from '../../../services/franchiseApplicantAuthService';
+import { INPUT_LIMITS } from '../../../constants/inputLimits';
+import { LimitedInput } from '../../../components/ui/LimitedInput';
 
 const FranchiseApplicantRegisterPage: React.FC = () => {
   const location = useLocation();
@@ -74,21 +76,21 @@ const FranchiseApplicantRegisterPage: React.FC = () => {
               Full name
               <span className="relative mt-1.5 block">
                 <UserRound className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input required maxLength={255} autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="Enter your full name" />
+                <LimitedInput required minLength={INPUT_LIMITS.personName.min} maxLength={INPUT_LIMITS.personName.max} inputFilter="personName" showCounter autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="Enter your full name" />
               </span>
             </label>
             <label className="block text-sm font-medium text-[var(--oppa-green)]">
               Email address
               <span className="relative mt-1.5 block">
                 <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input required type="email" maxLength={255} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="you@example.com" />
+                <LimitedInput required type="email" maxLength={INPUT_LIMITS.email.max} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value.toLowerCase())} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-4 text-sm focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="you@example.com" />
               </span>
             </label>
             <label className="block text-sm font-medium text-[var(--oppa-green)]">
               Phone number
               <span className="relative mt-1.5 block">
                 <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input type="tel" inputMode="numeric" maxLength={11} autoComplete="tel-national" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} onBlur={() => {
+                <LimitedInput type="tel" inputMode="numeric" maxLength={11} inputFilter="digits" autoComplete="tel-national" value={phone} onChange={(event) => handlePhoneChange(event.target.value)} onBlur={() => {
                   if (phone && !/^09\d{9}$/.test(phone)) {
                     setPhoneError('Enter a valid 11-digit Philippine mobile number starting with 09.');
                   }
@@ -100,7 +102,7 @@ const FranchiseApplicantRegisterPage: React.FC = () => {
               Password
               <span className="relative mt-1.5 block">
                 <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input required minLength={8} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-11 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="At least 8 characters" />
+                <LimitedInput required minLength={INPUT_LIMITS.password.min} maxLength={INPUT_LIMITS.password.max} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-11 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="At least 8 characters" />
                 <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]">
                   {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
                 </button>
@@ -110,7 +112,7 @@ const FranchiseApplicantRegisterPage: React.FC = () => {
               Confirm password
               <span className="relative mt-1.5 block">
                 <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input required minLength={8} type={showPasswordConfirmation ? 'text' : 'password'} autoComplete="new-password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-11 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="Re-enter your password" />
+                <LimitedInput required minLength={INPUT_LIMITS.password.min} maxLength={INPUT_LIMITS.password.max} type={showPasswordConfirmation ? 'text' : 'password'} autoComplete="new-password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-11 text-sm placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" placeholder="Re-enter your password" />
                 <button type="button" onClick={() => setShowPasswordConfirmation((visible) => !visible)} aria-label={showPasswordConfirmation ? 'Hide confirm password' : 'Show confirm password'} aria-pressed={showPasswordConfirmation} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]">
                   {showPasswordConfirmation ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
                 </button>

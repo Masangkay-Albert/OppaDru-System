@@ -8,6 +8,8 @@ import { categories } from '../../../data/mockData';
 import { AvailabilitySwitch, ConfirmDialog, EmptyState, PageHeader, ProductThumbnail, RowActionsMenu, Toast } from '../../admin-side/components/AdminUI';
 import Select from '../../../components/ui/Select';
 import SearchInput from '../../../components/ui/SearchInput';
+import { INPUT_LIMITS } from '../../../constants/inputLimits';
+import { LimitedInput, LimitedTextarea } from '../../../components/ui/LimitedInput';
 
 export type { ProductPermission } from '../../../services/franchiseProductPermissions';
 
@@ -492,6 +494,25 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
     setIsSaving(true);
 
     try {
+      const currentProduct = modalMode === 'edit'
+        ? products.find((product) => product.id === selectedProductId)
+        : undefined;
+      const nameChanged = !currentProduct || form.name.trim() !== currentProduct.name.trim();
+      const descriptionChanged = !currentProduct || form.description.trim() !== currentProduct.description.trim();
+      const priceChanged = !currentProduct || Number(form.price) !== Number(currentProduct.price);
+      if (nameChanged && (form.name.trim().length < INPUT_LIMITS.productName.min || form.name.trim().length > INPUT_LIMITS.productName.max)) {
+        setSaveError(`Product name must be ${INPUT_LIMITS.productName.min}-${INPUT_LIMITS.productName.max} characters.`);
+        return;
+      }
+      if (descriptionChanged && form.description.length > INPUT_LIMITS.shortDescription.max) {
+        setSaveError(`Description must be ${INPUT_LIMITS.shortDescription.max} characters or fewer.`);
+        return;
+      }
+      if (priceChanged && (!/^\d+(?:\.\d{1,2})?$/.test(form.price) || Number(form.price) < 0.01 || Number(form.price) > INPUT_LIMITS.amount.max)) {
+        setSaveError(`Enter a price from ₱0.01 to ₱${INPUT_LIMITS.amount.max.toLocaleString('en-PH', { minimumFractionDigits: 2 })}.`);
+        return;
+      }
+
       const payload = {
         name: form.name,
         description: form.description,
@@ -773,8 +794,12 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
 
               <div>
                 <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Product Name</label>
-                <input
+                <LimitedInput
                   required
+                  minLength={INPUT_LIMITS.productName.min}
+                  maxLength={INPUT_LIMITS.productName.max}
+                  inputFilter="businessName"
+                  showCounter
                   value={form.name}
                   onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                   className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
@@ -783,7 +808,9 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
 
               <div>
                 <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Description</label>
-                <textarea
+                <LimitedTextarea
+                  maxLength={INPUT_LIMITS.shortDescription.max}
+                  showCounter
                   value={form.description}
                   onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
                   className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
@@ -794,11 +821,13 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Price (₱)</label>
-                  <input
-                    type="number"
+                  <LimitedInput
+                    type="text"
+                    inputMode="decimal"
+                    inputFilter="amount"
                     required
-                    min={0}
-                    step="0.01"
+                    maxLength={9}
+                    max={INPUT_LIMITS.amount.max}
                     value={form.price}
                     onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
                     className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"

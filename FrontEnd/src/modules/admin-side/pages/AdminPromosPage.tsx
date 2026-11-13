@@ -25,6 +25,8 @@ import {
   toPromoDateTimeInput,
 } from '../../../utils/promoUi';
 import { useToast } from '../../customer-side/components/ToastProvider';
+import { INPUT_LIMITS } from '../../../constants/inputLimits';
+import { LimitedInput, LimitedTextarea } from '../../../components/ui/LimitedInput';
 import {
   LuCalendar,
   LuCheck,
@@ -315,11 +317,11 @@ export default function AdminPromosPage() {
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
-  const [discountValue, setDiscountValue] = useState<number | ''>(10);
-  const [minOrderAmount, setMinOrderAmount] = useState<number | ''>(0);
-  const [maxDiscountAmount, setMaxDiscountAmount] = useState<number | ''>('');
-  const [usageLimit, setUsageLimit] = useState<number | ''>('');
-  const [perCustomerLimit, setPerCustomerLimit] = useState<number | ''>('');
+  const [discountValue, setDiscountValue] = useState<string>('10');
+  const [minOrderAmount, setMinOrderAmount] = useState<string>('0');
+  const [maxDiscountAmount, setMaxDiscountAmount] = useState<string>('');
+  const [usageLimit, setUsageLimit] = useState<string>('');
+  const [perCustomerLimit, setPerCustomerLimit] = useState<string>('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isActive, setIsActive] = useState(true);
@@ -390,8 +392,8 @@ export default function AdminPromosPage() {
     setDescription('');
     setChannel('all');
     setDiscountType('percent');
-    setDiscountValue(10);
-    setMinOrderAmount(0);
+    setDiscountValue('10');
+    setMinOrderAmount('0');
     setMaxDiscountAmount('');
     setUsageLimit('');
     setPerCustomerLimit('');
@@ -421,11 +423,11 @@ export default function AdminPromosPage() {
     setDescription(promo.description || '');
     setChannel(promo.channel || 'all');
     setDiscountType(promo.discount_type);
-    setDiscountValue(promo.discount_value);
-    setMinOrderAmount(promo.min_order_amount ?? 0);
-    setMaxDiscountAmount(promo.max_discount_amount ?? '');
-    setUsageLimit(promo.usage_limit ?? '');
-    setPerCustomerLimit(promo.per_customer_limit ?? '');
+    setDiscountValue(String(promo.discount_value));
+    setMinOrderAmount(String(promo.min_order_amount ?? 0));
+    setMaxDiscountAmount(promo.max_discount_amount == null ? '' : String(promo.max_discount_amount));
+    setUsageLimit(promo.usage_limit == null ? '' : String(promo.usage_limit));
+    setPerCustomerLimit(promo.per_customer_limit == null ? '' : String(promo.per_customer_limit));
     setStartDate(savedStartDate);
     setEndDate(savedEndDate);
     setInitialStartDate(savedStartDate);
@@ -537,13 +539,31 @@ export default function AdminPromosPage() {
       setFormError('Discount value must be greater than zero.');
       return;
     }
+    const discountMaximum = discountType === 'percent' ? INPUT_LIMITS.percentage.max : INPUT_LIMITS.amount.max;
+    if (!/^\d+(?:\.\d{1,2})?$/.test(discountValue) || Number(discountValue) > discountMaximum) {
+      setFormError(`Discount value cannot exceed ${discountType === 'percent' ? '100%' : `₱${discountMaximum.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}.`);
+      return;
+    }
+    const optionalAmounts = [minOrderAmount, maxDiscountAmount].filter((value) => value !== '');
+    if (optionalAmounts.some((value) => !/^\d+(?:\.\d{1,2})?$/.test(value) || Number(value) > INPUT_LIMITS.amount.max)) {
+      setFormError(`Order amounts cannot exceed ₱${INPUT_LIMITS.amount.max.toLocaleString('en-PH', { minimumFractionDigits: 2 })}.`);
+      return;
+    }
+    const optionalLimits = [usageLimit, perCustomerLimit].filter((value) => value !== '');
+    if (optionalLimits.some((value) => !/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 999999)) {
+      setFormError('Usage limits must be whole numbers from 1 to 999,999.');
+      return;
+    }
     if (!validateDates()) return;
 
     setIsSubmitting(true);
     try {
       const formData = new FormData();
       formData.append('title', title.trim());
-      if (code.trim()) formData.append('code', code.trim().toUpperCase());
+      const codeValue = code.trim().toUpperCase();
+      if (codeValue && (!editingPromo || codeValue !== editingPromo.code?.trim().toUpperCase())) {
+        formData.append('code', codeValue);
+      }
       formData.append('description', description.trim());
       formData.append('channel', channel);
       formData.append('discount_type', discountType);
@@ -836,14 +856,17 @@ export default function AdminPromosPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
               <div className="sm:col-span-7">
                 <FieldLabel htmlFor="promo-title">Promo title <span className="text-[var(--promo-danger-text)]">*</span></FieldLabel>
-                <input id="promo-title" type="text" required placeholder="e.g. 10% Welcome Treat" value={stripEmoji(title)} onChange={(event) => setTitle(event.target.value)} className={inputClass()} />
+                <LimitedInput id="promo-title" type="text" required minLength={INPUT_LIMITS.announcementTitle.min} maxLength={INPUT_LIMITS.announcementTitle.max} showCounter placeholder="e.g. 10% Welcome Treat" value={stripEmoji(title)} onChange={(event) => setTitle(event.target.value)} className={inputClass()} />
               </div>
               <div className="sm:col-span-5">
                 <FieldLabel htmlFor="promo-code">Promo code (voucher)</FieldLabel>
-                <input
+                <LimitedInput
                   ref={promoCodeInputRef}
                   id="promo-code"
                   type="text"
+                  maxLength={INPUT_LIMITS.promoCode.max}
+                  inputFilter="promoCode"
+                  showCounter
                   placeholder="Custom code or generate one"
                   value={code}
                   aria-invalid={Boolean(codeError)}
@@ -887,9 +910,11 @@ export default function AdminPromosPage() {
               </div>
               <div className="sm:col-span-12">
                 <FieldLabel htmlFor="promo-description">Description</FieldLabel>
-                <textarea
+                <LimitedTextarea
                   id="promo-description"
                   rows={3}
+                  maxLength={INPUT_LIMITS.longText.max}
+                  showCounter
                   placeholder="Brief description displayed on the banner and promotional sections..."
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
@@ -926,20 +951,20 @@ export default function AdminPromosPage() {
                   <span className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm font-semibold text-[var(--oppa-text-muted)] ${discountType === 'fixed' ? 'left-3.5' : 'right-3.5'}`}>
                     {discountType === 'fixed' ? '₱' : '%'}
                   </span>
-                  <input id="promo-value" type="number" step="any" min="0.01" required placeholder={discountType === 'percent' ? '15' : '50'} value={discountValue} onChange={(event) => setDiscountValue(event.target.value === '' ? '' : Number(event.target.value))} className={`${inputClass()} font-semibold ${discountType === 'fixed' ? 'pl-8' : 'pr-9'}`} />
+                  <LimitedInput id="promo-value" type="text" inputMode="decimal" inputFilter="amount" maxLength={discountType === 'percent' ? 6 : 9} required placeholder={discountType === 'percent' ? '15' : '50'} value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} className={`${inputClass()} font-semibold ${discountType === 'fixed' ? 'pl-8' : 'pr-9'}`} />
                 </div>
               </div>
               <div>
                 <FieldLabel htmlFor="promo-min-order">Min. order spend (P)</FieldLabel>
-                <input id="promo-min-order" type="number" step="any" min="0" placeholder="0" value={minOrderAmount} onChange={(event) => setMinOrderAmount(event.target.value === '' ? '' : Number(event.target.value))} className={inputClass()} />
+                <LimitedInput id="promo-min-order" type="text" inputMode="decimal" inputFilter="amount" maxLength={9} placeholder="0" value={minOrderAmount} onChange={(event) => setMinOrderAmount(event.target.value)} className={inputClass()} />
               </div>
               <div>
                 <FieldLabel htmlFor="promo-usage-limit">Total usage limit</FieldLabel>
-                <input id="promo-usage-limit" type="number" min="1" placeholder="Unlimited" value={usageLimit} onChange={(event) => setUsageLimit(event.target.value === '' ? '' : Number(event.target.value))} className={inputClass()} />
+                <LimitedInput id="promo-usage-limit" type="text" inputMode="numeric" inputFilter="digits" maxLength={6} placeholder="Unlimited" value={usageLimit} onChange={(event) => setUsageLimit(event.target.value)} className={inputClass()} />
               </div>
               <div>
                 <FieldLabel htmlFor="promo-per-customer-limit">Uses per customer</FieldLabel>
-                <input id="promo-per-customer-limit" type="number" min="1" placeholder="Unlimited" value={perCustomerLimit} onChange={(event) => setPerCustomerLimit(event.target.value === '' ? '' : Number(event.target.value))} className={inputClass()} />
+                <LimitedInput id="promo-per-customer-limit" type="text" inputMode="numeric" inputFilter="digits" maxLength={6} placeholder="Unlimited" value={perCustomerLimit} onChange={(event) => setPerCustomerLimit(event.target.value)} className={inputClass()} />
               </div>
             </div>
 

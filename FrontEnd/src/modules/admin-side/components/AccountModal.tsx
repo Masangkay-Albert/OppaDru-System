@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import { LimitedInput } from '../../../components/ui/LimitedInput';
+import { INPUT_LIMITS } from '../../../constants/inputLimits';
 
 
 export interface ModalAccount {
@@ -26,11 +28,11 @@ const AccountModal: React.FC<AccountModalProps> = ({ account, onClose, onResetPa
   const [message, setMessage] = useState('');
 
   const handleReset = () => {
-    if (newPassword.trim().length < 6) { // Updated to 6 to match Laravel validation
-      setMessage('Password must be at least 6 characters.');
+    if (newPassword.length < INPUT_LIMITS.password.min || newPassword.length > INPUT_LIMITS.password.max) {
+      setMessage(`Password must be ${INPUT_LIMITS.password.min}-${INPUT_LIMITS.password.max} characters.`);
       return;
     }
-    onResetPassword(account.id, newPassword.trim());
+    onResetPassword(account.id, newPassword);
     setMessage('Password reset successfully.');
     setNewPassword('');
   };
@@ -77,8 +79,10 @@ const AccountModal: React.FC<AccountModalProps> = ({ account, onClose, onResetPa
         <div className="border-t border-[var(--oppa-border)] pt-4">
           <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Reset Password</label>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              type="text"
+            <LimitedInput
+              type="password"
+              minLength={INPUT_LIMITS.password.min}
+              maxLength={INPUT_LIMITS.password.max}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="New password"

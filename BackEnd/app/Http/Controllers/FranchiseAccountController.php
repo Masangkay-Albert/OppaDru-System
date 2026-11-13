@@ -528,6 +528,7 @@ class FranchiseAccountController extends Controller
         }
 
         $account = FranchiseAccount::findOrFail($id);
+        $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|nullable|string|email|max:255',
@@ -690,10 +691,16 @@ class FranchiseAccountController extends Controller
                 'string',
                 Rule::exists('franchises', 'id')->where('franchise_account_id', $account->id),
             ],
-            'full_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:franchise_users,email|unique:employees,email|unique:drivers,email',
-            'phone' => 'nullable|string|max:50',
-            'password' => 'required|string|min:8',
+            'full_name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
+            'email' => 'required|string|email|max:'.config('input_limits.email').'|unique:franchise_users,email|unique:employees,email|unique:drivers,email',
+            'phone' => ['nullable', 'string', 'max:13', 'regex:'.config('input_limits.phone')],
+            'password' => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max')],
             'can_process_pos' => 'nullable|boolean',
         ]);
         if ($validator->fails()) {

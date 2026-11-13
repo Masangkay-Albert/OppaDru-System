@@ -186,11 +186,18 @@ trait FranchiseAdminActions
 
         $franchise = Franchise::findOrFail($id);
 
+        $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
         $validator = Validator::make($request->all(), [
-            'full_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:franchise_users,email',
-            'phone' => 'nullable|string|max:50',
-            'password' => 'nullable|string|min:8',
+            'full_name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
+            'email' => 'required|string|email|max:'.config('input_limits.email').'|unique:franchise_users,email',
+            'phone' => ['nullable', 'string', 'max:13', 'regex:'.config('input_limits.phone')],
+            'password' => ['nullable', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max')],
             'is_active' => 'nullable|boolean',
             'can_process_pos' => 'nullable|boolean',
         ]);
@@ -226,11 +233,42 @@ trait FranchiseAdminActions
         $franchise = Franchise::findOrFail($id);
         $user = FranchiseUser::where('franchise_id', $franchise->id)->where('id', $userId)->firstOrFail();
 
+        $requestedName = $request->input('full_name');
+        $nameUnchanged = $request->exists('full_name')
+            && is_string($requestedName)
+            && trim($requestedName) === trim((string) $user->full_name);
+        $requestedEmail = $request->input('email');
+        $emailUnchanged = $request->exists('email')
+            && is_string($requestedEmail)
+            && strcasecmp(trim($requestedEmail), trim((string) $user->email)) === 0;
+        $requestedPhone = $request->input('phone');
+        $phoneUnchanged = $request->exists('phone')
+            && (string) $requestedPhone === (string) $user->phone;
+        $nameRules = ['sometimes', 'string'];
+        if ($request->exists('full_name') && ! $nameUnchanged) {
+            $nameRules = [
+                ...$nameRules,
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ];
+        }
+        $emailRules = ['sometimes', 'string', 'email', 'unique:franchise_users,email,'.$user->id];
+        if ($request->exists('email') && ! $emailUnchanged) {
+            $emailRules[] = 'max:'.config('input_limits.email');
+        }
+        $phoneRules = ['sometimes', 'nullable', 'string'];
+        if ($request->exists('phone') && ! $phoneUnchanged) {
+            $phoneRules = [...$phoneRules, 'max:13', 'regex:'.config('input_limits.phone')];
+        }
+        if ($request->exists('email')) {
+            $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
+        }
         $validator = Validator::make($request->all(), [
-            'full_name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|string|email|max:255|unique:franchise_users,email,'.$user->id,
-            'phone' => 'sometimes|nullable|string|max:50',
-            'password' => 'sometimes|nullable|string|min:8',
+            'full_name' => $nameRules,
+            'email' => $emailRules,
+            'phone' => $phoneRules,
+            'password' => ['sometimes', 'nullable', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max')],
             'is_active' => 'sometimes|boolean',
             'can_process_pos' => 'sometimes|boolean',
         ]);
@@ -239,22 +277,22 @@ trait FranchiseAdminActions
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        if ($request->filled('email')) {
+        if ($request->filled('email') && ! $emailUnchanged) {
             $email = strtolower(trim((string) $request->email));
             if ($this->emailUsedByOtherStaff($email)) {
                 return response()->json(['message' => 'This email address is already assigned to another staff account.'], 422);
             }
         }
 
-        if ($request->filled('full_name')) {
+        if ($request->filled('full_name') && ! $nameUnchanged) {
             $user->full_name = $request->full_name;
         }
 
-        if ($request->filled('email')) {
+        if ($request->filled('email') && ! $emailUnchanged) {
             $user->email = strtolower(trim((string) $request->email));
         }
 
-        if ($request->has('phone')) {
+        if ($request->has('phone') && ! $phoneUnchanged) {
             $user->phone = $request->phone;
         }
 

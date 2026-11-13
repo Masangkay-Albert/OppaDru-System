@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
+import { INPUT_LIMITS } from '../../constants/inputLimits';
 import { LoaderCircle, Search, X } from 'lucide-react';
 
 interface SearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onChange'> {
@@ -60,7 +61,8 @@ const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function Sear
   };
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextValue = event.target.value;
+    const nextValue = event.target.value.slice(0, INPUT_LIMITS.search.max);
+    if (event.target.value !== nextValue) event.target.value = nextValue;
     setDisplayValue(nextValue);
     onValueChange?.(nextValue);
     if (debounceMs <= 0) {
@@ -113,6 +115,7 @@ const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function Sear
           {...inputProps}
           ref={updateInputRef}
           type="text"
+          maxLength={INPUT_LIMITS.search.max}
           role="searchbox"
           aria-label={ariaLabel || placeholder}
           value={displayValue}

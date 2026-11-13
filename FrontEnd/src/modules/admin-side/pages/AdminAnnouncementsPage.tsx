@@ -53,6 +53,8 @@ import type {
   AnnouncementStats,
   FacebookStatus,
 } from '../../../types/announcement.types';
+import { INPUT_LIMITS } from '../../../constants/inputLimits';
+import { LimitedInput, LimitedTextarea } from '../../../components/ui/LimitedInput';
 
 const LEGACY_AUDIENCE_META = {
   label: 'Legacy audience',
@@ -900,10 +902,13 @@ Oppa Dru Korean Fried Chicken
                       <label htmlFor="announcement-title" className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
                         Headline / Title <span className="text-red-500">*</span>
                       </label>
-                      <input
+                      <LimitedInput
                         id="announcement-title"
                         type="text"
                         required
+                        minLength={INPUT_LIMITS.announcementTitle.min}
+                        maxLength={INPUT_LIMITS.announcementTitle.max}
+                        showCounter
                         placeholder="e.g. Weekend Special: 20% Off Korean Chicken!"
                         value={formData.title}
                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -932,12 +937,13 @@ Oppa Dru Korean Fried Chicken
                       <label htmlFor="announcement-content" className="block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
                         Message Content <span className="text-red-500">*</span>
                       </label>
-                      <span className={`text-[11px] ${formData.content.length >= 1800 ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--oppa-text-muted)]'}`}>{formData.content.length} characters</span>
+                      <span className="text-[11px] text-[var(--oppa-text-muted)]">{formData.content.length}/{INPUT_LIMITS.announcementBody.max} characters</span>
                     </div>
-                    <textarea
+                    <LimitedTextarea
                       id="announcement-content"
                       required
                       rows={6}
+                      maxLength={INPUT_LIMITS.announcementBody.max}
                       placeholder="Write detailed announcements, promotional details, schedule reminders, or operational instructions..."
                       value={formData.content}
                       onChange={(e) => setFormData({ ...formData, content: e.target.value })}

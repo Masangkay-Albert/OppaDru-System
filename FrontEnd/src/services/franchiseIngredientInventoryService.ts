@@ -9,6 +9,11 @@ export interface BranchIngredient {
   quantity: number | string;
   reorder_level: number | string;
   unit_cost: number | string | null;
+  average_unit_cost?: number | string | null;
+  inventory_value?: number | string | null;
+  purchase_unit?: string | null;
+  conversion_factor?: number | string;
+  purchase_history?: BranchIngredientMovement[];
   usable_quantity?: number | string;
   notes?: string | null;
   updated_at?: string | null;
@@ -21,7 +26,7 @@ export interface BranchIngredientSummary {
   low_stock: number;
   out_of_stock: number;
   needs_restocking: number;
-  stock_value: number;
+  stock_value: number | string;
 }
 
 export interface BranchIngredientMovement {
@@ -34,6 +39,14 @@ export interface BranchIngredientMovement {
   performed_by: string;
   occurred_at: string | null;
   created_at: string;
+  quantity: number | string;
+  purchase_quantity?: number | string | null;
+  purchase_unit?: string | null;
+  unit_cost?: number | string | null;
+  total_cost?: number | string | null;
+  supplier?: { id: number; name: string } | null;
+  invoice_reference?: string | null;
+  reason?: string | null;
 }
 
 export interface BranchRestockRequest {
@@ -63,7 +76,7 @@ export interface BranchInventoryTransfer {
 
 export interface BranchIngredientInventory {
   ingredients: BranchIngredient[];
-  available_ingredients: Array<Pick<BranchIngredient, 'id' | 'name' | 'category' | 'unit' | 'reorder_level' | 'unit_cost'>>;
+  available_ingredients: Array<Pick<BranchIngredient, 'id' | 'name' | 'category' | 'unit' | 'purchase_unit' | 'conversion_factor' | 'reorder_level'>>;
   suppliers: Array<{ id: number; name: string }>;
   summary: BranchIngredientSummary;
   recent_movements: BranchIngredientMovement[];
@@ -106,7 +119,8 @@ export const adjustBranchIngredient = (
 export const addBranchIngredient = (values: {
   initial_quantity?: number;
   reorder_level: number;
-  unit_cost: number | null;
+  unit_cost?: number | null;
+  total_price_paid?: string;
   notes: string;
 } & (
   | { ingredient_id: number }
@@ -125,10 +139,19 @@ export const addBranchIngredient = (values: {
 
 export const updateBranchIngredient = (id: number, values: {
   reorder_level: number;
-  unit_cost: number | null;
+  unit_cost?: number | null;
+  total_price_paid?: string;
   notes: string;
 }) => request<BranchIngredient>(`/franchise/inventory/ingredients/${id}`, {
   method: 'PUT',
+  body: JSON.stringify(values),
+});
+
+export const receiveBranchIngredientStock = (id: number, values: {
+  quantity: number;
+  total_price_paid?: string;
+}) => request<BranchIngredient>(`/franchise/inventory/ingredients/${id}/receive`, {
+  method: 'POST',
   body: JSON.stringify(values),
 });
 

@@ -20,18 +20,24 @@ trait FranchiseApplicationApplicantActions
         $applicant = $request->user();
         $validator = Validator::make($request->all(), [
             'franchise_name' => 'nullable|string|max:255',
-            'contact_name' => 'required|string|max:255',
-            'phone' => ['required', 'string', 'max:50', 'regex:/^09\d{2}\s?\d{3}\s?\d{4}$/'],
+            'contact_name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
+            'phone' => ['required', 'string', 'max:13', 'regex:/^09\d{2}\s?\d{3}\s?\d{4}$/'],
             'update_profile' => 'nullable|boolean',
             'location' => 'required|string|max:2000',
             'applicant_address' => 'required|string|max:2000',
-            'business_experience' => 'required|string|max:5000',
-            'investment_capacity' => 'required|numeric|min:0|max:9999999999.99',
+            'business_experience' => 'required|string|max:'.config('input_limits.application_text'),
+            'investment_capacity' => ['required', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('input_limits.investment_capacity')],
             'has_proposed_property' => 'required|boolean',
             'property_status' => 'nullable|string|in:yes,no,looking',
             'opening_timeline' => 'required|string|in:within_6_months,6_to_12_months,12_to_18_months,more_than_18_months,not_sure',
-            'business_information' => 'nullable|string|max:5000',
-            'notes' => 'nullable|string|max:5000',
+            'business_information' => 'nullable|string|max:'.config('input_limits.application_text'),
+            'notes' => 'nullable|string|max:'.config('input_limits.application_text'),
             'documents' => 'nullable|array|max:8',
             'documents.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240',
         ]);
@@ -153,7 +159,7 @@ trait FranchiseApplicationApplicantActions
     {
         $validator = Validator::make($request->all(), [
             'reference_number' => 'required|string|max:32',
-            'email' => 'required|email|max:255',
+            'email' => 'required|email|max:'.config('input_limits.email'),
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -212,9 +218,9 @@ trait FranchiseApplicationApplicantActions
         }
 
         $validator = Validator::make($request->all(), [
-            'response' => 'nullable|string|max:5000',
+            'response' => 'nullable|string|max:'.config('input_limits.application_text'),
             'reference_number' => [$request->user() ? 'nullable' : 'required', 'string', 'max:32'],
-            'email' => [$request->user() ? 'nullable' : 'required', 'email', 'max:255'],
+            'email' => [$request->user() ? 'nullable' : 'required', 'email', 'max:'.config('input_limits.email')],
             'documents' => 'nullable|array|max:8',
             'documents.*' => 'file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240',
             'required_document_uploads' => 'nullable|array|max:8',

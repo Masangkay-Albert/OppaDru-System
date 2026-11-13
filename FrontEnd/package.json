@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "lint:franchise-theme": "node scripts/check-franchise-theme.mjs",
     "test:products": "node --experimental-strip-types --test tests/productsPage.test.ts",
+    "test:input-limits": "node --experimental-strip-types --test tests/inputLimits.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

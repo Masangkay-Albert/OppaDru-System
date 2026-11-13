@@ -9,6 +9,8 @@ import { getAddonImage } from '../../../data/productImages';
 import { formatCurrency } from '../../../utils/formatters';
 import { isFixedPriceBeverage } from '../../../services/productOptionRules';
 import Select from '../../../components/ui/Select';
+import { INPUT_LIMITS } from '../../../constants/inputLimits';
+import { LimitedInput } from '../../../components/ui/LimitedInput';
 
 type AddonDraft = {
   name: string;
@@ -38,7 +40,7 @@ const sanitizePositivePriceInput = (value: string): string => {
   if (!safeValue || safeValue === '0' || safeValue === '0.') return '';
 
   const parsedValue = Number.parseFloat(safeValue);
-  if (!Number.isFinite(parsedValue) || parsedValue <= 0) return '';
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0 || parsedValue > INPUT_LIMITS.amount.max) return '';
 
   return String(parsedValue);
 };
@@ -117,7 +119,12 @@ const AdminAddonsPage: React.FC = () => {
   }));
 
   const addGroup = async () => {
-    if (!newGroup.name.trim() || newGroup.categories.length === 0) return;
+    const name = newGroup.name.trim();
+    if (name.length < INPUT_LIMITS.categoryOrSupplierName.min || name.length > INPUT_LIMITS.categoryOrSupplierName.max) {
+      setMessage(`Group name must be ${INPUT_LIMITS.categoryOrSupplierName.min}-${INPUT_LIMITS.categoryOrSupplierName.max} characters.`);
+      return;
+    }
+    if (newGroup.categories.length === 0) return;
     try {
       await productService.createAddonGroup({ name: newGroup.name, applicable_categories: newGroup.categories, selection_type: 'multiple', supports_quantity: false });
       setNewGroup({ name: '', categories: [] });
@@ -137,9 +144,17 @@ const AdminAddonsPage: React.FC = () => {
       setMessage('Enter an add-on name first.');
       return;
     }
+    if (normalizedName.length < INPUT_LIMITS.categoryOrSupplierName.min || normalizedName.length > INPUT_LIMITS.categoryOrSupplierName.max) {
+      setMessage(`Add-on name must be ${INPUT_LIMITS.categoryOrSupplierName.min}-${INPUT_LIMITS.categoryOrSupplierName.max} characters.`);
+      return;
+    }
 
     if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
       setMessage('Enter a valid positive add-on price.');
+      return;
+    }
+    if (parsedPrice > INPUT_LIMITS.amount.max) {
+      setMessage(`Add-on price cannot exceed ₱${INPUT_LIMITS.amount.max.toLocaleString('en-PH', { minimumFractionDigits: 2 })}.`);
       return;
     }
 
@@ -165,6 +180,17 @@ const AdminAddonsPage: React.FC = () => {
   const saveAddon = async (addonId: number) => {
     const draft = editingAddon[addonId];
     if (!draft) return;
+    const original = groups.flatMap((group) => group.addons).find((addon) => Number(addon.id) === addonId);
+    if (!original || draft.name.trim() !== original.name.trim()) {
+      if (draft.name.trim().length < INPUT_LIMITS.categoryOrSupplierName.min || draft.name.trim().length > INPUT_LIMITS.categoryOrSupplierName.max) {
+        setMessage(`Add-on name must be ${INPUT_LIMITS.categoryOrSupplierName.min}-${INPUT_LIMITS.categoryOrSupplierName.max} characters.`);
+        return;
+      }
+    }
+    if (!/^\d+(?:\.\d{1,2})?$/.test(draft.price) || Number(draft.price) < 0.01 || Number(draft.price) > INPUT_LIMITS.amount.max) {
+      setMessage(`Add-on price must be from ₱0.01 to ₱${INPUT_LIMITS.amount.max.toLocaleString('en-PH', { minimumFractionDigits: 2 })}.`);
+      return;
+    }
 
     try {
       const image = draft.imageFile
@@ -210,6 +236,13 @@ const AdminAddonsPage: React.FC = () => {
   const saveGroup = async (groupId: number) => {
     const draft = editingGroups[groupId];
     if (!draft || !draft.name || draft.categories.length === 0) return;
+    const original = groups.find((group) => group.id === groupId);
+    if (!original || draft.name.trim() !== original.name.trim()) {
+      if (draft.name.trim().length < INPUT_LIMITS.categoryOrSupplierName.min || draft.name.trim().length > INPUT_LIMITS.categoryOrSupplierName.max) {
+        setMessage(`Group name must be ${INPUT_LIMITS.categoryOrSupplierName.min}-${INPUT_LIMITS.categoryOrSupplierName.max} characters.`);
+        return;
+      }
+    }
     try {
       await productService.updateAddonGroup(groupId, { ...draft, applicable_categories: draft.categories });
       setEditingGroups((current) => { const next = { ...current }; delete next[groupId]; return next; });
@@ -270,8 +303,8 @@ const AdminAddonsPage: React.FC = () => {
       <section className="admin-card mb-6 p-5">
         <h2 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">Create add-on group</h2>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-          <input aria-label="Add-on group name" value={newGroup.name} onChange={(event) => setNewGroup({ ...newGroup, name: event.target.value })} placeholder="Group name" className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--oppa-border)] px-3 text-sm" />
-          <button type="button" disabled={!newGroup.name.trim() || newGroup.categories.length === 0} onClick={() => void addGroup()} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-green-700 px-4 text-sm font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50"><Plus size={16} />Add group</button>
+          <LimitedInput aria-label="Add-on group name" minLength={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" showCounter value={newGroup.name} onChange={(event) => setNewGroup({ ...newGroup, name: event.target.value })} placeholder="Group name" className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--oppa-border)] px-3 text-sm" />
+          <button type="button" disabled={newGroup.name.trim().length < INPUT_LIMITS.categoryOrSupplierName.min || newGroup.categories.length === 0} onClick={() => void addGroup()} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-green-700 px-4 text-sm font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50"><Plus size={16} />Add group</button>
         </div>
         <div className="mt-4">
           <p className="mb-2 text-xs font-semibold text-[var(--oppa-text-muted)]">Apply to categories</p>
@@ -313,7 +346,7 @@ const AdminAddonsPage: React.FC = () => {
                   <div className="border-t border-[var(--oppa-border)] px-4 pb-5 sm:px-5">
                     {draftGroup && <div className="mt-4 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/50 p-4">
                       <div className="flex flex-col gap-3 sm:flex-row">
-                        <input aria-label="Edit group name" value={draftGroup.name} onChange={(event) => setEditingGroups({ ...editingGroups, [group.id]: { ...draftGroup, name: event.target.value } })} className="h-10 min-w-0 flex-1 rounded-lg border border-[var(--oppa-border)] px-3 text-sm" />
+                        <LimitedInput aria-label="Edit group name" minLength={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" showCounter value={draftGroup.name} onChange={(event) => setEditingGroups({ ...editingGroups, [group.id]: { ...draftGroup, name: event.target.value } })} className="h-10 min-w-0 flex-1 rounded-lg border border-[var(--oppa-border)] px-3 text-sm" />
                         <Select aria-label="Selection type" value={draftGroup.selection_type} onChange={(selection_type) => setEditingGroups({ ...editingGroups, [group.id]: { ...draftGroup, selection_type } })} options={[{ value: 'single', label: 'Single selection' }, { value: 'multiple', label: 'Multiple selection' }]} />
                         <button type="button" onClick={() => void saveGroup(group.id)} disabled={!draftGroup.name.trim() || draftGroup.categories.length === 0} className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Save</button>
                       </div>
@@ -332,8 +365,8 @@ const AdminAddonsPage: React.FC = () => {
                           {draft
                             ? <div className="grid grid-cols-[40px_minmax(0,1fr)_90px] items-center gap-3">
                               <AddonImage name={draft.name || addon.name} image={draft.image} preview={draft.preview} />
-                              <input aria-label={`Edit ${addon.name}`} value={draft.name} onChange={(event) => setEditingAddon((current) => ({ ...current, [addonId]: { ...draft, name: event.target.value } }))} className="h-10 min-w-0 rounded-lg border border-[var(--oppa-border)] px-2 text-sm" />
-                              <input aria-label={`Price for ${addon.name}`} type="text" inputMode="decimal" value={draft.price} onChange={(event) => handlePriceInput(event.target.value, (price) => setEditingAddon((current) => ({ ...current, [addonId]: { ...draft, price } })), setPriceError)} className="h-10 w-full rounded-lg border border-[var(--oppa-border)] px-2 text-right text-sm tabular-nums" />
+                              <LimitedInput aria-label={`Edit ${addon.name}`} minLength={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" showCounter value={draft.name} onChange={(event) => setEditingAddon((current) => ({ ...current, [addonId]: { ...draft, name: event.target.value } }))} className="h-10 min-w-0 rounded-lg border border-[var(--oppa-border)] px-2 text-sm" />
+                              <LimitedInput aria-label={`Price for ${addon.name}`} type="text" inputMode="decimal" inputFilter="amount" maxLength={9} max={INPUT_LIMITS.amount.max} value={draft.price} onChange={(event) => handlePriceInput(event.target.value, (price) => setEditingAddon((current) => ({ ...current, [addonId]: { ...draft, price } })), setPriceError)} className="h-10 w-full rounded-lg border border-[var(--oppa-border)] px-2 text-right text-sm tabular-nums" />
                               <div className="col-span-3 flex items-center justify-between">
                                 <label title="Upload add-on photo" className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-green-700 hover:bg-green-50"><ImagePlus size={17} /><input type="file" accept="image/*" className="hidden" onChange={(event) => {
                                   const file = event.target.files?.[0];
@@ -357,8 +390,8 @@ const AdminAddonsPage: React.FC = () => {
 
                     {addingAddonGroup === group.id && <div className="mt-3 rounded-xl border border-green-200 bg-green-50/50 p-4">
                       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px_auto]">
-                        <input aria-label="New add-on name" value={newAddon[group.id]?.name || ''} onChange={(event) => setNewAddon((current) => ({ ...current, [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), name: event.target.value } }))} placeholder="Add-on name" className="h-10 min-w-0 rounded-lg border border-[var(--oppa-border)] px-3 text-sm" />
-                        <input aria-label="New add-on price" type="text" inputMode="decimal" value={newAddon[group.id]?.price || ''} onChange={(event) => handlePriceInput(event.target.value, (price) => setNewAddon((current) => ({ ...current, [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), price } })), setPriceError)} placeholder="Price (₱)" className="h-10 rounded-lg border border-[var(--oppa-border)] px-3 text-sm tabular-nums" />
+                        <LimitedInput aria-label="New add-on name" minLength={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" showCounter value={newAddon[group.id]?.name || ''} onChange={(event) => setNewAddon((current) => ({ ...current, [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), name: event.target.value } }))} placeholder="Add-on name" className="h-10 min-w-0 rounded-lg border border-[var(--oppa-border)] px-3 text-sm" />
+                        <LimitedInput aria-label="New add-on price" type="text" inputMode="decimal" inputFilter="amount" maxLength={9} max={INPUT_LIMITS.amount.max} value={newAddon[group.id]?.price || ''} onChange={(event) => handlePriceInput(event.target.value, (price) => setNewAddon((current) => ({ ...current, [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), price } })), setPriceError)} placeholder="Price (₱)" className="h-10 rounded-lg border border-[var(--oppa-border)] px-3 text-sm tabular-nums" />
                         <label title="Upload optional add-on photo" className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--oppa-border)] bg-white px-3 text-xs font-medium text-green-800 hover:bg-green-50"><ImagePlus size={16} />{newAddon[group.id]?.imageFile ? 'Photo selected' : 'Optional photo'}<input type="file" accept="image/*" className="hidden" onChange={(event) => {
                           const file = event.target.files?.[0];
                           if (!file) return;

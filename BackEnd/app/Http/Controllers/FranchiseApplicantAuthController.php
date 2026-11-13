@@ -15,10 +15,16 @@ class FranchiseApplicantAuthController extends Controller
     {
         $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
         $validator = Validator::make($request->all(), [
-            'full_name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:franchise_applicants,email',
-            'phone' => ['nullable', 'string', 'regex:/^09\d{9}$/'],
-            'password' => 'required|string|min:8|confirmed',
+            'full_name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
+            'email' => ['required', 'email', 'max:'.config('input_limits.email'), 'unique:franchise_applicants,email'],
+            'phone' => ['nullable', 'string', 'max:11', 'regex:/^09\d{9}$/'],
+            'password' => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max'), 'confirmed'],
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -57,7 +63,7 @@ class FranchiseApplicantAuthController extends Controller
     {
         $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
         $validator = Validator::make($request->all(), [
-            'email' => 'required|email',
+            'email' => ['required', 'email', 'max:'.config('input_limits.email')],
             'password' => 'required|string',
         ]);
         if ($validator->fails()) {
@@ -101,7 +107,7 @@ class FranchiseApplicantAuthController extends Controller
 
     public function resendVerification(Request $request)
     {
-        $validated = $request->validate(['email' => 'required|email|max:255']);
+        $validated = $request->validate(['email' => ['required', 'email', 'max:'.config('input_limits.email')]]);
         $applicant = FranchiseApplicant::whereRaw('LOWER(email) = ?', [strtolower(trim($validated['email']))])->first();
         if (! $applicant) {
             return response()->json(['message' => 'This email is not registered as a franchise applicant.'], 404);

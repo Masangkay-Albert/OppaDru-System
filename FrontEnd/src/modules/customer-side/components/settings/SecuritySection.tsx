@@ -3,6 +3,8 @@ import { FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
 import { useAuth } from '../../../../contexts/Authcontext';
 import { authService } from '../../../../services/authService';
 import { API_URL } from '../../../../services/apiConfig';
+import { LimitedInput } from '../../../../components/ui/LimitedInput';
+import { INPUT_LIMITS } from '../../../../constants/inputLimits';
 
 const SecuritySection: React.FC = () => {
   const { user } = useAuth();
@@ -29,8 +31,8 @@ const SecuritySection: React.FC = () => {
       return;
     }
 
-    if (formData.newPassword.length < 6) {
-      setMessage({ type: 'error', text: 'Password must be at least 6 characters long!' });
+    if (formData.newPassword.length < INPUT_LIMITS.password.min || formData.newPassword.length > INPUT_LIMITS.password.max) {
+      setMessage({ type: 'error', text: `Password must be ${INPUT_LIMITS.password.min}-${INPUT_LIMITS.password.max} characters long.` });
       return;
     }
 
@@ -99,13 +101,14 @@ const SecuritySection: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
           <div className="relative">
             <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
+            <LimitedInput
               type={showPassword ? 'text' : 'password'}
+              minLength={INPUT_LIMITS.password.min}
+              maxLength={INPUT_LIMITS.password.max}
               value={formData.newPassword}
               onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
               className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20 transition text-sm"
               required
-              minLength={6}
             />
           </div>
         </div>
@@ -114,8 +117,9 @@ const SecuritySection: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
           <div className="relative">
             <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
+            <LimitedInput
               type={showPassword ? 'text' : 'password'}
+              maxLength={INPUT_LIMITS.password.max}
               value={formData.confirmPassword}
               onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
               className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20 transition text-sm"

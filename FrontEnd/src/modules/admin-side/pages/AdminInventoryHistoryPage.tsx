@@ -7,6 +7,7 @@ import Select from '../../../components/ui/Select';
 import { getMainBranchInventory, getStockMovements } from '../../../services/mainBranchInventoryService';
 import type { MainBranchStockMovement } from '../../../services/mainBranchInventoryService';
 import { formatInventoryQuantity } from '../../../utils/inventoryFormatters';
+import { formatPeso, formatUnitPrice } from '../../../utils/formatters';
 
 const TYPES = [
   { value: 'all', label: 'All movement types' },
@@ -121,7 +122,30 @@ const AdminInventoryHistoryPage: React.FC = () => {
         <section className="admin-card overflow-hidden">
           {loading ? <div role="status" aria-busy="true" className="p-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading stock activity…</div>
             : movements.length === 0 ? <EmptyState title="No stock activity found" description="Stock movements that match your filters will appear here." icon={<History size={22} />} />
-              : <div className="overflow-x-auto"><table className="admin-table w-full min-w-[900px] text-left text-sm"><caption className="sr-only">Stock movement history</caption><thead className="bg-[var(--oppa-green-soft)]/70 text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]"><tr>{['Ingredient', 'Movement', 'Change', 'Before', 'After', 'Reason', 'Performed by', 'Date'].map((heading) => <th key={heading} scope="col" className="px-4 py-3">{heading}</th>)}</tr></thead><tbody className="divide-y divide-[var(--oppa-border)]">{movements.map((movement) => <tr key={movement.id} className="hover:bg-[var(--oppa-cream)]/60"><td className="px-4 py-3 font-semibold">{movement.ingredient?.name || movement.ingredient_name}</td><td className="px-4 py-3">{movementLabel(movement.type)}</td><td className={`px-4 py-3 font-semibold ${Number(movement.quantity_change) < 0 ? 'text-red-700' : 'text-emerald-700'}`}>{amountLabel(movement.quantity_change, movement.unit)}</td><td className="px-4 py-3">{quantityLabel(movement.quantity_before, movement.unit)}</td><td className="px-4 py-3">{quantityLabel(movement.quantity_after, movement.unit)}</td><td className="max-w-52 truncate px-4 py-3" title={movement.reason || undefined}>{movement.reason || '—'}</td><td className="px-4 py-3">{movement.performed_by}</td><td className="px-4 py-3"><AdminDate value={movement.occurred_at || movement.created_at} /></td></tr>)}</tbody></table></div>}
+              : <div className="overflow-x-auto"><table className="admin-table w-full min-w-[1150px] text-left text-sm"><caption className="sr-only">Stock movement and purchase history</caption><thead className="bg-[var(--oppa-green-soft)]/70 text-xs uppercase tracking-wider text-[var(--oppa-text-muted)]"><tr>{['Ingredient', 'Movement', 'Quantity', 'Total paid / transfer value', 'Before', 'After', 'Reason', 'Recorded by', 'Date'].map((heading) => <th key={heading} scope="col" className="px-4 py-3">{heading}</th>)}</tr></thead><tbody className="divide-y divide-[var(--oppa-border)]">{movements.map((movement) => {
+                const isPurchase = ['stock_in', 'opening_stock'].includes(movement.type) && Number(movement.quantity_change) > 0;
+                const isTransfer = /transfer/i.test(movement.reason || '');
+                const totalPaid = movement.total_cost !== null && movement.total_cost !== undefined
+                  ? formatPeso(movement.total_cost)
+                  : movement.unit_cost !== null
+                    ? formatPeso(Number(movement.quantity) * Number(movement.unit_cost))
+                    : 'Price not recorded';
+                return <tr key={movement.id} className="hover:bg-[var(--oppa-cream)]/60">
+                  <td className="px-4 py-3 font-semibold">{movement.ingredient?.name || movement.ingredient_name}</td>
+                  <td className="px-4 py-3">{movementLabel(movement.type)}</td>
+                  <td className={`px-4 py-3 font-semibold ${Number(movement.quantity_change) < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                    {isPurchase && movement.purchase_quantity !== null && movement.purchase_quantity !== undefined
+                      ? quantityLabel(movement.purchase_quantity, movement.purchase_unit || movement.unit)
+                      : amountLabel(movement.quantity_change, movement.unit)}
+                  </td>
+                  <td className="px-4 py-3"><strong>{isPurchase ? totalPaid : '—'}</strong>{isPurchase && <span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">{movement.unit_cost === null ? 'Unit price not recorded' : `${formatUnitPrice(movement.unit_cost)} each`} · {isTransfer ? 'Transfer value' : movement.supplier?.name || 'No supplier'} · Invoice {movement.invoice_reference || '—'}</span>}</td>
+                  <td className="px-4 py-3">{quantityLabel(movement.quantity_before, movement.unit)}</td>
+                  <td className="px-4 py-3">{quantityLabel(movement.quantity_after, movement.unit)}</td>
+                  <td className="max-w-52 truncate px-4 py-3" title={movement.reason || undefined}>{movement.reason || '—'}</td>
+                  <td className="px-4 py-3">{movement.performed_by}</td>
+                  <td className="px-4 py-3"><AdminDate value={movement.occurred_at || movement.created_at} /></td>
+                </tr>;
+              })}</tbody></table></div>}
           {!loading && total > 0 && <div className="flex flex-col gap-3 border-t border-[var(--oppa-border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-[var(--oppa-text-muted)]">{total} stock movement{total === 1 ? '' : 's'}</p><nav aria-label="Stock history pages" className="flex items-center gap-2"><button type="button" aria-label="Previous history page" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} className="rounded-lg border border-[var(--oppa-border)] p-2 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]"><ArrowLeft size={15} /></button><span aria-live="polite" className="text-xs tabular-nums text-[var(--oppa-text-muted)]">Page {page} of {pageCount}</span><button type="button" aria-label="Next history page" disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)} className="rounded-lg border border-[var(--oppa-border)] p-2 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]"><ArrowRight size={15} /></button></nav></div>}
         </section>
       </div>

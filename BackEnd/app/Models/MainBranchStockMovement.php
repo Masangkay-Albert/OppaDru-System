@@ -20,6 +20,7 @@ class MainBranchStockMovement extends Model
         'quantity_before',
         'quantity_after',
         'unit_cost',
+        'total_cost',
         'reason',
         'order_id',
         'supplier_id',
@@ -39,6 +40,7 @@ class MainBranchStockMovement extends Model
         'quantity_before' => 'decimal:3',
         'quantity_after' => 'decimal:3',
         'unit_cost' => 'decimal:4',
+        'total_cost' => 'decimal:2',
         'purchase_quantity' => 'decimal:3',
         'occurred_at' => 'datetime',
     ];

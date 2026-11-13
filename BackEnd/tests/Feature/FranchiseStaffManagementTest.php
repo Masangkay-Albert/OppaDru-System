@@ -8,6 +8,7 @@ use App\Models\Franchise;
 use App\Models\FranchiseAccount;
 use App\Models\FranchiseUser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -91,6 +92,104 @@ class FranchiseStaffManagementTest extends TestCase
         $this->putJson('/api/employees/' . $otherEmployee->id . '/reset-password', [
             'password' => 'NewStaff@123',
         ], ['Authorization' => 'Bearer ' . $token])->assertNotFound();
+    }
+
+    public function test_staff_account_limits_and_unchanged_legacy_names_are_preserved(): void
+    {
+        $adminHeaders = ['Authorization' => 'Bearer '.$this->createAdminToken()];
+        $mainBranch = Franchise::create([
+            'name' => 'Input Limits Main',
+            'slug' => 'input-limits-main',
+            'status' => 'active',
+            'is_main' => true,
+        ]);
+        $passwordAtLimit = str_repeat('P', 64);
+
+        $this->postJson('/api/employees', [
+            'fullName' => str_repeat('A', 60),
+            'email' => 'limited.employee@test',
+            'password' => $passwordAtLimit,
+            'position' => 'staff',
+        ], $adminHeaders)->assertCreated();
+
+        $this->postJson('/api/employees', [
+            'fullName' => str_repeat('A', 61),
+            'email' => 'over-limit.employee@test',
+            'password' => str_repeat('P', 65),
+            'position' => 'staff',
+        ], $adminHeaders)->assertUnprocessable()
+            ->assertJsonValidationErrors(['fullName', 'password']);
+
+        $legacyEmployee = Employee::create([
+            'franchise_id' => $mainBranch->id,
+            'fullName' => str_repeat('Legacy Name ', 6),
+            'email' => 'Legacy.Employee@test',
+            'password' => Hash::make('Legacy@123'),
+            'position' => 'staff',
+            'is_active' => true,
+        ]);
+        DB::table('employees')->where('id', $legacyEmployee->id)->update([
+            'email' => 'Legacy.Employee@test',
+        ]);
+        $legacyEmployee->refresh();
+        $this->putJson('/api/employees/'.$legacyEmployee->id, [
+            'fullName' => $legacyEmployee->fullName,
+            'email' => $legacyEmployee->email,
+            'position' => 'cashier',
+        ], $adminHeaders)->assertOk();
+        $this->assertDatabaseHas('employees', [
+            'id' => $legacyEmployee->id,
+            'fullName' => str_repeat('Legacy Name ', 6),
+            'email' => 'Legacy.Employee@test',
+            'position' => 'cashier',
+        ]);
+
+        $account = FranchiseAccount::create([
+            'name' => 'Input Limits Foods',
+            'slug' => 'input-limits-foods',
+            'status' => 'active',
+        ]);
+        $branch = Franchise::create([
+            'franchise_account_id' => $account->id,
+            'name' => 'Input Limits Branch',
+            'slug' => 'input-limits-branch',
+            'status' => 'active',
+        ]);
+        $manager = FranchiseUser::create([
+            'franchise_account_id' => $account->id,
+            'franchise_id' => $branch->id,
+            'full_name' => 'Input Limits Manager',
+            'email' => 'input-limits.manager@test',
+            'password' => Hash::make('Manager@123'),
+            'role' => 'manager',
+            'is_active' => true,
+        ]);
+        $managerToken = $this->postJson('/api/franchise/login', [
+            'email' => $manager->email,
+            'password' => 'Manager@123',
+        ])->assertOk()->json('token');
+        $managerHeaders = ['Authorization' => 'Bearer '.$managerToken];
+
+        $branchStaff = $this->postJson('/api/franchise/users', [
+            'name' => str_repeat('B', 60),
+            'email' => 'limited.branch.staff@test',
+            'password' => $passwordAtLimit,
+            'role' => 'cashier',
+        ], $managerHeaders)->assertCreated();
+        $branchStaffId = $branchStaff->json('data.id');
+
+        $this->postJson('/api/franchise/users', [
+            'name' => str_repeat('B', 61),
+            'email' => 'over-limit.branch.staff@test',
+            'password' => str_repeat('P', 65),
+            'role' => 'cashier',
+        ], $managerHeaders)->assertUnprocessable()
+            ->assertJsonValidationErrors(['name', 'password']);
+
+        $this->putJson('/api/franchise/users/employee/'.$branchStaffId.'/password', [
+            'password' => str_repeat('P', 65),
+        ], $managerHeaders)->assertUnprocessable()
+            ->assertJsonValidationErrors('password');
     }
 
     public function test_cavite_branch_is_configured_as_the_main_branch(): void

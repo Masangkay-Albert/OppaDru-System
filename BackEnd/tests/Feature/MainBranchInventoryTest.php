@@ -6,6 +6,7 @@ use App\Models\Admin;
 use App\Models\BranchIngredientStock;
 use App\Models\Franchise;
 use App\Models\FranchiseUser;
+use App\Models\InventorySupplier;
 use App\Models\IngredientRecipe;
 use App\Models\InventoryTransfer;
 use App\Models\MainBranchIngredient;
@@ -58,6 +59,123 @@ class MainBranchInventoryTest extends TestCase
         ]);
     }
 
+    public function test_new_ingredient_names_enforce_field_limits_and_allowed_characters(): void
+    {
+        $headers = $this->adminHeaders();
+        $ingredient = [
+            'category' => 'Dry goods',
+            'unit' => 'pcs',
+            'quantity' => 0,
+            'reorder_level' => 0,
+        ];
+
+        $this->postJson('/api/admin/inventory', [...$ingredient, 'name' => 'A'], $headers)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('name');
+        $this->postJson('/api/admin/inventory', [...$ingredient, 'name' => str_repeat('A', 51)], $headers)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('name');
+        $this->postJson('/api/admin/inventory', [...$ingredient, 'name' => 'Rice😀'], $headers)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('name');
+
+        $this->postJson('/api/admin/inventory', [...$ingredient, 'name' => str_repeat('A', 50)], $headers)
+            ->assertCreated()
+            ->assertJsonPath('data.name', str_repeat('A', 50));
+    }
+
+    public function test_unchanged_legacy_ingredient_name_and_notes_do_not_block_other_edits(): void
+    {
+        $headers = $this->adminHeaders();
+        $legacyName = str_repeat('Legacy ingredient ', 4);
+        $legacyNotes = str_repeat('Old note ', 40);
+        $ingredient = MainBranchIngredient::create([
+            'name' => $legacyName,
+            'category' => 'Dry goods',
+            'unit' => 'pcs',
+            'quantity' => 0,
+            'reorder_level' => 1,
+            'notes' => $legacyNotes,
+        ]);
+        $payload = [
+            'name' => $legacyName,
+            'category' => 'Dry goods',
+            'unit' => 'pcs',
+            'purchase_unit' => 'pcs',
+            'conversion_factor' => 1,
+            'reorder_level' => 2,
+            'unit_cost' => null,
+            'supplier_id' => null,
+            'notes' => $legacyNotes,
+        ];
+
+        $this->putJson("/api/admin/inventory/{$ingredient->id}", $payload, $headers)
+            ->assertOk();
+        $this->assertDatabaseHas('main_branch_ingredients', [
+            'id' => $ingredient->id,
+            'name' => $legacyName,
+            'notes' => $legacyNotes,
+            'reorder_level' => 2,
+        ]);
+
+        $this->putJson("/api/admin/inventory/{$ingredient->id}", [
+            ...$payload,
+            'name' => str_repeat('N', 51),
+        ], $headers)->assertUnprocessable()
+            ->assertJsonValidationErrors('name');
+    }
+
+    public function test_supplier_limits_normalize_new_phone_and_support_a_254_character_email(): void
+    {
+        $headers = $this->adminHeaders();
+        $email = str_repeat('a', 62).'@'.str_repeat('b', 62).'.'.str_repeat('c', 62).'.'.str_repeat('d', 61).'.com';
+        $this->assertSame(254, strlen($email));
+
+        $this->postJson('/api/admin/inventory/suppliers', [
+            'name' => 'Fresh Foods Co.',
+            'contact_person' => 'Élodie Dela Cruz',
+            'phone' => '+639171234567',
+            'email' => strtoupper($email),
+            'lead_time_days' => 14,
+            'notes' => str_repeat('N', 255),
+        ], $headers)->assertCreated()
+            ->assertJsonPath('data.phone', '09171234567')
+            ->assertJsonPath('data.email', strtolower($email));
+    }
+
+    public function test_unchanged_legacy_supplier_fields_do_not_block_other_updates(): void
+    {
+        $headers = $this->adminHeaders();
+        $legacySupplier = InventorySupplier::create([
+            'name' => str_repeat('Old supplier ', 7),
+            'contact_person' => str_repeat('Old contact ', 8),
+            'phone' => 'extension 123-456-7890',
+            'email' => str_repeat('a', 160).'@old.com',
+            'lead_time_days' => 4000,
+            'notes' => str_repeat('Old supplier notes ', 20),
+        ]);
+        $payload = [
+            'name' => $legacySupplier->name,
+            'contact_person' => $legacySupplier->contact_person,
+            'phone' => $legacySupplier->phone,
+            'email' => $legacySupplier->email,
+            'lead_time_days' => 14,
+            'notes' => $legacySupplier->notes,
+        ];
+
+        $this->putJson("/api/admin/inventory/suppliers/{$legacySupplier->id}", $payload, $headers)
+            ->assertOk();
+        $this->assertDatabaseHas('inventory_suppliers', [
+            'id' => $legacySupplier->id,
+            'name' => $legacySupplier->name,
+            'contact_person' => $legacySupplier->contact_person,
+            'phone' => $legacySupplier->phone,
+            'email' => $legacySupplier->email,
+            'lead_time_days' => 14,
+            'notes' => $legacySupplier->notes,
+        ]);
+    }
+
     public function test_stock_changes_are_audited_and_cannot_go_below_zero(): void
     {
         $headers = $this->adminHeaders();
@@ -83,6 +201,32 @@ class MainBranchInventoryTest extends TestCase
 
         $this->assertDatabaseHas('main_branch_ingredients', ['id' => $ingredient->id, 'quantity' => 2.5]);
         $this->assertDatabaseCount('stock_movements', 1);
+    }
+
+    public function test_stock_use_and_count_do_not_require_a_reason(): void
+    {
+        $headers = $this->adminHeaders();
+        $ingredient = MainBranchIngredient::create([
+            'name' => 'Optional note carrots',
+            'category' => 'Vegetables',
+            'unit' => 'pack',
+            'quantity' => 5,
+            'reorder_level' => 1,
+        ]);
+
+        $this->postJson("/api/admin/inventory/{$ingredient->id}/adjustments", [
+            'type' => 'stock_out',
+            'quantity' => 1,
+        ], $headers)->assertOk();
+
+        $this->postJson("/api/admin/inventory/{$ingredient->id}/count", [
+            'quantity' => 3,
+        ], $headers)->assertOk();
+
+        $this->assertDatabaseHas('main_branch_ingredients', [
+            'id' => $ingredient->id,
+            'quantity' => 3,
+        ]);
     }
 
     public function test_ingredient_names_are_unique_without_case_sensitivity(): void
@@ -142,6 +286,120 @@ class MainBranchInventoryTest extends TestCase
             'purchase_unit' => 'bag',
             'invoice_reference' => 'INV-100',
         ]);
+    }
+
+    public function test_total_price_is_stored_exactly_and_weighted_average_is_derived(): void
+    {
+        $headers = $this->adminHeaders();
+        $ingredient = MainBranchIngredient::create([
+            'name' => 'Exact cost flour',
+            'category' => 'Dry goods',
+            'unit' => 'pcs',
+            'purchase_unit' => 'tray',
+            'conversion_factor' => 30,
+            'quantity' => 10,
+            'unit_cost' => 10,
+            'reorder_level' => 1,
+        ]);
+
+        $this->postJson("/api/admin/inventory/{$ingredient->id}/receive", [
+            'quantity' => 2,
+            'total_price_paid' => '540.00',
+        ], $headers)->assertOk()->assertJsonPath('data.quantity', '70.000');
+
+        $ingredient->refresh();
+        $this->assertSame('9.14', $ingredient->unit_cost);
+        $this->assertSame('640.00', $ingredient->inventory_value);
+        $this->assertDatabaseHas('stock_movements', [
+            'ingredient_id' => $ingredient->id,
+            'quantity' => 60,
+            'purchase_quantity' => 2,
+            'purchase_unit' => 'tray',
+            'unit_cost' => 9,
+            'total_cost' => 540,
+        ]);
+
+        $this->postJson("/api/admin/inventory/{$ingredient->id}/receive", [
+            'quantity' => 1,
+            'total_price_paid' => '300.00',
+        ], $headers)->assertOk()->assertJsonPath('data.quantity', '100.000');
+        $ingredient->refresh();
+        $this->assertSame('9.40', $ingredient->unit_cost);
+        $this->assertSame('940.00', $ingredient->inventory_value);
+    }
+
+    public function test_csv_total_price_wins_over_legacy_unit_cost(): void
+    {
+        $headers = $this->adminHeaders();
+        $csv = UploadedFile::fake()->createWithContent(
+            'priced-ingredients.csv',
+            "name,category,unit,quantity,reorder_level,unit_cost,total_price_paid\nCSV price,Dry goods,pcs,3,1,99,100.00\n",
+        );
+
+        $this->postJson('/api/admin/inventory/import', ['file' => $csv], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.imported', 1);
+        $ingredient = MainBranchIngredient::where('name', 'CSV price')->firstOrFail();
+        $this->assertSame('33.33', $ingredient->unit_cost);
+        $this->assertSame('100.00', $ingredient->inventory_value);
+        $this->assertDatabaseHas('stock_movements', [
+            'ingredient_id' => $ingredient->id,
+            'total_cost' => '100.00',
+        ]);
+    }
+
+    public function test_three_piece_total_price_keeps_exact_stock_value_and_no_price_receipt_keeps_average(): void
+    {
+        $headers = $this->adminHeaders();
+        $this->postJson('/api/admin/inventory', [
+            'name' => 'Three exact pieces',
+            'category' => 'Packaging',
+            'unit' => 'pcs',
+            'quantity' => 3,
+            'reorder_level' => 1,
+            'total_price_paid' => '100.00',
+        ], $headers)->assertCreated()
+            ->assertJsonPath('data.unit_cost', '33.33')
+            ->assertJsonPath('data.inventory_value', '100.00');
+
+        $ingredient = MainBranchIngredient::where('name', 'Three exact pieces')->firstOrFail();
+        $this->assertDatabaseHas('stock_movements', [
+            'ingredient_id' => $ingredient->id,
+            'total_cost' => '100.00',
+            'unit_cost' => '33.3333',
+        ]);
+
+        $this->postJson("/api/admin/inventory/{$ingredient->id}/receive", [
+            'quantity' => 1,
+        ], $headers)->assertOk();
+        $ingredient->refresh();
+        $this->assertSame('33.33', $ingredient->unit_cost);
+        $this->assertSame('133.33', $ingredient->inventory_value);
+    }
+
+    public function test_total_price_requires_quantity_and_obeys_decimal_and_value_limits(): void
+    {
+        $headers = $this->adminHeaders();
+        $base = [
+            'name' => 'Price validation ingredient',
+            'category' => 'Packaging',
+            'unit' => 'pcs',
+            'quantity' => 0,
+            'reorder_level' => 1,
+        ];
+
+        $this->postJson('/api/admin/inventory', [...$base, 'total_price_paid' => '10.00'], $headers)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('quantity');
+        foreach (['-1', '1e2', '1.234', '10000000.00'] as $invalidPrice) {
+            $this->postJson('/api/admin/inventory', [...$base, 'quantity' => 1, 'total_price_paid' => $invalidPrice], $headers)
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('total_price_paid');
+        }
+
+        $this->postJson('/api/admin/inventory', [...$base, 'quantity' => 1, 'total_price_paid' => '9999999.99'], $headers)
+            ->assertCreated()
+            ->assertJsonPath('data.inventory_value', '9999999.99');
     }
 
     public function test_recipe_usage_is_deducted_once_and_reversed_on_cancel(): void
@@ -285,18 +543,30 @@ class MainBranchInventoryTest extends TestCase
             'reorder_level' => 1,
         ]);
         $inventory = app(InventoryService::class);
-        $inventory->move($ingredient->id, 'stock_in', 2, 'Lot A', null, ['expires_at' => now()->addDays(2)->toDateString()]);
-        $inventory->move($ingredient->id, 'stock_in', 3, 'Lot B', null, ['expires_at' => now()->addDays(5)->toDateString()]);
+        $inventory->move($ingredient->id, 'stock_in', 2, 'Lot A', null, [
+            'expires_at' => now()->addDays(2)->toDateString(),
+            'unit_cost' => '20.0000',
+            'total_cost' => '40.00',
+        ]);
+        $inventory->move($ingredient->id, 'stock_in', 3, 'Lot B', null, [
+            'expires_at' => now()->addDays(5)->toDateString(),
+            'unit_cost' => '20.0000',
+            'total_cost' => '60.00',
+        ]);
         $dispatch = $inventory->dispatchToBranch($ingredient->id, 4);
         $this->assertSame('1.000', $ingredient->fresh()->quantity);
+        $this->assertSame('80.00', $dispatch['movement']->fresh()->total_cost);
+        $this->assertSame('20.00', $ingredient->fresh()->inventory_value);
         $this->assertDatabaseMissing('branch_ingredient_stocks', ['branch_id' => $branch->id, 'ingredient_id' => $ingredient->id]);
         $inventory->receiveTransferItem(
             (string) $branch->id,
             $ingredient->id,
             4,
-            (float) $dispatch['movement']->unit_cost,
+            (string) $dispatch['movement']->unit_cost,
             $dispatch['batch_lots'],
+            totalCost: $dispatch['movement']->total_cost === null ? null : (string) $dispatch['movement']->total_cost,
         );
+        $this->assertSame('80.00', BranchIngredientStock::where('branch_id', $branch->id)->where('ingredient_id', $ingredient->id)->value('inventory_value'));
 
         $product = Product::create([
             'name' => 'Chicken portion',

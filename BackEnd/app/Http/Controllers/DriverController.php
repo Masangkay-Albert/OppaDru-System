@@ -25,12 +25,21 @@ class DriverController extends Controller
     // Create a new driver
     public function store(Request $request)
     {
+        if ($request->exists('email')) {
+            $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
+        }
         $validated = $request->validate([
-            'name'        => 'required|string|max:255',
-            'email'       => 'required|string|email|max:255|unique:drivers,email',
-            'password'    => 'required|string|min:6',
-            'phone'       => 'required|string|max:20',
-            'vehicleType' => 'required|string|max:100',
+            'name'        => [
+                'required',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
+            'email'       => 'required|string|email|max:'.config('input_limits.email').'|unique:drivers,email',
+            'password'    => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max')],
+            'phone'       => ['required', 'string', 'max:13', 'regex:'.config('input_limits.phone')],
+            'vehicleType' => 'required|string|max:30',
             'isActive'    => 'boolean',
         ]);
 
@@ -54,19 +63,58 @@ class DriverController extends Controller
     public function update(Request $request, $id)
     {
         $driver = Driver::findOrFail($id);
-
+        $unchanged = [];
+        foreach (['name', 'email', 'phone', 'vehicleType'] as $field) {
+            if (! $request->exists($field) || ! is_string($request->input($field))) {
+                continue;
+            }
+            $submitted = trim($request->input($field));
+            $stored = trim((string) $driver->{$field});
+            $unchanged[$field] = $field === 'email'
+                ? strcasecmp($submitted, $stored) === 0
+                : $submitted === $stored;
+        }
+        if ($request->exists('email')) {
+            $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
+        }
+        $nameRules = ['sometimes', 'required', 'string'];
+        if ($request->exists('name') && ! ($unchanged['name'] ?? false)) {
+            $nameRules = [
+                ...$nameRules,
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ];
+        }
+        $emailRules = ['sometimes', 'required', 'string', 'email', 'unique:drivers,email,'.$driver->id];
+        if ($request->exists('email') && ! ($unchanged['email'] ?? false)) {
+            $emailRules[] = 'max:'.config('input_limits.email');
+        }
+        $phoneRules = ['sometimes', 'required', 'string'];
+        if ($request->exists('phone') && ! ($unchanged['phone'] ?? false)) {
+            $phoneRules = [...$phoneRules, 'max:13', 'regex:'.config('input_limits.phone')];
+        }
+        $vehicleRules = ['sometimes', 'required', 'string'];
+        if ($request->exists('vehicleType') && ! ($unchanged['vehicleType'] ?? false)) {
+            $vehicleRules[] = 'max:30';
+        }
         $validated = $request->validate([
-            'name'        => 'sometimes|string|max:255',
-            'email'       => 'sometimes|string|email|max:255|unique:drivers,email,' . $driver->id,
-            'phone'       => 'sometimes|string|max:20',
-            'vehicleType' => 'sometimes|string|max:100',
+            'name'        => $nameRules,
+            'email'       => $emailRules,
+            'phone'       => $phoneRules,
+            'vehicleType' => $vehicleRules,
             'isActive'    => 'sometimes|boolean',
         ]);
 
-        if (isset($validated['email'])) {
+        if (isset($validated['email']) && ! ($unchanged['email'] ?? false)) {
             $validated['email'] = strtolower(trim($validated['email']));
             if ($this->emailUsedByOtherStaff($validated['email'])) {
                 return response()->json(['message' => 'This email address is already assigned to another staff account.'], 422);
+            }
+        }
+        foreach ($unchanged as $field => $isUnchanged) {
+            if ($isUnchanged) {
+                unset($validated[$field]);
             }
         }
 
@@ -91,7 +139,7 @@ class DriverController extends Controller
     public function resetPassword(Request $request, $id)
     {
         $request->validate([
-            'password' => 'required|string|min:6'
+            'password' => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max')],
         ]);
 
         $driver = Driver::findOrFail($id);

@@ -116,9 +116,15 @@ trait ProductAdminActions
         $payload['image'] = $this->normalizeProductImage($request->input('image'));
 
         $validator = Validator::make($payload, [
-            'name' => 'required|string|max:255',
-            'description' => 'required|string',
-            'price' => 'required|numeric|min:0.01',
+            'name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.product_name.min'),
+                'max:'.config('input_limits.product_name.max'),
+                'regex:'.config('input_limits.product_name.pattern'),
+            ],
+            'description' => 'required|string|max:'.config('input_limits.short_description'),
+            'price' => ['required', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0.01', 'max:'.config('input_limits.amount')],
             'category' => 'required|string',
             'image' => 'nullable|string',
             'is_available' => 'sometimes|boolean',
@@ -166,10 +172,39 @@ trait ProductAdminActions
             $payload['image'] = $this->normalizeProductImage($request->input('image'));
         }
 
+        $requestedName = $request->input('name');
+        $nameUnchanged = $request->exists('name')
+            && is_string($requestedName)
+            && trim($requestedName) === trim((string) $product->name);
+        $requestedDescription = $request->input('description');
+        $descriptionUnchanged = $request->exists('description')
+            && is_string($requestedDescription)
+            && trim($requestedDescription) === trim((string) $product->description);
+        $requestedPrice = (string) $request->input('price');
+        $priceUnchanged = $request->exists('price')
+            && preg_match('/^\d+(?:\.\d{1,2})?$/', $requestedPrice) === 1
+            && bccomp($requestedPrice, (string) $product->getRawOriginal('price'), 2) === 0;
+        $nameRules = ['sometimes', 'string'];
+        if ($request->exists('name') && ! $nameUnchanged) {
+            $nameRules = [
+                ...$nameRules,
+                'min:'.config('input_limits.product_name.min'),
+                'max:'.config('input_limits.product_name.max'),
+                'regex:'.config('input_limits.product_name.pattern'),
+            ];
+        }
+        $descriptionRules = ['sometimes', 'string'];
+        if ($request->exists('description') && ! $descriptionUnchanged) {
+            $descriptionRules[] = 'max:'.config('input_limits.short_description');
+        }
+        $priceRules = ['sometimes', 'numeric'];
+        if ($request->exists('price') && ! $priceUnchanged) {
+            $priceRules = [...$priceRules, 'regex:/^\d+(?:\.\d{1,2})?$/', 'min:0.01', 'max:'.config('input_limits.amount')];
+        }
         $validator = Validator::make($payload, [
-            'name' => 'sometimes|string|max:255',
-            'description' => 'sometimes|string',
-            'price' => 'sometimes|numeric|min:0.01',
+            'name' => $nameRules,
+            'description' => $descriptionRules,
+            'price' => $priceRules,
             'category' => 'sometimes|string',
             'image' => 'nullable|string',
             'is_available' => 'sometimes|boolean',
@@ -181,6 +216,15 @@ trait ProductAdminActions
         }
 
         $payload = $validator->validated();
+        if ($nameUnchanged) {
+            $payload['name'] = $product->getRawOriginal('name');
+        }
+        if ($descriptionUnchanged) {
+            $payload['description'] = $product->getRawOriginal('description');
+        }
+        if ($priceUnchanged) {
+            $payload['price'] = $product->getRawOriginal('price');
+        }
         $product->update($payload);
 
         return response()->json(['product' => $product, 'message' => 'Product updated successfully!']);

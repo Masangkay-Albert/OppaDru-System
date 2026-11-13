@@ -92,6 +92,7 @@ Route::prefix('franchise')->group(function () {
         Route::post('/inventory/ingredients', [BranchInventoryController::class, 'store'])->middleware('franchise.role:owner,manager');
         Route::put('/inventory/ingredients/{ingredient}', [BranchInventoryController::class, 'update'])->middleware('franchise.role:owner,manager');
         Route::patch('/inventory/ingredients/{ingredient}/archive', [BranchInventoryController::class, 'archive'])->middleware('franchise.role:owner,manager');
+        Route::post('/inventory/ingredients/{ingredient}/receive', [BranchInventoryController::class, 'receive'])->middleware('franchise.role:owner,manager');
         Route::post('/inventory/ingredients/{ingredient}/adjustments', [BranchInventoryController::class, 'adjust'])->middleware('franchise.role:owner,manager');
         Route::post('/inventory/restock-requests', [BranchInventoryController::class, 'requestRestock'])->middleware('franchise.role:owner,manager');
         Route::patch('/inventory/transfers/{transfer}/receive', [BranchInventoryController::class, 'receiveTransfer'])->middleware('franchise.role:owner,manager');

@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
@@ -25,10 +26,17 @@ class AdminController extends Controller
 
     public function store(Request $request)
     {
+        $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
         $validator = Validator::make($request->all(), [
-            'full_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:admin,email',
-            'password' => 'required|string|min:6|confirmed',
+            'full_name' => [
+                'required',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
+            'email' => ['required', 'string', 'email', 'max:'.config('input_limits.email'), 'unique:admin,email'],
+            'password' => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max'), 'confirmed'],
             'role' => ['sometimes', 'in:admin,system_administrator'],
         ]);
 
@@ -37,8 +45,8 @@ class AdminController extends Controller
         }
 
         $admin = Admin::create([
-            'full_name' => $request->full_name,
-            'email' => $request->email,
+            'full_name' => $request->input('full_name'),
+            'email' => $request->input('email'),
             'password' => Hash::make($request->password),
             'role' => $request->input('role', Admin::ROLE_ADMIN),
         ]);
@@ -54,15 +62,42 @@ class AdminController extends Controller
     public function update(Request $request, string $id)
     {
         $admin = Admin::findOrFail($id);
+        $requestedName = $request->input('full_name');
+        $nameUnchanged = is_string($requestedName)
+            && trim($requestedName) === trim((string) $admin->full_name);
+        $requestedEmail = $request->input('email');
+        $emailUnchanged = is_string($requestedEmail)
+            && strcasecmp(trim($requestedEmail), trim((string) $admin->email)) === 0;
+        $nameRules = ['required', 'string'];
+        if (! $nameUnchanged) {
+            $nameRules = [
+                ...$nameRules,
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ];
+        }
+        $emailRules = ['required', 'string', 'email', Rule::unique('admin', 'email')->ignore($admin->id)];
+        if (! $emailUnchanged) {
+            $emailRules[] = 'max:'.config('input_limits.email');
+        }
+        $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
         $validator = Validator::make($request->all(), [
-            'full_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:admin,email,'.$admin->id,
+            'full_name' => $nameRules,
+            'email' => $emailRules,
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $admin->update($validator->validated());
+        $validated = $validator->validated();
+        if ($nameUnchanged) {
+            $validated['full_name'] = $admin->getRawOriginal('full_name');
+        }
+        if ($emailUnchanged) {
+            $validated['email'] = $admin->getRawOriginal('email');
+        }
+        $admin->update($validated);
         return response()->json(['admin' => $admin->fresh()->makeHidden(['password', 'api_token'])]);
     }
 
@@ -99,7 +134,7 @@ class AdminController extends Controller
     {
         $admin = Admin::findOrFail($id);
         $validator = Validator::make($request->all(), [
-            'password' => 'required|string|min:8|confirmed',
+            'password' => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max'), 'confirmed'],
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);

@@ -5,7 +5,7 @@ import { getAllOrders, isRevenueOrder, type AdminOrder } from '../../../services
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import { getCurrentAdmin } from '../../../services/adminAuthService';
 import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
-import { formatCurrency } from '../../../utils/formatters';
+import { formatCurrency, formatPeso } from '../../../utils/formatters';
 import { formatInventoryQuantity } from '../../../utils/inventoryFormatters';
 import { generateSalesReportPdf } from '../../../utils/reportPdfGenerator';
 import { getInventoryReport } from '../../../services/mainBranchInventoryService';
@@ -530,7 +530,7 @@ const AdminReportsPage: React.FC = () => {
           : inventoryReportError ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{inventoryReportError}</p>
             : inventoryReport ? <>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <MetricCard icon={<FileText size={18} />} label="Current inventory value" value={formatCurrency(inventoryReport.inventory_value)} detail="Based on current quantity × unit cost" />
+                <MetricCard icon={<FileText size={18} />} label="Current inventory value" value={formatPeso(inventoryReport.inventory_value)} detail="Based on recorded stock value and legacy unit costs" />
                 <MetricCard icon={<BarChart3 size={18} />} label="Ingredients used" value={inventoryReport.ingredient_usage.length} detail="Ingredients with recorded order usage" />
                 <MetricCard icon={<Store size={18} />} label="Waste entries" value={inventoryReport.waste.length} detail="Ingredients with logged spoilage" />
               </div>
@@ -551,7 +551,7 @@ const AdminReportsPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="mb-2 text-sm font-semibold text-[var(--oppa-text)]">Food cost % per product</h3>
-                  <div className="overflow-x-auto"><table className="admin-table w-full min-w-[420px] text-left text-sm"><thead><tr><th className="px-3 py-2">Product</th><th className="px-3 py-2">Sales</th><th className="px-3 py-2">Cost / portion</th><th className="px-3 py-2">Food cost</th></tr></thead><tbody className="divide-y divide-[var(--oppa-border)]">{inventoryReport.food_cost_by_product.map((item) => <tr key={item.product_id}><td className="px-3 py-2">{item.product_name}</td><td className="px-3 py-2">{formatCurrency(item.sales)}</td><td className="px-3 py-2">{formatCurrency(item.ingredient_cost_per_portion)}</td><td className="px-3 py-2">{item.food_cost_percent === null ? '—' : `${item.food_cost_percent}%`}</td></tr>)}</tbody></table></div>
+                  <div className="overflow-x-auto"><table className="admin-table w-full min-w-[420px] text-left text-sm"><thead><tr><th className="px-3 py-2">Product</th><th className="px-3 py-2">Sales</th><th className="px-3 py-2">Cost / portion</th><th className="px-3 py-2">Food cost</th></tr></thead><tbody className="divide-y divide-[var(--oppa-border)]">{inventoryReport.food_cost_by_product.map((item) => <tr key={item.product_id}><td className="px-3 py-2">{item.product_name}</td><td className="px-3 py-2">{formatCurrency(item.sales)}</td><td className="px-3 py-2">{formatPeso(item.ingredient_cost_per_portion)}</td><td className="px-3 py-2">{item.food_cost_percent === null ? '—' : `${item.food_cost_percent}%`}</td></tr>)}</tbody></table></div>
                 </div>
               </div>
             </> : null}

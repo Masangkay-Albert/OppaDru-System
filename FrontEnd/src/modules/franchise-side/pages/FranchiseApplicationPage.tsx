@@ -879,7 +879,7 @@ const FranchiseApplicationPage: React.FC = () => {
               <FormSection title="Personal information" className="franchise-form-subsection">
                 <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
                   <FormField id="contact_name" label="Full legal name" required helper="Enter the name shown on your valid ID." error={fieldErrors.contact_name}>
-                    <input id="contact_name" required autoComplete="name" maxLength={255} value={form.contact_name}
+                    <input id="contact_name" required autoComplete="name" minLength={2} maxLength={60} value={form.contact_name}
                       onChange={(event) => updateField('contact_name', event.target.value)} onBlur={() => validateField('contact_name')}
                       placeholder="Your full legal name" className="franchise-control" aria-invalid={!!fieldErrors.contact_name}
                       aria-describedby={fieldDescription('contact_name', !!fieldErrors.contact_name)} />

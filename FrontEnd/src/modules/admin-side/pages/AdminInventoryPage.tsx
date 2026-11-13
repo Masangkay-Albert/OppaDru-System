@@ -52,7 +52,7 @@ const AdminInventoryPage: React.FC = () => {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<MainBranchIngredient | null>(null);
   const [adjusting, setAdjusting] = useState<MainBranchIngredient | null>(null);
-  const [adjustingType, setAdjustingType] = useState<'stock_out' | 'adjustment' | 'waste'>('stock_out');
+  const [adjustingType, setAdjustingType] = useState<'stock_out' | 'adjustment'>('stock_out');
   const [quickAction, setQuickAction] = useState<{ ingredient: MainBranchIngredient; type: 'stock_in' | 'stock_out' } | null>(null);
   const [receiving, setReceiving] = useState<MainBranchIngredient | null>(null);
   const [counting, setCounting] = useState<MainBranchIngredient | null>(null);
@@ -130,16 +130,17 @@ const AdminInventoryPage: React.FC = () => {
     quantity?: number;
     reorder_level: number;
     unit_cost: number | null;
+    total_price_paid?: string;
     supplier_id: number | null;
     notes: string;
-  }, addAnother: boolean) => {
+  }) => {
     setSaving(true);
     try {
       if (editing) await updateIngredient(editing.id, values);
       else await createIngredient(values);
-      if (!addAnother) setCreating(false);
+      setCreating(false);
       setEditing(null);
-      showToast(editing ? 'Ingredient details updated.' : addAnother ? 'Ingredient added. Add another ingredient.' : 'Ingredient added to main branch inventory.', 'success');
+      showToast(editing ? 'Ingredient details updated.' : 'Ingredient added to main branch inventory.', 'success');
       refresh();
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : 'Could not save ingredient.';
@@ -182,13 +183,13 @@ const AdminInventoryPage: React.FC = () => {
     }
   };
 
-  const saveReceiving = async (values: { quantity: number; unit_cost: number; supplier_id: number | null; occurred_at: string; invoice_reference: string; expires_at?: string }) => {
+  const saveReceiving = async (values: { quantity: number; total_price_paid?: string }) => {
     if (!receiving) return;
     setSaving(true);
     try {
       await receiveIngredientStock(receiving.id, values);
       setReceiving(null);
-      showToast('Stock received and weighted-average cost updated.', 'success');
+      showToast(values.total_price_paid ? 'Stock received and weighted-average cost updated.' : 'Stock received. The existing average price was kept.', 'success');
       refresh();
     } catch (receiveError) {
       showToast(receiveError instanceof Error ? receiveError.message : 'Could not receive stock.', 'error');
@@ -293,11 +294,9 @@ const AdminInventoryPage: React.FC = () => {
           onAddFirstIngredient={() => setCreating(true)}
           onRetry={refresh}
           onToggleDetails={(ingredient) => setExpandedDetails((current) => current === ingredient.id ? null : ingredient.id)}
-          onAddStock={(ingredient) => setQuickAction({ ingredient: ingredient as MainBranchIngredient, type: 'stock_in' })}
+          onAddStock={(ingredient) => setReceiving(ingredient as MainBranchIngredient)}
           onUseStock={(ingredient) => setQuickAction({ ingredient: ingredient as MainBranchIngredient, type: 'stock_out' })}
-          onReceiveStock={(ingredient) => setReceiving(ingredient as MainBranchIngredient)}
           onAdjustStock={(ingredient) => { setAdjustingType('adjustment'); setAdjusting(ingredient as MainBranchIngredient); }}
-          onLogWaste={(ingredient) => { setAdjustingType('waste'); setAdjusting(ingredient as MainBranchIngredient); }}
           onCountStock={(ingredient) => setCounting(ingredient as MainBranchIngredient)}
           onEditIngredient={(ingredient) => setEditing(ingredient as MainBranchIngredient)}
           onArchiveIngredient={(ingredient) => setArchiveTarget(ingredient as MainBranchIngredient)}
@@ -306,10 +305,10 @@ const AdminInventoryPage: React.FC = () => {
         <RecentActivity movements={recentMovements} />
       </div>
 
-      {(creating || editing) && <IngredientFormModal ingredient={editing || undefined} categories={categories} suppliers={suppliers} busy={saving} onClose={() => { setCreating(false); setEditing(null); }} onSave={saveIngredient} />}
+      {(creating || editing) && <IngredientFormModal key={editing?.id ?? 'new-ingredient'} ingredient={editing || undefined} categories={categories} suppliers={suppliers} busy={saving} onClose={() => { setCreating(false); setEditing(null); }} onSave={saveIngredient} />}
       {quickAction && <QuickStockActionModal ingredient={quickAction.ingredient} type={quickAction.type} busy={saving} onClose={() => setQuickAction(null)} onSave={saveQuickStock} />}
       {adjusting && <AdjustStockModal ingredient={adjusting} initialType={adjustingType} busy={saving} onClose={() => setAdjusting(null)} onSave={saveAdjustment} />}
-      {receiving && <ReceiveStockModal ingredient={receiving} suppliers={suppliers} busy={saving} onClose={() => setReceiving(null)} onSave={saveReceiving} />}
+      {receiving && <ReceiveStockModal ingredient={receiving} busy={saving} onClose={() => setReceiving(null)} onSave={saveReceiving} />}
       {counting && <CountStockModal ingredient={counting} busy={saving} onClose={() => setCounting(null)} onSave={saveCount} />}
       {managingSuppliers && <SupplierManager suppliers={suppliers} onClose={() => setManagingSuppliers(false)} onChanged={refresh} />}
       {managingRecipes && <RecipeManager onClose={() => setManagingRecipes(false)} onChanged={refresh} />}

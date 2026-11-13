@@ -86,22 +86,28 @@ class PromoController extends Controller
         $this->decodeJsonInputs($request);
 
         $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'code' => 'nullable|string|max:50|unique:promos,code',
+            'title' => 'required|string|min:'.config('input_limits.announcement_title.min').'|max:'.config('input_limits.announcement_title.max'),
+            'description' => 'nullable|string|max:'.config('input_limits.long_text'),
+            'code' => ['nullable', 'string', 'min:'.config('input_limits.promo_code.min'), 'max:'.config('input_limits.promo_code.max'), 'regex:'.config('input_limits.promo_code.pattern'), 'unique:promos,code'],
             'channel' => 'sometimes|in:all,online,onsite',
             'discount_type' => 'required|in:percent,fixed',
-            'discount_value' => 'required|numeric|min:0.01',
+            'discount_value' => [
+                'required',
+                'regex:/^\d+(?:\.\d{1,2})?$/',
+                'numeric',
+                'min:0.01',
+                'max:'.($request->input('discount_type') === 'percent' ? config('input_limits.percentage') : config('input_limits.amount')),
+            ],
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'is_active' => 'nullable|boolean',
             'image' => 'nullable|file|image|mimes:jpeg,jpg,png,webp|max:5120',
             'applicable_categories' => 'nullable|array',
             'applicable_products' => 'nullable|array',
-            'min_order_amount' => 'nullable|numeric|min:0',
-            'max_discount_amount' => 'nullable|numeric|min:0',
-            'usage_limit' => 'nullable|integer|min:1',
-            'per_customer_limit' => 'nullable|integer|min:1',
+            'min_order_amount' => ['nullable', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('input_limits.amount')],
+            'max_discount_amount' => ['nullable', 'regex:/^\d+(?:\.\d{1,2})?$/', 'numeric', 'min:0', 'max:'.config('input_limits.amount')],
+            'usage_limit' => 'nullable|integer|min:1|max:999999',
+            'per_customer_limit' => 'nullable|integer|min:1|max:999999',
         ]);
         $validator->after(fn (LaravelValidator $validator) => $this->validatePromoDateYears($validator, $request));
 
@@ -162,23 +168,88 @@ class PromoController extends Controller
 
         $this->decodeJsonInputs($request);
 
+        $requestedTitle = $request->input('title');
+        $titleUnchanged = $request->exists('title')
+            && is_string($requestedTitle)
+            && trim($requestedTitle) === trim((string) $promo->title);
+        $requestedDescription = $request->input('description');
+        $descriptionUnchanged = $request->exists('description')
+            && is_string($requestedDescription)
+            && trim($requestedDescription) === trim((string) $promo->description);
+        $requestedCode = $request->input('code');
+        $codeUnchanged = $request->exists('code')
+            && is_string($requestedCode)
+            && trim($requestedCode) === trim((string) $promo->code);
+        $numericUnchanged = function (string $field) use ($request, $promo): bool {
+            if (! $request->exists($field) || $promo->getRawOriginal($field) === null) {
+                return false;
+            }
+            $value = (string) $request->input($field);
+            return preg_match('/^\d+(?:\.\d{1,2})?$/', $value) === 1
+                && bccomp($value, (string) $promo->getRawOriginal($field), 2) === 0;
+        };
+        $discountTypeUnchanged = ! $request->exists('discount_type')
+            || $request->input('discount_type') === $promo->discount_type;
+        $discountValueUnchanged = $discountTypeUnchanged && $numericUnchanged('discount_value');
+        $minOrderUnchanged = $numericUnchanged('min_order_amount');
+        $maxDiscountUnchanged = $numericUnchanged('max_discount_amount');
+        $usageLimitUnchanged = $request->exists('usage_limit')
+            && (string) $request->input('usage_limit') === (string) $promo->usage_limit;
+        $perCustomerLimitUnchanged = $request->exists('per_customer_limit')
+            && (string) $request->input('per_customer_limit') === (string) $promo->per_customer_limit;
+        $titleRules = ['sometimes', 'required', 'string'];
+        if ($request->exists('title') && ! $titleUnchanged) {
+            $titleRules = [...$titleRules, 'min:'.config('input_limits.announcement_title.min'), 'max:'.config('input_limits.announcement_title.max')];
+        }
+        $descriptionRules = ['nullable', 'string'];
+        if ($request->exists('description') && ! $descriptionUnchanged) {
+            $descriptionRules[] = 'max:'.config('input_limits.long_text');
+        }
+        $codeRules = ['nullable', 'string', 'unique:promos,code,'.$promo->id.',id'];
+        if ($request->exists('code') && ! $codeUnchanged) {
+            $codeRules = [
+                ...$codeRules,
+                'min:'.config('input_limits.promo_code.min'),
+                'max:'.config('input_limits.promo_code.max'),
+                'regex:'.config('input_limits.promo_code.pattern'),
+            ];
+        }
+        $discountValueRules = ['sometimes', 'required', 'numeric'];
+        if ($request->exists('discount_value') && ! $discountValueUnchanged) {
+            $discountValueRules = [
+                ...$discountValueRules,
+                'regex:/^\d+(?:\.\d{1,2})?$/',
+                'min:0.01',
+                'max:'.($request->input('discount_type', $promo->discount_type) === 'percent' ? config('input_limits.percentage') : config('input_limits.amount')),
+            ];
+        }
+        $amountRules = function (bool $unchanged, string $minimum): array {
+            $rules = ['nullable', 'numeric'];
+            if (! $unchanged) {
+                $rules = [...$rules, 'regex:/^\d+(?:\.\d{1,2})?$/', 'min:'.$minimum, 'max:'.config('input_limits.amount')];
+            }
+            return $rules;
+        };
+        $usageRules = function (bool $unchanged): array {
+            return $unchanged ? ['nullable', 'integer'] : ['nullable', 'integer', 'min:1', 'max:999999'];
+        };
         $validator = Validator::make($request->all(), [
-            'title' => 'sometimes|required|string|max:255',
-            'description' => 'nullable|string',
-            'code' => 'nullable|string|max:50|unique:promos,code,' . $promo->id . ',id',
+            'title' => $titleRules,
+            'description' => $descriptionRules,
+            'code' => $codeRules,
             'channel' => 'sometimes|required|in:all,online,onsite',
             'discount_type' => 'sometimes|required|in:percent,fixed',
-            'discount_value' => 'sometimes|required|numeric|min:0.01',
+            'discount_value' => $discountValueRules,
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date',
             'is_active' => 'nullable|boolean',
             'image' => 'nullable|file|image|mimes:jpeg,jpg,png,webp|max:5120',
             'applicable_categories' => 'nullable|array',
             'applicable_products' => 'nullable|array',
-            'min_order_amount' => 'nullable|numeric|min:0',
-            'max_discount_amount' => 'nullable|numeric|min:0',
-            'usage_limit' => 'nullable|integer|min:1',
-            'per_customer_limit' => 'nullable|integer|min:1',
+            'min_order_amount' => $amountRules($minOrderUnchanged, '0'),
+            'max_discount_amount' => $amountRules($maxDiscountUnchanged, '0'),
+            'usage_limit' => $usageRules($usageLimitUnchanged),
+            'per_customer_limit' => $usageRules($perCustomerLimitUnchanged),
         ]);
         $validator->after(fn (LaravelValidator $validator) => $this->validatePromoDateYears($validator, $request));
 
@@ -187,6 +258,20 @@ class PromoController extends Controller
         }
 
         $data = $validator->validated();
+        foreach ([
+            'title' => $titleUnchanged,
+            'description' => $descriptionUnchanged,
+            'code' => $codeUnchanged,
+            'discount_value' => $discountValueUnchanged,
+            'min_order_amount' => $minOrderUnchanged,
+            'max_discount_amount' => $maxDiscountUnchanged,
+            'usage_limit' => $usageLimitUnchanged,
+            'per_customer_limit' => $perCustomerLimitUnchanged,
+        ] as $field => $unchanged) {
+            if ($unchanged) {
+                $data[$field] = $promo->getRawOriginal($field);
+            }
+        }
 
         if ($request->has('is_active')) {
             $data['is_active'] = $request->boolean('is_active');

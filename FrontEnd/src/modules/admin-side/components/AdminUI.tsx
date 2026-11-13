@@ -60,10 +60,11 @@ export const ConfirmDialog: React.FC<{
   description: string;
   confirmLabel?: string;
   busyLabel?: string;
+  errorMessage?: string;
   onConfirm: () => void;
   onCancel: () => void;
   busy?: boolean;
-}> = ({ title, description, confirmLabel = 'Delete', busyLabel = 'Removing…', onConfirm, onCancel, busy = false }) => {
+}> = ({ title, description, confirmLabel = 'Delete', busyLabel = 'Removing…', errorMessage, onConfirm, onCancel, busy = false }) => {
   const dialogRef = useRef<HTMLElement | null>(null);
   const cancelStateRef = useRef({ onCancel, busy });
 
@@ -114,6 +115,7 @@ export const ConfirmDialog: React.FC<{
         <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-red-50 text-red-600"><AlertCircle size={22} aria-hidden="true" /></div>
         <h2 id="confirm-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">{title}</h2>
         <p id="confirm-description" className="mt-2 text-sm text-[var(--oppa-text-muted)]">{description}</p>
+        {errorMessage && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</p>}
         <div className="mt-6 flex justify-end gap-2">
           <button type="button" onClick={onCancel} disabled={busy} className="rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]">Cancel</button>
           <button type="button" onClick={onConfirm} disabled={busy} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">{busy ? busyLabel : confirmLabel}</button>

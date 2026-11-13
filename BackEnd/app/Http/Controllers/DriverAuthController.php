@@ -12,8 +12,9 @@ class DriverAuthController extends Controller
 {
     public function login(Request $request)
     {
+        $request->merge(['email' => strtolower(trim((string) $request->input('email')))]);
         $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email',
+            'email' => ['required', 'string', 'email', 'max:'.config('input_limits.email')],
             'password' => 'required|string',
         ]);
 
@@ -22,7 +23,7 @@ class DriverAuthController extends Controller
         }
 
         $driver = Driver::with('franchise')
-            ->where('email', strtolower(trim((string) $request->email)))
+            ->whereRaw('LOWER(email) = ?', [$request->email])
             ->first();
 
         if (!$driver || !Hash::check($request->password, $driver->password)) {

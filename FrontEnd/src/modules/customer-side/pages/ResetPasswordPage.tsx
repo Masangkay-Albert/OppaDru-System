@@ -5,6 +5,8 @@ import LoginBrandPanel from "../../../components/LoginBrandPanel";
 import { useToast } from "../components/ToastProvider";
 import { authService } from "../../../services/authService";
 import { validatePasswordComplexity } from "../../../utils/passwordValidation";
+import { INPUT_LIMITS } from "../../../constants/inputLimits";
+import { LimitedInput } from "../../../components/ui/LimitedInput";
 
 const ResetPasswordPage: React.FC = () => {
   const location = useLocation();
@@ -130,11 +132,13 @@ const ResetPasswordPage: React.FC = () => {
               </label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input
+                <LimitedInput
                   id="new-password"
                   type={showPassword ? "text" : "password"}
                   autoComplete="new-password"
                   autoFocus
+                  minLength={INPUT_LIMITS.password.min}
+                  maxLength={INPUT_LIMITS.password.max}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-12 text-sm transition-colors placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20"
@@ -157,10 +161,11 @@ const ResetPasswordPage: React.FC = () => {
               </label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input
+                <LimitedInput
                   id="confirm-new-password"
                   type={showConfirmPassword ? "text" : "password"}
                   autoComplete="new-password"
+                  maxLength={INPUT_LIMITS.password.max}
                   value={passwordConfirmation}
                   onChange={(event) => setPasswordConfirmation(event.target.value)}
                   className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-12 text-sm transition-colors placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20"

@@ -4,6 +4,7 @@ import { getBranchIngredientHistory, getBranchIngredientInventory } from '../../
 import type { BranchIngredientInventory, BranchIngredientMovement } from '../../../services/franchiseIngredientInventoryService';
 import { PageHeader } from '../../admin-side/components/AdminUI';
 import { formatInventoryQuantity } from '../../../utils/inventoryFormatters';
+import { formatPeso, formatUnitPrice } from '../../../utils/formatters';
 
 const movementLabels: Record<BranchIngredientMovement['type'], string> = {
   stock_in: 'Added',
@@ -34,8 +35,6 @@ const FranchiseIngredientInventoryHistoryPage: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError('');
     void getBranchIngredientHistory({
       page,
       ingredient_id: ingredientId ? Number(ingredientId) : undefined,
@@ -53,6 +52,8 @@ const FranchiseIngredientInventoryHistoryPage: React.FC = () => {
   }, [page, ingredientId, type]);
 
   const selectIngredient = (value: string) => {
+    setLoading(true);
+    setError('');
     setIngredientId(value);
     setPage(1);
     setSearchParams(value ? { ingredient_id: value } : {});
@@ -70,7 +71,7 @@ const FranchiseIngredientInventoryHistoryPage: React.FC = () => {
             </select>
           </label>
           <label className="text-sm font-medium text-[var(--oppa-text)]">Change
-            <select value={type} onChange={(event) => { setType(event.target.value); setPage(1); }} className="mt-1 h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm">
+            <select value={type} onChange={(event) => { setLoading(true); setError(''); setType(event.target.value); setPage(1); }} className="mt-1 h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm">
               <option value="">All changes</option>
               {Object.entries(movementLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
@@ -83,7 +84,19 @@ const FranchiseIngredientInventoryHistoryPage: React.FC = () => {
               const quantity = Number(movement.quantity_change);
               const date = movement.occurred_at || movement.created_at;
               return <li key={movement.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <p className="text-sm text-[var(--oppa-text)]"><strong>{movementLabels[movement.type]} {movement.ingredient_name}</strong><span className={`ml-2 font-semibold tabular-nums ${quantity < 0 ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>{quantity > 0 ? '+' : ''}{formatInventoryQuantity(quantity, movement.unit)}</span></p>
+                <p className="text-sm text-[var(--oppa-text)]"><strong>{movementLabels[movement.type]} {movement.ingredient_name}</strong><span className={`ml-2 font-semibold tabular-nums ${quantity < 0 ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>{movement.purchase_quantity !== null && movement.purchase_quantity !== undefined ? formatInventoryQuantity(movement.purchase_quantity, movement.purchase_unit || movement.unit) : `${quantity > 0 ? '+' : ''}${formatInventoryQuantity(quantity, movement.unit)}`}</span></p>
+                {['stock_in', 'opening_stock'].includes(movement.type) && quantity > 0 && <p className="text-sm font-semibold text-[var(--oppa-text)]">
+                  {/transfer/i.test(movement.reason || '') ? 'Transfer value' : 'Total price paid'}{' '}
+                  {movement.total_cost !== null && movement.total_cost !== undefined
+                    ? formatPeso(movement.total_cost)
+                    : movement.unit_cost !== null && movement.unit_cost !== undefined
+                      ? formatPeso(Number(movement.quantity) * Number(movement.unit_cost))
+                      : 'Price not recorded'} total paid
+                  <span className="ml-2 text-xs font-normal text-[var(--oppa-text-muted)]">
+                    {movement.unit_cost === null || movement.unit_cost === undefined ? 'Unit price not recorded' : `${formatUnitPrice(movement.unit_cost)} each`}
+                    {' · '}{/transfer/i.test(movement.reason || '') ? 'Stock transfer' : movement.supplier?.name || 'No supplier'} · Invoice {movement.invoice_reference || '—'}
+                  </span>
+                </p>}
                 <p className="flex flex-wrap gap-x-3 text-xs text-[var(--oppa-text-muted)]"><span>{movement.performed_by}</span><time dateTime={date}>{new Date(date).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}</time></p>
               </li>;
             })}

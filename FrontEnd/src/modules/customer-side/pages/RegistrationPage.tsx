@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
 import { UserPlus, Eye, EyeOff, Phone, Mail, Lock, User } from "lucide-react";
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
+import { INPUT_LIMITS, normalizePhilippinePhone } from "../../../constants/inputLimits";
+import { LimitedInput } from "../../../components/ui/LimitedInput";
 
 const RegistrationPage: React.FC = () => {
   const navigate = useNavigate();
@@ -58,7 +60,7 @@ const RegistrationPage: React.FC = () => {
   };
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    const value = e.target.value.toLowerCase();
     setEmail(value);
   };
 
@@ -145,7 +147,7 @@ const RegistrationPage: React.FC = () => {
       const success = await register({
         full_name: fullName,
         email,
-        phone,
+        phone: phone ? normalizePhilippinePhone(phone) : '',
         password,
         password_confirmation: passwordConfirmation,
       });
@@ -205,9 +207,12 @@ const RegistrationPage: React.FC = () => {
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4" />
-                <input
+                <LimitedInput
                   type="text"
                   required
+                  minLength={INPUT_LIMITS.personName.min}
+                  maxLength={INPUT_LIMITS.personName.max}
+                  inputFilter="personName"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)] focus:border-transparent"
@@ -222,9 +227,10 @@ const RegistrationPage: React.FC = () => {
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4" />
-                <input
+                <LimitedInput
                   type="email"
                   required
+                  maxLength={INPUT_LIMITS.email.max}
                   value={email}
                   onChange={handleEmailChange}
                   onBlur={handleEmailBlur}
@@ -247,8 +253,11 @@ const RegistrationPage: React.FC = () => {
               </label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4" />
-                <input
+                <LimitedInput
                   type="tel"
+                  inputMode="tel"
+                  maxLength={13}
+                  inputFilter="phone"
                   value={phone}
                   onChange={handlePhoneChange}
                   onBlur={handlePhoneBlur}
@@ -271,9 +280,11 @@ const RegistrationPage: React.FC = () => {
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4" />
-                <input
+                <LimitedInput
                   type={showPassword ? "text" : "password"}
                   required
+                  minLength={INPUT_LIMITS.password.min}
+                  maxLength={INPUT_LIMITS.password.max}
                   value={password}
                   onChange={handlePasswordChange}
                   className="w-full pl-10 pr-12 py-2.5 rounded-xl border border-[var(--oppa-border)] text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green-bright)] focus:border-transparent"
@@ -314,9 +325,10 @@ const RegistrationPage: React.FC = () => {
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 size-4" />
-                <input
+                <LimitedInput
                   type={showConfirmPassword ? "text" : "password"}
                   required
+                  maxLength={INPUT_LIMITS.password.max}
                   value={passwordConfirmation}
                   onChange={handleConfirmPasswordChange}
                   onPaste={(e) => e.preventDefault()}

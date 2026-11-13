@@ -110,11 +110,28 @@ trait FranchiseApplicationActivationActions
         }
 
         $hasRegisteredApplicant = (bool) $application->franchiseApplicant;
+        if ($request->exists('manager_email') && is_string($request->input('manager_email'))) {
+            $request->merge(['manager_email' => strtolower(trim($request->input('manager_email')))]);
+        }
+        $managerPhone = $request->input('manager_phone');
+        if (is_string($managerPhone) && preg_match('/^\+639\d{9}$/', $managerPhone) === 1) {
+            $request->merge(['manager_phone' => '0'.substr($managerPhone, 3)]);
+        }
         $validator = Validator::make($request->all(), [
-            'manager_full_name' => $hasRegisteredApplicant ? 'nullable|string|max:255' : 'required|string|max:255',
-            'manager_email' => $hasRegisteredApplicant ? 'nullable|email|max:255' : 'required|string|email|max:255|unique:franchise_users,email',
-            'manager_phone' => 'nullable|string|max:50',
-            'manager_password' => $hasRegisteredApplicant ? 'nullable|string|min:12|max:255' : 'required|string|min:12|max:255',
+            'manager_full_name' => $hasRegisteredApplicant ? 'nullable|string|max:'.config('input_limits.person_name.max') : [
+                'required',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
+            'manager_email' => $hasRegisteredApplicant
+                ? ['nullable', 'email', 'max:'.config('input_limits.email')]
+                : ['required', 'string', 'email', 'max:'.config('input_limits.email'), 'unique:franchise_users,email'],
+            'manager_phone' => ['nullable', 'string', 'max:13', 'regex:'.config('input_limits.phone')],
+            'manager_password' => $hasRegisteredApplicant
+                ? ['nullable', 'string', 'min:12', 'max:'.config('input_limits.password.max')]
+                : ['required', 'string', 'min:12', 'max:'.config('input_limits.password.max')],
             'can_process_pos' => 'required|boolean',
         ]);
         if ($validator->fails()) {

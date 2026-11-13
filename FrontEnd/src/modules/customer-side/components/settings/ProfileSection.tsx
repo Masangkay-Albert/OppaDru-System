@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FiUser, FiMail, FiPhone, FiSave } from 'react-icons/fi';
 import { useAuth } from '../../../../contexts/Authcontext';
+import { LimitedInput } from '../../../../components/ui/LimitedInput';
+import { INPUT_LIMITS, normalizePhilippinePhone } from '../../../../constants/inputLimits';
 
 const ProfileSection: React.FC = () => {
   const { user, updateProfile } = useAuth();
@@ -24,13 +26,26 @@ const ProfileSection: React.FC = () => {
   }, [user]);
 
   const handleSave = async () => {
+    const fullName = formData.fullName.trim();
+    const nameUnchanged = fullName === (user?.full_name || '').trim();
+    const phoneUnchanged = formData.phone === (user?.phone || '');
+    const phone = phoneUnchanged ? formData.phone : normalizePhilippinePhone(formData.phone);
+    if (!nameUnchanged && (fullName.length < INPUT_LIMITS.personName.min || fullName.length > INPUT_LIMITS.personName.max)) {
+      setMessage({ type: 'error', text: `Full name must be ${INPUT_LIMITS.personName.min}-${INPUT_LIMITS.personName.max} characters.` });
+      return;
+    }
+    if (!phoneUnchanged && phone && !/^09\d{9}$/.test(phone)) {
+      setMessage({ type: 'error', text: 'Enter a valid Philippine mobile number.' });
+      return;
+    }
+
     setIsSaving(true);
     setMessage(null);
 
     try {
       await updateProfile({
-        full_name: formData.fullName,
-        phone: formData.phone,
+        full_name: fullName,
+        phone,
       });
 
       setMessage({ type: 'success', text: 'Profile updated successfully!' });
@@ -58,8 +73,12 @@ const ProfileSection: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
           <div className="relative">
             <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
+            <LimitedInput
               type="text"
+              minLength={INPUT_LIMITS.personName.min}
+              maxLength={INPUT_LIMITS.personName.max}
+              inputFilter="personName"
+              showCounter
               value={formData.fullName}
               onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
               disabled={!isEditing}
@@ -86,8 +105,10 @@ const ProfileSection: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
           <div className="relative">
             <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
+            <LimitedInput
               type="tel"
+              maxLength={13}
+              inputFilter="phone"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               disabled={!isEditing}

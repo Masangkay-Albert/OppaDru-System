@@ -19,6 +19,7 @@ class MainBranchIngredient extends Model
         'quantity',
         'reorder_level',
         'unit_cost',
+        'inventory_value',
         'supplier',
         'supplier_id',
         'notes',
@@ -29,6 +30,7 @@ class MainBranchIngredient extends Model
         'quantity' => 'decimal:3',
         'reorder_level' => 'decimal:3',
         'unit_cost' => 'decimal:2',
+        'inventory_value' => 'decimal:2',
         'conversion_factor' => 'decimal:6',
         'is_archived' => 'boolean',
     ];

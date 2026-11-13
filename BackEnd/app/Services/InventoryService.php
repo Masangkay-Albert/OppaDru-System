@@ -70,10 +70,6 @@ class InventoryService
         if ($targetQuantity < 0) {
             throw new InvalidArgumentException('Stock cannot be negative.');
         }
-        if (in_array($type, ['adjustment', 'count_adjustment'], true) && trim((string) $reason) === '') {
-            throw new InvalidArgumentException('A reason is required for stock adjustments.');
-        }
-
         return DB::transaction(function () use ($ingredientId, $targetQuantity, $type, $reason, $actor, $metadata) {
             $ingredient = MainBranchIngredient::query()->lockForUpdate()->findOrFail($ingredientId);
             $target = round($targetQuantity, 3);
@@ -90,16 +86,16 @@ class InventoryService
     public function receive(
         int $ingredientId,
         float $purchaseQuantity,
-        float $purchaseUnitCost,
+        ?float $purchaseUnitCost,
         ?string $reason,
         ?object $actor = null,
         array $metadata = [],
+        ?string $totalPricePaid = null,
     ): MainBranchStockMovement {
-        if ($purchaseQuantity <= 0 || $purchaseUnitCost < 0) {
-            throw new InvalidArgumentException('Received quantity must be positive and unit cost cannot be negative.');
+        if ($purchaseQuantity <= 0 || ($purchaseUnitCost !== null && $purchaseUnitCost < 0)) {
+            throw new InvalidArgumentException('Received quantity must be positive and price cannot be negative.');
         }
-
-        return DB::transaction(function () use ($ingredientId, $purchaseQuantity, $purchaseUnitCost, $reason, $actor, $metadata) {
+        return DB::transaction(function () use ($ingredientId, $purchaseQuantity, $purchaseUnitCost, $reason, $actor, $metadata, $totalPricePaid) {
             $ingredient = MainBranchIngredient::query()->lockForUpdate()->findOrFail($ingredientId);
             if ($ingredient->is_archived) {
                 throw new InvalidArgumentException('Archived ingredients cannot be received.');
@@ -113,17 +109,19 @@ class InventoryService
             if ($usageQuantity <= 0) {
                 throw new InvalidArgumentException('The received quantity is too small for this ingredient unit.');
             }
-            $usageUnitCost = round($purchaseUnitCost / $factor, 4);
-            $oldQuantity = (float) $ingredient->quantity;
-            $oldCost = (float) ($ingredient->unit_cost ?? 0);
-            $newQuantity = round($oldQuantity + $usageQuantity, 3);
-            $ingredient->unit_cost = $newQuantity > 0
-                ? round((($oldQuantity * $oldCost) + ($usageQuantity * $usageUnitCost)) / $newQuantity, 2)
-                : round($usageUnitCost, 2);
+            $purchaseTotalCost = $totalPricePaid !== null
+                ? InventoryCosting::normalizeMoney($totalPricePaid)
+                : ($purchaseUnitCost === null
+                    ? null
+                    : InventoryCosting::roundMoney(bcmul((string) $purchaseQuantity, (string) $purchaseUnitCost, 8)));
+            $usageUnitCost = $purchaseTotalCost === null
+                ? null
+                : InventoryCosting::unitCost($purchaseTotalCost, (string) $usageQuantity, 4);
 
             $movement = $this->applyDelta($ingredient, $usageQuantity, 'stock_in', $reason, $actor, [
                 ...$metadata,
                 'unit_cost' => $usageUnitCost,
+                'total_cost' => $purchaseTotalCost,
                 'purchase_quantity' => round($purchaseQuantity, 3),
                 'purchase_unit' => $ingredient->purchase_unit ?: $ingredient->unit,
             ]);
@@ -131,6 +129,102 @@ class InventoryService
             $ingredient->save();
 
             return $movement;
+        }, 3);
+    }
+
+    public function receiveBranch(
+        string $branchId,
+        int $ingredientId,
+        float $purchaseQuantity,
+        ?float $purchaseUnitCost,
+        ?string $totalPricePaid,
+        ?string $reason,
+        ?object $actor = null,
+        array $metadata = [],
+    ): MainBranchStockMovement {
+        if ($purchaseQuantity <= 0 || ($purchaseUnitCost !== null && $purchaseUnitCost < 0)) {
+            throw new InvalidArgumentException('Received quantity must be positive and price cannot be negative.');
+        }
+        return DB::transaction(function () use ($branchId, $ingredientId, $purchaseQuantity, $purchaseUnitCost, $totalPricePaid, $reason, $actor, $metadata) {
+            $ingredient = MainBranchIngredient::query()->findOrFail($ingredientId);
+            $stock = BranchIngredientStock::query()
+                ->where('branch_id', $branchId)
+                ->where('ingredient_id', $ingredientId)
+                ->lockForUpdate()
+                ->firstOrFail();
+            if ($ingredient->is_archived || $stock->is_archived) {
+                throw new InvalidArgumentException('Archived branch ingredients cannot be received.');
+            }
+
+            $factor = (float) $ingredient->conversion_factor;
+            if ($factor <= 0) {
+                throw new InvalidArgumentException('The purchase-to-usage conversion factor must be greater than zero.');
+            }
+            $usageQuantity = round($purchaseQuantity * $factor, 3);
+            if ($usageQuantity <= 0) {
+                throw new InvalidArgumentException('The received quantity is too small for this ingredient unit.');
+            }
+            $purchaseTotalCost = $totalPricePaid !== null
+                ? InventoryCosting::normalizeMoney($totalPricePaid)
+                : ($purchaseUnitCost === null
+                    ? null
+                    : InventoryCosting::roundMoney(bcmul((string) $purchaseQuantity, (string) $purchaseUnitCost, 8)));
+            $usageUnitCost = $purchaseTotalCost === null
+                ? null
+                : InventoryCosting::unitCost($purchaseTotalCost, (string) $usageQuantity, 4);
+
+            return $this->applyBranchDelta($ingredient, $stock, $usageQuantity, 'stock_in', $reason, $actor, [
+                ...$metadata,
+                'unit_cost' => $usageUnitCost,
+                'total_cost' => $purchaseTotalCost,
+                'purchase_quantity' => round($purchaseQuantity, 3),
+                'purchase_unit' => $ingredient->purchase_unit ?: $ingredient->unit,
+            ]);
+        }, 3);
+    }
+
+    public function setMainStockPrice(int $ingredientId, string $totalPricePaid): MainBranchIngredient
+    {
+        return DB::transaction(function () use ($ingredientId, $totalPricePaid) {
+            $ingredient = MainBranchIngredient::query()->lockForUpdate()->findOrFail($ingredientId);
+            $quantity = (string) $ingredient->quantity;
+            if (bccomp($quantity, '0', 3) <= 0) {
+                throw new InvalidArgumentException('Add stock with a price instead.');
+            }
+
+            $total = InventoryCosting::normalizeMoney($totalPricePaid);
+            $ingredient->inventory_value = $total;
+            $ingredient->unit_cost = InventoryCosting::roundMoney(
+                InventoryCosting::unitCost($total, $quantity, 8)
+            );
+            $ingredient->save();
+
+            return $ingredient->fresh();
+        }, 3);
+    }
+
+    public function setBranchStockPrice(string $branchId, int $ingredientId, string $totalPricePaid): BranchIngredientStock
+    {
+        return DB::transaction(function () use ($branchId, $ingredientId, $totalPricePaid) {
+            $stock = BranchIngredientStock::query()
+                ->where('branch_id', $branchId)
+                ->where('ingredient_id', $ingredientId)
+                ->where('is_archived', false)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $quantity = (string) $stock->quantity;
+            if (bccomp($quantity, '0', 3) <= 0) {
+                throw new InvalidArgumentException('Add stock with a price instead.');
+            }
+
+            $total = InventoryCosting::normalizeMoney($totalPricePaid);
+            $stock->inventory_value = $total;
+            $stock->unit_cost = InventoryCosting::roundMoney(
+                InventoryCosting::unitCost($total, $quantity, 8)
+            );
+            $stock->save();
+
+            return $stock->fresh();
         }, 3);
     }
 
@@ -168,7 +262,6 @@ class InventoryService
                 'ingredient_id' => $ingredientId,
                 'quantity' => 0,
                 'reorder_level' => $ingredient->reorder_level,
-                'unit_cost' => $ingredient->unit_cost,
             ]);
 
             $delta = in_array($type, ['stock_out', 'waste', 'order_usage'], true)
@@ -184,12 +277,12 @@ class InventoryService
         int $ingredientId,
         float $targetQuantity,
         string $type,
-        string $reason,
+        ?string $reason,
         ?object $actor = null,
         array $metadata = [],
     ): ?MainBranchStockMovement {
-        if (! in_array($type, ['adjustment', 'count_adjustment'], true) || $targetQuantity < 0 || trim($reason) === '') {
-            throw new InvalidArgumentException('A valid non-negative quantity and reason are required.');
+        if (! in_array($type, ['adjustment', 'count_adjustment'], true) || $targetQuantity < 0) {
+            throw new InvalidArgumentException('A valid non-negative quantity is required.');
         }
 
         return DB::transaction(function () use ($branchId, $ingredientId, $targetQuantity, $type, $reason, $actor, $metadata) {
@@ -232,6 +325,7 @@ class InventoryService
                 $dispatch['batch_lots'],
                 $actor,
                 $reason ?? 'Transfer from main branch',
+                $dispatch['movement']->total_cost,
             );
         }, 3);
     }
@@ -251,6 +345,23 @@ class InventoryService
             if ($quantity > $this->availableQuantity($ingredientId)) {
                 throw new InvalidArgumentException('There is not enough unexpired stock available for this transfer.');
             }
+            $currentValue = InventoryCosting::currentValue(
+                $ingredient->inventory_value,
+                (string) $ingredient->quantity,
+                $ingredient->unit_cost === null ? null : (string) $ingredient->unit_cost,
+            );
+            $transferUnitCost = $currentValue !== null && (float) $ingredient->quantity > 0
+                ? InventoryCosting::unitCost($currentValue, (string) $ingredient->quantity, 4)
+                : ($ingredient->unit_cost === null ? null : (string) $ingredient->unit_cost);
+            $transferTotalCost = $currentValue !== null && (float) $ingredient->quantity > 0
+                ? InventoryCosting::valueForProportionalQuantity(
+                    $currentValue,
+                    (string) $quantity,
+                    (string) $ingredient->quantity,
+                )
+                : ($transferUnitCost === null
+                    ? null
+                    : InventoryCosting::valueForQuantity((string) $quantity, $transferUnitCost));
             $lots = $this->batchLots(null, $ingredientId, $quantity);
             $movement = $this->move(
                 $ingredientId,
@@ -258,8 +369,13 @@ class InventoryService
                 $quantity,
                 $reason ?? 'Transfer to branch',
                 $actor,
-                ['exclude_expired' => true],
+                ['exclude_expired' => true, 'total_cost' => $transferTotalCost],
             );
+
+            if ($transferUnitCost !== null) {
+                $movement->unit_cost = $transferUnitCost;
+                $movement->save();
+            }
 
             return ['movement' => $movement, 'batch_lots' => $lots];
         }, 3);
@@ -269,11 +385,16 @@ class InventoryService
         string $branchId,
         int $ingredientId,
         float $quantity,
-        ?float $unitCost,
+        ?string $unitCost,
         array $batchLots,
         ?object $actor = null,
         ?string $reason = null,
+        ?string $totalCost = null,
     ): MainBranchStockMovement {
+        $totalCost ??= $unitCost === null
+            ? null
+            : InventoryCosting::valueForQuantity((string) $quantity, $unitCost);
+
         return $this->moveBranch(
             $branchId,
             $ingredientId,
@@ -281,7 +402,11 @@ class InventoryService
             $quantity,
             $reason ?? 'Stock transfer received',
             $actor,
-            ['unit_cost' => $unitCost, 'batch_lots' => $batchLots],
+            [
+                'unit_cost' => $unitCost,
+                'total_cost' => $totalCost,
+                'batch_lots' => $batchLots,
+            ],
         );
     }
 
@@ -528,6 +653,31 @@ class InventoryService
             throw new InvalidArgumentException('There is not enough unexpired ingredient stock to complete this order.');
         }
 
+        $unitCost = $metadata['unit_cost'] ?? $ingredient->unit_cost;
+        $totalCost = isset($metadata['total_cost']) ? (string) $metadata['total_cost'] : null;
+        $currentValue = InventoryCosting::currentValue(
+            $ingredient->inventory_value,
+            (string) $before,
+            $ingredient->unit_cost === null ? null : (string) $ingredient->unit_cost,
+        );
+        $valuationUnitCost = $currentValue !== null && $before > 0
+            ? InventoryCosting::unitCost($currentValue, (string) $before, 8)
+            : ($unitCost === null ? null : (string) $unitCost);
+        $nextValue = InventoryCosting::valueAfterChange(
+            $currentValue,
+            (string) $before,
+            (string) $change,
+            $valuationUnitCost,
+            $totalCost,
+        );
+        if ($nextValue !== null && ($ingredient->inventory_value !== null || $totalCost !== null)) {
+            $ingredient->inventory_value = $nextValue;
+            if ($totalCost !== null && $after > 0 && $change > 0) {
+                $ingredient->unit_cost = InventoryCosting::roundMoney(
+                    InventoryCosting::unitCost($nextValue, (string) $after, 8)
+                );
+            }
+        }
         $ingredient->quantity = $after;
         $ingredient->save();
         $movement = MainBranchStockMovement::create([
@@ -540,7 +690,12 @@ class InventoryService
             'quantity_change' => $change,
             'quantity_before' => $before,
             'quantity_after' => $after,
-            'unit_cost' => $metadata['unit_cost'] ?? $ingredient->unit_cost,
+            'unit_cost' => array_key_exists('unit_cost', $metadata)
+                ? $metadata['unit_cost']
+                : ($currentValue !== null && $before > 0
+                    ? InventoryCosting::unitCost($currentValue, (string) $before, 4)
+                    : $ingredient->unit_cost),
+            'total_cost' => $totalCost,
             'reason' => $reason,
             'order_id' => $metadata['order_id'] ?? null,
             'supplier_id' => $metadata['supplier_id'] ?? null,
@@ -591,11 +746,30 @@ class InventoryService
             throw new InvalidArgumentException('There is not enough unexpired ingredient stock to complete this order.');
         }
 
-        $unitCost = (float) ($metadata['unit_cost'] ?? $ingredient->unit_cost ?? $stock->unit_cost ?? 0);
-        if ($change > 0) {
-            $stock->unit_cost = $after > 0
-                ? round((((float) $stock->quantity * (float) ($stock->unit_cost ?? $unitCost)) + ($change * $unitCost)) / $after, 2)
-                : round($unitCost, 2);
+        $unitCost = $metadata['unit_cost'] ?? $stock->unit_cost;
+        $totalCost = isset($metadata['total_cost']) ? (string) $metadata['total_cost'] : null;
+        $currentValue = InventoryCosting::currentValue(
+            $stock->inventory_value,
+            (string) $before,
+            $stock->unit_cost === null ? null : (string) $stock->unit_cost,
+        );
+        $valuationUnitCost = $currentValue !== null && $before > 0
+            ? InventoryCosting::unitCost($currentValue, (string) $before, 8)
+            : ($unitCost === null ? null : (string) $unitCost);
+        $nextValue = InventoryCosting::valueAfterChange(
+            $currentValue,
+            (string) $before,
+            (string) $change,
+            $valuationUnitCost,
+            $totalCost,
+        );
+        if ($nextValue !== null && ($stock->inventory_value !== null || $totalCost !== null)) {
+            $stock->inventory_value = $nextValue;
+            if ($totalCost !== null && $after > 0 && $change > 0) {
+                $stock->unit_cost = InventoryCosting::roundMoney(
+                    InventoryCosting::unitCost($nextValue, (string) $after, 8)
+                );
+            }
         }
         $stock->quantity = $after;
         $stock->save();
@@ -609,7 +783,12 @@ class InventoryService
             'quantity_change' => $change,
             'quantity_before' => $before,
             'quantity_after' => $after,
-            'unit_cost' => $metadata['unit_cost'] ?? $stock->unit_cost,
+            'unit_cost' => array_key_exists('unit_cost', $metadata)
+                ? $metadata['unit_cost']
+                : ($currentValue !== null && $before > 0
+                    ? InventoryCosting::unitCost($currentValue, (string) $before, 4)
+                    : $stock->unit_cost),
+            'total_cost' => $totalCost,
             'reason' => $reason,
             'order_id' => $metadata['order_id'] ?? null,
             'supplier_id' => $metadata['supplier_id'] ?? null,

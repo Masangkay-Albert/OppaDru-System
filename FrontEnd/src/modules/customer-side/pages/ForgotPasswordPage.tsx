@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/ToastProvider";
 import { authService } from "../../../services/authService";
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
+import { INPUT_LIMITS } from "../../../constants/inputLimits";
+import { LimitedInput } from "../../../components/ui/LimitedInput";
 
 const passwordRules = [
   { label: "At least 8 characters", test: (value: string) => value.length >= 8 },
@@ -135,12 +137,13 @@ const ForgotPasswordPage: React.FC = () => {
                   </label>
                   <div className="relative">
                     <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
-                    <input
+                    <LimitedInput
                       id="recovery-email"
                       name="email"
                       type="email"
                       autoComplete="email"
                       required
+                      maxLength={INPUT_LIMITS.email.max}
                       disabled={isSubmitting}
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
@@ -155,12 +158,15 @@ const ForgotPasswordPage: React.FC = () => {
                   </label>
                   <div className="relative">
                     <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--oppa-text-muted)]" aria-hidden="true" />
-                    <input
+                    <LimitedInput
                       id="recovery-phone"
                       name="phone"
                       type="tel"
+                      inputMode="tel"
                       autoComplete="tel"
                       required
+                      maxLength={13}
+                      inputFilter="phone"
                       disabled={isSubmitting}
                       value={phone}
                       onChange={(event) => setPhone(event.target.value)}
@@ -189,12 +195,14 @@ const ForgotPasswordPage: React.FC = () => {
                     New password
                   </label>
                   <div className="relative">
-                    <input
+                    <LimitedInput
                       id="new-password"
                       name="password"
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
                       required
+                      minLength={INPUT_LIMITS.password.min}
+                      maxLength={INPUT_LIMITS.password.max}
                       disabled={isSubmitting}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
@@ -226,12 +234,13 @@ const ForgotPasswordPage: React.FC = () => {
                     Confirm new password
                   </label>
                   <div className="relative">
-                    <input
+                    <LimitedInput
                       id="confirm-new-password"
                       name="password_confirmation"
                       type={showConfirmation ? "text" : "password"}
                       autoComplete="new-password"
                       required
+                      maxLength={INPUT_LIMITS.password.max}
                       disabled={isSubmitting}
                       value={passwordConfirmation}
                       onChange={(event) => setPasswordConfirmation(event.target.value)}

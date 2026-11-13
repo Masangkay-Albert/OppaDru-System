@@ -3,6 +3,8 @@ import { ArrowLeft, Check, ChevronDown, Download, Eye, FileText, Loader2, MapPin
 import { Link, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import Select from '../../../components/ui/Select';
+import { LimitedInput } from '../../../components/ui/LimitedInput';
+import { INPUT_LIMITS, normalizePhilippinePhone } from '../../../constants/inputLimits';
 import { ConfirmDialog } from '../components/AdminUI';
 import {
   approveFranchiseApplication,
@@ -1128,6 +1130,16 @@ const FranchiseActivationPanel: React.FC<{ application: FranchiseApplication; on
 
   const handleActivate = async (event: React.FormEvent) => {
     event.preventDefault();
+    const trimmedManagerName = managerName.trim();
+    const normalizedManagerPhone = normalizePhilippinePhone(managerPhone);
+    if (!registeredApplicant && (trimmedManagerName.length < INPUT_LIMITS.personName.min || trimmedManagerName.length > INPUT_LIMITS.personName.max)) {
+      setError(`Manager name must be ${INPUT_LIMITS.personName.min}-${INPUT_LIMITS.personName.max} characters.`);
+      return;
+    }
+    if (!registeredApplicant && normalizedManagerPhone && !/^09\d{9}$/.test(normalizedManagerPhone)) {
+      setError('Enter a valid Philippine mobile number.');
+      return;
+    }
     const confirmed = await confirmDialog({
       title: 'Activate franchise?',
       message: 'This will create its location and franchisee dashboard access, and enable franchise operations.',
@@ -1139,9 +1151,9 @@ const FranchiseActivationPanel: React.FC<{ application: FranchiseApplication; on
     try {
       await activateFranchiseApplication(application.id, {
         ...(registeredApplicant ? {} : {
-          manager_full_name: managerName,
-          manager_email: managerEmail,
-          manager_phone: managerPhone,
+          manager_full_name: trimmedManagerName,
+          manager_email: managerEmail.trim().toLowerCase(),
+          manager_phone: normalizedManagerPhone,
           manager_password: managerPassword,
         }),
         can_process_pos: canProcessPos,
@@ -1165,10 +1177,10 @@ const FranchiseActivationPanel: React.FC<{ application: FranchiseApplication; on
           <label className="block text-sm font-medium">Franchisee login email<input readOnly value={registeredApplicant.email} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] px-3 py-2.5 text-sm" /></label>
           <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)] md:col-span-2">The franchisee will sign in with the same email and password used for their applicant account. No new password is created or shown here.</p>
         </> : <>
-          <label className="block text-sm font-medium">Authorized manager name<input required maxLength={255} value={managerName} onChange={(event) => setManagerName(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-          <label className="block text-sm font-medium">Manager login email<input required type="email" maxLength={255} value={managerEmail} onChange={(event) => setManagerEmail(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-          <label className="block text-sm font-medium">Manager phone<input maxLength={50} value={managerPhone} onChange={(event) => setManagerPhone(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
-          <label className="block text-sm font-medium">Initial manager password<input required type="password" minLength={12} autoComplete="new-password" value={managerPassword} onChange={(event) => setManagerPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /><span className="mt-1 block text-xs font-normal text-[var(--oppa-text-muted)]">At least 12 characters. Share it with the manager through a separate secure channel.</span></label>
+          <label className="block text-sm font-medium">Authorized manager name<LimitedInput required minLength={INPUT_LIMITS.personName.min} maxLength={INPUT_LIMITS.personName.max} inputFilter="personName" value={managerName} onChange={(event) => setManagerName(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
+          <label className="block text-sm font-medium">Manager login email<LimitedInput required type="email" maxLength={INPUT_LIMITS.email.max} value={managerEmail} onChange={(event) => setManagerEmail(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
+          <label className="block text-sm font-medium">Manager phone<LimitedInput type="tel" inputMode="tel" maxLength={13} inputFilter="phone" value={managerPhone} onChange={(event) => setManagerPhone(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /></label>
+          <label className="block text-sm font-medium">Initial manager password<LimitedInput required type="password" minLength={12} maxLength={INPUT_LIMITS.password.max} autoComplete="new-password" value={managerPassword} onChange={(event) => setManagerPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm" /><span className="mt-1 block text-xs font-normal text-[var(--oppa-text-muted)]">Use 12 to {INPUT_LIMITS.password.max} characters. Share it with the manager through a separate secure channel.</span></label>
         </>}
         <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={canProcessPos} onChange={(event) => setCanProcessPos(event.target.checked)} />Authorize this manager to process POS transactions</label>
         <div className="rounded-xl bg-[var(--oppa-cream)] p-3 text-xs leading-5 text-[var(--oppa-text-muted)] md:col-span-2">No franchise record or dashboard/POS access is created until you confirm activation. Staff and cashier access remains subject to authorized setup for the activated location.</div>

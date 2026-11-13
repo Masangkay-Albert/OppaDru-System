@@ -14,6 +14,8 @@ import { updateFranchise } from '../../../services/franchiseAdminService';
 import { geocodeAddress } from '../../../services/geocodingService';
 import { useToast } from '../../customer-side/components/ToastProvider';
 import Select from '../../../components/ui/Select';
+import { LimitedInput } from '../../../components/ui/LimitedInput';
+import { INPUT_LIMITS } from '../../../constants/inputLimits';
 import FranchiseAccountReportSection from './FranchiseAccountReport';
 import '../styles/franchise-account-detail.css';
 
@@ -167,8 +169,8 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
     try {
       await createAccountFranchiseManager(id, {
         franchise_id: String(form.get('franchise_id') || ''),
-        full_name: String(form.get('full_name') || ''),
-        email: String(form.get('email') || ''),
+        full_name: String(form.get('full_name') || '').trim(),
+        email: String(form.get('email') || '').trim().toLowerCase(),
         phone: String(form.get('phone') || ''),
         password: String(form.get('password') || ''),
         can_process_pos: form.get('can_process_pos') === 'on',
@@ -454,9 +456,9 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
             {showManager && (
               <Modal title="Add manager" onClose={() => setShowManager(false)}>
                 <form onSubmit={addManager} className="space-y-4">
-                  <label className="block text-sm font-medium">Full name<input name="full_name" className="admin-embedded-input mt-1 w-full" required /></label>
-                  <label className="block text-sm font-medium">Email<input name="email" type="email" className="admin-embedded-input mt-1 w-full" required /></label>
-                  <label className="block text-sm font-medium">Password<input name="password" type="password" className="admin-embedded-input mt-1 w-full" required /></label>
+                  <label className="block text-sm font-medium">Full name<LimitedInput name="full_name" minLength={INPUT_LIMITS.personName.min} maxLength={INPUT_LIMITS.personName.max} inputFilter="personName" className="admin-embedded-input mt-1 w-full" required /></label>
+                  <label className="block text-sm font-medium">Email<LimitedInput name="email" type="email" maxLength={INPUT_LIMITS.email.max} className="admin-embedded-input mt-1 w-full" required /></label>
+                  <label className="block text-sm font-medium">Password<LimitedInput name="password" type="password" minLength={INPUT_LIMITS.password.min} maxLength={INPUT_LIMITS.password.max} className="admin-embedded-input mt-1 w-full" required /></label>
                   <ModalActions saving={saving} onCancel={() => setShowManager(false)} />
                 </form>
               </Modal>

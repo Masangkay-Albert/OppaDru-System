@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import { LimitedInput } from '../../../components/ui/LimitedInput';
+import { INPUT_LIMITS, normalizePhilippinePhone } from '../../../constants/inputLimits';
 import {
   createSupplier,
   deleteSupplier,
@@ -28,13 +30,26 @@ export const SupplierManager: React.FC<{
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    const rawName = String(form.get('name') || '');
+    const rawContactPerson = String(form.get('contact_person') || '');
+    const rawPhone = String(form.get('phone') || '');
+    const rawEmail = String(form.get('email') || '');
+    const rawNotes = String(form.get('notes') || '');
     const values: Omit<InventorySupplier, 'id' | 'ingredients_count'> = {
-      name: String(form.get('name') || '').trim(),
-      contact_person: String(form.get('contact_person') || '').trim() || null,
-      phone: String(form.get('phone') || '').trim() || null,
-      email: String(form.get('email') || '').trim() || null,
+      name: editing && rawName.trim() === editing.name.trim() ? editing.name : rawName.trim(),
+      contact_person: editing && rawContactPerson.trim() === (editing.contact_person || '').trim()
+        ? editing.contact_person
+        : rawContactPerson.trim() || null,
+      phone: editing && rawPhone.trim() === (editing.phone || '').trim()
+        ? editing.phone
+        : normalizePhilippinePhone(rawPhone) || null,
+      email: editing && rawEmail.trim() === (editing.email || '').trim()
+        ? editing.email
+        : rawEmail.trim().toLowerCase() || null,
       lead_time_days: form.get('lead_time_days') ? Number(form.get('lead_time_days')) : null,
-      notes: String(form.get('notes') || '').trim() || null,
+      notes: editing && rawNotes.trim() === (editing.notes || '').trim()
+        ? editing.notes
+        : rawNotes.trim() || null,
     };
     setBusy(true);
     setError('');
@@ -70,12 +85,24 @@ export const SupplierManager: React.FC<{
           <button type="button" onClick={onClose} className="rounded-lg px-3 py-1 text-[var(--oppa-text-muted)]" aria-label="Close supplier manager">×</button>
         </div>
         <form onSubmit={(event) => { void save(event); }} className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="text-sm font-medium text-[var(--oppa-text)]">Name *<input name="name" required maxLength={180} defaultValue={editing?.name || ''} className={fieldClass} /></label>
-          <label className="text-sm font-medium text-[var(--oppa-text)]">Contact person<input name="contact_person" maxLength={160} defaultValue={editing?.contact_person || ''} className={fieldClass} /></label>
-          <label className="text-sm font-medium text-[var(--oppa-text)]">Phone<input name="phone" maxLength={60} defaultValue={editing?.phone || ''} className={fieldClass} /></label>
-          <label className="text-sm font-medium text-[var(--oppa-text)]">Email<input name="email" type="email" maxLength={180} defaultValue={editing?.email || ''} className={fieldClass} /></label>
-          <label className="text-sm font-medium text-[var(--oppa-text)]">Lead time (days)<input name="lead_time_days" type="number" min="0" max="3650" defaultValue={editing?.lead_time_days ?? ''} className={fieldClass} /></label>
-          <label className="text-sm font-medium text-[var(--oppa-text)]">Notes<input name="notes" maxLength={5000} defaultValue={editing?.notes || ''} className={fieldClass} /></label>
+          <label className="text-sm font-medium text-[var(--oppa-text)]">Name *
+            <LimitedInput name="name" required minLength={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" showCounter defaultValue={editing?.name || ''} className={fieldClass} />
+          </label>
+          <label className="text-sm font-medium text-[var(--oppa-text)]">Contact person
+            <LimitedInput name="contact_person" minLength={INPUT_LIMITS.personName.min} maxLength={INPUT_LIMITS.personName.max} inputFilter="personName" showCounter defaultValue={editing?.contact_person || ''} className={fieldClass} />
+          </label>
+          <label className="text-sm font-medium text-[var(--oppa-text)]">Phone
+            <LimitedInput name="phone" type="tel" inputMode="tel" maxLength={13} inputFilter="phone" defaultValue={editing?.phone || ''} className={fieldClass} />
+          </label>
+          <label className="text-sm font-medium text-[var(--oppa-text)]">Email
+            <LimitedInput name="email" type="email" maxLength={INPUT_LIMITS.email.max} defaultValue={editing?.email || ''} className={fieldClass} />
+          </label>
+          <label className="text-sm font-medium text-[var(--oppa-text)]">Lead time (days)
+            <LimitedInput name="lead_time_days" type="number" inputMode="numeric" min="0" max="3650" step="1" inputFilter="digits" defaultValue={editing?.lead_time_days ?? ''} className={fieldClass} />
+          </label>
+          <label className="text-sm font-medium text-[var(--oppa-text)]">Notes
+            <LimitedInput name="notes" maxLength={INPUT_LIMITS.longText.max} showCounter defaultValue={editing?.notes || ''} className={fieldClass} />
+          </label>
           {error && <p role="alert" className="rounded-lg bg-red-50 p-2 text-sm text-red-700 sm:col-span-2">{error}</p>}
           <div className="flex gap-2 sm:col-span-2">
             <button type="submit" disabled={busy} className="min-h-10 rounded-lg bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white disabled:opacity-60">{busy ? 'Saving…' : editing ? 'Save supplier' : 'Add supplier'}</button>

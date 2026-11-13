@@ -7,6 +7,8 @@ import { productService } from '../../../services/productService';
 import { getFranchises } from '../../../services/franchiseAdminService';
 import type { ProductCategory } from '../../../types/product.types';
 import Select from '../../../components/ui/Select';
+import { INPUT_LIMITS } from '../../../constants/inputLimits';
+import { LimitedInput, LimitedTextarea } from '../../../components/ui/LimitedInput';
 
 const categoryOptions = categories
   .filter((category) => category.id !== 'all')
@@ -73,6 +75,19 @@ const AdminAddProductPage: React.FC = () => {
     setSaveError('');
 
     try {
+      if (form.name.trim().length < INPUT_LIMITS.productName.min || form.name.trim().length > INPUT_LIMITS.productName.max) {
+        setSaveError(`Product name must be ${INPUT_LIMITS.productName.min}-${INPUT_LIMITS.productName.max} characters.`);
+        return;
+      }
+      if (form.description.length > INPUT_LIMITS.shortDescription.max) {
+        setSaveError(`Description must be ${INPUT_LIMITS.shortDescription.max} characters or fewer.`);
+        return;
+      }
+      if (!/^\d+(?:\.\d{1,2})?$/.test(form.price) || Number(form.price) < 0.01 || Number(form.price) > INPUT_LIMITS.amount.max) {
+        setSaveError(`Enter a price from ₱0.01 to ₱${INPUT_LIMITS.amount.max.toLocaleString('en-PH', { minimumFractionDigits: 2 })}.`);
+        return;
+      }
+
       let imageUrl = '/oppadrulogo.jpg';
 
       if (selectedFile) {
@@ -115,7 +130,7 @@ const AdminAddProductPage: React.FC = () => {
 
       {saveError && (
         <div role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          Image upload failed: {saveError}
+          {saveError}
         </div>
       )}
 
@@ -125,8 +140,12 @@ const AdminAddProductPage: React.FC = () => {
       >
         <div>
           <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Product Name</label>
-          <input
+          <LimitedInput
             required
+            minLength={INPUT_LIMITS.productName.min}
+            maxLength={INPUT_LIMITS.productName.max}
+            inputFilter="businessName"
+            showCounter
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
@@ -135,7 +154,9 @@ const AdminAddProductPage: React.FC = () => {
 
         <div>
           <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Description</label>
-          <textarea
+          <LimitedTextarea
+            maxLength={INPUT_LIMITS.shortDescription.max}
+            showCounter
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
@@ -146,11 +167,13 @@ const AdminAddProductPage: React.FC = () => {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Price (₱)</label>
-            <input
-              type="number"
+            <LimitedInput
+              type="text"
+              inputMode="decimal"
+              inputFilter="amount"
               required
-              min={0}
-              step="0.01"
+              maxLength={9}
+              max={INPUT_LIMITS.amount.max}
               value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value })}
               className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"

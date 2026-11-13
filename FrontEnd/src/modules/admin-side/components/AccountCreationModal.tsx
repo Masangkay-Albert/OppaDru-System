@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { BriefcaseBusiness, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, User, X } from 'lucide-react';
 import Select from '../../../components/ui/Select';
 import type { AdminRole } from '../../../services/adminAuthService';
+import { INPUT_LIMITS, normalizePhilippinePhone } from '../../../constants/inputLimits';
+import { LimitedInput } from '../../../components/ui/LimitedInput';
 
 export type AccountCreationMode = 'admin' | 'employee' | 'branch-staff';
 
@@ -47,20 +49,22 @@ const errorClass = 'mt-1.5 text-xs font-medium text-red-600';
 const getValidationErrors = (values: AccountCreationValues, mode: AccountCreationMode) => {
   const errors: Partial<Record<keyof AccountCreationValues, string>> = {};
 
-  if (!values.fullName.trim()) {
-    errors.fullName = 'Full name is required.';
+  if (values.fullName.trim().length < INPUT_LIMITS.personName.min || values.fullName.trim().length > INPUT_LIMITS.personName.max) {
+    errors.fullName = `Full name must be ${INPUT_LIMITS.personName.min}-${INPUT_LIMITS.personName.max} characters.`;
   }
 
   if (!values.email.trim()) {
     errors.email = 'Email address is required.';
+  } else if (values.email.length > INPUT_LIMITS.email.max) {
+    errors.email = `Email must be ${INPUT_LIMITS.email.max} characters or fewer.`;
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
     errors.email = 'Please enter a valid email address.';
   }
 
   if (!values.password) {
     errors.password = 'Password is required.';
-  } else if (mode === 'branch-staff' && values.password.length < 8) {
-    errors.password = 'Use at least 8 characters.';
+  } else if (values.password.length < INPUT_LIMITS.password.min || values.password.length > INPUT_LIMITS.password.max) {
+    errors.password = `Password must be ${INPUT_LIMITS.password.min}-${INPUT_LIMITS.password.max} characters.`;
   }
 
   if (!values.confirmPassword) {
@@ -131,10 +135,10 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
     await onSubmit({
       ...form,
       fullName: form.fullName.trim(),
-      email: form.email.trim(),
+      email: form.email.trim().toLowerCase(),
       position: mode === 'admin' ? undefined : form.position || 'cashier',
       role: mode === 'admin' ? form.role || 'admin' : undefined,
-      phone: isBranchStaff ? form.phone?.trim() || '' : undefined,
+      phone: isBranchStaff ? normalizePhilippinePhone(form.phone?.trim() || '') : undefined,
       vehicle_type: isBranchStaff && form.position === 'driver' ? form.vehicle_type?.trim() || '' : undefined,
     });
   };
@@ -213,10 +217,14 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
             </label>
             <div className="relative">
               <User size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
-              <input
+              <LimitedInput
                 id="account-full-name"
                 name="fullName"
                 type="text"
+                minLength={INPUT_LIMITS.personName.min}
+                maxLength={INPUT_LIMITS.personName.max}
+                inputFilter="personName"
+                showCounter
                 value={form.fullName}
                 onChange={(event) => updateField('fullName', event.target.value)}
                 placeholder="Enter full name"
@@ -233,10 +241,11 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
             </label>
             <div className="relative">
               <Mail size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
-              <input
+              <LimitedInput
                 id="account-email"
                 name="email"
                 type="email"
+                maxLength={INPUT_LIMITS.email.max}
                 value={form.email}
                 onChange={(event) => updateField('email', event.target.value)}
                 placeholder="Enter email address"
@@ -251,7 +260,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
           {isBranchStaff && (
             <div>
               <label htmlFor="account-phone" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">Phone (optional)</label>
-              <input id="account-phone" name="phone" type="tel" value={form.phone || ''} onChange={(event) => updateField('phone', event.target.value)} placeholder="09XX XXX XXXX" className={fieldClass.replace('pl-10', 'pl-3')} />
+              <LimitedInput id="account-phone" name="phone" type="tel" inputMode="tel" maxLength={13} inputFilter="phone" value={form.phone || ''} onChange={(event) => updateField('phone', event.target.value)} placeholder="09XX XXX XXXX" className={fieldClass.replace('pl-10', 'pl-3')} />
             </div>
           )}
           {(mode === 'employee' || isBranchStaff) && (
@@ -297,10 +306,12 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
             {isBranchStaff && <p className="mb-1.5 text-xs text-[var(--oppa-text-muted)]">Use at least 8 characters.</p>}
             <div className="relative">
               <Lock size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
-              <input
+              <LimitedInput
                 id="account-password"
                 name="password"
                 type={showPassword ? 'text' : 'password'}
+                minLength={INPUT_LIMITS.password.min}
+                maxLength={INPUT_LIMITS.password.max}
                 value={form.password}
                 onChange={(event) => updateField('password', event.target.value)}
                 placeholder="Enter password"
@@ -325,10 +336,11 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
             </label>
             <div className="relative">
               <Lock size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
-              <input
+              <LimitedInput
                 id="account-confirm-password"
                 name="confirmPassword"
                 type={showConfirmPassword ? 'text' : 'password'}
+                maxLength={INPUT_LIMITS.password.max}
                 value={form.confirmPassword}
                 onChange={(event) => updateField('confirmPassword', event.target.value)}
                 placeholder="Confirm password"
