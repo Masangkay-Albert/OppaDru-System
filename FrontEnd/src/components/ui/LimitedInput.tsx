@@ -17,7 +17,7 @@ type LimitedTextareaProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'o
   onChange?: (event: ChangeEvent<HTMLTextAreaElement>) => void;
 };
 
-const counterClass = 'mt-1 block text-right text-xs text-[var(--oppa-text-muted)]';
+const counterClass = 'mt-1 block min-h-4 text-right text-xs leading-4 text-[var(--oppa-text-muted)]';
 
 export const LimitedInput = forwardRef<HTMLInputElement, LimitedInputProps>(({
   error,
@@ -31,6 +31,8 @@ export const LimitedInput = forwardRef<HTMLInputElement, LimitedInputProps>(({
 }, ref) => {
   const [currentValue, setCurrentValue] = useState(String(value ?? defaultValue ?? ''));
   const currentLength = String(value ?? currentValue).length;
+  const errorId = props.id ? `${props.id}-validation-error` : undefined;
+  const describedBy = [props['aria-describedby'], error ? errorId : undefined].filter(Boolean).join(' ') || undefined;
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const rawValue = event.currentTarget.value;
@@ -42,8 +44,8 @@ export const LimitedInput = forwardRef<HTMLInputElement, LimitedInputProps>(({
 
   return (
     <>
-      <input {...props} ref={ref} maxLength={maxLength} value={value} defaultValue={defaultValue} onChange={handleChange} />
-      {error && <span role="alert" className="mt-1 block text-xs text-red-600">{error}</span>}
+      <input {...props} ref={ref} aria-invalid={Boolean(error) || props['aria-invalid']} aria-describedby={describedBy} maxLength={maxLength} value={value} defaultValue={defaultValue} onChange={handleChange} />
+      {error && <span id={errorId} role="alert" className="mt-1 block min-h-4 text-xs leading-4 text-[var(--promo-danger-text)]">{error}</span>}
       {showCounter && maxLength !== undefined && <span className={counterClass}>{currentLength}/{maxLength}</span>}
     </>
   );
@@ -62,6 +64,8 @@ export const LimitedTextarea: React.FC<LimitedTextareaProps> = ({
 }) => {
   const [currentValue, setCurrentValue] = useState(String(value ?? defaultValue ?? ''));
   const currentLength = String(value ?? currentValue).length;
+  const errorId = props.id ? `${props.id}-validation-error` : undefined;
+  const describedBy = [props['aria-describedby'], error ? errorId : undefined].filter(Boolean).join(' ') || undefined;
 
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     const rawValue = event.currentTarget.value;
@@ -73,8 +77,8 @@ export const LimitedTextarea: React.FC<LimitedTextareaProps> = ({
 
   return (
     <>
-      <textarea {...props} maxLength={maxLength} value={value} defaultValue={defaultValue} onChange={handleChange} />
-      {error && <span role="alert" className="mt-1 block text-xs text-red-600">{error}</span>}
+      <textarea {...props} aria-invalid={Boolean(error) || props['aria-invalid']} aria-describedby={describedBy} maxLength={maxLength} value={value} defaultValue={defaultValue} onChange={handleChange} />
+      {error && <span id={errorId} role="alert" className="mt-1 block min-h-4 text-xs leading-4 text-[var(--promo-danger-text)]">{error}</span>}
       {showCounter && maxLength !== undefined && <span className={counterClass}>{currentLength}/{maxLength}</span>}
     </>
   );

@@ -203,4 +203,35 @@ class InputLimitsTest extends TestCase
 
         $this->assertDatabaseMissing('users', ['email' => $email]);
     }
+
+    public function test_new_customer_registration_requires_a_valid_phone_and_normalizes_plus63(): void
+    {
+        $basePayload = [
+            'full_name' => 'Valid Customer',
+            'email' => 'phone-required@example.test',
+            'password' => 'Password1!',
+            'password_confirmation' => 'Password1!',
+        ];
+
+        $this->postJson('/api/register', $basePayload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('phone');
+
+        $this->postJson('/api/register', [
+            ...$basePayload,
+            'email' => 'phone-invalid@example.test',
+            'phone' => '0917123456A',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('phone');
+
+        $this->postJson('/api/register', [
+            ...$basePayload,
+            'phone' => '+639171234567',
+        ])->assertSuccessful();
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'phone-required@example.test',
+            'phone' => '09171234567',
+        ]);
+    }
 }

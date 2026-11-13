@@ -74,7 +74,6 @@ const CheckoutPage: React.FC = () => {
   const cartBranchIds = [...new Set(cartItems.map((item) => item.franchise_id).filter((id): id is string => Boolean(id)))];
   const hasMixedCartBranches = cartBranchIds.length > 1;
 
-  /* eslint-disable react-hooks/set-state-in-effect -- Keep dependent discount state synchronized with eligibility changes. */
   useEffect(() => {
     void getActiveBranches().then(setActiveBranches).catch((error: unknown) => {
       showToast(error instanceof Error ? error.message : 'Unable to load branch details.', 'error');
@@ -161,7 +160,6 @@ const CheckoutPage: React.FC = () => {
   };
   const fullDeliveryAddress = buildFullDeliveryAddress();
 
-  /* eslint-disable react-hooks/set-state-in-effect -- Clear stale routing state as address and cart inputs change. */
   useEffect(() => {
     if (!fullDeliveryAddress.trim() || cartItems.length === 0) {
       selectedAddressCoordinatesRef.current = null;

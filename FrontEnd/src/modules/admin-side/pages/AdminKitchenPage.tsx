@@ -4,6 +4,7 @@ import { addKitchenService } from "../../../services/addKitchenService";
 import type { KitchenEmployee } from "../../../types/kitchen.type";
 import AdminLayout from '../components/AdminLayout';
 import Select from '../../../components/ui/Select';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 export default function AdminKitchenPage() {
   const [employees, setEmployees] = useState<KitchenEmployee[]>([]);
@@ -71,7 +72,7 @@ export default function AdminKitchenPage() {
 
         {showForm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
-            <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-8 w-full max-w-md shadow-xl border border-[var(--oppa-border)]">
+            <ValidatedForm onSubmit={handleSubmit} className="bg-white rounded-2xl p-8 w-full max-w-md shadow-xl border border-[var(--oppa-border)]">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-[var(--oppa-green)]">Onboard Kitchen Staff</h2>
                 <button type="button" onClick={() => setShowForm(false)} className="text-[var(--oppa-text-muted)] hover:text-gray-700">
@@ -79,19 +80,19 @@ export default function AdminKitchenPage() {
                 </button>
               </div>
               <div className="space-y-4">
-                <input type="text" placeholder="Full Name" required value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)]" />
-                <input type="email" placeholder="Email" required value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)]" />
-                <input type="password" placeholder="Password" required value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)]" />
+                <input type="text" placeholder="Full Name" data-required="true" value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)]" />
+                <input type="email" placeholder="Email" data-required="true" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)]" />
+                <input type="password" placeholder="Password" data-required="true" value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)]" />
                 
-                <Select aria-label="Kitchen role" required placeholder="Select Role" value={form.role} onChange={(role) => setForm({ ...form, role })} options={[{ value: 'head chef', label: 'Head Chef' }, { value: 'line cook', label: 'Line Cook' }, { value: 'prep cook', label: 'Prep Cook' }, { value: 'dishwasher', label: 'Dishwasher' }]} />
+                <Select aria-label="Kitchen role" data-required="true" placeholder="Select Role" value={form.role} onChange={(role) => setForm({ ...form, role })} options={[{ value: 'head chef', label: 'Head Chef' }, { value: 'line cook', label: 'Line Cook' }, { value: 'prep cook', label: 'Prep Cook' }, { value: 'dishwasher', label: 'Dishwasher' }]} />
                 
-                <input type="number" placeholder="Phone Number" required value={form.phone} onChange={(e) => setForm({...form, phone: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)]" />
+                <input type="number" placeholder="Phone Number" data-required="true" value={form.phone} onChange={(e) => setForm({...form, phone: e.target.value})} className="w-full p-3 rounded-xl border border-[var(--oppa-border)] outline-none focus:ring-2 focus:ring-[var(--oppa-green)]" />
                 
                 <button type="submit" className="w-full py-3 bg-[var(--oppa-green)] text-white rounded-xl font-semibold hover:bg-[var(--oppa-green-dark)] transition-colors">
                   Add Kitchen Employee
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         )}
       </div>

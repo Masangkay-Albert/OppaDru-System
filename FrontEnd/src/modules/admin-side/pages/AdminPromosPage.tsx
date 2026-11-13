@@ -45,6 +45,7 @@ import {
   LuTrash2,
   LuX,
 } from 'react-icons/lu';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 type PromoStatusFilter = 'all' | 'active' | 'inactive' | 'expired';
 
@@ -845,7 +846,7 @@ export default function AdminPromosPage() {
           labelledBy="promo-modal-title"
           footer={modalFooter}
         >
-          <form id="promo-form" onSubmit={handleSubmit} className="promo-modal-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
+          <ValidatedForm id="promo-form" onSubmit={handleSubmit} className="promo-modal-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
             {formError && (
               <div role="alert" className="flex items-start gap-2 rounded-xl border border-[var(--promo-danger-border)] bg-[var(--promo-danger-bg)] p-3 text-sm text-[var(--promo-danger-text)]">
                 <LuX size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
@@ -856,7 +857,7 @@ export default function AdminPromosPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
               <div className="sm:col-span-7">
                 <FieldLabel htmlFor="promo-title">Promo title <span className="text-[var(--promo-danger-text)]">*</span></FieldLabel>
-                <LimitedInput id="promo-title" type="text" required minLength={INPUT_LIMITS.announcementTitle.min} maxLength={INPUT_LIMITS.announcementTitle.max} showCounter placeholder="e.g. 10% Welcome Treat" value={stripEmoji(title)} onChange={(event) => setTitle(event.target.value)} className={inputClass()} />
+                <LimitedInput id="promo-title" type="text" data-required="true" data-min-length={INPUT_LIMITS.announcementTitle.min} maxLength={INPUT_LIMITS.announcementTitle.max} showCounter placeholder="e.g. 10% Welcome Treat" value={stripEmoji(title)} onChange={(event) => setTitle(event.target.value)} className={inputClass()} />
               </div>
               <div className="sm:col-span-5">
                 <FieldLabel htmlFor="promo-code">Promo code (voucher)</FieldLabel>
@@ -951,7 +952,7 @@ export default function AdminPromosPage() {
                   <span className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm font-semibold text-[var(--oppa-text-muted)] ${discountType === 'fixed' ? 'left-3.5' : 'right-3.5'}`}>
                     {discountType === 'fixed' ? '₱' : '%'}
                   </span>
-                  <LimitedInput id="promo-value" type="text" inputMode="decimal" inputFilter="amount" maxLength={discountType === 'percent' ? 6 : 9} required placeholder={discountType === 'percent' ? '15' : '50'} value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} className={`${inputClass()} font-semibold ${discountType === 'fixed' ? 'pl-8' : 'pr-9'}`} />
+                  <LimitedInput id="promo-value" type="text" inputMode="decimal" inputFilter="amount" maxLength={discountType === 'percent' ? 6 : 9} data-required="true" placeholder={discountType === 'percent' ? '15' : '50'} value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} className={`${inputClass()} font-semibold ${discountType === 'fixed' ? 'pl-8' : 'pr-9'}`} />
                 </div>
               </div>
               <div>
@@ -977,8 +978,8 @@ export default function AdminPromosPage() {
                     id="promo-start-date"
                     type="datetime-local"
                     step={60}
-                    min={startDateMin}
-                    max={dateTimeMax}
+                    data-min={startDateMin}
+                    data-max={dateTimeMax}
                     value={startDate}
                     onChange={(event) => handleStartDateChange(event.target.value)}
                     className={`${inputClass(Boolean(startDateError))} cursor-pointer pl-10 [font-family:inherit]`}
@@ -994,8 +995,8 @@ export default function AdminPromosPage() {
                     id="promo-end-date"
                     type="datetime-local"
                     step={60}
-                    min={endDateInputMin}
-                    max={dateTimeMax}
+                    data-min={endDateInputMin}
+                    data-max={dateTimeMax}
                     value={endDate}
                     onChange={(event) => handleEndDateChange(event.target.value)}
                     className={`${inputClass(Boolean(endDateError))} cursor-pointer pl-10 [font-family:inherit]`}
@@ -1076,7 +1077,7 @@ export default function AdminPromosPage() {
               </div>
               <Toggle checked={isActive} onChange={setIsActive} label="Activate Promo Immediately" />
             </div>
-          </form>
+          </ValidatedForm>
         </PromoModal>
 
         {deleteTarget && (

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, BikeIcon, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
 import { driverAuth } from "../../../services/driverAuth";
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const DriverLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -60,7 +61,7 @@ const DriverLoginPage: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-lg sm:p-8">
+          <ValidatedForm onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-lg sm:p-8">
             <div>
               <label htmlFor="driver-email" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
                 Email Address
@@ -114,7 +115,7 @@ const DriverLoginPage: React.FC = () => {
             >
               {isLoading ? "Signing in..." : "Sign In"}
             </button>
-          </form>
+          </ValidatedForm>
 
           <button
             type="button"

@@ -25,6 +25,7 @@ import {
 import type { InventoryStatusFilter } from '../../shared/components/InventoryDashboardComponents';
 import { TotalPriceInput } from '../../shared/components/TotalPriceInput';
 import { ConfirmDialog, PageHeader } from '../../admin-side/components/AdminUI';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 type ModalState =
   | { kind: 'add' }
@@ -342,12 +343,12 @@ const FranchiseIngredientInventoryPage: React.FC = () => {
         description="Add an ingredient or supply used by your branch."
         onClose={() => setModal(null)}
       >
-        <form onSubmit={saveAdd} className="space-y-4">
+        <ValidatedForm onSubmit={saveAdd} className="space-y-4">
           <label className={labelClass}>Name <span className="text-red-600" aria-hidden="true">*</span>
             <LimitedInput
               name="name"
-              required
-              minLength={INPUT_LIMITS.ingredientName.min}
+              data-required="true"
+              data-min-length={INPUT_LIMITS.ingredientName.min}
               maxLength={INPUT_LIMITS.ingredientName.max}
               inputFilter="ingredientName"
               showCounter
@@ -363,7 +364,7 @@ const FranchiseIngredientInventoryPage: React.FC = () => {
                 name="category"
                 options={categoryOptions}
                 placeholder="Select an ingredient category"
-                required
+                data-required="true"
                 triggerClassName={fieldClass}
               />
             </label>
@@ -373,7 +374,7 @@ const FranchiseIngredientInventoryPage: React.FC = () => {
                 options={unitOptions}
                 value={selectedUnit}
                 onChange={(unit) => setSelectedUnit(String(unit))}
-                required
+                data-required="true"
                 triggerClassName={fieldClass}
               />
             </label>
@@ -381,10 +382,10 @@ const FranchiseIngredientInventoryPage: React.FC = () => {
           <p className="-mt-2 text-xs text-[var(--oppa-text-muted)]">Ingredient categories describe supplies, not menu product types. Usage and purchase units are independent.</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={labelClass}>Starting quantity
-              <LimitedInput name="initial_quantity" required type="number" min="0" max={INPUT_LIMITS.inventoryQuantity.max} step={COUNTABLE_INVENTORY_UNITS.includes(selectedUnit as typeof COUNTABLE_INVENTORY_UNITS[number]) ? 1 : 0.001} inputMode={COUNTABLE_INVENTORY_UNITS.includes(selectedUnit as typeof COUNTABLE_INVENTORY_UNITS[number]) ? 'numeric' : 'decimal'} inputFilter="inventoryQuantity" value={startingQuantity} onChange={(event) => setStartingQuantity(event.target.value)} className={fieldClass} />
+              <LimitedInput name="initial_quantity" data-required="true" type="number" data-min="0" data-max={INPUT_LIMITS.inventoryQuantity.max} step={COUNTABLE_INVENTORY_UNITS.includes(selectedUnit as typeof COUNTABLE_INVENTORY_UNITS[number]) ? 1 : 0.001} inputMode={COUNTABLE_INVENTORY_UNITS.includes(selectedUnit as typeof COUNTABLE_INVENTORY_UNITS[number]) ? 'numeric' : 'decimal'} inputFilter="inventoryQuantity" value={startingQuantity} onChange={(event) => setStartingQuantity(event.target.value)} className={fieldClass} />
             </label>
             <label className={labelClass}>Reorder level <span className="text-red-600" aria-hidden="true">*</span>
-              <LimitedInput name="reorder_level" required type="number" min="0" max={INPUT_LIMITS.inventoryQuantity.max} step={COUNTABLE_INVENTORY_UNITS.includes(selectedUnit as typeof COUNTABLE_INVENTORY_UNITS[number]) ? 1 : 0.001} inputMode={COUNTABLE_INVENTORY_UNITS.includes(selectedUnit as typeof COUNTABLE_INVENTORY_UNITS[number]) ? 'numeric' : 'decimal'} inputFilter="inventoryQuantity" defaultValue="5" className={fieldClass} />
+              <LimitedInput name="reorder_level" data-required="true" type="number" data-min="0" data-max={INPUT_LIMITS.inventoryQuantity.max} step={COUNTABLE_INVENTORY_UNITS.includes(selectedUnit as typeof COUNTABLE_INVENTORY_UNITS[number]) ? 1 : 0.001} inputMode={COUNTABLE_INVENTORY_UNITS.includes(selectedUnit as typeof COUNTABLE_INVENTORY_UNITS[number]) ? 'numeric' : 'decimal'} inputFilter="inventoryQuantity" defaultValue="5" className={fieldClass} />
             </label>
             <label className={labelClass}>Purchase unit
               <Select
@@ -395,7 +396,7 @@ const FranchiseIngredientInventoryPage: React.FC = () => {
               />
             </label>
             <label className={labelClass}>Purchase-to-usage conversion
-              <LimitedInput name="conversion_factor" required type="number" min="1" max={INPUT_LIMITS.inventoryConversion.max} step="1" inputMode="numeric" inputFilter="digits" defaultValue="1" className={fieldClass} />
+              <LimitedInput name="conversion_factor" data-required="true" type="number" data-min="1" data-max={INPUT_LIMITS.inventoryConversion.max} step="1" inputMode="numeric" inputFilter="digits" defaultValue="1" className={fieldClass} />
             </label>
             <TotalPriceInput quantity={startingQuantity} usageUnit={selectedUnit} />
           </div>
@@ -413,13 +414,13 @@ const FranchiseIngredientInventoryPage: React.FC = () => {
           </label>
           {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           <ModalActions busy={busy} onCancel={() => setModal(null)} submitLabel="Add ingredient" />
-        </form>
+        </ValidatedForm>
       </InventoryModal>}
 
       {modal?.kind === 'edit' && <InventoryModal title={`Edit ${modal.ingredient.name}`} onClose={() => setModal(null)}>
-        <form key={modal.ingredient.id} onSubmit={(event) => saveEdit(event, modal.ingredient)} className="space-y-4">
+        <ValidatedForm key={modal.ingredient.id} onSubmit={(event) => saveEdit(event, modal.ingredient)} className="space-y-4">
           <label className="block text-sm font-medium text-[var(--oppa-text)]">Reorder level
-            <LimitedInput name="reorder_level" required type="number" min="0" max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" defaultValue={modal.ingredient.reorder_level} className={fieldClass} />
+            <LimitedInput name="reorder_level" data-required="true" type="number" data-min="0" data-max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" defaultValue={modal.ingredient.reorder_level} className={fieldClass} />
           </label>
           <div className="rounded-xl bg-[var(--oppa-cream)] px-3 py-2 text-sm text-[var(--oppa-text-muted)]">
             <p>Average price: {modal.ingredient.average_unit_cost ?? modal.ingredient.unit_cost ? `₱${Number(modal.ingredient.average_unit_cost ?? modal.ingredient.unit_cost).toLocaleString('en-PH', { maximumFractionDigits: 4 })} each` : 'Not set'}</p>
@@ -436,7 +437,7 @@ const FranchiseIngredientInventoryPage: React.FC = () => {
           </label>
           {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           <ModalActions busy={busy} onCancel={() => setModal(null)} submitLabel="Update price / details" />
-        </form>
+        </ValidatedForm>
       </InventoryModal>}
 
       {modal?.kind === 'stock' && <InventoryModal
@@ -444,9 +445,9 @@ const FranchiseIngredientInventoryPage: React.FC = () => {
         onClose={() => setModal(null)}
       >
         {modal.movement === 'stock_in' ? (
-          <form key={`${modal.ingredient.id}-receipt`} onSubmit={(event) => saveReceive(event, modal.ingredient)} className="space-y-4">
+          <ValidatedForm key={`${modal.ingredient.id}-receipt`} onSubmit={(event) => saveReceive(event, modal.ingredient)} className="space-y-4">
             <label className="block text-sm font-medium text-[var(--oppa-text)]">Quantity received ({modal.ingredient.purchase_unit || modal.ingredient.unit})
-              <LimitedInput name="quantity" required type="number" min="0.001" max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" value={receiveQuantity} onChange={(event) => setReceiveQuantity(event.target.value)} className={fieldClass} />
+              <LimitedInput name="quantity" data-required="true" type="number" data-min="0.001" data-max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" value={receiveQuantity} onChange={(event) => setReceiveQuantity(event.target.value)} className={fieldClass} />
             </label>
             <TotalPriceInput
               quantity={receiveQuantity}
@@ -457,35 +458,35 @@ const FranchiseIngredientInventoryPage: React.FC = () => {
             />
             {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
             <ModalActions busy={busy} onCancel={() => setModal(null)} submitLabel="Receive stock" />
-          </form>
+          </ValidatedForm>
         ) : (
-          <form key={`${modal.ingredient.id}-${modal.movement}`} onSubmit={(event) => saveMovement(event, modal.ingredient, modal.movement)} className="space-y-4">
+          <ValidatedForm key={`${modal.ingredient.id}-${modal.movement}`} onSubmit={(event) => saveMovement(event, modal.ingredient, modal.movement)} className="space-y-4">
             <label className="block text-sm font-medium text-[var(--oppa-text)]">{modal.movement === 'count_adjustment' || modal.movement === 'adjustment' ? 'Counted quantity' : 'Quantity'}
-              <LimitedInput name="quantity" required type="number" min="0" max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" className={fieldClass} />
+              <LimitedInput name="quantity" data-required="true" type="number" data-min="0" data-max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" className={fieldClass} />
             </label>
             <label className="block text-sm font-medium text-[var(--oppa-text)]">Note <span className="font-normal text-[var(--oppa-text-muted)]">(optional)</span>
-              <LimitedInput name="reason" minLength={INPUT_LIMITS.reason.min} maxLength={INPUT_LIMITS.reason.max} className={fieldClass} />
+              <LimitedInput name="reason" data-min-length={INPUT_LIMITS.reason.min} maxLength={INPUT_LIMITS.reason.max} className={fieldClass} />
             </label>
             {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
             <ModalActions busy={busy} onCancel={() => setModal(null)} submitLabel="Save stock" />
-          </form>
+          </ValidatedForm>
         )}
       </InventoryModal>}
 
       {modal?.kind === 'restock' && <InventoryModal title="Request a restock" onClose={() => setModal(null)}>
-        <form onSubmit={saveRestock} className="space-y-4">
+        <ValidatedForm onSubmit={saveRestock} className="space-y-4">
           <p className="text-sm text-[var(--oppa-text-muted)]">Enter the amount you need for each item.</p>
           <div className="max-h-72 space-y-2 overflow-y-auto">
             {allCatalog.map((ingredient) => <label key={ingredient.id} className="grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-3 text-sm">
               <span className="truncate text-[var(--oppa-text)]">{ingredient.name} <span className="text-xs text-[var(--oppa-text-muted)]">({ingredient.unit})</span></span>
-              <LimitedInput name={`quantity_${ingredient.id}`} type="number" min="0" max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" placeholder="0" className="h-10 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2 text-right" aria-label={`Requested quantity for ${ingredient.name}`} />
+              <LimitedInput name={`quantity_${ingredient.id}`} type="number" data-min="0" data-max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" placeholder="0" className="h-10 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2 text-right" aria-label={`Requested quantity for ${ingredient.name}`} />
             </label>)}
           </div>
           <label className="block text-sm font-medium text-[var(--oppa-text)]">Note (optional)
             <LimitedTextarea name="notes" maxLength={INPUT_LIMITS.longText.max} showCounter rows={2} className={`${fieldClass} h-auto py-2`} />
           </label>
           <ModalActions busy={busy} onCancel={() => setModal(null)} submitLabel="Send request" />
-        </form>
+        </ValidatedForm>
       </InventoryModal>}
 
       {archiveTarget && <ConfirmDialog

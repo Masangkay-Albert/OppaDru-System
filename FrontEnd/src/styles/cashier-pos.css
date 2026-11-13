@@ -1188,6 +1188,28 @@
   gap: 9px;
 }
 
+.cashier-cart-scroll {
+  scrollbar-color: var(--oppa-border) transparent;
+  scrollbar-width: thin;
+}
+
+.cashier-cart-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cashier-cart-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cashier-cart-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--oppa-border);
+}
+
+.cashier-cart-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--oppa-green);
+}
+
 .cashier-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1829,9 +1851,11 @@
 }
 
 .cashier-checkout-totals {
-  border: 1px solid var(--cashier-border);
-  border-radius: var(--cashier-radius-card);
-  background: linear-gradient(180deg, #fffdf8, #fbf8f1);
+  border: 0;
+  border-top: 1px solid var(--oppa-border);
+  border-radius: 0;
+  background: var(--oppa-surface);
+  box-shadow: 0 -8px 24px rgb(28 61 46 / 8%);
 }
 
 .cashier-checkout-totals > div:last-of-type {
@@ -1840,7 +1864,7 @@
 }
 
 .cashier-workspace :focus-visible {
-  outline: 3px solid #d6a33f;
+  outline: 2px solid var(--oppa-green);
   outline-offset: 2px;
 }
 

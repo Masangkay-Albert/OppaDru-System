@@ -24,6 +24,7 @@ export interface ReportPdfData {
     onlineSales: number;
     onsiteSales: number;
   };
+  payments: Array<{ method: string; orders: number; amount: number }>;
   goal: number;
   goalReached: boolean;
   goalSet: boolean;
@@ -734,6 +735,35 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
     },
   });
 
+  const paymentTableStartY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY
+    ? (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 7
+    : tableStartY + 7;
+  autoTable(doc, {
+    startY: paymentTableStartY,
+    head: [['Payment method', 'Orders', 'Amount']],
+    body: data.payments.length
+      ? data.payments.map((payment) => [payment.method, String(payment.orders), formatCurrencyForPdf(payment.amount)])
+      : [['No payment data', '', '']],
+    foot: [['Total', String(data.payments.reduce((sum, payment) => sum + payment.orders, 0)), formatCurrencyForPdf(data.payments.reduce((sum, payment) => sum + payment.amount, 0))]],
+    theme: 'grid',
+    margin: { left: margin, right: margin, bottom: 16, top: 20 },
+    styles: {
+      font: 'helvetica',
+      fontSize: 7.2,
+      textColor: darkSlateText,
+      cellPadding: 2,
+      lineColor: borderLineColor,
+      lineWidth: 0.15,
+    },
+    headStyles: { fillColor: brandDarkGreen, textColor: [255, 255, 255], fontStyle: 'bold' },
+    footStyles: { fillColor: lightGreenBg, textColor: brandDarkGreen, fontStyle: 'bold' },
+    columnStyles: {
+      0: { cellWidth: 104 },
+      1: { cellWidth: 30, halign: 'right' },
+      2: { cellWidth: 48, halign: 'right', fontStyle: 'bold' },
+    },
+  });
+
   // 7. Sign-off / Admin Export Verification Box below the table
   const finalTableY = (doc as any).lastAutoTable?.finalY ?? (tableStartY + 30);
   const auditBlockHeight = 18;
@@ -808,6 +838,7 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
     doc.setFontSize(6.2);
     doc.setTextColor(...mutedText);
     doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - margin, footerY + 2, { align: 'right' });
+
   }
 
   // Trigger download

@@ -10,6 +10,7 @@ import { createFranchiseAccount, deleteFranchise, deleteFranchiseAccount, getFra
 import type { FranchiseAccount, FranchiseSummary } from '../../../services/franchiseAdminService';
 import { formatCurrency } from '../../../utils/formatters';
 import { useToast } from '../../customer-side/components/ToastProvider';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const AdminFranchisesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -213,14 +214,14 @@ const AdminFranchisesPage: React.FC = () => {
       )}
 
       {showCreate && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowCreate(false); }}>
-        <form onSubmit={handleCreate} className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
+        <ValidatedForm onSubmit={handleCreate} className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
           <div><h2 className="text-xl font-semibold">Add franchise</h2><p className="mt-1 text-sm text-gray-500">Create the franchise account first, then assign locations and managers.</p></div>
-          <label className="block text-sm font-medium">Franchise name<input name="name" required maxLength={255} className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label>
+          <label className="block text-sm font-medium">Franchise name<input name="name" data-required="true" maxLength={255} className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label>
           <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium">Email<input name="email" type="email" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label><label className="text-sm font-medium">Phone<input name="phone" className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label></div>
           <label className="block text-sm font-medium">Head office address<textarea name="address" rows={2} className="mt-1 w-full rounded-xl border px-3 py-2.5 font-normal" /></label>
           <Select label="Status" name="status" defaultValue="active" options={[{ value: 'active', label: 'Active' }, { value: 'pending', label: 'Pending' }, { value: 'inactive', label: 'Inactive' }]} />
           <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowCreate(false)} className="rounded-xl border px-4 py-2 text-sm">Cancel</button><button disabled={saving} className="rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Creating…' : 'Create franchise'}</button></div>
-        </form>
+        </ValidatedForm>
       </div>}
       {accountToDelete && <ConfirmDialog
         title="Permanently delete franchise?"

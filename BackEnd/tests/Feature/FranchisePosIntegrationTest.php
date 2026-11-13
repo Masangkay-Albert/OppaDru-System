@@ -129,6 +129,113 @@ class FranchisePosIntegrationTest extends TestCase
         $this->postJson('/api/franchise/pos/orders', [], $headers)->assertForbidden();
     }
 
+    public function test_third_party_pos_orders_require_branch_scoped_references_and_ignore_register_payment_fields(): void
+    {
+        $branch = $this->makeBranch('Third Party POS Branch');
+        $otherBranch = $this->makeBranch('Other Third Party POS Branch');
+        $manager = $this->makePosManager($branch, 'Third Party Manager', 'third.party.manager@test');
+        $otherManager = $this->makePosManager($otherBranch, 'Other Third Party Manager', 'other.third.party.manager@test');
+        $product = $this->makePosProduct($branch, 'Third Party Meal');
+        $otherProduct = $this->makePosProduct($otherBranch, 'Other Third Party Meal');
+        $headers = $this->franchiseHeaders($manager, 'Manager@123');
+        $otherHeaders = $this->franchiseHeaders($otherManager, 'Manager@123');
+
+        $basePayload = [
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'third_party_platform' => 'foodpanda',
+        ];
+
+        $this->postJson('/api/franchise/pos/orders', $basePayload, $headers)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('external_order_ref');
+
+        $sale = $this->postJson('/api/franchise/pos/orders', [
+            ...$basePayload,
+            'external_order_ref' => 'fp-100',
+            'payment_method' => 'cash',
+            'payment_reference' => 'SHOULD-BE-IGNORED',
+            'cash_tendered' => 1000,
+            'discount_type' => 'PWD',
+            'discount_id_number' => 'PWD-123',
+            'discount_cardholder_name' => 'Test Customer',
+            'promo_code' => 'SHOULDNOTAPPLY',
+        ], $headers)->assertCreated();
+
+        $saleId = $sale->json('order.id');
+        $this->assertDatabaseHas('orders', [
+            'id' => $saleId,
+            'branch_id' => $branch->id,
+            'third_party_platform' => 'foodpanda',
+            'external_order_ref' => 'FP-100',
+            'payment_method' => 'foodpanda',
+            'payment_status' => 'paid',
+            'cash_tendered' => null,
+            'change_due' => null,
+            'discount_type' => null,
+            'discount_amount' => null,
+            'promo_code' => null,
+            'promo_discount' => null,
+            'payment_reference' => null,
+            'total' => '80.00',
+        ]);
+        $sale->assertJsonPath('order.third_party_platform', 'foodpanda')
+            ->assertJsonPath('order.external_order_ref', 'FP-100')
+            ->assertJsonPath('order.delivery_address', 'Onsite - Takeout (Customer: Walk-in Customer)');
+
+        $this->postJson('/api/franchise/pos/orders', [
+            ...$basePayload,
+            'external_order_ref' => 'FP-100',
+        ], $headers)->assertStatus(409)
+            ->assertJsonPath('message', 'This platform order number has already been used at this branch.');
+
+        $this->postJson('/api/franchise/pos/orders', [
+            'items' => [['product_id' => $otherProduct->id, 'quantity' => 1]],
+            'third_party_platform' => 'foodpanda',
+            'external_order_ref' => 'FP-100',
+        ], $otherHeaders)->assertCreated();
+
+        $this->postJson('/api/franchise/pos/orders', [
+            ...$basePayload,
+            'third_party_platform' => 'grabfood',
+            'external_order_ref' => 'FP-100',
+        ], $headers)->assertCreated();
+    }
+
+    private function makePosManager(Franchise $branch, string $name, string $email): FranchiseUser
+    {
+        return FranchiseUser::create([
+            'franchise_id' => $branch->id,
+            'full_name' => $name,
+            'email' => $email,
+            'password' => Hash::make('Manager@123'),
+            'is_active' => true,
+            'can_process_pos' => true,
+        ]);
+    }
+
+    private function makePosProduct(Franchise $branch, string $name): Product
+    {
+        return Product::create([
+            'name' => $name,
+            'description' => 'Branch register item',
+            'price' => 80,
+            'category' => 'rice-meals',
+            'image' => '',
+            'franchise_id' => $branch->id,
+            'is_available' => true,
+        ]);
+    }
+
+    private function franchiseHeaders(FranchiseUser $manager, string $password): array
+    {
+        $login = $this->postJson('/api/franchise/login', [
+            'email' => $manager->email,
+            'password' => $password,
+        ])->assertOk();
+
+        return ['Authorization' => 'Bearer '.$login->json('token')];
+    }
+
     private function makeBranch(string $name): Franchise
     {
         return Franchise::create([

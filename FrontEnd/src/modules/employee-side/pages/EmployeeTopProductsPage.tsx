@@ -149,7 +149,7 @@ const EmployeeTopProductsPage: React.FC = () => {
               <button type="button" aria-label="Next month" disabled={selectedMonth >= getManilaMonth()} onClick={() => stepMonth(1)}><ChevronRight size={18} /></button>
               <details className="cashier-month-picker">
                 <summary aria-label="Pick a month"><CalendarDays size={17} /><span className="sr-only">Pick a month</span></summary>
-                <label><span>Choose month</span><input type="month" value={selectedMonth} max={getManilaMonth()} onChange={(event) => {
+                <label><span>Choose month</span><input type="month" value={selectedMonth} data-max={getManilaMonth()} onChange={(event) => {
                   if (event.target.value) {
                     setSelectedMonth(event.target.value);
                     setPeriod('month');

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle, X, Eye, Package, Copy, Globe2, Store, RotateCcw } from 'lucide-react';
+import { CheckCircle, X, Eye, Package, Copy, Globe2, ShoppingBag, Store, RotateCcw } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { AdminDate, Avatar, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
@@ -10,6 +10,7 @@ import { getScheduledOrderDetails } from '../../../utils/orderUtils';
 import Select from '../../../components/ui/Select';
 import type { SelectOption } from '../../../components/ui/Select';
 import OrdersFilterBar from '../../shared/components/OrdersFilterBar';
+import { getThirdPartyPlatformLabel, getThirdPartyReferencePrefix, type ThirdPartyPlatform } from '../../../constants/thirdPartyPlatforms';
 
 const statusOptionsBase = [
   { value: 'all', label: 'All', color: undefined },
@@ -23,9 +24,11 @@ const statusOptionsBase = [
 const validStatusFilters = new Set(statusOptionsBase.map(({ value }) => value));
 
 const readInitialFilter = (key: string, fallback = '') => new URLSearchParams(window.location.search).get(key) || fallback;
-const readInitialChannel = (): 'all' | 'online' | 'onsite' => {
+type ChannelFilter = 'all' | 'online' | 'onsite' | ThirdPartyPlatform;
+
+const readInitialChannel = (): ChannelFilter => {
   const channel = readInitialFilter('channel', 'all');
-  return channel === 'online' || channel === 'onsite' ? channel : 'all';
+  return channel === 'online' || channel === 'onsite' || channel === 'foodpanda' || channel === 'grabfood' ? channel : 'all';
 };
 const readInitialStatus = () => {
   const status = readInitialFilter('status', 'all');
@@ -48,7 +51,7 @@ const AdminOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
-  const [channelFilter, setChannelFilter] = useState<'all' | 'online' | 'onsite'>(readInitialChannel);
+  const [channelFilter, setChannelFilter] = useState<ChannelFilter>(readInitialChannel);
   const [statusFilter, setStatusFilter] = useState<string>(readInitialStatus);
   const [searchTerm, setSearchTerm] = useState(() => readInitialFilter('search'));
   const [dateFilter, setDateFilter] = useState<string>(() => readInitialFilter('date'));
@@ -106,7 +109,7 @@ const AdminOrdersPage: React.FC = () => {
       const nextStatus = params.get('status') || 'all';
       const nextChannel = params.get('channel') || 'all';
       setStatusFilter(validStatusFilters.has(nextStatus as typeof statusOptionsBase[number]['value']) ? nextStatus : 'all');
-      setChannelFilter(nextChannel === 'online' || nextChannel === 'onsite' ? nextChannel : 'all');
+      setChannelFilter(nextChannel === 'online' || nextChannel === 'onsite' || nextChannel === 'foodpanda' || nextChannel === 'grabfood' ? nextChannel : 'all');
       setSearchTerm(params.get('search') || '');
       setDateFilter(params.get('date') || '');
       setCurrentPage(1);
@@ -176,9 +179,11 @@ const AdminOrdersPage: React.FC = () => {
 
   const filteredOrders = useMemo(() => {
     const filtered = orders.filter((order) => {
-      const orderQuery = `${order.order_number || ''} ${order.id || ''} ${order.customerName || ''} ${order.email || ''}`.toLowerCase();
+      const orderQuery = `${order.order_number || ''} ${order.id || ''} ${order.customerName || ''} ${order.email || ''} ${order.external_order_ref || ''}`.toLowerCase();
       if (!orderQuery.includes(searchTerm.trim().toLowerCase())) return false;
-      if (channelFilter !== 'all' && order.channel !== channelFilter) {
+      if (channelFilter !== 'all' && (channelFilter === 'online' || channelFilter === 'onsite'
+        ? order.channel !== channelFilter
+        : order.third_party_platform !== channelFilter)) {
         return false;
       }
 
@@ -225,6 +230,16 @@ const AdminOrdersPage: React.FC = () => {
       return;
     }
     void navigator.clipboard.writeText(orderId).then(() => { setCopiedOrderId(orderId); setNotice('Order ID copied.'); }).catch((error: unknown) => { console.error('Failed to copy order ID:', error); setNotice('Could not copy order ID.'); });
+  };
+
+  const copyExternalOrderRef = (reference: string, platformLabel: string) => {
+    if (!navigator.clipboard) {
+      setNotice('Copying platform order numbers is not supported by this browser.');
+      return;
+    }
+    void navigator.clipboard.writeText(reference)
+      .then(() => { setCopiedOrderId(reference); setNotice(`${platformLabel} order number copied.`); })
+      .catch((error: unknown) => { console.error('Failed to copy platform order number:', error); setNotice('Could not copy platform order number.'); });
   };
 
   const getFirstOrderItemSummary = (items: Array<{ quantity?: number; product_name?: string; name?: string }> | undefined) =>
@@ -381,6 +396,8 @@ const AdminOrdersPage: React.FC = () => {
                 const fullItemsSummary = getFullItemsSummary(order.items);
                 const orderDate = getOrderDate(order);
                 const orderId = String(order.order_number || order.id || '');
+                const platformLabel = getThirdPartyPlatformLabel(order.third_party_platform);
+                const referencePrefix = getThirdPartyReferencePrefix(order.third_party_platform);
 
                 return (
                   <tr
@@ -399,6 +416,7 @@ const AdminOrdersPage: React.FC = () => {
                     <td data-label="Order ID" className="order-id-cell" title={orderId}>
                       <span>{getCompactOrderId(orderId)}</span>
                       <button type="button" aria-label={`Copy order ID ${orderId}`} title={copiedOrderId === orderId ? 'Copied' : 'Copy order ID'} onClick={(event) => { event.stopPropagation(); copyOrderId(orderId); }} className="admin-order-copy"><Copy size={14} /></button>
+                      {platformLabel && order.external_order_ref && <span className="block max-w-full truncate text-[10px] font-medium text-[var(--oppa-text-muted)]" title={`${referencePrefix}: ${order.external_order_ref}`}>{referencePrefix}: {order.external_order_ref}</span>}
                     </td>
                     <td data-label="Customer" className="customer-cell">
                       <div className="admin-order-customer" title={order.customerName || order.email || 'Guest'}>
@@ -414,7 +432,7 @@ const AdminOrdersPage: React.FC = () => {
                     </td>
                     <td data-label="Channel" className="channel-cell channel-column">
                       <span className={`admin-order-channel ${order.channel === 'onsite' ? 'is-onsite' : 'is-online'}`}>
-                        {order.channel === 'onsite' ? <Store size={13} /> : <Globe2 size={13} />}{order.channel === 'onsite' ? 'Onsite' : 'Online'}
+                        {platformLabel ? <><ShoppingBag size={13} aria-hidden="true" />{platformLabel}</> : <>{order.channel === 'onsite' ? <Store size={13} /> : <Globe2 size={13} />}{order.channel === 'onsite' ? 'Onsite' : 'Online'}</>}
                       </span>
                     </td>
                     <td data-label="Branch" className="branch-cell branch-column">
@@ -463,11 +481,14 @@ const AdminOrdersPage: React.FC = () => {
             {paginatedOrders.map((order) => {
               const orderId = String(order.order_number || order.id || '');
               const fullItemsSummary = getFullItemsSummary(order.items);
+              const platformLabel = getThirdPartyPlatformLabel(order.third_party_platform);
+              const referencePrefix = getThirdPartyReferencePrefix(order.third_party_platform);
               return (
                 <article key={order.id} className="admin-order-card">
                   <div className="admin-order-card-heading">
-                    <span className="admin-order-card-id" title={orderId}>{getCompactOrderId(orderId)}</span>
+                  <span className="min-w-0"><span className="admin-order-card-id" title={orderId}>{getCompactOrderId(orderId)}</span>{platformLabel && order.external_order_ref && <span className="block max-w-48 truncate text-[10px] font-medium text-[var(--oppa-text-muted)]" title={`${referencePrefix}: ${order.external_order_ref}`}>{referencePrefix}: {order.external_order_ref}</span>}</span>
                     <span className="admin-order-status-group">
+                    {platformLabel && <span className="admin-order-channel is-onsite"><ShoppingBag size={12} aria-hidden="true" />{platformLabel}</span>}
                       <StatusBadge status={statusLabels[order.status] || order.status} />
                       {isScheduledOrder(order) && <span className="admin-order-scheduled" title={`Scheduled: ${getScheduledDisplay(order)}`}>Scheduled</span>}
                     </span>
@@ -552,15 +573,24 @@ const AdminOrdersPage: React.FC = () => {
                   )}
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Channel</p>
-                  <p className="mt-1 text-sm font-medium capitalize text-[var(--oppa-text)]">{selectedOrder.channel || 'online'}</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">{getThirdPartyPlatformLabel(selectedOrder.third_party_platform) ? 'Source' : 'Channel'}</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--oppa-text)]">{getThirdPartyPlatformLabel(selectedOrder.third_party_platform) || (selectedOrder.channel || 'online')}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Payment Method</p>
                   <p className="mt-1 text-sm font-medium text-[var(--oppa-text)]">
-                    {formatPaymentMethod(selectedOrder.paymentMethod || selectedOrder.payment_method)}
+                    {getThirdPartyPlatformLabel(selectedOrder.third_party_platform)
+                      ? `Paid via ${getThirdPartyPlatformLabel(selectedOrder.third_party_platform)}`
+                      : formatPaymentMethod(selectedOrder.paymentMethod || selectedOrder.payment_method)}
                   </p>
                 </div>
+                {selectedOrder.third_party_platform && selectedOrder.external_order_ref && <div className="col-span-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Platform order number</p>
+                  <div className="mt-1 flex min-w-0 items-center gap-2">
+                    <span className="truncate font-mono text-sm font-semibold text-[var(--oppa-text)]" title={selectedOrder.external_order_ref}>{selectedOrder.external_order_ref}</span>
+                    <button type="button" onClick={() => copyExternalOrderRef(selectedOrder.external_order_ref || '', getThirdPartyPlatformLabel(selectedOrder.third_party_platform) || 'Platform')} aria-label="Copy platform order number" title={copiedOrderId === selectedOrder.external_order_ref ? 'Copied' : 'Copy platform order number'} className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] transition hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"><Copy size={15} aria-hidden="true" /></button>
+                  </div>
+                </div>}
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Status</p>
                   <div className="mt-1"><StatusBadge status={statusLabels[selectedOrder.status] || selectedOrder.status} /></div>

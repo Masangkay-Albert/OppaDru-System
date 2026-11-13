@@ -18,6 +18,7 @@ import StatCard from '../../admin-side/components/StatCard';
 import { PageHeader } from '../../admin-side/components/AdminUI';
 import Select from '../../../components/ui/Select';
 import SearchInput from '../../../components/ui/SearchInput';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 interface InventoryItem {
   id: string;
@@ -189,7 +190,7 @@ const FranchiseInventoryPage: React.FC = () => {
                     <td className="px-3 py-3">{formatInventoryQuantity(ingredient.reorder_level, ingredient.unit)}</td>
                     <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${ingredient.status === 'out_of_stock' ? 'bg-red-100 text-red-800' : ingredient.status === 'low_stock' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>{ingredient.status.replaceAll('_', ' ')}</span></td>
                     <td className="px-3 py-3"><select aria-label={`Movement for ${ingredient.name}`} value={edit.type} onChange={(event) => setIngredientEdit((current) => ({ ...current, [ingredient.id]: { ...edit, type: event.target.value as typeof edit.type } }))} className="h-9 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2"><option value="stock_in">Stock in</option><option value="stock_out">Stock out</option><option value="adjustment">Adjust total</option><option value="waste">Waste</option></select></td>
-                    <td className="px-3 py-3"><input type="number" min="0" step="0.001" value={edit.quantity} onChange={(event) => setIngredientEdit((current) => ({ ...current, [ingredient.id]: { ...edit, quantity: event.target.value } }))} className="h-9 w-28 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2" aria-label={`Quantity for ${ingredient.name}`} /></td>
+                    <td className="px-3 py-3"><input type="number" data-min="0" step="0.001" value={edit.quantity} onChange={(event) => setIngredientEdit((current) => ({ ...current, [ingredient.id]: { ...edit, quantity: event.target.value } }))} className="h-9 w-28 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2" aria-label={`Quantity for ${ingredient.name}`} /></td>
                     <td className="px-3 py-3"><input value={edit.reason} onChange={(event) => setIngredientEdit((current) => ({ ...current, [ingredient.id]: { ...edit, reason: event.target.value } }))} className="h-9 w-40 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2" aria-label={`Reason for ${ingredient.name}`} /></td>
                     <td className="px-3 py-3"><button type="button" disabled={busyId === `ingredient-${ingredient.id}` || !edit.quantity} onClick={() => void saveIngredientMovement(ingredient)} className="rounded-lg bg-[var(--oppa-green)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busyId === `ingredient-${ingredient.id}` ? 'Saving…' : 'Save'}</button></td>
                   </tr>;
@@ -197,13 +198,13 @@ const FranchiseInventoryPage: React.FC = () => {
                 </tbody></table></div>
             </section>
             <div className="grid gap-4 lg:grid-cols-2">
-              <form onSubmit={(event) => { void requestRestock(event); }} className="space-y-3 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4">
+              <ValidatedForm onSubmit={(event) => { void requestRestock(event); }} className="space-y-3 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4">
                 <h3 className="font-semibold text-[var(--oppa-text)]">Request stock from main branch</h3>
-                <select required value={restockIngredient} onChange={(event) => setRestockIngredient(event.target.value)} className="h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm"><option value="">Select ingredient</option>{ingredientInventory?.ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}</select>
-                <input required type="number" min="0.001" step="0.001" value={restockQuantity} onChange={(event) => setRestockQuantity(event.target.value)} placeholder="Requested quantity" className="h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm" />
+                <select data-required="true" value={restockIngredient} onChange={(event) => setRestockIngredient(event.target.value)} className="h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm"><option value="">Select ingredient</option>{ingredientInventory?.ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}</select>
+                <input data-required="true" type="number" data-min="0.001" step="0.001" value={restockQuantity} onChange={(event) => setRestockQuantity(event.target.value)} placeholder="Requested quantity" className="h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm" />
                 <textarea value={restockNotes} onChange={(event) => setRestockNotes(event.target.value)} maxLength={2000} placeholder="Notes (optional)" className="w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 text-sm" />
                 <button type="submit" className="rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">Submit request</button>
-              </form>
+              </ValidatedForm>
               <section className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4">
                 <h3 className="font-semibold text-[var(--oppa-text)]">Restock requests and transfers</h3>
                 <ul className="mt-3 space-y-3 text-sm">{ingredientInventory?.restock_requests.map((request) => <li key={`request-${request.id}`} className="border-b border-[var(--oppa-border)] pb-2"><strong>Request #{request.id}</strong> · {request.status}<p className="text-xs text-[var(--oppa-text-muted)]">{request.items.map((item) => `${item.ingredient.name} × ${formatInventoryQuantity(item.requested_quantity, item.ingredient.unit)}`).join(', ')}</p></li>)}
@@ -231,7 +232,7 @@ const FranchiseInventoryPage: React.FC = () => {
                         <td className="px-4 py-3"><div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[var(--oppa-cream)]">{item.image ? <img src={item.image} alt="" className="h-full w-full object-cover" /> : <Boxes size={17} className="text-[var(--oppa-green)]" />}</div><span><span className="block font-semibold">{item.name}</span><span className="block text-xs text-gray-500">{item.franchise_id ? 'Branch product' : 'Shared product'}</span></span></div></td>
                         <td className="px-4 py-3">{item.category}</td>
                         <td className="px-4 py-3">
-                          <input type="number" min="0" value={stockEdits[item.id] ?? (item.branch_stock_tracked ? String(item.branch_stock ?? 0) : '')} onChange={(event) => setStockEdits((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Not tracked" className="w-28 rounded-lg border border-gray-200 px-2 py-1.5" aria-label={`Stock quantity for ${item.name}`} />
+                          <input type="number" data-min="0" value={stockEdits[item.id] ?? (item.branch_stock_tracked ? String(item.branch_stock ?? 0) : '')} onChange={(event) => setStockEdits((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Not tracked" className="w-28 rounded-lg border border-gray-200 px-2 py-1.5" aria-label={`Stock quantity for ${item.name}`} />
                           {item.low_stock && <span className="ml-2 rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-800">Low</span>}
                           {item.branch_stock_tracked && item.branch_stock === 0 && <span className="ml-2 rounded-full bg-red-100 px-2 py-1 text-xs text-red-700">Out</span>}
                         </td>

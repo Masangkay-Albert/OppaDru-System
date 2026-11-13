@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle2, ClipboardList, Copy, Eye, Globe2, Store, X } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Copy, Eye, Globe2, ShoppingBag, Store, X } from 'lucide-react';
 import type { SelectOption } from '../../../components/ui/Select';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { API_URL } from '../../../services/apiConfig';
@@ -8,6 +8,7 @@ import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
 import { AdminDate, PageHeader, StatusBadge } from '../../admin-side/components/AdminUI';
 import OrdersFilterBar from '../../shared/components/OrdersFilterBar';
+import { getThirdPartyPlatformLabel, getThirdPartyReferencePrefix, type ThirdPartyPlatform } from '../../../constants/thirdPartyPlatforms';
 
 interface OrderItem {
   id?: string;
@@ -27,6 +28,8 @@ interface BranchOrder {
   payment_method: string;
   payment_status?: string | null;
   delivery_type?: string | null;
+  third_party_platform?: ThirdPartyPlatform | null;
+  external_order_ref?: string | null;
   delivery_address?: string | null;
   phone?: string | null;
   email?: string;
@@ -46,7 +49,7 @@ interface BranchOrder {
 }
 
 type StatusFilter = 'all' | 'pending' | 'preparing' | 'prepared' | 'on_the_way' | 'delivered' | 'cancelled';
-type ChannelFilter = 'all' | 'online' | 'onsite';
+type ChannelFilter = 'all' | 'online' | 'onsite' | ThirdPartyPlatform;
 
 const STATUS_OPTIONS: Array<{ label: string; value: StatusFilter; dot: string }> = [
   { label: 'All', value: 'all', dot: '' },
@@ -143,8 +146,10 @@ const FranchiseOrdersPage: React.FC = () => {
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
     return orders.filter((order) => {
-      if (query && !`${order.order_number || ''} ${order.id} ${getCustomerName(order)} ${order.email || ''}`.toLowerCase().includes(query)) return false;
-      if (channel !== 'all' && getChannel(order) !== channel) return false;
+      if (query && !`${order.order_number || ''} ${order.id} ${getCustomerName(order)} ${order.email || ''} ${order.external_order_ref || ''}`.toLowerCase().includes(query)) return false;
+      if (channel !== 'all' && (channel === 'online' || channel === 'onsite'
+        ? getChannel(order) !== channel
+        : order.third_party_platform !== channel)) return false;
       if (status !== 'all' && order.status.toLowerCase() !== status) return false;
       if (date && !order.created_at?.startsWith(date)) return false;
       return true;
@@ -204,6 +209,18 @@ const FranchiseOrdersPage: React.FC = () => {
       .catch((copyError: unknown) => {
         console.error('Failed to copy order ID:', copyError);
         setError('Could not copy order ID.');
+      });
+  };
+  const copyExternalOrderRef = (reference: string, platformLabel: string) => {
+    if (!navigator.clipboard) {
+      setError('Copying platform order numbers is not supported by this browser.');
+      return;
+    }
+    void navigator.clipboard.writeText(reference)
+      .then(() => setCopiedOrderId(reference))
+      .catch((copyError: unknown) => {
+        console.error('Failed to copy platform order number:', copyError);
+        setError(`Could not copy the ${platformLabel} order number.`);
       });
   };
   const isScheduledOrder = selectedOrder && (
@@ -274,10 +291,12 @@ const FranchiseOrdersPage: React.FC = () => {
                     const orderId = String(order.order_number || order.id);
                     const customerName = getCustomerName(order);
                     const orderChannel = getChannel(order);
+                    const platformLabel = getThirdPartyPlatformLabel(order.third_party_platform);
+                    const referencePrefix = getThirdPartyReferencePrefix(order.third_party_platform);
                     return <tr key={order.id} className="group border-b border-[var(--oppa-border)]/60 last:border-0 transition hover:bg-[var(--oppa-cream)]/50">
-                      <td className="whitespace-nowrap px-3 py-3 font-mono text-xs font-semibold text-[var(--oppa-text)]" title={orderId}>{orderId}</td>
+                      <td className="min-w-0 px-3 py-3 font-mono text-xs font-semibold text-[var(--oppa-text)]"><span className="block truncate" title={orderId}>{orderId}</span>{platformLabel && order.external_order_ref && <span className="block max-w-36 truncate text-[10px] font-medium text-[var(--oppa-text-muted)]" title={`${referencePrefix}: ${order.external_order_ref}`}>{referencePrefix}: {order.external_order_ref}</span>}</td>
                       <td className="px-3 py-2.5"><div className="flex min-w-0 items-center gap-2"><span aria-hidden="true" className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">{customerName.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || '?'}</span><div className="min-w-0"><span className="block truncate font-medium text-[var(--oppa-text)]">{customerName}</span><span className="block truncate text-xs text-[var(--oppa-text-muted)]">{order.email || order.user?.email || ' '}</span></div></div></td>
-                      <td className="px-3 py-3"><span className={`franchise-channel-badge ${orderChannel === 'onsite' ? 'franchise-channel-badge--onsite' : 'franchise-channel-badge--online'}`}>{orderChannel === 'onsite' ? <Store size={12} aria-hidden="true" /> : <Globe2 size={12} aria-hidden="true" />}{orderChannel === 'onsite' ? 'Onsite' : 'Online'}</span></td>
+                      <td className="px-3 py-3"><span className={`franchise-channel-badge ${orderChannel === 'onsite' ? 'franchise-channel-badge--onsite' : 'franchise-channel-badge--online'}`}>{platformLabel ? <><ShoppingBag size={12} aria-hidden="true" />{platformLabel}</> : <>{orderChannel === 'onsite' ? <Store size={12} aria-hidden="true" /> : <Globe2 size={12} aria-hidden="true" />}{orderChannel === 'onsite' ? 'Onsite' : 'Online'}</>}</span></td>
                       <td className="truncate px-3 py-3 text-[var(--oppa-text)]" title={branchName}>{branchName}</td>
                       <td className="truncate px-3 py-3 text-xs text-[var(--oppa-text-muted)]" title={getOrderItems(order).map((item) => `${item.quantity || 1}x ${item.product_name || item.name || 'Item'}`).join(', ')}>{getItemsSummary(order)}</td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-[var(--oppa-text)]">{formatCurrency(order.total)}</td>
@@ -330,8 +349,9 @@ const FranchiseOrdersPage: React.FC = () => {
               {detailLoading ? <p className="py-10 text-center text-sm text-[var(--oppa-text-muted)]">Loading order details...</p> : <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm">
                   <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Customer</p><p className="mt-1 font-medium">{getCustomerName(selectedOrder)}</p>{(selectedOrder.email || selectedOrder.user?.email) && <p className="break-all text-xs text-[var(--oppa-text-muted)]">{selectedOrder.email || selectedOrder.user?.email}</p>}</div>
-                  <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Channel</p><p className="mt-1 font-medium capitalize">{getChannel(selectedOrder)}</p></div>
-                  <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Payment Method</p><p className="mt-1 font-medium capitalize">{selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div>
+                  <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">{getThirdPartyPlatformLabel(selectedOrder.third_party_platform) ? 'Source' : 'Channel'}</p><p className="mt-1 font-medium">{getThirdPartyPlatformLabel(selectedOrder.third_party_platform) || getChannel(selectedOrder)}</p></div>
+                  <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Payment Method</p><p className="mt-1 font-medium">{getThirdPartyPlatformLabel(selectedOrder.third_party_platform) ? `Paid via ${getThirdPartyPlatformLabel(selectedOrder.third_party_platform)}` : selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div>
+                  {selectedOrder.third_party_platform && selectedOrder.external_order_ref && <div className="col-span-2"><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Platform order number</p><div className="mt-1 flex min-w-0 items-center gap-2"><span className="truncate font-mono font-semibold" title={selectedOrder.external_order_ref}>{selectedOrder.external_order_ref}</span><button type="button" onClick={() => copyExternalOrderRef(selectedOrder.external_order_ref || '', getThirdPartyPlatformLabel(selectedOrder.third_party_platform) || 'Platform')} aria-label="Copy platform order number" title={copiedOrderId === selectedOrder.external_order_ref ? 'Copied' : 'Copy platform order number'} className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] transition hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"><Copy size={14} aria-hidden="true" /></button></div></div>}
                   <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Status</p><div className="mt-1"><StatusBadge status={selectedOrder.status} /></div></div>
                   <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Delivery</p><p className="mt-1 font-medium capitalize">{(selectedOrder.delivery_type || 'standard').replaceAll('_', ' ')}</p></div>
                 </div>

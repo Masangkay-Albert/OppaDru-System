@@ -81,7 +81,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ account, onClose, onResetPa
           <div className="flex flex-col gap-2 sm:flex-row">
             <LimitedInput
               type="password"
-              minLength={INPUT_LIMITS.password.min}
+              data-min-length={INPUT_LIMITS.password.min}
               maxLength={INPUT_LIMITS.password.max}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}

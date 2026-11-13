@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
 import { authService } from "../../../services/authService";
@@ -6,6 +6,8 @@ import { LogIn, Mail, Lock, Eye, EyeOff, ChevronDown, ArrowLeft, Shield, Truck, 
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
 import { INPUT_LIMITS } from "../../../constants/inputLimits";
 import { LimitedInput } from "../../../components/ui/LimitedInput";
+import { FormField } from "../../../components/ui/FormValidation";
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -121,15 +123,12 @@ const LoginPage: React.FC = () => {
             </div>
           )}
 
-          <form
+          <ValidatedForm
             onSubmit={handleSubmit}
             aria-busy={isLoading}
             className="space-y-4"
           >
-            <div>
-              <label htmlFor="customer-email" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
-                Email Address
-              </label>
+            <FormField id="customer-email" label="Email Address" required labelClassName="text-[var(--oppa-green)]">
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
                 <LimitedInput
@@ -147,12 +146,9 @@ const LoginPage: React.FC = () => {
                   placeholder="you@example.com"
                 />
               </div>
-            </div>
+            </FormField>
 
-            <div>
-              <label htmlFor="customer-password" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
-                Password
-              </label>
+            <FormField id="customer-password" label="Password" required labelClassName="text-[var(--oppa-green)]">
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
                 <input
@@ -178,7 +174,7 @@ const LoginPage: React.FC = () => {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-            </div>
+            </FormField>
 
             <div className="mb-2 flex items-center justify-end">
               <button
@@ -197,7 +193,7 @@ const LoginPage: React.FC = () => {
             >
               {isLoading ? "Signing in..." : "Sign In"}
             </button>
-          </form>
+          </ValidatedForm>
 
           <p className="mt-4 text-center text-sm text-[var(--oppa-text-muted)]">
             Don&apos;t have an account?{" "}

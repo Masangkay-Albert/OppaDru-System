@@ -27,6 +27,13 @@ interface SelectProps<Value extends string | number = string> {
   helperText?: string;
   name?: string;
   required?: boolean;
+  'data-required'?: boolean | string;
+  'data-validate'?: string;
+  'data-validation-key'?: string;
+  'data-validation-name'?: string;
+  'data-min-length'?: number | string;
+  'data-min'?: number | string;
+  'data-max'?: number | string;
   className?: string;
   triggerClassName?: string;
   id?: string;
@@ -49,6 +56,13 @@ export default function Select<Value extends string | number = string>({
   helperText,
   name,
   required = false,
+  'data-required': dataRequired,
+  'data-validate': dataValidate,
+  'data-validation-key': validationKey,
+  'data-validation-name': validationName,
+  'data-min-length': dataMinLength,
+  'data-min': dataMin,
+  'data-max': dataMax,
   className = '',
   triggerClassName = '',
   id,
@@ -364,6 +378,7 @@ export default function Select<Value extends string | number = string>({
         aria-activedescendant={open ? activeOptionId : undefined}
         aria-invalid={hasError || undefined}
         aria-required={required || undefined}
+        data-validation-key={validationKey}
         aria-describedby={errorMessage ? errorId : helperText ? helperId : undefined}
         disabled={disabled}
         onClick={() => (open ? closeMenu() : openMenu())}
@@ -383,17 +398,18 @@ export default function Select<Value extends string | number = string>({
           type="text"
           name={name}
           value={selectedValue ?? ''}
-          required={required}
+          data-validation-key={validationKey}
+          data-validation-name={validationName || label}
+          data-required={dataRequired ?? (required ? 'true' : undefined)}
+          data-validate={dataValidate}
+          data-min-length={dataMinLength}
+          data-min={dataMin}
+          data-max={dataMax}
           tabIndex={-1}
           disabled={disabled}
           aria-hidden="true"
           className="pointer-events-none absolute left-1/2 top-1/2 size-px opacity-0"
           onChange={() => undefined}
-          onInvalid={(event) => {
-            event.preventDefault();
-            openMenu();
-            requestAnimationFrame(() => triggerRef.current?.focus());
-          }}
         />
       )}
       {helperText && !errorMessage && <p id={helperId} className="mt-1.5 text-xs text-[var(--oppa-text-muted)]">{helperText}</p>}

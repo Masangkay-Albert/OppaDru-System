@@ -83,6 +83,8 @@ class OrderDataService
                 : 'online',
             'payment_method' => $order->payment_method,
             'payment_status' => $order->payment_status,
+            'third_party_platform' => $order->third_party_platform,
+            'external_order_ref' => $order->external_order_ref,
             'delivery_address' => $order->delivery_address,
             'delivery_instructions' => $order->delivery_instructions,
             'delivery_coordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)

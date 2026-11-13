@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Database\QueryException;
+use Illuminate\Validation\Rule;
 
 trait FranchisePosOrderActions
 {
@@ -34,6 +36,31 @@ trait FranchisePosOrderActions
         $cashierEmployeeId = $user instanceof Employee ? $user->id : null;
         $franchiseUserId = $user instanceof FranchiseUser ? $user->id : null;
         $employeePosRequest = $request->is('api/employee/pos/orders');
+        $platformKeys = array_keys(config('third_party_platforms', []));
+        $platformInput = $request->input('third_party_platform');
+        $requestedPlatform = is_string($platformInput) ? strtolower(trim($platformInput)) : '';
+        $isThirdParty = in_array($requestedPlatform, $platformKeys, true);
+        $externalOrderRef = $request->input('external_order_ref');
+        if ($isThirdParty) {
+            $request->merge([
+                'third_party_platform' => $requestedPlatform,
+                'external_order_ref' => is_string($externalOrderRef) ? strtoupper(trim($externalOrderRef)) : $externalOrderRef,
+                'dining_option' => 'takeout',
+                'payment_method' => null,
+                'payment_reference' => null,
+                'terminal_reference' => null,
+                'cash_tendered' => null,
+                'discount_type' => null,
+                'discount_id_number' => null,
+                'discount_cardholder_name' => null,
+                'promo_id' => null,
+                'promo_code' => null,
+            ]);
+        }
+        $thirdPartyPlatform = $isThirdParty ? $requestedPlatform : null;
+        $externalOrderRef = $isThirdParty && is_string($externalOrderRef)
+            ? strtoupper(trim($externalOrderRef))
+            : null;
 
         $validator = Validator::make($request->all(), [
             'items' => 'required|array|min:1',
@@ -47,11 +74,13 @@ trait FranchisePosOrderActions
             'customer_name' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:50',
             'table_number' => 'nullable|string|max:30',
-            'dining_option' => 'required|string|in:dine_in,takeout',
-            'payment_method' => 'required|string|in:cash,gcash,credit_card',
+            'dining_option' => ['required_unless:third_party_platform,'.implode(',', $platformKeys), 'string', 'in:dine_in,takeout'],
+            'payment_method' => ['required_unless:third_party_platform,'.implode(',', $platformKeys), 'nullable', Rule::in(['cash', 'gcash', 'credit_card'])],
             'payment_reference' => 'required_if:payment_method,gcash,credit_card|nullable|string|max:100',
             'terminal_reference' => 'nullable|string|max:100',
             'cash_tendered' => 'nullable|numeric|min:0',
+            'third_party_platform' => ['nullable', Rule::in($platformKeys)],
+            'external_order_ref' => ['nullable', 'required_with:third_party_platform', 'prohibited_unless:third_party_platform,'.implode(',', $platformKeys), 'string', 'min:3', 'max:30', 'regex:/^[A-Z0-9-]+$/'],
             'discount_type' => 'nullable|string|in:PWD,Senior Citizen',
             'discount_id_number' => 'required_with:discount_type|nullable|string|max:100',
             'discount_cardholder_name' => 'nullable|string|max:255',
@@ -66,6 +95,15 @@ trait FranchisePosOrderActions
                 'message' => 'Please check the POS order details.',
                 'errors' => $validator->errors(),
             ], $employeePosRequest ? 400 : 422);
+        }
+
+        $duplicateOrderMessage = 'This platform order number has already been used at this branch.';
+        if ($isThirdParty && Order::query()
+            ->where('branch_id', $user->franchise_id)
+            ->where('third_party_platform', $thirdPartyPlatform)
+            ->where('external_order_ref', $externalOrderRef)
+            ->exists()) {
+            return response()->json(['message' => $duplicateOrderMessage], 409);
         }
 
         $productIds = collect($request->input('items'))->pluck('product_id')->unique();
@@ -153,15 +191,15 @@ trait FranchisePosOrderActions
             return response()->json(['message' => $exception->getMessage()], 422);
         }
         $subtotal = max(0, round($pricing['subtotal']));
-        $discountType = $request->input('discount_type');
+        $discountType = $isThirdParty ? null : $request->input('discount_type');
         $discountRate = $discountType ? 0.20 : 0;
         $posTotals = app(PricingService::class)->calculatePosDiscount($subtotal, (bool) $discountType);
         $discountAmount = $posTotals['discountAmount'];
         $promo = null;
         $promoDiscount = 0.0;
-        $promoCode = trim((string) $request->input('promo_code', ''));
+        $promoCode = $isThirdParty ? '' : trim((string) $request->input('promo_code', ''));
         $promoRedemptionService = app(PromoRedemptionService::class);
-        if ($request->filled('promo_id') || $request->filled('promo_code')) {
+        if (! $isThirdParty && ($request->filled('promo_id') || $request->filled('promo_code'))) {
             if ($promoCode !== '') {
                 $retryAfter = $promoRedemptionService->rateLimitRetryAfter($request, (string) $user->getAuthIdentifier());
                 if ($retryAfter !== null) {
@@ -214,8 +252,8 @@ trait FranchisePosOrderActions
             }
         }
         $total = max(0, round($posTotals['total'] - $promoDiscount));
-        $paymentMethod = $request->input('payment_method');
-        $cashTendered = (float) $request->input('cash_tendered', 0);
+        $paymentMethod = $isThirdParty ? $thirdPartyPlatform : $request->input('payment_method');
+        $cashTendered = $isThirdParty ? 0.0 : (float) $request->input('cash_tendered', 0);
 
         if ($paymentMethod === 'cash' && $cashTendered < $total) {
             return response()->json(['message' => 'Cash tendered must cover the order total.'], 422);
@@ -272,8 +310,19 @@ trait FranchisePosOrderActions
                 $gatewayPayment,
                 $cashTendered,
                 $cashierEmployeeId,
-                $franchiseUserId
+                $franchiseUserId,
+                $isThirdParty,
+                $thirdPartyPlatform,
+                $externalOrderRef,
+                $duplicateOrderMessage
             ) {
+                if ($isThirdParty && Order::query()
+                    ->where('branch_id', $user->franchise_id)
+                    ->where('third_party_platform', $thirdPartyPlatform)
+                    ->where('external_order_ref', $externalOrderRef)
+                    ->exists()) {
+                    throw new \InvalidArgumentException($duplicateOrderMessage, 409);
+                }
                 $inventoryService->consume((string) $user->franchise_id, $items);
                 if ($promo) {
                     if ($promoCode !== '') {
@@ -338,9 +387,13 @@ trait FranchisePosOrderActions
                     'status' => 'pending',
                     'payment_method' => $paymentMethod,
                     'payment_status' => 'paid',
-                    'payment_reference' => $paymentMethod === 'cash'
+                    'payment_reference' => $isThirdParty
+                        ? null
+                        : ($paymentMethod === 'cash'
                         ? 'CASH-'.strtoupper(Str::random(8))
-                        : ($gatewayPayment?->reference ?? $request->input('payment_reference')),
+                        : ($gatewayPayment?->reference ?? $request->input('payment_reference'))),
+                    'third_party_platform' => $thirdPartyPlatform,
+                    'external_order_ref' => $externalOrderRef,
                     'phone' => trim((string) $request->input('phone', '')),
                     'items' => $orderItems,
                     'vat' => $discountType ? 0 : round($total * 12 / 112, 2),
@@ -368,11 +421,20 @@ trait FranchisePosOrderActions
 
                 return $order;
             });
+        } catch (QueryException $exception) {
+            if ($isThirdParty && Order::query()
+                ->where('branch_id', $user->franchise_id)
+                ->where('third_party_platform', $thirdPartyPlatform)
+                ->where('external_order_ref', $externalOrderRef)
+                ->exists()) {
+                return response()->json(['message' => $duplicateOrderMessage], 409);
+            }
+            throw $exception;
         } catch (\InvalidArgumentException $exception) {
             return response()->json([
                 'success' => false,
                 'message' => $exception->getMessage(),
-            ], $employeePosRequest ? 400 : 422);
+            ], $exception->getCode() === 409 ? 409 : ($employeePosRequest ? 400 : 422));
         } catch (PromoRedemptionException $exception) {
             $promoRedemptionService->recordInvalidAttempt(
                 $request,

@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Product } from '../types/product.types';
 import { useAuth } from './Authcontext';
@@ -123,14 +122,12 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const isConsecutive = lastOrderedProductId === product.id;
     
     setOrderCounts(prev => {
-      let newPrev = [...prev];
-      
       if (isConsecutive) {
         const existing = prev.find(p => p.productId === product.id);
-        
+
         if (existing) {
           const newCount = existing.count + 1;
-          newPrev = prev.map(p => 
+          const updatedCounts = prev.map(p =>
             p.productId === product.id ? { ...p, count: newCount, lastOrderDate: Date.now() } : p
           );
 
@@ -138,31 +135,31 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             setFavorites(currentFavorites => {
               if (!currentFavorites.some(f => f.id === product.id)) {
                 const newFavorites = [...currentFavorites, product];
-                
+
                 clearNotificationTimer();
                 setNewFavoriteName(product.name);
                 setShowNotification(true);
                 setFavoriteNotificationCount(prevCount => prevCount + 1);
-                
+
                 const timer = setTimeout(() => {
                   setShowNotification(false);
                   setNotificationTimer(null);
                 }, 3000);
                 setNotificationTimer(timer);
-                
+
                 return newFavorites;
               }
               return currentFavorites;
             });
           }
-        } else {
-          newPrev = [...prev, { productId: product.id, count: 1, lastOrderDate: Date.now() }];
+
+          return updatedCounts;
         }
-      } else {
-        newPrev = [{ productId: product.id, count: 1, lastOrderDate: Date.now() }];
+
+        return [...prev, { productId: product.id, count: 1, lastOrderDate: Date.now() }];
       }
-      
-      return newPrev;
+
+      return [{ productId: product.id, count: 1, lastOrderDate: Date.now() }];
     });
 
     setLastOrderedProductId(product.id);

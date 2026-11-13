@@ -13,6 +13,7 @@ import { addOnsiteOrder, type AdminOrder } from '../../../services/adminOrderSer
 import { calculateSubtotal } from '../../../services/cartService';
 import { validateVoucherAsync } from '../../../services/voucherService';
 import type { Promo } from '../../../services/promoService';
+import { getThirdPartyPlatformLabel, type OrderSource } from '../../../constants/thirdPartyPlatforms';
 
 const EmployeeCheckoutPage: React.FC = () => {
   const navigate = useNavigate();
@@ -20,17 +21,9 @@ const EmployeeCheckoutPage: React.FC = () => {
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
 
-  useEffect(() => {
-    const ref = searchParams.get('payment_reference');
-    const status = searchParams.get('payment_status');
-    if (ref && status === 'confirmed') {
-      setPaymentReference(ref);
-      setPaymentMethod('gcash');
-      showToast(`GCash payment ${ref} confirmed! Click Place Order to finalize.`, 'success');
-    }
-  }, [searchParams, showToast]);
-
   const [diningOption, setDiningOption] = useState<'dine_in' | 'takeout'>('takeout');
+  const [orderSource, setOrderSource] = useState<OrderSource>('walk_in');
+  const [externalOrderRef, setExternalOrderRef] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [notes, setNotes] = useState('');
@@ -53,6 +46,16 @@ const EmployeeCheckoutPage: React.FC = () => {
   const [appliedPromo, setAppliedPromo] = useState<Promo | null>(null);
   const [isPromoValidating, setIsPromoValidating] = useState(false);
   const [promoError, setPromoError] = useState('');
+
+  useEffect(() => {
+    const ref = searchParams.get('payment_reference');
+    const status = searchParams.get('payment_status');
+    if (ref && status === 'confirmed') {
+      setPaymentReference(ref);
+      setPaymentMethod('gcash');
+      showToast(`GCash payment ${ref} confirmed! Click Place Order to finalize.`, 'success');
+    }
+  }, [searchParams, showToast]);
 
   const subtotal = calculateSubtotal(cartItems);
   const discountRate = discountType ? 0.20 : 0;
@@ -100,6 +103,18 @@ const EmployeeCheckoutPage: React.FC = () => {
     setPromoError('');
   };
 
+  const handleOrderSourceChange = (source: OrderSource) => {
+    setOrderSource(source);
+    setExternalOrderRef('');
+    setDiningOption('takeout');
+    setPaymentMethod('cash');
+    setPaymentReference('');
+    setCashTendered(0);
+    setDiscountType(null);
+    setDiscountIdNumber('');
+    handleRemovePromo();
+  };
+
   const executeOrderPlacement = async (confirmedReference?: string) => {
     if (submitLockRef.current) return;
     submitLockRef.current = true;
@@ -112,6 +127,8 @@ const EmployeeCheckoutPage: React.FC = () => {
         phone: customerPhone.trim() || undefined,
         items: cartItems,
         diningOption,
+        thirdPartyPlatform: orderSource === 'walk_in' ? undefined : orderSource,
+        externalOrderRef: orderSource === 'walk_in' ? undefined : externalOrderRef,
         notes: notes.trim() || undefined,
         paymentMethod,
         paymentReference: activeRef || undefined,
@@ -147,17 +164,23 @@ const EmployeeCheckoutPage: React.FC = () => {
       return;
     }
 
-    if (paymentMethod === 'cash' && cashTendered < finalTotal) {
+    if (orderSource !== 'walk_in' && !/^[A-Z0-9-]{3,30}$/.test(externalOrderRef)) {
+      const platformLabel = getThirdPartyPlatformLabel(orderSource) || 'platform';
+      showToast(`Enter a valid ${platformLabel} order number (3–30 letters, numbers, or hyphens).`, 'error');
+      return;
+    }
+
+    if (orderSource === 'walk_in' && paymentMethod === 'cash' && cashTendered < finalTotal) {
       showToast('Cash tendered is less than total amount due.', 'error');
       return;
     }
 
-    if (discountType && !discountIdNumber.trim()) {
+    if (orderSource === 'walk_in' && discountType && !discountIdNumber.trim()) {
       showToast(`Please enter the customer's ${discountType} ID number.`, 'error');
       return;
     }
 
-    if (paymentMethod === 'gcash' && !paymentReference) {
+    if (orderSource === 'walk_in' && paymentMethod === 'gcash' && !paymentReference) {
       setShowGCashModal(true);
       return;
     }
@@ -215,9 +238,13 @@ const EmployeeCheckoutPage: React.FC = () => {
           <h1 className="text-xl font-bold text-[#2d6a4f]">POS Register Checkout (Onsite)</h1>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <form onSubmit={(e) => { e.preventDefault(); void handlePlaceOrder(); }} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <CheckoutForm
+              orderSource={orderSource}
+              setOrderSource={handleOrderSourceChange}
+              externalOrderRef={externalOrderRef}
+              setExternalOrderRef={setExternalOrderRef}
               diningOption={diningOption}
               setDiningOption={setDiningOption}
               customerName={customerName}
@@ -258,9 +285,12 @@ const EmployeeCheckoutPage: React.FC = () => {
               promoDiscount={promoDiscount}
               promoCode={promoCode}
               isPlacingOrder={isPlacingOrder}
+              orderSource={orderSource}
+              externalOrderRef={externalOrderRef}
+              isOrderSourceValid={orderSource === 'walk_in' || /^[A-Z0-9-]{3,30}$/.test(externalOrderRef)}
             />
           </div>
-        </div>
+        </form>
       </div>
 
       <GCashPaymentModal

@@ -102,7 +102,7 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
         setSavedAddresses([]);
       }
     }
-  }, [userId]);
+  }, [onAddressSelect, userId]);
 
   // Save addresses to localStorage whenever they change
   useEffect(() => {

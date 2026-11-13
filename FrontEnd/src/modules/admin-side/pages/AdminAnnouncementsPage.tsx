@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   AlertCircle,
@@ -55,6 +55,7 @@ import type {
 } from '../../../types/announcement.types';
 import { INPUT_LIMITS } from '../../../constants/inputLimits';
 import { LimitedInput, LimitedTextarea } from '../../../components/ui/LimitedInput';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const LEGACY_AUDIENCE_META = {
   label: 'Legacy audience',
@@ -144,12 +145,12 @@ const AdminAnnouncementsPage: React.FC = () => {
   const [isPublishingToFb, setIsPublishingToFb] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'app' | 'facebook'>('app');
 
-  const showToast = (message: string, tone: 'success' | 'error' = 'success') => {
+  const showToast = useCallback((message: string, tone: 'success' | 'error' = 'success') => {
     setToastMessage(message);
     setToastTone(tone);
-  };
+  }, []);
 
-  const loadAnnouncements = async () => {
+  const loadAnnouncements = useCallback(async () => {
     setLoading(true);
     try {
       const filters: AnnouncementFilters = {
@@ -165,21 +166,21 @@ const AdminAnnouncementsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, showToast, sortDirection, statusFilter]);
 
   useEffect(() => {
     loadAnnouncements();
     announcementService.getFacebookStatus().then((status) => {
       setFbStatus(status);
     });
-  }, [statusFilter, sortDirection]);
+  }, [loadAnnouncements, statusFilter, sortDirection]);
 
   useEffect(() => {
     const handler = setTimeout(() => {
       loadAnnouncements();
     }, 300);
     return () => clearTimeout(handler);
-  }, [search]);
+  }, [loadAnnouncements, search]);
 
   // Lock background scroll and handle Escape key when popups are active
   useEffect(() => {
@@ -867,7 +868,7 @@ Oppa Dru Korean Fried Chicken
               </div>
 
               {/* Scrollable Form Body */}
-              <form
+              <ValidatedForm
                 onSubmit={handleSubmitForm}
                 className="flex min-h-0 flex-col"
                 style={{ flex: '1 1 0%' }}
@@ -905,8 +906,8 @@ Oppa Dru Korean Fried Chicken
                       <LimitedInput
                         id="announcement-title"
                         type="text"
-                        required
-                        minLength={INPUT_LIMITS.announcementTitle.min}
+                        data-required="true"
+                        data-min-length={INPUT_LIMITS.announcementTitle.min}
                         maxLength={INPUT_LIMITS.announcementTitle.max}
                         showCounter
                         placeholder="e.g. Weekend Special: 20% Off Korean Chicken!"
@@ -941,7 +942,7 @@ Oppa Dru Korean Fried Chicken
                     </div>
                     <LimitedTextarea
                       id="announcement-content"
-                      required
+                      data-required="true"
                       rows={6}
                       maxLength={INPUT_LIMITS.announcementBody.max}
                       placeholder="Write detailed announcements, promotional details, schedule reminders, or operational instructions..."
@@ -1051,9 +1052,9 @@ Oppa Dru Korean Fried Chicken
                       <input
                         id={sendMode === 'schedule' ? 'announcement-scheduled-at' : 'announcement-date-sent'}
                         type="datetime-local"
-                        required={sendMode === 'schedule'}
+                        data-required={sendMode === 'schedule'}
                         disabled={sendMode === 'immediate'}
-                        min={sendMode === 'schedule' ? getMinimumScheduleDateTime() : undefined}
+                        data-min={sendMode === 'schedule' ? getMinimumScheduleDateTime() : undefined}
                         value={formatDateForInput(
                           sendMode === 'schedule'
                             ? formData.scheduled_at
@@ -1142,7 +1143,7 @@ Oppa Dru Korean Fried Chicken
                     </span>
                   </button>
                 </div>
-              </form>
+              </ValidatedForm>
             </div>
           </div>,
           document.body

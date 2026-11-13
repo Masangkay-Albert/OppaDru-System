@@ -222,7 +222,7 @@ const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
                   type={dialog.options.type || 'text'}
                   value={promptValue}
                   onChange={(event) => setPromptValue(event.target.value)}
-                  minLength={dialog.options.minLength}
+                  data-min-length={dialog.options.minLength}
                   placeholder={dialog.options.placeholder}
                   className="mt-1.5 min-h-11 w-full rounded-xl border border-[var(--oppa-border)] px-3 text-sm outline-none focus:border-[var(--oppa-green)] focus:ring-2 focus:ring-[var(--oppa-green)]/20"
                   onKeyDown={(event) => {

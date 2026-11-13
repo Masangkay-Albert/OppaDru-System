@@ -18,6 +18,7 @@ import { LimitedInput } from '../../../components/ui/LimitedInput';
 import { INPUT_LIMITS } from '../../../constants/inputLimits';
 import FranchiseAccountReportSection from './FranchiseAccountReport';
 import '../styles/franchise-account-detail.css';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 type Tab = 'overview' | 'report' | 'locations' | 'team' | 'settings';
 
@@ -430,37 +431,37 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
             {tab === 'settings' && (
               <section id="franchise-information" className="franchise-account-card flex h-full scroll-mt-32 flex-col">
                 <div className="mb-4 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Franchise information</h2><p className="text-xs text-[var(--oppa-text-muted)]">Account contact details and activation status.</p></div><Building2 size={18} className="text-[var(--oppa-green)]" /></div>
-                <form key={`${account.id}:${account.name}:${account.email}:${account.phone}:${account.address}:${account.status}`} onInput={() => setAccountFormDirty(true)} onSubmit={saveAccount} className="franchise-information-form grid flex-1 content-start gap-4 sm:grid-cols-2">
-                  <label className="franchise-information-label">Franchise name<input name="name" required defaultValue={account.name} className="admin-embedded-input franchise-information-control mt-1.5 w-full font-normal" /></label>
+                <ValidatedForm key={`${account.id}:${account.name}:${account.email}:${account.phone}:${account.address}:${account.status}`} onInput={() => setAccountFormDirty(true)} onSubmit={saveAccount} className="franchise-information-form grid flex-1 content-start gap-4 sm:grid-cols-2">
+                  <label className="franchise-information-label">Franchise name<input name="name" data-required="true" defaultValue={account.name} className="admin-embedded-input franchise-information-control mt-1.5 w-full font-normal" /></label>
                   <Select label="Status" name="status" defaultValue={account.status} onChange={() => setAccountFormDirty(true)} options={[{ value: 'active', label: 'Active' }, { value: 'pending', label: 'Pending' }, { value: 'inactive', label: 'Inactive' }]} className="franchise-information-label" />
                   <label className="franchise-information-label">Email<span className="franchise-information-icon-field relative mt-1.5 block"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]">@</span><input name="email" type="email" defaultValue={account.email || ''} className="admin-embedded-input franchise-information-control w-full pl-9 font-normal" /></span></label>
                   <label className="franchise-information-label">Phone<span className="franchise-information-icon-field relative mt-1.5 block"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]">☎</span><input name="phone" defaultValue={account.phone || ''} className="admin-embedded-input franchise-information-control w-full pl-9 font-normal" /></span></label>
                   <label className="franchise-information-label sm:col-span-2">Head office address<span className="franchise-information-icon-field relative mt-1.5 block"><MapPin size={15} className="absolute left-3 top-3 text-[var(--oppa-text-muted)]" /><textarea name="address" rows={2} defaultValue={account.address || ''} className="admin-embedded-input franchise-information-control franchise-information-textarea w-full pl-9 font-normal" /></span></label>
                   <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-[var(--oppa-border)] pt-4 sm:col-span-2"><div className="flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]"><span>{accountFormDirty ? 'Unsaved changes' : 'No unsaved changes'}</span></div><button disabled={saving || !accountFormDirty} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"><Save size={15} /> Save changes</button></div>
-                </form>
+                </ValidatedForm>
               </section>
             )}
             {showLocation && (
               <Modal title="Add location" onClose={() => setShowLocation(false)}>
-                <form onSubmit={addLocation} className="space-y-4">
-                  <label className="block text-sm font-medium">Location name<input name="name" className="admin-embedded-input mt-1 w-full" required /></label>
-                  <label className="block text-sm font-medium">Address<textarea name="address" value={newLocationAddress} onChange={(event) => setNewLocationAddress(event.target.value)} className="admin-embedded-input mt-1 w-full" rows={3} required></textarea></label>
+                <ValidatedForm onSubmit={addLocation} className="space-y-4">
+                  <label className="block text-sm font-medium">Location name<input name="name" className="admin-embedded-input mt-1 w-full" data-required="true" /></label>
+                  <label className="block text-sm font-medium">Address<textarea name="address" value={newLocationAddress} onChange={(event) => setNewLocationAddress(event.target.value)} className="admin-embedded-input mt-1 w-full" rows={3} data-required="true"></textarea></label>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="block text-sm font-medium">Status<select name="status" className="admin-embedded-input mt-1 w-full" defaultValue="active"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
                     <label className="block text-sm font-medium">Online orders<input type="checkbox" name="accepts_online_orders" defaultChecked className="mt-2 block h-4 w-4" /></label>
                   </div>
                   <ModalActions saving={saving} onCancel={() => setShowLocation(false)} />
-                </form>
+                </ValidatedForm>
               </Modal>
             )}
             {showManager && (
               <Modal title="Add manager" onClose={() => setShowManager(false)}>
-                <form onSubmit={addManager} className="space-y-4">
-                  <label className="block text-sm font-medium">Full name<LimitedInput name="full_name" minLength={INPUT_LIMITS.personName.min} maxLength={INPUT_LIMITS.personName.max} inputFilter="personName" className="admin-embedded-input mt-1 w-full" required /></label>
-                  <label className="block text-sm font-medium">Email<LimitedInput name="email" type="email" maxLength={INPUT_LIMITS.email.max} className="admin-embedded-input mt-1 w-full" required /></label>
-                  <label className="block text-sm font-medium">Password<LimitedInput name="password" type="password" minLength={INPUT_LIMITS.password.min} maxLength={INPUT_LIMITS.password.max} className="admin-embedded-input mt-1 w-full" required /></label>
+                <ValidatedForm onSubmit={addManager} className="space-y-4">
+                  <label className="block text-sm font-medium">Full name<LimitedInput name="full_name" data-min-length={INPUT_LIMITS.personName.min} maxLength={INPUT_LIMITS.personName.max} inputFilter="personName" className="admin-embedded-input mt-1 w-full" data-required="true" /></label>
+                  <label className="block text-sm font-medium">Email<LimitedInput name="email" type="email" maxLength={INPUT_LIMITS.email.max} className="admin-embedded-input mt-1 w-full" data-required="true" /></label>
+                  <label className="block text-sm font-medium">Password<LimitedInput name="password" type="password" data-min-length={INPUT_LIMITS.password.min} maxLength={INPUT_LIMITS.password.max} className="admin-embedded-input mt-1 w-full" data-required="true" /></label>
                   <ModalActions saving={saving} onCancel={() => setShowManager(false)} />
-                </form>
+                </ValidatedForm>
               </Modal>
             )}
           </>

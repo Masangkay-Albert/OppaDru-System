@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, Lock, XCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
@@ -7,6 +7,7 @@ import { authService } from "../../../services/authService";
 import { validatePasswordComplexity } from "../../../utils/passwordValidation";
 import { INPUT_LIMITS } from "../../../constants/inputLimits";
 import { LimitedInput } from "../../../components/ui/LimitedInput";
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const ResetPasswordPage: React.FC = () => {
   const location = useLocation();
@@ -21,9 +22,22 @@ const ResetPasswordPage: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
 
   const passwordValidation = useMemo(() => validatePasswordComplexity(password), [password]);
-  const passwordMismatch = passwordConfirmation.length > 0 && password !== passwordConfirmation;
+
+  const handlePasswordChange = (val: string) => {
+    setPassword(val);
+    if (confirmPasswordRef.current && passwordConfirmation) {
+      confirmPasswordRef.current.setCustomValidity(passwordConfirmation !== val ? "Passwords do not match." : "");
+    }
+  };
+
+  const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setPasswordConfirmation(val);
+    e.target.setCustomValidity(val !== password ? "Passwords do not match." : "");
+  };
 
   if (!token || !email) {
     return (
@@ -55,11 +69,6 @@ const ResetPasswordPage: React.FC = () => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
-
-    if (!password || !passwordConfirmation) {
-      setError("Please enter and confirm your new password.");
-      return;
-    }
 
     if (!passwordValidation.isValid) {
       setError("Your password must include uppercase, lowercase, a number, and a special character.");
@@ -106,29 +115,20 @@ const ResetPasswordPage: React.FC = () => {
       <main className="flex min-h-screen items-center justify-center px-5 py-8 sm:px-8">
         <div className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-sm sm:p-8">
           <div className="mb-6 text-center">
-            <h1 className="font-serif text-3xl font-semibold text-[var(--oppa-green)]">Reset Password</h1>
-            <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">Set a new password for {email}</p>
+            <h1 className="font-serif text-3xl font-semibold text-[var(--oppa-green)]">Reset password</h1>
+            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Choose a new password for {email}</p>
           </div>
 
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-700" role="alert" aria-live="assertive">
               {error}
-              {error.includes("expired") || error.includes("invalid") ? (
-                <button
-                  type="button"
-                  onClick={() => navigate("/forgot-password")}
-                  className="mt-2 block font-semibold underline underline-offset-2"
-                >
-                  Request a new link
-                </button>
-              ) : null}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5" aria-busy={isLoading}>
+          <ValidatedForm onSubmit={handleSubmit} className="space-y-4" aria-busy={isLoading}>
             <div>
               <label htmlFor="new-password" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
-                New Password
+                New password
               </label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
@@ -136,11 +136,11 @@ const ResetPasswordPage: React.FC = () => {
                   id="new-password"
                   type={showPassword ? "text" : "password"}
                   autoComplete="new-password"
-                  autoFocus
+                  required
                   minLength={INPUT_LIMITS.password.min}
                   maxLength={INPUT_LIMITS.password.max}
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => handlePasswordChange(event.target.value)}
                   className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-12 text-sm transition-colors placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20"
                   placeholder="Enter a strong password"
                 />
@@ -163,11 +163,13 @@ const ResetPasswordPage: React.FC = () => {
                 <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
                 <LimitedInput
                   id="confirm-new-password"
+                  ref={confirmPasswordRef}
                   type={showConfirmPassword ? "text" : "password"}
                   autoComplete="new-password"
+                  required
                   maxLength={INPUT_LIMITS.password.max}
                   value={passwordConfirmation}
-                  onChange={(event) => setPasswordConfirmation(event.target.value)}
+                  onChange={handleConfirmPasswordChange}
                   className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] py-2.5 pl-10 pr-12 text-sm transition-colors placeholder:text-gray-400 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20"
                   placeholder="Confirm your new password"
                 />
@@ -197,10 +199,6 @@ const ResetPasswordPage: React.FC = () => {
               </ul>
             </div>
 
-            {passwordMismatch && (
-              <p className="text-sm text-red-600" role="alert" aria-live="assertive">Passwords do not match.</p>
-            )}
-
             <button
               type="submit"
               disabled={isLoading}
@@ -208,7 +206,7 @@ const ResetPasswordPage: React.FC = () => {
             >
               {isLoading ? "Updating password..." : "Reset password"}
             </button>
-          </form>
+          </ValidatedForm>
 
           <button
             type="button"

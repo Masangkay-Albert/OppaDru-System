@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import LoginBrandPanel from '../../../components/LoginBrandPanel';
 import { useFranchiseApplicantAuth } from '../../../contexts/franchiseApplicantAuth';
 import { franchiseApplicantAuthService } from '../../../services/franchiseApplicantAuthService';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const FranchiseApplicantLoginPage: React.FC = () => {
   const location = useLocation();
@@ -103,7 +104,7 @@ const FranchiseApplicantLoginPage: React.FC = () => {
           {signOutError && <p role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800">{signOutError} Your local session was cleared; sign in again to continue.</p>}
           {resendMessage && <p role="status" className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3.5 text-sm text-green-800">{resendMessage}</p>}
 
-          <form onSubmit={handleSubmit} aria-busy={isLoading} className="space-y-4">
+          <ValidatedForm onSubmit={handleSubmit} aria-busy={isLoading} className="space-y-4">
             <label htmlFor="franchise-applicant-email" className="block text-sm font-medium text-[var(--oppa-green)]">
               Email Address
               <span className="relative mt-1.5 block">
@@ -154,7 +155,7 @@ const FranchiseApplicantLoginPage: React.FC = () => {
             <button type="submit" disabled={isLoading} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60">
               <LogIn size={16} aria-hidden="true" />{isLoading ? 'Signing in…' : 'Sign In'}
             </button>
-          </form>
+          </ValidatedForm>
 
           <p className="mt-4 text-center text-sm text-[var(--oppa-text-muted)]">
             Don&apos;t have an account?{' '}

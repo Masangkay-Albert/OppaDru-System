@@ -17,6 +17,7 @@ import {
 import { AdminDate, Avatar, ConfirmDialog, EmptyState, PageHeader, RowActionsMenu } from '../components/AdminUI';
 import SearchInput from '../../../components/ui/SearchInput';
 import Select from '../../../components/ui/Select';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 type PendingAction =
   | { kind: 'role'; admin: StoredAccount; role: AdminRole }
@@ -225,24 +226,24 @@ const AdminAdminsPage: React.FC = () => {
       />
 
       {editTarget && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/55 p-4">
-        <form onSubmit={saveEdit} className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl">
+        <ValidatedForm onSubmit={saveEdit} className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl">
           <h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Edit administrator</h2>
           <label className="mt-4 block text-sm font-medium text-[var(--oppa-text)]">Full name<input required value={editName} onChange={(event) => setEditName(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-transparent px-3 py-2" /></label>
           <label className="mt-3 block text-sm font-medium text-[var(--oppa-text)]">Email<input required type="email" value={editEmail} onChange={(event) => setEditEmail(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-transparent px-3 py-2" /></label>
           {editError && <p role="alert" className="mt-3 text-sm text-red-700">{editError}</p>}
           <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setEditTarget(null)} disabled={isSubmitting} className="rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm">Cancel</button><button type="submit" disabled={isSubmitting} className="rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{isSubmitting ? 'Saving…' : 'Save changes'}</button></div>
-        </form>
+        </ValidatedForm>
       </div>}
 
       {pendingAction?.kind === 'reset-password' && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/55 p-4">
-        <form onSubmit={(event) => { event.preventDefault(); setResetError(''); if (resetPassword.length < 8) { setResetError('Use at least 8 characters.'); return; } if (resetPassword !== resetPasswordConfirmation) { setResetError('Passwords do not match.'); return; } setPasswordConfirmationReady(true); }} className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl">
+        <ValidatedForm onSubmit={(event) => { event.preventDefault(); setResetError(''); if (resetPassword.length < 8) { setResetError('Use at least 8 characters.'); return; } if (resetPassword !== resetPasswordConfirmation) { setResetError('Passwords do not match.'); return; } setPasswordConfirmationReady(true); }} className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl">
           <h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Reset administrator password</h2>
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">{pendingAction.admin.fullName}</p>
           <label className="mt-4 block text-sm font-medium text-[var(--oppa-text)]">New password<input required minLength={8} type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-transparent px-3 py-2" /></label>
           <label className="mt-3 block text-sm font-medium text-[var(--oppa-text)]">Confirm password<input required minLength={8} type="password" value={resetPasswordConfirmation} onChange={(event) => setResetPasswordConfirmation(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-transparent px-3 py-2" /></label>
           {resetError && <p role="alert" className="mt-3 text-sm text-red-700">{resetError}</p>}
           <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => { setPendingAction(null); setResetPassword(''); setResetPasswordConfirmation(''); setPasswordConfirmationReady(false); }} className="rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm">Cancel</button><button type="submit" className="rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">Continue</button></div>
-        </form>
+        </ValidatedForm>
       </div>}
 
       {pendingAction && (pendingAction.kind !== 'reset-password' || passwordConfirmationReady) && <ConfirmDialog

@@ -4,6 +4,7 @@ import { getAccountDisplayName } from './adminAuthService';
 import { orderService } from './orderService';
 import { API_URL } from './apiConfig';
 import { fetchWithAdminAuth } from './adminAuthService';
+import type { ThirdPartyPlatform } from '../constants/thirdPartyPlatforms';
 
 const ORDERS_KEY = 'orders';
 const ONSITE_ORDERS_KEY = 'onsiteOrders';
@@ -73,6 +74,8 @@ export type AdminOrderItem = Partial<CartItem> & {
 export type AdminOrder = Omit<Order, 'timestamp' | 'items'> & {
   items: AdminOrderItem[];
   channel: OrderChannel;
+  third_party_platform?: ThirdPartyPlatform | null;
+  external_order_ref?: string | null;
   customerName?: string;
   customer_name?: string;
   payment_method?: string;
@@ -295,6 +298,8 @@ export interface OnsiteOrderData {
     [key: string]: any;
   })[];
   paymentMethod: string;
+  thirdPartyPlatform?: ThirdPartyPlatform;
+  externalOrderRef?: string;
   paymentReference?: string;
   diningOption?: 'dine_in' | 'takeout';
   notes?: string;
@@ -327,6 +332,9 @@ interface PosOnsiteOrderResponse {
   payment_reference?: string;
   promo_code?: string | null;
   promo_discount?: number | string | null;
+  payment_method?: string;
+  third_party_platform?: ThirdPartyPlatform | null;
+  external_order_ref?: string | null;
 }
 
 export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder> => {
@@ -358,19 +366,25 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
     special_instructions: i.specialInstructions || (i as any).special_instructions || undefined,
   }));
 
+  const isThirdParty = Boolean(data.thirdPartyPlatform);
   const payload = {
     customer_name: data.customerName?.trim() || 'Walk-in Customer',
     phone: data.phone?.trim() || undefined,
     dining_option: data.diningOption || 'takeout',
     notes: data.notes?.trim() || undefined,
-    payment_method: data.paymentMethod || 'cash',
-    payment_reference: data.paymentMethod === 'gcash' ? data.paymentReference : undefined,
-    terminal_reference: data.paymentMethod === 'credit_card' ? data.paymentReference : undefined,
-    cash_tendered: data.cashTendered,
-    discount_type: data.discountType || null,
-    discount_id_number: data.discountIdNumber,
-    promo_id: data.promoId || undefined,
-    promo_code: data.promoCode || undefined,
+    ...(isThirdParty ? {
+      third_party_platform: data.thirdPartyPlatform,
+      external_order_ref: data.externalOrderRef,
+    } : {
+      payment_method: data.paymentMethod || 'cash',
+      payment_reference: data.paymentMethod === 'gcash' ? data.paymentReference : undefined,
+      terminal_reference: data.paymentMethod === 'credit_card' ? data.paymentReference : undefined,
+      cash_tendered: data.cashTendered,
+      discount_type: data.discountType || null,
+      discount_id_number: data.discountIdNumber,
+      promo_id: data.promoId || undefined,
+      promo_code: data.promoCode || undefined,
+    }),
     items: itemsPayload,
   };
 
@@ -442,7 +456,7 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
     }),
     total: calculatedTotal,
     vat: Number(backendOrder.vat || 0),
-    discountType: data.discountType || null,
+    discountType: isThirdParty ? null : data.discountType || null,
     discountRate: data.discountRate || 0,
     discountAmount: Number(backendOrder.discount_amount || 0),
     address: deliveryAddress,
@@ -450,8 +464,10 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
     status: backendOrder?.status || 'pending',
     timestamp: backendOrder?.created_at || new Date().toISOString(),
     created_at: backendOrder?.created_at || new Date().toISOString(),
-    paymentMethod: data.paymentMethod,
-    payment_method: data.paymentMethod,
+    paymentMethod: backendOrder.payment_method || data.paymentMethod,
+    payment_method: backendOrder.payment_method || data.paymentMethod,
+    third_party_platform: backendOrder.third_party_platform || data.thirdPartyPlatform || null,
+    external_order_ref: backendOrder.external_order_ref || data.externalOrderRef || null,
     deliveryAddress: deliveryAddress,
     deliveryAddressCoords: { lat: 0, lng: 0 },
     channel: 'onsite',
@@ -459,8 +475,8 @@ export const addOnsiteOrder = async (data: OnsiteOrderData): Promise<AdminOrder>
     customer_name: data.customerName?.trim() || 'Walk-in Customer',
     diningOption: data.diningOption || 'takeout',
     notes: data.notes || '',
-    cashTendered: data.cashTendered,
-    changeDue: serverChangeDue,
+    cashTendered: isThirdParty ? undefined : data.cashTendered,
+    changeDue: isThirdParty ? undefined : serverChangeDue,
     payment_reference: backendOrder.payment_reference || data.paymentReference,
     paymentReference: backendOrder.payment_reference || data.paymentReference,
     promo_code: backendOrder.promo_code || data.promoCode,

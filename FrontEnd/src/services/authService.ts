@@ -8,6 +8,32 @@ const getApiErrorMessage = async (response: Response, fallback: string): Promise
   return validationMessages || error.message || fallback;
 };
 
+export class AuthValidationError extends Error {
+  public readonly validationErrors: Record<string, string[]>;
+
+  constructor(
+    message: string,
+    validationErrors: Record<string, string[]>,
+  ) {
+    super(message);
+    this.name = 'AuthValidationError';
+    this.validationErrors = validationErrors;
+  }
+}
+
+const readValidationErrors = (payload: unknown): Record<string, string[]> => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {};
+  const rawErrors = (payload as Record<string, unknown>).errors;
+  if (!rawErrors || typeof rawErrors !== 'object' || Array.isArray(rawErrors)) return {};
+
+  return Object.fromEntries(
+    Object.entries(rawErrors).map(([field, messages]) => [
+      field,
+      Array.isArray(messages) ? messages.filter((message): message is string => typeof message === 'string') : [],
+    ]),
+  );
+};
+
 export interface User {
   id: string;
   full_name: string;
@@ -22,7 +48,7 @@ export interface User {
 export interface RegisterData {
   full_name: string;
   email: string;
-  phone?: string;
+  phone: string;
   password: string;
   password_confirmation: string;
 }
@@ -83,7 +109,14 @@ class AuthService {
     });
 
     if (!response.ok) {
-      throw new Error(await getApiErrorMessage(response, 'Registration failed'));
+      const payload: unknown = await response.json().catch(() => null);
+      const validationErrors = readValidationErrors(payload);
+      const validationMessage = Object.values(validationErrors).flat().join(' ');
+      const message = validationMessage
+        || (payload && typeof payload === 'object' && typeof (payload as Record<string, unknown>).message === 'string'
+          ? String((payload as Record<string, unknown>).message)
+          : 'Registration failed');
+      throw new AuthValidationError(message, validationErrors);
     }
 
     const result = await response.json();

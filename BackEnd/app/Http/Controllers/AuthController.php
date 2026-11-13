@@ -35,7 +35,7 @@ class AuthController extends Controller
                 'required', 'string', 'email', 'max:'.config('input_limits.registration_email'),
                 Rule::unique('users', 'email')->where(fn ($query) => $query->whereRaw('LOWER(email) = ?', [$request->email])),
             ],
-            'phone' => ['nullable', 'string', 'max:13', 'regex:'.config('input_limits.phone')],
+            'phone' => ['required', 'string', 'max:13', 'regex:'.config('input_limits.phone')],
             'password' => ['required', 'string', 'min:'.config('input_limits.password.min'), 'max:'.config('input_limits.password.max'), 'confirmed'],
         ]);
 

@@ -10,6 +10,7 @@ import { formatInventoryQuantity } from '../../../utils/inventoryFormatters';
 import { TotalPriceInput } from '../../shared/components/TotalPriceInput';
 import { isValidTotalPriceInput } from '../../../constants/inventoryUnits';
 import { LimitedInput, LimitedTextarea } from '../../../components/ui/LimitedInput';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const fieldClass = 'mt-1 h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)] focus:ring-2 focus:ring-[var(--oppa-green)]/20';
 const labelClass = 'block text-sm font-medium text-[var(--oppa-text)]';
@@ -194,12 +195,12 @@ export const IngredientFormModal: React.FC<{
       description={editing ? 'Update ingredient details. Adjust stock separately to keep a movement history.' : 'Add an ingredient or supply used by the main branch.'}
       onClose={onClose}
     >
-      <form onSubmit={(event) => { void submit(event); }} className="space-y-4">
+      <ValidatedForm onSubmit={(event) => { void submit(event); }} className="space-y-4">
         <label className={labelClass}>Name <span className="text-red-600" aria-hidden="true">*</span>
           <LimitedInput
             name="name"
-            required
-            minLength={INPUT_LIMITS.ingredientName.min}
+            data-required="true"
+            data-min-length={INPUT_LIMITS.ingredientName.min}
             maxLength={INPUT_LIMITS.ingredientName.max}
             inputFilter="ingredientName"
             showCounter
@@ -217,7 +218,7 @@ export const IngredientFormModal: React.FC<{
               options={categoryOptions}
               defaultValue={ingredient?.category || ''}
               placeholder="Select an ingredient category"
-              required
+              data-required="true"
               className="mt-1"
               triggerClassName={fieldClass}
             />
@@ -229,7 +230,7 @@ export const IngredientFormModal: React.FC<{
               value={selectedUnit}
               onChange={(nextUnit) => setSelectedUnit(String(nextUnit))}
               placeholder="Select usage unit"
-              required
+              data-required="true"
               className="mt-1"
               triggerClassName={fieldClass}
             />
@@ -240,10 +241,10 @@ export const IngredientFormModal: React.FC<{
           {!editing && <label className={labelClass}>Current quantity
             <LimitedInput
               name="quantity"
-              required
+              data-required="true"
               type="number"
-              min="0"
-              max={INPUT_LIMITS.inventoryQuantity.max}
+              data-min="0"
+              data-max={INPUT_LIMITS.inventoryQuantity.max}
               step={quantityStep}
               inputMode={quantityMode}
               inputFilter="inventoryQuantity"
@@ -256,10 +257,10 @@ export const IngredientFormModal: React.FC<{
           <label className={labelClass}>Reorder level <span className="text-red-600" aria-hidden="true">*</span>
             <LimitedInput
               name="reorder_level"
-              required
+              data-required="true"
               type="number"
-              min="0"
-              max={INPUT_LIMITS.inventoryQuantity.max}
+              data-min="0"
+              data-max={INPUT_LIMITS.inventoryQuantity.max}
               step={quantityStep}
               inputMode={quantityMode}
               inputFilter="inventoryQuantity"
@@ -281,10 +282,10 @@ export const IngredientFormModal: React.FC<{
           <label className={labelClass}>Purchase-to-usage conversion
             <LimitedInput
               name="conversion_factor"
-              required
+              data-required="true"
               type="number"
-              min="1"
-              max={INPUT_LIMITS.inventoryConversion.max}
+              data-min="1"
+              data-max={INPUT_LIMITS.inventoryConversion.max}
               step="1"
               inputMode="numeric"
               inputFilter="digits"
@@ -329,7 +330,7 @@ export const IngredientFormModal: React.FC<{
           <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">Cancel</button>
           <button type="submit" disabled={busy} className="min-h-11 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:opacity-60">{busy ? 'Saving…' : editing ? 'Update price / details' : 'Add ingredient'}</button>
         </div>
-      </form>
+      </ValidatedForm>
     </InventoryModal>
   );
 };
@@ -368,7 +369,7 @@ export const AdjustStockModal: React.FC<{
 
   return (
     <InventoryModal title={type === 'stock_out' ? 'Stock out' : 'Adjust stock'} description={`${ingredient.name} · Current stock: ${preview(current)}`} onClose={onClose}>
-      <form onSubmit={(event) => { void submit(event); }} className="space-y-4">
+      <ValidatedForm onSubmit={(event) => { void submit(event); }} className="space-y-4">
         <label className={labelClass}>Adjustment type
           <select value={type} onChange={(event) => setType(event.target.value as 'stock_out' | 'adjustment')} className={fieldClass}>
             <option value="stock_out">Stock out (used)</option>
@@ -380,10 +381,10 @@ export const AdjustStockModal: React.FC<{
             <LimitedInput
               autoFocus
               aria-label={`Quantity in ${ingredient.unit}`}
-              required
+              data-required="true"
               type="number"
-              min="0"
-              max={INPUT_LIMITS.inventoryQuantity.max}
+              data-min="0"
+              data-max={INPUT_LIMITS.inventoryQuantity.max}
               step="0.001"
               inputMode="decimal"
               inputFilter="inventoryQuantity"
@@ -406,7 +407,7 @@ export const AdjustStockModal: React.FC<{
           <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">Cancel</button>
           <button type="submit" disabled={busy || hasNegativeResult} className="min-h-11 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:opacity-60">{busy ? 'Saving…' : 'Save adjustment'}</button>
         </div>
-      </form>
+      </ValidatedForm>
     </InventoryModal>
   );
 };
@@ -445,16 +446,16 @@ export const QuickStockActionModal: React.FC<{
 
   return (
     <InventoryModal title={actionLabel} description={`${ingredient.name} · Current stock: ${formatInventoryQuantity(ingredient.quantity, ingredient.unit)}`} onClose={onClose}>
-      <form onSubmit={(event) => { void submit(event); }} className="space-y-4">
+      <ValidatedForm onSubmit={(event) => { void submit(event); }} className="space-y-4">
         <label className={labelClass}>Quantity
           <span className="mt-1 flex">
             <LimitedInput
               autoFocus
               aria-label={`Quantity in ${ingredient.unit}`}
-              required
+              data-required="true"
               type="number"
-              min="0.001"
-              max={INPUT_LIMITS.inventoryQuantity.max}
+              data-min="0.001"
+              data-max={INPUT_LIMITS.inventoryQuantity.max}
               step="0.001"
               inputMode="decimal"
               inputFilter="inventoryQuantity"
@@ -473,7 +474,7 @@ export const QuickStockActionModal: React.FC<{
           <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">Cancel</button>
           <button type="submit" disabled={busy} className="min-h-11 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:opacity-60">{busy ? 'Saving…' : actionLabel}</button>
         </div>
-      </form>
+      </ValidatedForm>
     </InventoryModal>
   );
 };
@@ -512,9 +513,9 @@ export const ReceiveStockModal: React.FC<{
   };
   return (
     <InventoryModal title="Receive stock" description={`${ingredient.name} · Purchase unit: ${ingredient.purchase_unit || ingredient.unit}`} onClose={onClose}>
-      <form onSubmit={(event) => { void submit(event); }} className="space-y-4">
+      <ValidatedForm onSubmit={(event) => { void submit(event); }} className="space-y-4">
         <label className={labelClass}>Quantity received ({purchaseUnit}) <span className="text-red-600" aria-hidden="true">*</span>
-          <LimitedInput name="quantity" type="number" min="0.001" max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" required value={quantity} onChange={(event) => setQuantity(event.target.value)} className={fieldClass} />
+          <LimitedInput name="quantity" type="number" data-min="0.001" data-max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" data-required="true" value={quantity} onChange={(event) => setQuantity(event.target.value)} className={fieldClass} />
         </label>
         <TotalPriceInput
           quantity={quantity}
@@ -529,7 +530,7 @@ export const ReceiveStockModal: React.FC<{
           <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold">Cancel</button>
           <button type="submit" disabled={busy} className="min-h-11 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white disabled:opacity-60">{busy ? 'Receiving…' : 'Receive stock'}</button>
         </div>
-      </form>
+      </ValidatedForm>
     </InventoryModal>
   );
 };
@@ -562,10 +563,10 @@ export const CountStockModal: React.FC<{
 
   return (
     <InventoryModal title="Physical stock count" description={ingredient.name} onClose={onClose}>
-      <form onSubmit={(event) => { void submit(event); }} className="space-y-4">
+      <ValidatedForm onSubmit={(event) => { void submit(event); }} className="space-y-4">
         <p className="rounded-xl bg-[var(--oppa-cream)] px-4 py-3 text-sm">System quantity: <strong>{formatInventoryQuantity(current, ingredient.unit)}</strong></p>
         <label className={labelClass}>Counted quantity <span className="text-red-600" aria-hidden="true">*</span>
-          <LimitedInput type="number" min="0" max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" value={quantity} onChange={(event) => setQuantity(event.target.value)} required className={fieldClass} />
+          <LimitedInput type="number" data-min="0" data-max={INPUT_LIMITS.inventoryQuantity.max} step="0.001" inputMode="decimal" inputFilter="inventoryQuantity" value={quantity} onChange={(event) => setQuantity(event.target.value)} data-required="true" className={fieldClass} />
         </label>
         {quantity !== '' && Number.isFinite(counted) && <p className={`text-sm font-semibold ${variance < 0 ? 'text-red-700' : 'text-emerald-700'}`}>Variance: {variance > 0 ? '+' : ''}{formatInventoryQuantity(variance, ingredient.unit)}</p>}
         <label className={labelClass}>Reason <span className="font-normal text-[var(--oppa-text-muted)]">(optional)</span>
@@ -576,7 +577,7 @@ export const CountStockModal: React.FC<{
           <button type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold">Cancel</button>
           <button type="submit" disabled={busy || quantity === ''} className="min-h-11 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white disabled:opacity-60">{busy ? 'Saving…' : 'Apply count'}</button>
         </div>
-      </form>
+      </ValidatedForm>
     </InventoryModal>
   );
 };

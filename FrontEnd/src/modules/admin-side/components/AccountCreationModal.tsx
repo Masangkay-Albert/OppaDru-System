@@ -4,6 +4,7 @@ import Select from '../../../components/ui/Select';
 import type { AdminRole } from '../../../services/adminAuthService';
 import { INPUT_LIMITS, normalizePhilippinePhone } from '../../../constants/inputLimits';
 import { LimitedInput } from '../../../components/ui/LimitedInput';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 export type AccountCreationMode = 'admin' | 'employee' | 'branch-staff';
 
@@ -191,7 +192,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4" noValidate>
+        <ValidatedForm onSubmit={handleSubmit} className="mt-5 space-y-4" noValidate>
           {extraFields}
           {mode === 'admin' && (
             <Select
@@ -221,7 +222,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                 id="account-full-name"
                 name="fullName"
                 type="text"
-                minLength={INPUT_LIMITS.personName.min}
+                data-min-length={INPUT_LIMITS.personName.min}
                 maxLength={INPUT_LIMITS.personName.max}
                 inputFilter="personName"
                 showCounter
@@ -310,7 +311,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                 id="account-password"
                 name="password"
                 type={showPassword ? 'text' : 'password'}
-                minLength={INPUT_LIMITS.password.min}
+                data-min-length={INPUT_LIMITS.password.min}
                 maxLength={INPUT_LIMITS.password.max}
                 value={form.password}
                 onChange={(event) => updateField('password', event.target.value)}
@@ -385,7 +386,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
               )}
             </button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   );

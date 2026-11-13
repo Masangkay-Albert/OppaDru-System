@@ -9,6 +9,7 @@ import type { ProductCategory } from '../../../types/product.types';
 import Select from '../../../components/ui/Select';
 import { INPUT_LIMITS } from '../../../constants/inputLimits';
 import { LimitedInput, LimitedTextarea } from '../../../components/ui/LimitedInput';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const categoryOptions = categories
   .filter((category) => category.id !== 'all')
@@ -134,15 +135,15 @@ const AdminAddProductPage: React.FC = () => {
         </div>
       )}
 
-      <form
+      <ValidatedForm
         onSubmit={handleSubmit}
         className="max-w-2xl space-y-4 rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-sm"
       >
         <div>
           <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Product Name</label>
           <LimitedInput
-            required
-            minLength={INPUT_LIMITS.productName.min}
+            data-required="true"
+            data-min-length={INPUT_LIMITS.productName.min}
             maxLength={INPUT_LIMITS.productName.max}
             inputFilter="businessName"
             showCounter
@@ -171,9 +172,9 @@ const AdminAddProductPage: React.FC = () => {
               type="text"
               inputMode="decimal"
               inputFilter="amount"
-              required
+              data-required="true"
               maxLength={9}
-              max={INPUT_LIMITS.amount.max}
+              data-max={INPUT_LIMITS.amount.max}
               value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value })}
               className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
@@ -225,7 +226,7 @@ const AdminAddProductPage: React.FC = () => {
         >
           {isSubmitting ? 'Saving...' : 'Save Product'}
         </button>
-      </form>
+      </ValidatedForm>
     </AdminLayout>
   );
 };

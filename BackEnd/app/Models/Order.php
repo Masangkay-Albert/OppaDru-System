@@ -52,6 +52,8 @@ class Order extends Model
         'status',
         'status_history',
         'payment_method',
+        'third_party_platform',
+        'external_order_ref',
         'phone',
         'items',
         'scheduled_at',

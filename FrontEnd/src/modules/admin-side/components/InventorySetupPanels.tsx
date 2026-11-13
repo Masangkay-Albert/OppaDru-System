@@ -14,6 +14,7 @@ import type {
   IngredientRecipe,
   ProductRecipeSet,
 } from '../../../services/mainBranchInventoryService';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const fieldClass = 'mt-1 h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]';
 
@@ -84,12 +85,12 @@ export const SupplierManager: React.FC<{
           <div><h2 id="supplier-manager-title" className="font-serif text-xl font-bold text-[var(--oppa-text)]">Supplier directory</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage suppliers used for purchasing and receiving.</p></div>
           <button type="button" onClick={onClose} className="rounded-lg px-3 py-1 text-[var(--oppa-text-muted)]" aria-label="Close supplier manager">×</button>
         </div>
-        <form onSubmit={(event) => { void save(event); }} className="mt-4 grid gap-3 sm:grid-cols-2">
+        <ValidatedForm onSubmit={(event) => { void save(event); }} className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="text-sm font-medium text-[var(--oppa-text)]">Name *
-            <LimitedInput name="name" required minLength={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" showCounter defaultValue={editing?.name || ''} className={fieldClass} />
+            <LimitedInput name="name" data-required="true" data-min-length={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" showCounter defaultValue={editing?.name || ''} className={fieldClass} />
           </label>
           <label className="text-sm font-medium text-[var(--oppa-text)]">Contact person
-            <LimitedInput name="contact_person" minLength={INPUT_LIMITS.personName.min} maxLength={INPUT_LIMITS.personName.max} inputFilter="personName" showCounter defaultValue={editing?.contact_person || ''} className={fieldClass} />
+            <LimitedInput name="contact_person" data-min-length={INPUT_LIMITS.personName.min} maxLength={INPUT_LIMITS.personName.max} inputFilter="personName" showCounter defaultValue={editing?.contact_person || ''} className={fieldClass} />
           </label>
           <label className="text-sm font-medium text-[var(--oppa-text)]">Phone
             <LimitedInput name="phone" type="tel" inputMode="tel" maxLength={13} inputFilter="phone" defaultValue={editing?.phone || ''} className={fieldClass} />
@@ -98,7 +99,7 @@ export const SupplierManager: React.FC<{
             <LimitedInput name="email" type="email" maxLength={INPUT_LIMITS.email.max} defaultValue={editing?.email || ''} className={fieldClass} />
           </label>
           <label className="text-sm font-medium text-[var(--oppa-text)]">Lead time (days)
-            <LimitedInput name="lead_time_days" type="number" inputMode="numeric" min="0" max="3650" step="1" inputFilter="digits" defaultValue={editing?.lead_time_days ?? ''} className={fieldClass} />
+            <LimitedInput name="lead_time_days" type="number" inputMode="numeric" data-min="0" data-max="3650" step="1" inputFilter="digits" defaultValue={editing?.lead_time_days ?? ''} className={fieldClass} />
           </label>
           <label className="text-sm font-medium text-[var(--oppa-text)]">Notes
             <LimitedInput name="notes" maxLength={INPUT_LIMITS.longText.max} showCounter defaultValue={editing?.notes || ''} className={fieldClass} />
@@ -108,7 +109,7 @@ export const SupplierManager: React.FC<{
             <button type="submit" disabled={busy} className="min-h-10 rounded-lg bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white disabled:opacity-60">{busy ? 'Saving…' : editing ? 'Save supplier' : 'Add supplier'}</button>
             {editing && <button type="button" onClick={() => setEditing(null)} className="min-h-10 rounded-lg border border-[var(--oppa-border)] px-4 text-sm font-semibold text-[var(--oppa-text)]">Cancel edit</button>}
           </div>
-        </form>
+        </ValidatedForm>
         <ul className="mt-5 divide-y divide-[var(--oppa-border)] border-t border-[var(--oppa-border)]">
           {suppliers.map((supplier) => <li key={supplier.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div><p className="font-semibold text-[var(--oppa-text)]">{supplier.name}</p><p className="text-xs text-[var(--oppa-text-muted)]">{supplier.contact_person || 'No contact'} · {supplier.phone || supplier.email || 'No contact details'}</p></div>
@@ -214,7 +215,7 @@ export const RecipeManager: React.FC<{
                 }} className={fieldClass}>
                   <option value="">Select ingredient</option>{ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}
                 </select>
-                <input aria-label={`Quantity for recipe row ${index + 1}`} type="number" min="0.001" step="0.001" value={row.quantity} onChange={(event) => updateRow(index, { quantity: event.target.value })} className={fieldClass} placeholder="Quantity" />
+                <input aria-label={`Quantity for recipe row ${index + 1}`} type="number" data-min="0.001" step="0.001" value={row.quantity} onChange={(event) => updateRow(index, { quantity: event.target.value })} className={fieldClass} placeholder="Quantity" />
                 <span className="flex h-10 items-center text-sm text-[var(--oppa-text-muted)]">{selectedIngredient?.unit || row.unit || 'Unit'}</span>
                 <button type="button" onClick={() => setRows((current) => current.filter((_, rowIndex) => rowIndex !== index))} className="h-10 rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-700">Remove</button>
               </div>;

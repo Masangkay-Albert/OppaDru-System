@@ -6,6 +6,7 @@ import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
 import { formatCurrency } from '../../../utils/formatters';
 import { generateFranchiseReportPdf } from '../../../utils/franchiseReportPdfGenerator';
 import { deleteFranchiseSalesTarget, updateFranchiseSalesTarget } from '../../../services/franchiseSalesTargetService';
+import { getPaymentMethodLabel } from '../../../constants/thirdPartyPlatforms';
 import { EmptyState, PageHeader, Toast } from '../../admin-side/components/AdminUI';
 import {
   MetricCard,
@@ -394,7 +395,7 @@ const FranchiseReportsPage: React.FC = () => {
           sales: Number(product.sales) || 0,
         })),
         payments: paymentEntries.map(([method, summary]) => ({
-          method: method.replaceAll('_', ' '),
+          method: getPaymentMethodLabel(method),
           orders: Number(summary.orders) || 0,
           amount: Number(summary.amount) || 0,
         })),
@@ -467,7 +468,7 @@ const FranchiseReportsPage: React.FC = () => {
                 <span className="relative mt-1 flex h-11 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)] transition focus-within:border-[var(--oppa-green)] focus-within:ring-2 focus-within:ring-[var(--oppa-green)]/20">
                   <CalendarDays size={16} aria-hidden="true" className="shrink-0 text-[var(--oppa-green)]" />
                   <span className={`min-w-0 flex-1 truncate ${from ? '' : 'text-[var(--oppa-text-muted)]'}`}>{from || 'Select date'}</span>
-                  <input aria-label="Report start date" type="date" value={from} max={to || undefined} onChange={(event) => updateFrom(event.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                  <input aria-label="Report start date" type="date" value={from} data-max={to || undefined} onChange={(event) => updateFrom(event.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
                 </span>
               </label>
               <label className="text-xs font-medium text-[var(--oppa-text-muted)]">
@@ -475,7 +476,7 @@ const FranchiseReportsPage: React.FC = () => {
                 <span className="relative mt-1 flex h-11 items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)] transition focus-within:border-[var(--oppa-green)] focus-within:ring-2 focus-within:ring-[var(--oppa-green)]/20">
                   <CalendarDays size={16} aria-hidden="true" className="shrink-0 text-[var(--oppa-green)]" />
                   <span className={`min-w-0 flex-1 truncate ${to ? '' : 'text-[var(--oppa-text-muted)]'}`}>{to || 'Select date'}</span>
-                  <input aria-label="Report end date" type="date" value={to} min={from || undefined} onChange={(event) => updateTo(event.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                  <input aria-label="Report end date" type="date" value={to} data-min={from || undefined} onChange={(event) => updateTo(event.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
                 </span>
               </label>
             </div>
@@ -610,8 +611,8 @@ const PaymentMethodsCard = ({
           {entries.map(([method, summary], index) => (
             <div key={method} className="flex items-start gap-2 text-sm">
               <span className="mt-1 size-2.5 shrink-0 rounded-full" style={{ backgroundColor: PAYMENT_COLORS[index % PAYMENT_COLORS.length] }} aria-hidden="true" />
-              <span className="min-w-0 capitalize text-[var(--oppa-text)]">
-                {method.replaceAll('_', ' ')}
+              <span className="min-w-0 text-[var(--oppa-text)]">
+                {getPaymentMethodLabel(method)}
                 <span className="block text-xs text-[var(--oppa-text-muted)]">{summary.orders} {summary.orders === 1 ? 'order' : 'orders'}</span>
               </span>
               <strong className="shrink-0 text-xs tabular-nums text-[var(--oppa-text)]">{money(Number(summary.amount) || 0)}</strong>

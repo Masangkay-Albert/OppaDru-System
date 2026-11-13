@@ -27,6 +27,8 @@
   --oppa-text: #1E2B22;
   --oppa-text-muted: #66766B;
   --oppa-border: #E4DED0;
+  --oppa-danger: #B42318;
+  --oppa-danger-soft: #FEF2F2;
 }
 
 body {

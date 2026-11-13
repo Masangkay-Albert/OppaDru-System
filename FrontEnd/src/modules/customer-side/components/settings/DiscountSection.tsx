@@ -4,6 +4,7 @@ import { useSettings } from '../../../../contexts/SettingsContext';
 import { useAuth } from '../../../../contexts/Authcontext';
 import { API_URL } from '../../../../services/apiConfig';
 import { authService } from '../../../../services/authService';
+import { ValidatedForm } from '../../../../components/ui/FormValidation';
 
 const getAuthToken = () => authService.getToken();
 const getToday = () => {
@@ -318,7 +319,7 @@ const DiscountSection: React.FC = () => {
           </div>
         </div>
       ) : (
-        <form className="space-y-4">
+        <ValidatedForm onSubmit={(e) => { e.preventDefault(); void handleSave(); }} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div 
               className={`discount-option p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.isPWD ? 'border-[#2d6a4f] bg-[#d8f3dc]/20' : 'border-gray-200 hover:border-gray-300'}`}
@@ -366,11 +367,11 @@ const DiscountSection: React.FC = () => {
                 value={formData.idNumber}
                 onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
                 placeholder="Enter a valid PWD or Senior ID number"
-                minLength={6}
+                data-min-length={6}
                 maxLength={20}
-                pattern="(?=.*\d)[A-Za-z0-9][A-Za-z0-9 -]{5,19}"
+                data-pattern="(?=.*\d)[A-Za-z0-9][A-Za-z0-9 -]{5,19}"
                 className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-sm"
-                required
+                required minLength={6} maxLength={20} pattern="[A-Za-z0-9 -]{6,20}" title="6-20 characters with at least one number"
               />
             </div>
           </div>
@@ -381,7 +382,7 @@ const DiscountSection: React.FC = () => {
               type="date"
               value={formData.expiryDate}
               onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
-              min={getToday()}
+              data-min={getToday()}
               className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-sm"
             />
           </div>
@@ -430,8 +431,7 @@ const DiscountSection: React.FC = () => {
               </button>
             )}
             <button
-              type="button"
-              onClick={handleSave}
+              type="submit"
               disabled={isSaving}
               className="flex-1 py-2.5 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
@@ -439,7 +439,7 @@ const DiscountSection: React.FC = () => {
               {isSaving ? 'Saving...' : isEditing ? 'Update Discount' : 'Apply Discount'}
             </button>
           </div>
-        </form>
+        </ValidatedForm>
       )}
 
       {showRemoveConfirm && (

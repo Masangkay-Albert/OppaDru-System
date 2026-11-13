@@ -43,7 +43,7 @@ const POSCashCalculator: React.FC<POSCashCalculatorProps> = ({
           type="number"
           inputMode="decimal"
           step="any"
-          min="0"
+          data-min="0"
           value={cashTendered === 0 ? '' : cashTendered}
           onChange={(e) => onCashTenderedChange(parseFloat(e.target.value) || 0)}
           placeholder="0.00"

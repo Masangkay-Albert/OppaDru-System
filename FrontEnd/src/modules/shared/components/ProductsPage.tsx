@@ -10,6 +10,7 @@ import Select from '../../../components/ui/Select';
 import SearchInput from '../../../components/ui/SearchInput';
 import { INPUT_LIMITS } from '../../../constants/inputLimits';
 import { LimitedInput, LimitedTextarea } from '../../../components/ui/LimitedInput';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 export type { ProductPermission } from '../../../services/franchiseProductPermissions';
 
@@ -789,14 +790,14 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <ValidatedForm onSubmit={handleSubmit} className="space-y-4">
               {saveError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{saveError}</p>}
 
               <div>
                 <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Product Name</label>
                 <LimitedInput
-                  required
-                  minLength={INPUT_LIMITS.productName.min}
+                  data-required="true"
+                  data-min-length={INPUT_LIMITS.productName.min}
                   maxLength={INPUT_LIMITS.productName.max}
                   inputFilter="businessName"
                   showCounter
@@ -825,9 +826,9 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                     type="text"
                     inputMode="decimal"
                     inputFilter="amount"
-                    required
+                    data-required="true"
                     maxLength={9}
-                    max={INPUT_LIMITS.amount.max}
+                    data-max={INPUT_LIMITS.amount.max}
                     value={form.price}
                     onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
                     className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
@@ -886,7 +887,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                   {isSaving ? 'Saving…' : modalMode === 'add' ? 'Save Product' : 'Save Changes'}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}

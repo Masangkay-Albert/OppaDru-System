@@ -29,6 +29,7 @@ trait OrderQueryActions
             ->select([
             'id', 'order_number', 'email', 'user_id', 'branch_id', 'franchise_id', 'franchise_account_id', 'total', 'status',
             'payment_method', 'payment_status', 'delivery_address', 'delivery_instructions', 'delivery_lat', 'delivery_lng', 'delivery_coordinates', 'phone', 'items', 'created_at',
+            'third_party_platform', 'external_order_ref',
             'delivery_proof_image', 'delivery_proof_uploaded_at', 'delivery_confirmed_at',
             'discount_proof_image',
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',

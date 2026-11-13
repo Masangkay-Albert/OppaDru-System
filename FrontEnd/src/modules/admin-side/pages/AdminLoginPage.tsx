@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import { Shield, Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import LoginBrandPanel from '../../../components/LoginBrandPanel';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const AdminLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -53,7 +54,7 @@ const AdminLoginPage: React.FC = () => {
             </div>
           )}
 
-          <form
+          <ValidatedForm
             onSubmit={handleSubmit}
             className="bg-white rounded-2xl p-8 space-y-5 shadow-lg border border-[var(--oppa-border)]"
           >
@@ -110,7 +111,7 @@ const AdminLoginPage: React.FC = () => {
             >
               {isLoading ? "Signing in..." : "Sign In"}
             </button>
-          </form>
+          </ValidatedForm>
 
           <button
             onClick={() => navigate("/login")}

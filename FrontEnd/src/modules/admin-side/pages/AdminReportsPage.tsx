@@ -10,6 +10,7 @@ import { formatInventoryQuantity } from '../../../utils/inventoryFormatters';
 import { generateSalesReportPdf } from '../../../utils/reportPdfGenerator';
 import { getInventoryReport } from '../../../services/mainBranchInventoryService';
 import type { InventoryReport } from '../../../services/mainBranchInventoryService';
+import { getPaymentMethodLabel } from '../../../constants/thirdPartyPlatforms';
 import { PageHeader, Toast } from '../components/AdminUI';
 import Select from '../../../components/ui/Select';
 import {
@@ -238,6 +239,18 @@ const AdminReportsPage: React.FC = () => {
     () => filteredOrders.filter(isRevenueOrder),
     [filteredOrders]
   );
+  const paymentEntries = useMemo(() => {
+    const summary = new Map<string, { orders: number; amount: number }>();
+    salesOrders.forEach((order) => {
+      const method = String(order.payment_method || order.paymentMethod || 'unknown').trim().toLowerCase();
+      const current = summary.get(method) || { orders: 0, amount: 0 };
+      current.orders += 1;
+      current.amount += Number(order.total) || 0;
+      summary.set(method, current);
+    });
+    return [...summary.entries()].sort((left, right) => left[0].localeCompare(right[0]));
+  }, [salesOrders]);
+  const totalPaymentSales = paymentEntries.reduce((sum, [, payment]) => sum + payment.amount, 0);
 
   const timelineRange: ReportRange = quickRange === 'today' || filters.date !== '' || filters.day !== ALL_FILTER
     ? 'daily'
@@ -394,6 +407,11 @@ const AdminReportsPage: React.FC = () => {
       await generateSalesReportPdf({
         orders: salesOrders,
         metrics,
+        payments: paymentEntries.map(([method, payment]) => ({
+          method: getPaymentMethodLabel(method),
+          orders: payment.orders,
+          amount: payment.amount,
+        })),
         goal: savedGoal,
         goalReached,
         goalSet,
@@ -463,7 +481,7 @@ const AdminReportsPage: React.FC = () => {
         <FilterSelect label="Month" value={filters.month} onChange={(value) => updateFilter('month', value)} options={[{ value: ALL_FILTER, label: 'All months' }, ...['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((label, index) => ({ value: String(index), label }))]} />
         <FilterSelect label="Week of month" value={filters.week} onChange={(value) => updateFilter('week', value)} options={[{ value: ALL_FILTER, label: 'All weeks' }, ...weekOptions]} />
         <FilterSelect label="Day of week" value={filters.day} onChange={(value) => updateFilter('day', value)} options={[{ value: ALL_FILTER, label: 'All days' }, ...['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((label, index) => ({ value: String(index), label }))]} />
-        <label className="text-xs font-medium text-[var(--oppa-text-muted)]">Exact date<input type="date" min={`${MIN_REPORT_YEAR}-01-01`} value={filters.date} onChange={(event) => updateFilter('date', event.target.value)} className="mt-1 block h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2 text-sm font-normal text-[var(--oppa-text)]" /></label>
+        <label className="text-xs font-medium text-[var(--oppa-text-muted)]">Exact date<input type="date" data-min={`${MIN_REPORT_YEAR}-01-01`} value={filters.date} onChange={(event) => updateFilter('date', event.target.value)} className="mt-1 block h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2 text-sm font-normal text-[var(--oppa-text)]" /></label>
         <FilterSelect label="Channel" value={filters.channel} onChange={(value) => updateFilter('channel', value)} options={[{ value: ALL_CHANNELS, label: 'All channels' }, { value: 'online', label: 'Online' }, { value: 'onsite', label: 'Onsite' }]} />
       </div>}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--oppa-border)] pt-3">
@@ -511,6 +529,23 @@ const AdminReportsPage: React.FC = () => {
           onsiteSales={metrics.onsiteSales}
         />
       </div>
+      <section aria-label="Payment method summary" className="admin-card mb-6 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-[var(--oppa-text)]">Sales by payment method</h2>
+            <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Platform-paid orders are listed separately from register payments.</p>
+          </div>
+          <p className="text-sm text-[var(--oppa-text-muted)]">Sales total <strong className="ml-1 text-[var(--oppa-text)]">{formatCurrency(totalPaymentSales)}</strong></p>
+        </div>
+        {paymentEntries.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {paymentEntries.map(([method, payment]) => (
+            <div key={method} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3">
+              <span className="min-w-0 text-sm font-medium text-[var(--oppa-text)]">{getPaymentMethodLabel(method)}<span className="block text-xs font-normal text-[var(--oppa-text-muted)]">{payment.orders} {payment.orders === 1 ? 'order' : 'orders'}</span></span>
+              <strong className="shrink-0 text-sm tabular-nums text-[var(--oppa-text)]">{formatCurrency(payment.amount)}</strong>
+            </div>
+          ))}
+        </div> : <p className="mt-4 text-sm text-[var(--oppa-text-muted)]">No paid orders for these filters.</p>}
+      </section>
       <div className="mb-6">
         <SalesTimelineCard
           buckets={trendBuckets}

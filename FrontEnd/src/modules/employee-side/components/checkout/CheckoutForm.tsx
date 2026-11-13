@@ -3,8 +3,15 @@ import DiningOptionSelector from '../pos/DiningOptionSelector';
 import POSCashCalculator from '../pos/POSCashCalculator';
 import { Check, Smartphone, QrCode, Tag, Loader2 } from 'lucide-react';
 import { formatPeso } from '../../../../utils/formatters';
+import { getThirdPartyPlatformLabel, THIRD_PARTY_PLATFORMS, type OrderSource } from '../../../../constants/thirdPartyPlatforms';
 
 interface CheckoutFormProps {
+  orderSource: OrderSource;
+  setOrderSource: (source: OrderSource) => void;
+  externalOrderRef: string;
+  setExternalOrderRef: (reference: string) => void;
+  orderReferenceError?: string;
+  setOrderReferenceError?: (error: string) => void;
   diningOption: 'dine_in' | 'takeout';
   setDiningOption: (val: 'dine_in' | 'takeout') => void;
   customerName: string;
@@ -36,6 +43,12 @@ interface CheckoutFormProps {
 }
 
 const CheckoutForm: React.FC<CheckoutFormProps> = ({
+  orderSource,
+  setOrderSource,
+  externalOrderRef,
+  setExternalOrderRef,
+  orderReferenceError = '',
+  setOrderReferenceError,
   diningOption,
   setDiningOption,
   customerName,
@@ -64,13 +77,60 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   isPromoValidating = false,
   promoError = '',
 }) => {
+  const isThirdParty = orderSource !== 'walk_in';
+  const platformLabel = getThirdPartyPlatformLabel(orderSource);
+
   return (
     <div className="space-y-6">
+      <section className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm">
+        <h3 className="mb-3 font-bold text-gray-800">Order source</h3>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <button type="button" aria-pressed={orderSource === 'walk_in'} onClick={() => setOrderSource('walk_in')} className={`min-h-12 rounded-xl border px-3 py-2 text-sm font-semibold transition ${orderSource === 'walk_in' ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+            Walk-in
+          </button>
+          {THIRD_PARTY_PLATFORMS.map((platform) => (
+            <button key={platform.key} type="button" aria-pressed={orderSource === platform.key} onClick={() => setOrderSource(platform.key)} className={`min-h-12 rounded-xl border px-3 py-2 text-sm font-semibold transition ${orderSource === platform.key ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+              {platform.label}
+            </button>
+          ))}
+        </div>
+        {isThirdParty && platformLabel && (
+          <div className="mt-4">
+            <label htmlFor="third-party-order-reference" className="mb-1.5 block text-sm font-semibold text-gray-700">
+              {platformLabel} order number <span className="text-red-600">*</span>
+            </label>
+            <input
+              id="third-party-order-reference"
+              type="text"
+              required={isThirdParty}
+              autoComplete="off"
+              minLength={3}
+              maxLength={30}
+              pattern="[A-Za-z0-9-]{3,30}"
+              title="Use 3-30 letters, numbers, or hyphens"
+              value={externalOrderRef}
+              onChange={(event) => {
+                setExternalOrderRef(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 30));
+                setOrderReferenceError?.('');
+              }}
+              placeholder="Enter the platform order number"
+              className="min-h-11 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm uppercase tracking-wide focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20"
+            />
+          </div>
+        )}
+      </section>
+
       {/* Dining Option (Dine-in vs Takeout) */}
-      <DiningOptionSelector value={diningOption} onChange={setDiningOption} />
+      {isThirdParty ? (
+        <div className="rounded-2xl border border-gray-200/80 bg-white p-4 text-sm font-semibold text-gray-800">
+          Dining option: Takeout
+        </div>
+      ) : (
+        <DiningOptionSelector value={diningOption} onChange={setDiningOption} />
+      )}
 
       {/* Customer & Register Reference */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm space-y-4">
+      {!isThirdParty && <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm space-y-4">
         <h3 className="font-bold text-gray-800 text-base">Customer Details (Optional)</h3>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -94,6 +154,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
             <input
               type="tel"
               value={customerPhone}
+              pattern="(\\+?63|0)?9\\d{9}"
+              title="Philippine mobile number (e.g. 09123456789)"
               onChange={(e) => setCustomerPhone(e.target.value)}
               placeholder="09XX XXX XXXX (optional)"
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)] focus:border-transparent"
@@ -113,10 +175,10 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)] focus:border-transparent"
           />
         </div>
-      </div>
+      </div>}
 
       {/* Onsite Discounts & Promos */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm space-y-4">
+      {!isThirdParty && <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm space-y-4">
         <h3 className="font-bold text-gray-800 text-base">Discounts & Promos</h3>
         
         <div className="flex flex-wrap gap-2.5">
@@ -217,10 +279,10 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
           )}
           {promoError && <p className="text-red-500 text-xs mt-1.5">{promoError}</p>}
         </div>
-      </div>
+      </div>}
 
       {/* POS Payment Methods */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm space-y-4">
+      {!isThirdParty ? <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-sm space-y-4">
         <h3 className="font-bold text-gray-800 text-base">Payment Processing</h3>
 
         <div className="grid grid-cols-2 gap-3">
@@ -306,8 +368,12 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
             )}
           </div>
         )}
-
-      </div>
+      </div> : (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900">
+          <h3 className="font-bold">Payment</h3>
+          <p className="mt-1">Paid through {platformLabel}.</p>
+        </div>
+      )}
     </div>
   );
 };

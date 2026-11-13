@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import type { AdminOrder } from '../../../../services/adminOrderService';
 import { formatPeso } from '../../../../utils/formatters';
 import { FiPrinter, FiCheckCircle, FiX } from 'react-icons/fi';
+import { getThirdPartyPlatformLabel } from '../../../../constants/thirdPartyPlatforms';
 
 interface POSReceiptModalProps {
   order: AdminOrder | null;
@@ -27,6 +28,7 @@ const POSReceiptModal: React.FC<POSReceiptModalProps> = ({ order, onClose, onNew
 
   const customerName = order.customerName || order.customer_name || 'Walk-in Customer';
   const cashierIdentifier = order.cashierEmail || order.email || 'Counter Cashier';
+  const platformLabel = getThirdPartyPlatformLabel(order.third_party_platform);
 
   const orderDate = order.created_at || order.timestamp ? new Date(order.created_at || order.timestamp!).toLocaleString('en-US', {
     month: 'short',
@@ -133,6 +135,18 @@ const POSReceiptModal: React.FC<POSReceiptModalProps> = ({ order, onClose, onNew
               <span>Dining Type:</span>
               <span className="font-bold uppercase">{diningOptionLabel}</span>
             </div>
+            {platformLabel && (
+              <>
+                <div className="flex justify-between">
+                  <span>Source:</span>
+                  <span className="font-bold">{platformLabel}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span>Platform order #:</span>
+                  <span className="break-all text-right font-bold">{order.external_order_ref}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between">
               <span>Customer:</span>
               <span>{customerName}</span>
@@ -219,10 +233,10 @@ const POSReceiptModal: React.FC<POSReceiptModalProps> = ({ order, onClose, onNew
             <div className="border-t border-dashed border-gray-300 pt-1.5 space-y-0.5">
               <div className="flex justify-between">
                 <span>Payment:</span>
-                <span className="font-bold uppercase">{order.paymentMethod?.replace('_', ' ') || order.payment_method?.replace('_', ' ') || 'CASH'}</span>
+                <span className="font-bold">{platformLabel ? `Paid through ${platformLabel}` : (order.paymentMethod?.replace('_', ' ') || order.payment_method?.replace('_', ' ') || 'CASH')}</span>
               </div>
 
-              {(order.payment_reference || (order as any).paymentReference) && (
+              {!platformLabel && (order.payment_reference || (order as any).paymentReference) && (
                 <div className="flex justify-between text-[10px]">
                   <span>Ref #:</span>
                   <span className="font-mono">{order.payment_reference || (order as any).paymentReference}</span>

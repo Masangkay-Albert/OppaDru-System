@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { ArrowLeft, Eye, EyeOff, KeyRound, Mail, Phone, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/ToastProvider";
@@ -6,6 +6,7 @@ import { authService } from "../../../services/authService";
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
 import { INPUT_LIMITS } from "../../../constants/inputLimits";
 import { LimitedInput } from "../../../components/ui/LimitedInput";
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const passwordRules = [
   { label: "At least 8 characters", test: (value: string) => value.length >= 8 },
@@ -31,6 +32,20 @@ const ForgotPasswordPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
+
+  const handlePasswordChange = (val: string) => {
+    setPassword(val);
+    if (confirmPasswordRef.current && passwordConfirmation) {
+      confirmPasswordRef.current.setCustomValidity(passwordConfirmation !== val ? "Passwords do not match." : "");
+    }
+  };
+
+  const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setPasswordConfirmation(val);
+    e.target.setCustomValidity(val !== password ? "Passwords do not match." : "");
+  };
 
   const handleVerify = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -93,7 +108,6 @@ const ForgotPasswordPage: React.FC = () => {
   };
 
   const inputClassName = "min-h-12 w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--oppa-text)] transition-colors placeholder:text-gray-400 hover:border-[var(--oppa-green)]/45 focus:border-[var(--oppa-green)] focus:outline-none focus:ring-4 focus:ring-[var(--oppa-green)]/10 disabled:cursor-not-allowed disabled:bg-gray-50";
-  const passwordValid = passwordRules.every((rule) => rule.test(password));
 
   return (
     <div className="min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)] lg:grid lg:grid-cols-2">
@@ -130,7 +144,7 @@ const ForgotPasswordPage: React.FC = () => {
 
           {step === 1 ? (
             <>
-              <form onSubmit={handleVerify} className="space-y-5" aria-busy={isSubmitting}>
+              <ValidatedForm onSubmit={handleVerify} className="space-y-5" aria-busy={isSubmitting}>
                 <div>
                   <label htmlFor="recovery-email" className="mb-2 block text-sm font-semibold text-[var(--oppa-text)]">
                     Account email
@@ -165,6 +179,7 @@ const ForgotPasswordPage: React.FC = () => {
                       inputMode="tel"
                       autoComplete="tel"
                       required
+                      pattern="(\+?63|0)?9\d{9}"
                       maxLength={13}
                       inputFilter="phone"
                       disabled={isSubmitting}
@@ -172,6 +187,7 @@ const ForgotPasswordPage: React.FC = () => {
                       onChange={(event) => setPhone(event.target.value)}
                       className={`${inputClassName} pl-10`}
                       placeholder="09XXXXXXXXX"
+                      title="09XXXXXXXXX"
                     />
                   </div>
                 </div>
@@ -182,14 +198,14 @@ const ForgotPasswordPage: React.FC = () => {
                 >
                   {isSubmitting ? "Verifying..." : "Verify identity"}
                 </button>
-              </form>
+              </ValidatedForm>
             </>
           ) : (
             <>
               <p className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800" role="status">
                 This reset session lasts 10 minutes.
               </p>
-              <form onSubmit={handleComplete} className="space-y-4" aria-busy={isSubmitting}>
+              <ValidatedForm onSubmit={handleComplete} className="space-y-4" aria-busy={isSubmitting}>
                 <div>
                   <label htmlFor="new-password" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">
                     New password
@@ -205,7 +221,7 @@ const ForgotPasswordPage: React.FC = () => {
                       maxLength={INPUT_LIMITS.password.max}
                       disabled={isSubmitting}
                       value={password}
-                      onChange={(event) => setPassword(event.target.value)}
+                      onChange={(event) => handlePasswordChange(event.target.value)}
                       className={`${inputClassName} pr-12`}
                     />
                     <button
@@ -236,6 +252,7 @@ const ForgotPasswordPage: React.FC = () => {
                   <div className="relative">
                     <LimitedInput
                       id="confirm-new-password"
+                      ref={confirmPasswordRef}
                       name="password_confirmation"
                       type={showConfirmation ? "text" : "password"}
                       autoComplete="new-password"
@@ -243,7 +260,7 @@ const ForgotPasswordPage: React.FC = () => {
                       maxLength={INPUT_LIMITS.password.max}
                       disabled={isSubmitting}
                       value={passwordConfirmation}
-                      onChange={(event) => setPasswordConfirmation(event.target.value)}
+                      onChange={handleConfirmPasswordChange}
                       className={`${inputClassName} pr-12`}
                     />
                     <button
@@ -256,18 +273,15 @@ const ForgotPasswordPage: React.FC = () => {
                       {showConfirmation ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
-                  {passwordConfirmation && password !== passwordConfirmation && (
-                    <p className="mt-1 text-xs text-red-600">Passwords do not match.</p>
-                  )}
                 </div>
                 <button
                   type="submit"
-                  disabled={isSubmitting || !passwordValid || password !== passwordConfirmation}
+                  disabled={isSubmitting}
                   className="min-h-11 w-full rounded-xl bg-[var(--oppa-green)] py-3 font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSubmitting ? "Updating password..." : "Update password"}
                 </button>
-              </form>
+              </ValidatedForm>
             </>
           )}
 

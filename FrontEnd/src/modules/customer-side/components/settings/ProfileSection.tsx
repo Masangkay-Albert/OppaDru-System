@@ -68,87 +68,95 @@ const ProfileSection: React.FC = () => {
         </div>
       )}
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-          <div className="relative">
-            <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <LimitedInput
-              type="text"
-              minLength={INPUT_LIMITS.personName.min}
-              maxLength={INPUT_LIMITS.personName.max}
-              inputFilter="personName"
-              showCounter
-              value={formData.fullName}
-              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              disabled={!isEditing}
-              className={`w-full pl-10 pr-4 py-2.5 border-2 rounded-xl text-sm transition-all ${isEditing ? 'border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20' : 'border-gray-200 bg-gray-50 cursor-not-allowed'}`}
-            />
+      <form onSubmit={(e) => { e.preventDefault(); void handleSave(); }}>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <div className="relative">
+              <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <LimitedInput
+                type="text"
+                required
+                minLength={INPUT_LIMITS.personName.min}
+                maxLength={INPUT_LIMITS.personName.max}
+                inputFilter="personName"
+                showCounter
+                value={formData.fullName}
+                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                disabled={!isEditing}
+                className={`w-full pl-10 pr-4 py-2.5 border-2 rounded-xl text-sm transition-all ${isEditing ? 'border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20' : 'border-gray-200 bg-gray-50 cursor-not-allowed'}`}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+            <div className="relative">
+              <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                disabled={!isEditing}
+                className={`w-full pl-10 pr-4 py-2.5 border-2 rounded-xl text-sm transition-all ${isEditing ? 'border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20' : 'border-gray-200 bg-gray-50 cursor-not-allowed'}`}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+            <div className="relative">
+              <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <LimitedInput
+                type="tel"
+                pattern="(\\+?63|0)?9\\d{9}"
+                title="Philippine mobile number (e.g. 09123456789)"
+                maxLength={13}
+                inputFilter="phone"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                disabled={!isEditing}
+                placeholder="+63 912 345 6789"
+                className={`w-full pl-10 pr-4 py-2.5 border-2 rounded-xl text-sm transition-all ${isEditing ? 'border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20' : 'border-gray-200 bg-gray-50 cursor-not-allowed'}`}
+              />
+            </div>
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-          <div className="relative">
-            <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              disabled={!isEditing}
-              className={`w-full pl-10 pr-4 py-2.5 border-2 rounded-xl text-sm transition-all ${isEditing ? 'border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20' : 'border-gray-200 bg-gray-50 cursor-not-allowed'}`}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-          <div className="relative">
-            <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <LimitedInput
-              type="tel"
-              maxLength={13}
-              inputFilter="phone"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              disabled={!isEditing}
-              placeholder="+63 912 345 6789"
-              className={`w-full pl-10 pr-4 py-2.5 border-2 rounded-xl text-sm transition-all ${isEditing ? 'border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20' : 'border-gray-200 bg-gray-50 cursor-not-allowed'}`}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex gap-3 mt-6 pt-6 border-t border-gray-200">
-        {!isEditing ? (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="px-6 py-2.5 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition"
-          >
-            Edit Profile
-          </button>
-        ) : (
-          <>
+        <div className="flex gap-3 mt-6 pt-6 border-t border-gray-200">
+          {!isEditing ? (
             <button
-              onClick={() => {
-                setIsEditing(false);
-                setMessage(null);
-              }}
-              className="px-6 py-2.5 border-2 border-gray-300 rounded-xl font-semibold hover:bg-gray-50 transition"
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="px-6 py-2.5 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition"
             >
-              Cancel
+              Edit Profile
             </button>
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="px-6 py-2.5 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition flex items-center gap-2 disabled:opacity-50"
-            >
-              <FiSave size={16} />
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </>
-        )}
-      </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false);
+                  setMessage(null);
+                }}
+                className="px-6 py-2.5 border-2 border-gray-300 rounded-xl font-semibold hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-2.5 bg-[#2d6a4f] text-white rounded-xl font-semibold hover:bg-[#1b4d3e] transition flex items-center gap-2 disabled:opacity-50"
+              >
+                <FiSave size={16} />
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </>
+          )}
+        </div>
+      </form>
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { ArrowLeft, Eye, EyeOff, Lock, Mail, Store } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import LoginBrandPanel from '../../../components/LoginBrandPanel';
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
+import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const FranchiseLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ const FranchiseLoginPage: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-[var(--oppa-border)] bg-white p-8 shadow-lg">
+          <ValidatedForm onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-[var(--oppa-border)] bg-white p-8 shadow-lg">
             <div>
               <label htmlFor="franchise-login-email" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">Registered email</label>
               <div className="relative">
@@ -98,7 +99,7 @@ const FranchiseLoginPage: React.FC = () => {
             >
               {isLoading ? 'Signing in...' : 'Sign In'}
             </button>
-          </form>
+          </ValidatedForm>
 
           <div className="mt-4 flex items-center justify-between gap-3 text-sm text-[var(--oppa-text-muted)]">
             <Link to="/franchise-opportunities" className="font-medium text-[var(--oppa-green)] hover:underline">

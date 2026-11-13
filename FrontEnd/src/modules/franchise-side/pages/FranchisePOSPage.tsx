@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, CreditCard, Drumstick, Heart, Minus, Plus, QrCode, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, UserRound, Utensils, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, CreditCard, Drumstick, Heart, Minus, Pencil, Plus, QrCode, Receipt, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, UserRound, Utensils, X } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import SearchInput from '../../../components/ui/SearchInput';
@@ -15,6 +15,7 @@ import { getEmployeePosBrowserSessionId, loadEmployeePosDraft, saveEmployeePosDr
 import { CashierGCashModal } from '../../employee-side/components/pos/CashierGCashModal';
 import '../../../styles/cashier-pos.css';
 import { useToast } from '../../customer-side/components/ToastProvider';
+import { getThirdPartyPlatformLabel, THIRD_PARTY_PLATFORMS, type OrderSource } from '../../../constants/thirdPartyPlatforms';
 
 interface PosCartLine {
   key: string;
@@ -50,6 +51,8 @@ interface PosOrder {
   order_number: string;
   total: number;
   payment_method: string;
+  third_party_platform?: 'foodpanda' | 'grabfood' | null;
+  external_order_ref?: string | null;
   status: string;
   items?: Array<{
     product_name?: string;
@@ -174,6 +177,8 @@ const FranchisePOSPage: React.FC = () => {
   const [customerNotes, setCustomerNotes] = useState('');
   const [tableNumber, setTableNumber] = useState('');
   const [diningOption, setDiningOption] = useState<'dine_in' | 'takeout'>('takeout');
+  const [orderSource, setOrderSource] = useState<OrderSource>('walk_in');
+  const [externalOrderRef, setExternalOrderRef] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gcash' | 'credit_card'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [terminalReference, setTerminalReference] = useState('');
@@ -388,6 +393,8 @@ const FranchisePOSPage: React.FC = () => {
   const lines = Object.values(cart);
   const itemCount = lines.reduce((count, line) => count + line.quantity, 0);
   const subtotal = Math.round(lines.reduce((sum, line) => sum + (Number(line.product.price) + line.selectedAddons.reduce((addonTotal, addon) => addonTotal + Number(addon.price) * Math.max(1, Number(addon.quantity || 1)), 0)) * line.quantity, 0));
+  const isThirdParty = orderSource !== 'walk_in';
+  const platformLabel = getThirdPartyPlatformLabel(orderSource);
   const vatExemptBase = discountType ? Math.round(subtotal / 1.12) : 0;
   const discountAmount = discountType ? Math.round(vatExemptBase * 0.20) : 0;
   const total = discountType ? Math.max(0, vatExemptBase - discountAmount) : subtotal;
@@ -430,16 +437,21 @@ const FranchisePOSPage: React.FC = () => {
   const quickCashAmounts = [100, 200, 500, 1000];
   const phoneDigits = phone.replace(/\D/g, '');
   const phoneIsValid = !phoneDigits || /^09\d{9}$/.test(phoneDigits);
-  const paymentIsValid = paymentMethod === 'cash'
+  const orderReferenceIsValid = /^[A-Z0-9-]{3,30}$/.test(externalOrderRef);
+  const paymentIsValid = isThirdParty
+    ? orderReferenceIsValid
+    : paymentMethod === 'cash'
     ? tenderedAmount >= total
     : paymentMethod === 'gcash'
       ? Boolean(paymentReference.trim() && paymentConfirmed)
       : Boolean(terminalReference.trim());
   const chargeDisabled = !lines.length || isSubmitting || isLoading
     || Boolean(discountType && (!discountIdNumber.trim() || !discountCardholderName.trim()))
-    || !phoneIsValid || !paymentIsValid;
+    || (!isThirdParty && (paymentMethod === 'cash' ? tenderedAmount < total : paymentMethod === 'gcash' ? !Boolean(paymentReference.trim() && paymentConfirmed) : !Boolean(terminalReference.trim())));
   const chargeHelperText = lines.length === 0
     ? 'Add items before charging.'
+    : isThirdParty && !orderReferenceIsValid
+      ? `Enter a valid ${platformLabel || 'platform'} order number (3–30 letters, numbers, or hyphens).`
     : !phoneIsValid
       ? 'Enter a valid Philippine mobile number (09XX XXX XXXX).'
       : discountType && !discountIdNumber.trim()
@@ -471,6 +483,20 @@ const FranchisePOSPage: React.FC = () => {
       delete next[line.key];
       return next;
     });
+    setPaymentReference('');
+    setPaymentCheckoutUrl('');
+    setPaymentConfirmed(false);
+  };
+
+  const changeOrderSource = (source: OrderSource) => {
+    setOrderSource(source);
+    setExternalOrderRef('');
+    setDiningOption('takeout');
+    setDiscountType('');
+    setDiscountIdNumber('');
+    setDiscountCardholderName('');
+    setPaymentMethod('cash');
+    setCashTendered('');
     setPaymentReference('');
     setPaymentCheckoutUrl('');
     setPaymentConfirmed(false);
@@ -677,7 +703,11 @@ const FranchisePOSPage: React.FC = () => {
       setError('Add at least one menu item to the order.');
       return;
     }
-    if (discountType && (!discountIdNumber.trim() || !discountCardholderName.trim())) {
+    if (isThirdParty && !orderReferenceIsValid) {
+      setError(`Enter a valid ${platformLabel || 'platform'} order number (3–30 letters, numbers, or hyphens).`);
+      return;
+    }
+    if (!isThirdParty && discountType && (!discountIdNumber.trim() || !discountCardholderName.trim())) {
       setError(`Enter the customer's ${discountType} ID number and cardholder name.`);
       return;
     }
@@ -685,15 +715,15 @@ const FranchisePOSPage: React.FC = () => {
       setError('Enter a valid Philippine mobile number (09XX XXX XXXX).');
       return;
     }
-    if (paymentMethod === 'gcash' && (!paymentReference.trim() || !paymentConfirmed)) {
+    if (!isThirdParty && paymentMethod === 'gcash' && (!paymentReference.trim() || !paymentConfirmed)) {
       setError('Complete and verify the GCash payment before placing the order.');
       return;
     }
-    if (paymentMethod === 'credit_card' && !terminalReference.trim()) {
+    if (!isThirdParty && paymentMethod === 'credit_card' && !terminalReference.trim()) {
       setError('Enter the card terminal reference before placing the order.');
       return;
     }
-    if (paymentMethod === 'cash' && tenderedAmount < total) {
+    if (!isThirdParty && paymentMethod === 'cash' && tenderedAmount < total) {
       setError('Cash received must be at least the order total.');
       return;
     }
@@ -711,14 +741,19 @@ const FranchisePOSPage: React.FC = () => {
           items: paymentItems(),
           customer_name: customerName.trim() || 'Walk-in Customer',
           phone: phone.trim(),
-          dining_option: diningOption,
-          payment_method: paymentMethod,
-          payment_reference: paymentMethod === 'gcash' ? paymentReference.trim() : undefined,
-          terminal_reference: paymentMethod === 'credit_card' ? terminalReference.trim() : undefined,
-          cash_tendered: paymentMethod === 'cash' ? tenderedAmount : undefined,
-          discount_type: discountType || undefined,
-          discount_id_number: discountType ? discountIdNumber.trim() : undefined,
-          discount_cardholder_name: discountType ? discountCardholderName.trim() : undefined,
+          dining_option: isThirdParty ? 'takeout' : diningOption,
+          ...(isThirdParty ? {
+            third_party_platform: orderSource,
+            external_order_ref: externalOrderRef,
+          } : {
+            payment_method: paymentMethod,
+            payment_reference: paymentMethod === 'gcash' ? paymentReference.trim() : undefined,
+            terminal_reference: paymentMethod === 'credit_card' ? terminalReference.trim() : undefined,
+            cash_tendered: paymentMethod === 'cash' ? tenderedAmount : undefined,
+            discount_type: discountType || undefined,
+            discount_id_number: discountType ? discountIdNumber.trim() : undefined,
+            discount_cardholder_name: discountType ? discountCardholderName.trim() : undefined,
+          }),
           table_number: diningOption === 'dine_in' ? tableNumber.trim() || undefined : undefined,
           include_cutlery: includeCutlery,
           notes: customerNotes.trim() || undefined,
@@ -731,13 +766,15 @@ const FranchisePOSPage: React.FC = () => {
 
       setCompletedOrder({
         ...result.order,
-        cashTendered: paymentMethod === 'cash' ? tenderedAmount : undefined,
-        changeDue: paymentMethod === 'cash' ? Number(result.change_due || 0) : undefined,
+        cashTendered: !isThirdParty && paymentMethod === 'cash' ? tenderedAmount : undefined,
+        changeDue: !isThirdParty && paymentMethod === 'cash' ? Number(result.change_due || 0) : undefined,
         customerName: customerName.trim() || 'Walk-in Customer',
         diningOption,
         includeCutlery,
       });
-      setSuccess(`Order ${result.order.order_number} completed. Change due: ${formatPeso(Number(result.change_due || 0))}.`);
+      setSuccess(isThirdParty
+        ? `${platformLabel} order ${externalOrderRef} confirmed.`
+        : `Order ${result.order.order_number} completed. Change due: ${formatPeso(Number(result.change_due || 0))}.`);
       if (cashierMode && typeof BroadcastChannel !== 'undefined') {
         const orderUpdates = new BroadcastChannel('cashier-pos-orders');
         orderUpdates.postMessage({ type: 'order-created' });
@@ -747,6 +784,9 @@ const FranchisePOSPage: React.FC = () => {
         sessionStorage.removeItem(pendingPaymentStorageKey(paymentReference));
       }
       setCart({});
+      setOrderSource('walk_in');
+      setExternalOrderRef('');
+      setDiningOption('takeout');
       if (cashierMode) {
         draftSaveQueueRef.current = draftSaveQueueRef.current
           .then(() => saveEmployeePosDraft(browserSessionId, {
@@ -799,7 +839,7 @@ const FranchisePOSPage: React.FC = () => {
   }, [completedOrder, configuringProduct, showOrderDrawer]);
 
   return (
-    <div className={`cashier-workspace ${cashierMode ? 'cashier-pos-page min-h-[calc(100vh-64px)]' : 'min-h-screen'} admin-page-enter bg-[var(--oppa-cream)] text-[var(--oppa-text)]`}>
+    <div className={`cashier-workspace ${cashierMode ? 'cashier-pos-page min-h-[calc(100vh-64px)]' : 'min-h-screen'} ${stage === 'checkout' ? 'cashier-checkout-layout' : ''} admin-page-enter bg-[var(--oppa-cream)] text-[var(--oppa-text)]`}>
       {!cashierMode && <header className="cashier-header sticky top-0 z-40 flex h-14 items-center justify-between px-4 text-white sm:px-6">
         <Link to="/franchise/pos" className="flex min-w-0 items-center gap-3">
           <img src={oppaDruLogo} alt="" className="size-9 rounded-full border border-white/30 object-cover" />
@@ -816,7 +856,7 @@ const FranchisePOSPage: React.FC = () => {
       {success && <div role="status" aria-live="polite" className={`${cashierMode ? 'fixed right-4 top-16 z-50 flex max-w-[calc(100vw-2rem)] items-start gap-3 shadow-lg' : 'mx-4 mt-3 sm:mx-6'} rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800`}><span className="flex-1">{success}</span><button type="button" onClick={() => setSuccess('')} aria-label="Dismiss notification" className="flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-green-100"><X size={16} /></button></div>}
       {showDraftStatus && <div role={draftError ? 'alert' : 'status'} className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 sm:mx-6"><span>{draftError || 'Restoring this tab’s saved cashier order…'}</span>{draftError && <button type="button" onClick={() => draftReady ? setDraftSaveAttempt((attempt) => attempt + 1) : setDraftAttempt((attempt) => attempt + 1)} className="min-h-11 rounded-lg border border-amber-700 bg-white px-3 font-semibold">{draftReady ? 'Retry save' : 'Retry loading'}</button>}</div>}
 
-      <div className={`grid ${cashierMode ? 'min-h-[calc(100vh-64px)]' : 'min-h-[calc(100vh-56px)]'} grid-cols-1 ${stage === 'checkout' ? 'lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]' : 'lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_320px]'}`}>
+      <div className={`grid ${cashierMode ? 'min-h-[calc(100vh-64px)]' : 'min-h-[calc(100vh-56px)]'} grid-cols-1 ${stage === 'checkout' ? 'md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_380px]' : 'lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_320px]'}`}>
         <aside className={`${stage === 'checkout' ? 'hidden' : 'hidden border-r border-gray-100 bg-[var(--oppa-surface)] p-5 lg:block'}`}>
           <div className="mb-5 border-b border-gray-100 pb-4"><h2 className="font-serif text-xl font-bold text-[#1c3d2e]">Register Menu</h2><p className="mt-1 text-xs text-gray-500">Select category to filter items</p><p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-400">Categories</p></div>
           <nav className="flex flex-col gap-1" aria-label="Product categories">
@@ -835,7 +875,7 @@ const FranchisePOSPage: React.FC = () => {
             event.preventDefault();
             void submitOrder();
           }
-        }} className={`min-w-0 p-4 pb-28 sm:p-6 sm:pb-28 xl:pb-6 ${stage === 'checkout' ? 'xl:col-span-1' : ''}`}>
+        }} className={`min-w-0 p-4 pb-28 sm:p-6 ${stage === 'checkout' ? 'md:col-span-1 md:pb-6' : 'sm:pb-28 xl:pb-6'}`}>
           {stage === 'menu' ? (
             <>
               <section className="cashier-greeting mb-5 rounded-2xl px-4 py-3 text-white shadow-md sm:px-5">
@@ -910,34 +950,48 @@ const FranchisePOSPage: React.FC = () => {
               )}
             </>
           ) : (
-            <div className="mx-auto max-w-none">
+            <form id="franchise-pos-form" onSubmit={(e) => { e.preventDefault(); void submitOrder(); }} className="mx-auto max-w-none">
               <div className="mb-5 flex items-center gap-3 border-b border-[#e76f51]/20 pb-3"><button type="button" onClick={() => setStage('menu')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#2d6a4f]"><ArrowLeft size={17} /> Back to Register Menu</button><span className="text-gray-300">|</span><h1 className="font-serif text-lg font-bold text-[#2d6a4f]">POS Register Checkout (Onsite)</h1></div>
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <section className="cashier-surface mb-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-8 items-center justify-center rounded-full bg-[#e3efe7] text-sm font-extrabold text-[#1f6b45]">1</span>Dining</h2>
-              <div className="grid grid-cols-2 gap-3">{(['dine_in', 'takeout'] as const).map((option) => <button key={option} type="button" aria-pressed={diningOption === option} onClick={() => setDiningOption(option)} className={`flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border px-4 py-3 text-sm font-semibold transition-colors ${diningOption === option ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e] ring-1 ring-[#2d6a4f]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>{diningOption === option && <Check size={15} aria-hidden="true" />}{option === 'dine_in' ? <Store size={20} aria-hidden="true" /> : <ShoppingBag size={20} aria-hidden="true" />}{option === 'dine_in' ? 'Dine-in' : 'Takeout'}</button>)}</div>
-              {diningOption === 'dine_in' && <label className="mt-4 block text-sm font-semibold text-gray-700">Table #<input value={tableNumber} onChange={(event) => setTableNumber(event.target.value)} placeholder="Optional table number" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20" /></label>}
+            <section className="cashier-surface rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-sm lg:col-span-2">
+              <h2 className="mb-3 text-base font-bold">Order source</h2>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <button type="button" aria-pressed={orderSource === 'walk_in'} onClick={() => changeOrderSource('walk_in')} className={`relative flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] ${orderSource === 'walk_in' ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]' : 'border-[var(--oppa-border)] text-[var(--oppa-text)] hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-cream)]'}`}><Store size={17} aria-hidden="true" />Walk-in{orderSource === 'walk_in' && <Check size={15} className="absolute right-3" aria-hidden="true" />}</button>
+                {THIRD_PARTY_PLATFORMS.map((platform) => {
+                  const PlatformIcon = platform.key === 'foodpanda' ? Smartphone : ShoppingBag;
+                  const selected = orderSource === platform.key;
+                  return <button key={platform.key} type="button" aria-pressed={selected} onClick={() => changeOrderSource(platform.key)} className={`relative flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] ${selected ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]' : 'border-[var(--oppa-border)] text-[var(--oppa-text)] hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-cream)]'}`}><PlatformIcon size={17} aria-hidden="true" />{platform.label}{selected && <Check size={15} className="absolute right-3" aria-hidden="true" />}</button>;
+                })}
+              </div>
+              {isThirdParty && platformLabel && <label htmlFor="branch-platform-order-reference" className="mt-4 block text-sm font-semibold text-[var(--oppa-text)]">{platformLabel} order number <span className="text-[var(--oppa-danger)]">*</span><span className="relative mt-1.5 block"><input id="branch-platform-order-reference" required={isThirdParty} minLength={3} maxLength={30} pattern="[A-Za-z0-9-]{3,30}" title="Use 3-30 letters, numbers, or hyphens" value={externalOrderRef} onChange={(event) => setExternalOrderRef(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 30))} autoComplete="off" placeholder="Enter the platform order number" className="min-h-12 w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 pr-10 text-base font-normal uppercase tracking-wide focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" />{orderReferenceIsValid && <Check size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--oppa-green)]" aria-hidden="true" />}</span></label>}
             </section>
-            <section className="cashier-surface mb-4 space-y-3 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="flex items-center gap-2 text-base font-bold"><span className="flex size-8 items-center justify-center rounded-full bg-[#e3efe7] text-sm font-extrabold text-[#1f6b45]">2</span>Customer <span className="font-normal text-gray-600">(Optional)</span></h2>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="text-sm font-semibold text-gray-700">Customer name / callout<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Walk-in Customer" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" /></label>
-                  <label className="text-sm font-semibold text-gray-700">Contact / phone #<input type="tel" inputMode="tel" value={phone} onChange={(event) => { const digits = event.target.value.replace(/\D/g, '').slice(0, 11); setPhone([digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 11)].filter(Boolean).join(' ')); }} placeholder="09XX XXX XXXX (optional)" aria-invalid={!phoneIsValid} className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" />{!phoneIsValid && <span className="mt-1 block text-xs text-red-700">Use a valid 11-digit number starting with 09.</span>}</label>
+            <section className="cashier-surface h-fit self-start rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-sm">
+              <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-7 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-xs font-extrabold text-[var(--oppa-green)]">1</span>Dining</h2>
+              {isThirdParty ? <p className="flex items-center gap-2 rounded-xl bg-[var(--oppa-green-soft)] px-4 py-3 text-sm font-semibold text-[var(--oppa-green)]"><ShoppingBag size={17} aria-hidden="true" />Takeout</p> : <>
+                <div className="grid grid-cols-2 gap-3">{(['dine_in', 'takeout'] as const).map((option) => <button key={option} type="button" aria-pressed={diningOption === option} onClick={() => setDiningOption(option)} className={`flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] ${diningOption === option ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] ring-1 ring-[var(--oppa-green)]' : 'border-[var(--oppa-border)] text-[var(--oppa-text)] hover:border-[var(--oppa-green)]'}`}>{diningOption === option && <Check size={15} aria-hidden="true" />}{option === 'dine_in' ? <Store size={20} aria-hidden="true" /> : <ShoppingBag size={20} aria-hidden="true" />}{option === 'dine_in' ? 'Dine-in' : 'Takeout'}</button>)}</div>
+                {diningOption === 'dine_in' && <label className="mt-4 block text-sm font-semibold text-gray-700">Table #<input value={tableNumber} onChange={(event) => setTableNumber(event.target.value)} placeholder="Optional table number" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20" /></label>}
+              </>}
+            </section>
+            <section className="cashier-surface space-y-3 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-sm">
+              <h2 className="flex items-center gap-2 text-base font-bold"><span className="flex size-7 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-xs font-extrabold text-[var(--oppa-green)]">2</span>Customer <span className="font-normal text-[var(--oppa-text-muted)]">(Optional)</span></h2>
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <label className="block text-xs font-semibold text-[var(--oppa-text-muted)]">Customer name / callout<input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Walk-in Customer" className="mt-1.5 min-h-12 w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2.5 text-sm font-normal text-[var(--oppa-text)] focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" /></label>
+                  <label className="block text-xs font-semibold text-[var(--oppa-text-muted)]">Contact / phone #<input type="tel" inputMode="tel" pattern="(\\+?63|0)?9\\d{9}" title="Philippine mobile number (e.g. 09123456789)" value={phone} onChange={(event) => { const digits = event.target.value.replace(/\D/g, '').slice(0, 11); setPhone([digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 11)].filter(Boolean).join(' ')); }} placeholder="09XX XXX XXXX (optional)" className="mt-1.5 min-h-12 w-full rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2.5 text-sm font-normal text-[var(--oppa-text)] focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" /></label>
                 </div>
-                <label className="block text-sm font-semibold text-gray-700">Order notes / kitchen instructions<textarea value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} placeholder="Add special instructions for the kitchen" maxLength={500} rows={3} className="mt-1 w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" /></label>
-                <div className="flex flex-wrap gap-2" aria-label="Quick order notes">{['Extra crispy', 'Sauce on the side', 'No onions'].map((note) => <button key={note} type="button" aria-pressed={customerNotes.toLowerCase().includes(note.toLowerCase())} onClick={() => setCustomerNotes((current) => current.toLowerCase().includes(note.toLowerCase()) ? current.split(', ').filter((value) => value.toLowerCase() !== note.toLowerCase()).join(', ') : [current.trim(), note].filter(Boolean).join(', '))} className="min-h-11 rounded-full border border-gray-300 px-3 text-xs font-semibold text-gray-700 hover:border-[#2d6a4f] hover:text-[#1c3d2e]">{note}</button>)}</div>
+                <label className="block text-sm font-semibold text-gray-700">Order notes / kitchen instructions<textarea value={customerNotes} onChange={(event) => setCustomerNotes(event.target.value)} placeholder="Add special instructions for the kitchen" maxLength={500} rows={3} className="mt-1 min-h-24 w-full resize-y rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-base font-normal focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" /></label>
+                <div className="flex flex-wrap gap-2" aria-label="Quick order notes">{['Extra crispy', 'Sauce on the side', 'No onions'].map((note) => <button key={note} type="button" aria-pressed={customerNotes.toLowerCase().includes(note.toLowerCase())} onClick={() => setCustomerNotes((current) => current.toLowerCase().includes(note.toLowerCase()) ? current.split(', ').filter((value) => value.toLowerCase() !== note.toLowerCase()).join(', ') : [current.trim(), note].filter(Boolean).join(', '))} className="min-h-10 rounded-full border border-[var(--oppa-border)] bg-white px-3 text-xs font-semibold text-[var(--oppa-text-muted)] transition duration-150 hover:border-[var(--oppa-green)] hover:text-[var(--oppa-green)] active:scale-95 aria-pressed:border-[var(--oppa-green)] aria-pressed:bg-[var(--oppa-green-soft)] aria-pressed:text-[var(--oppa-green)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]">{note}</button>)}</div>
               </section>
-              <section className="cashier-surface mb-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-8 items-center justify-center rounded-full bg-[#e3efe7] text-sm font-extrabold text-[#1f6b45]">3</span>Discount</h2>
+              {!isThirdParty && <section className="cashier-surface rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-sm">
+                <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-7 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-xs font-extrabold text-[var(--oppa-green)]">3</span>Discount</h2>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">{[{ value: '', label: 'Regular', savings: 0 }, { value: 'Senior Citizen', label: 'Senior Citizen', savings: Math.round(vatExemptBase * 0.2) }, { value: 'PWD', label: 'PWD', savings: Math.round(vatExemptBase * 0.2) }].map(({ value, label, savings }) => <button key={value || 'regular'} type="button" aria-pressed={discountType === value} onClick={() => { setDiscountType(value as typeof discountType); setPaymentReference(''); setPaymentConfirmed(false); if (!value) { setDiscountIdNumber(''); setDiscountCardholderName(''); } }} className={`flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border px-3 py-2 text-center text-sm font-bold transition-colors ${discountType === value ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 bg-white text-gray-700 hover:border-[#2d6a4f]'}`}>{discountType === value && <Check size={15} aria-hidden="true" />}<span>{label}{value ? ' · 20%' : ''}</span><span className="text-xs font-medium text-emerald-700">{savings ? `Save ${formatPeso(savings)}` : 'No discount'}</span></button>)}</div>
-                {discountType && <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">Cardholder name<input value={discountCardholderName} onChange={(event) => setDiscountCardholderName(event.target.value)} placeholder="Name as shown on ID" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" required /></label><label className="text-sm font-semibold">{discountType} ID Number<input value={discountIdNumber} onChange={(event) => setDiscountIdNumber(event.target.value)} placeholder={`Enter ${discountType} ID #`} className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" required /></label><p className="sm:col-span-2 text-xs text-gray-600" title="The 20% discount is applied to the VAT-exempt base amount.">VAT-exempt base + 20% statutory discount</p></div>}
-              </section>
-              <section className="cashier-surface rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-8 items-center justify-center rounded-full bg-[#e3efe7] text-sm font-extrabold text-[#1f6b45]">4</span>Payment</h2>
+                {discountType && <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">Cardholder name<input value={discountCardholderName} onChange={(event) => setDiscountCardholderName(event.target.value)} placeholder="Name as shown on ID" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" data-required="true" /></label><label className="text-sm font-semibold">{discountType} ID Number<input value={discountIdNumber} onChange={(event) => setDiscountIdNumber(event.target.value)} placeholder={`Enter ${discountType} ID #`} className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" data-required="true" /></label><p className="sm:col-span-2 text-xs text-gray-600" title="The 20% discount is applied to the VAT-exempt base amount.">VAT-exempt base + 20% statutory discount</p></div>}
+              </section>}
+              {!isThirdParty ? <section className="cashier-surface rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-sm">
+                <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-7 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-xs font-extrabold text-[var(--oppa-green)]">4</span>Payment</h2>
                 <div className="grid grid-cols-3 gap-2">{[{ value: 'cash', label: 'Cash', Icon: null }, { value: 'gcash', label: 'GCash', Icon: Smartphone }, { value: 'credit_card', label: 'Card Terminal', Icon: CreditCard }].map(({ value, label, Icon }) => <button key={value} type="button" aria-pressed={paymentMethod === value} onClick={() => { setPaymentMethod(value as typeof paymentMethod); if (value === 'gcash') { if (!paymentReference) { void startGatewayPayment(); } else if (!paymentConfirmed) { setShowGCashModal(true); } } else { setPaymentReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); } if (value !== 'credit_card') setTerminalReference(''); }} className={`relative flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-sm font-semibold transition-colors ${paymentMethod === value ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>{paymentMethod === value && <Check size={15} className="absolute right-2 top-2" aria-hidden="true" />}{Icon ? <Icon size={22} /> : <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-full border-2 border-current text-lg font-bold leading-none">₱</span>}{label}</button>)}</div>
                 {paymentMethod === 'cash' && <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
                   <div className="flex items-center justify-between gap-2"><label htmlFor="cash-tendered" className="text-xs font-bold uppercase text-gray-700">Cash tendered</label><span className="text-xs text-gray-600">Amount due <strong className="tabular-nums text-gray-900">{formatPeso(total)}</strong></span></div>
-                  <div className="relative mt-2"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-gray-600">₱</span><input id="cash-tendered" type="number" inputMode="decimal" min="0" step="0.01" value={cashTendered} onChange={(event) => setCashTendered(event.target.value)} placeholder="0.00" className="min-h-14 w-full rounded-lg border border-gray-300 bg-white py-3 pl-9 pr-3 text-xl font-bold tabular-nums focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20" /></div>
+                  <div className="relative mt-2"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-gray-600">₱</span><input id="cash-tendered" type="number" inputMode="decimal" data-min="0" step="0.01" value={cashTendered} onChange={(event) => setCashTendered(event.target.value)} placeholder="0.00" className="min-h-14 w-full rounded-lg border border-gray-300 bg-white py-3 pl-9 pr-3 text-xl font-bold tabular-nums focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20" /></div>
                   <div className="mt-3 flex flex-wrap gap-2">{[{ amount: total, label: 'Exact' }, ...quickCashAmounts.map((amount) => ({ amount, label: formatPeso(amount) }))].map(({ amount, label }) => <button key={`${amount}-${label}`} type="button" onClick={() => setCashTendered(String(amount))} className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold tabular-nums hover:border-[#2d6a4f]">{label}</button>)}</div>
                   <p className="mt-3 flex min-h-11 items-center justify-between border-t border-gray-200 pt-3 text-sm" aria-live="polite"><span className="font-semibold">Change Due</span><strong className={`text-lg tabular-nums ${tenderedAmount < total ? 'text-red-700' : 'text-[#2d6a4f]'}`}>{tenderedAmount < total ? `Insufficient: ${formatPeso(total - tenderedAmount)} short` : formatPeso(changeDue)}</strong></p>
                 </div>}
@@ -1030,64 +1084,76 @@ const FranchisePOSPage: React.FC = () => {
                     )}
                   </div>
                 )}
-              </section>
+              </section> : (
+                <section className="cashier-surface rounded-2xl border border-[var(--oppa-green-soft)] bg-[var(--oppa-green-soft)]/50 p-5 text-sm text-[var(--oppa-text)]">
+                  <div className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-full bg-white text-[var(--oppa-green)]"><CreditCard size={18} aria-hidden="true" /></span><div><h2 className="flex items-center gap-2 font-bold"><span className="flex size-7 items-center justify-center rounded-full bg-white/80 text-xs font-extrabold text-[var(--oppa-green)]">3</span>Payment</h2><p className="mt-0.5 text-[var(--oppa-text-muted)]">Paid through {platformLabel}.</p></div></div>
+                </section>
+              )}
               </div>
-            </div>
+            </form>
           )}
         </main>
 
-        <aside className={`fixed inset-x-0 bottom-0 z-40 flex max-h-[85vh] flex-col border-t border-gray-200 bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.12)] transition-[height] xl:sticky xl:inset-auto xl:top-14 xl:col-span-1 xl:row-span-1 xl:h-[calc(100vh-3.5rem)] xl:min-h-0 xl:max-h-none xl:border-l xl:border-t-0 xl:shadow-none ${showOrderDrawer ? 'h-[82vh]' : 'h-[74px]'} xl:h-[calc(100vh-3.5rem)]`}>
-          <div className="flex min-h-[72px] items-center justify-between border-b border-gray-200 px-4 py-3 xl:px-5">
-            <button type="button" onClick={() => setShowOrderDrawer((open) => !open)} aria-expanded={showOrderDrawer} className="flex min-h-11 min-w-0 items-center gap-2 text-left xl:pointer-events-none">
-              <ShoppingBag size={19} className="shrink-0" />
-            <span className="min-w-0"><strong className="block truncate text-base"><span className="xl:hidden">View Order</span><span className="hidden xl:inline">Current Order</span> <span className="ml-1 rounded-full bg-[#e3efe7] px-2 py-0.5 text-xs text-[#1c3d2e]">{itemCount}</span></strong><span className="block truncate text-xs text-gray-600"><span className="xl:hidden">{formatPeso(total)}</span><span className="hidden xl:inline">{itemCount ? `${itemCount} item${itemCount === 1 ? '' : 's'} in queue` : 'No items yet. Tap a product to start an order.'}</span></span></span>
+        <aside className={`fixed inset-x-0 bottom-0 z-40 flex max-h-[85dvh] flex-col border-t border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-[0_-8px_30px_rgba(0,0,0,0.12)] transition-[height] duration-200 ${stage === 'checkout' ? 'md:sticky md:inset-auto md:top-14 md:col-span-1 md:row-span-1 md:h-[calc(100vh-3.5rem)] md:min-h-0 md:max-h-none md:border-l md:border-t-0 md:shadow-none' : 'xl:sticky xl:inset-auto xl:top-14 xl:col-span-1 xl:row-span-1 xl:h-[calc(100vh-3.5rem)] xl:min-h-0 xl:max-h-none xl:border-l xl:border-t-0 xl:shadow-none'} ${showOrderDrawer ? 'h-[82vh]' : stage === 'checkout' || (cashierMode && searchParams.get('filter') === 'favorites') ? 'h-[88px]' : 'h-[128px]'} ${stage === 'checkout' ? 'md:h-[calc(100vh-3.5rem)]' : 'xl:h-[calc(100vh-3.5rem)]'}`}>
+          <div className="flex min-h-[72px] shrink-0 items-center justify-between gap-3 border-b border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-4 py-3 md:px-5">
+            <button type="button" onClick={() => setShowOrderDrawer((open) => !open)} aria-label={showOrderDrawer ? 'Collapse current order' : 'Expand current order'} aria-expanded={showOrderDrawer} className={`flex min-h-11 min-w-0 items-center gap-2.5 text-left ${stage === 'checkout' ? 'md:pointer-events-none md:cursor-default' : 'xl:pointer-events-none xl:cursor-default'}`}>
+              <ShoppingBag size={19} className="shrink-0 text-[var(--oppa-green)]" aria-hidden="true" />
+              <span className="min-w-0">
+                <strong className="flex items-center gap-2 truncate text-base font-bold text-[var(--oppa-text)]">Current Order <span className="rounded-full bg-[var(--oppa-green-soft)] px-2 py-0.5 text-xs font-bold tabular-nums text-[var(--oppa-green)]">{itemCount}</span></strong>
+                <span className="block truncate text-xs text-[var(--oppa-text-muted)]"><span className="md:hidden">{itemCount} item{itemCount === 1 ? '' : 's'} · {formatPeso(total)}</span><span className="hidden md:block">{itemCount ? `${itemCount} item${itemCount === 1 ? '' : 's'} in queue` : 'No items yet'}</span></span>
+                <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${orderSource === 'foodpanda' ? 'bg-pink-50 text-pink-800' : orderSource === 'grabfood' ? 'bg-emerald-50 text-emerald-800' : 'bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)]'}`}>
+                  {orderSource === 'foodpanda' ? <Smartphone size={11} aria-hidden="true" /> : orderSource === 'grabfood' ? <ShoppingBag size={11} aria-hidden="true" /> : <Store size={11} aria-hidden="true" />}
+                  {platformLabel || 'Walk-in'}
+                </span>
+              </span>
             </button>
-            {lines.length > 0 && <button type="button" onClick={clearOrder} className="min-h-11 shrink-0 px-2 text-sm font-semibold text-red-700 hover:underline">Clear</button>}
+            {lines.length > 0 && <button type="button" aria-label="Clear current order" onClick={clearOrder} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-[var(--oppa-danger)] transition duration-150 hover:bg-[var(--oppa-danger-soft)] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-danger)]"><Trash2 size={14} aria-hidden="true" />Clear</button>}
           </div>
-          <div className={`${showOrderDrawer ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col xl:flex`}>
-            <div className="flex-1 space-y-3 overflow-y-auto p-4">
+          <div className={`${showOrderDrawer ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col ${stage === 'checkout' ? 'md:flex' : 'xl:flex'}`}>
+            <div className="cashier-cart-scroll min-h-0 flex-1 space-y-3 overflow-y-auto p-3 sm:p-4">
               {lines.map((line) => {
                 const { key, product, quantity, selectedAddons, specialInstructions: itemNotes } = line;
                 const lineTotal = (Number(product.price) + selectedAddons.reduce((sum, addon) => sum + Number(addon.price) * Math.max(1, Number(addon.quantity || 1)), 0)) * quantity;
-                return <div key={key} className="border-b border-gray-100 pb-3">
-                  <div className="flex items-start justify-between gap-2">
+                return <article key={key} className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 shadow-sm transition duration-150 hover:shadow-md active:scale-[.995] sm:p-4">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <button type="button" title={`${quantity}× ${product.name}`} onClick={() => setEditingNotesKey(editingNotesKey === key ? null : key)} className="block min-h-8 max-w-full truncate text-left font-semibold text-gray-900">{quantity}× {product.name}</button>
-                      {selectedAddons.map((addon) => <span key={addon.id} className="block truncate text-xs text-gray-600">+ {addon.name}</span>)}
-                      {itemNotes && <span className="block truncate text-xs text-gray-500" title={itemNotes}>{itemNotes}</span>}
-                      <button type="button" onClick={() => setEditingNotesKey(editingNotesKey === key ? null : key)} className="mt-1 min-h-11 text-xs font-semibold text-[#1f6b45] underline underline-offset-2">{itemNotes ? 'Edit note' : 'Add note'}</button>
+                      <button type="button" title={product.name} onClick={() => setEditingNotesKey(editingNotesKey === key ? null : key)} className="line-clamp-2 min-h-8 w-full text-left text-sm font-semibold leading-5 text-[var(--oppa-text)] transition-colors hover:text-[var(--oppa-green)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]">{product.name}</button>
+                      {quantity > 1 && <p className="mt-0.5 text-xs text-[var(--oppa-text-muted)]">{formatPeso(lineTotal / quantity)} each</p>}
+                      {selectedAddons.map((addon) => <span key={addon.id} className="block truncate text-xs text-[var(--oppa-text-muted)]">+ {addon.name}</span>)}
+                      <button type="button" aria-label={`${itemNotes ? 'Edit' : 'Add'} note for ${product.name}`} onClick={() => setEditingNotesKey(editingNotesKey === key ? null : key)} className="mt-1.5 inline-flex max-w-full items-start gap-1.5 rounded-md py-1 text-left text-xs text-[var(--oppa-green)] transition-colors hover:bg-[var(--oppa-green-soft)]/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]">
+                        <Pencil size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
+                        <span className={`min-w-0 ${itemNotes ? 'line-clamp-2 italic text-[var(--oppa-text-muted)]' : 'font-semibold'}`}>{itemNotes || 'Add note'}</span>
+                      </button>
                     </div>
-                    <span className="shrink-0 pt-1 text-sm font-bold tabular-nums">{formatPeso(lineTotal)}</span>
+                    <span className="shrink-0 pt-1 text-right text-sm font-bold tabular-nums text-[var(--oppa-text)]">{formatPeso(lineTotal)}</span>
                   </div>
-                  <div className="mt-1 flex items-center justify-end gap-1">
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button type="button" aria-label={`Remove one ${product.name}`} onClick={() => setQuantity(key, quantity - 1)} className="flex size-11 items-center justify-center rounded-xl hover:bg-gray-50"><span className="flex size-8 items-center justify-center rounded-full border border-gray-300"><Minus size={14} /></span></button>
-                      <span className="min-w-7 text-center font-bold tabular-nums">{quantity}</span>
-                      <button type="button" aria-label={`Add one ${product.name}`} onClick={() => setQuantity(key, quantity + 1)} className="flex size-11 items-center justify-center rounded-xl hover:bg-gray-50"><span className="flex size-8 items-center justify-center rounded-full border border-gray-300"><Plus size={14} /></span></button>
-                      <button type="button" aria-label={`Remove ${product.name} from order`} onClick={() => removeCartLine(line)} className="ml-1 flex size-11 items-center justify-center rounded-xl text-red-700 hover:bg-red-50"><Trash2 size={15} /></button>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <div className="flex shrink-0 items-center rounded-full bg-[var(--oppa-cream)] p-1">
+                      <button type="button" aria-label={`Remove one ${product.name}`} onClick={() => setQuantity(key, quantity - 1)} className="flex size-9 items-center justify-center rounded-full text-[var(--oppa-text)] transition duration-150 hover:bg-white active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--oppa-green)]"><Minus size={15} aria-hidden="true" /></button>
+                      <span className="min-w-8 text-center text-sm font-bold tabular-nums text-[var(--oppa-text)]">{quantity}</span>
+                      <button type="button" aria-label={`Add one ${product.name}`} onClick={() => setQuantity(key, quantity + 1)} className="flex size-9 items-center justify-center rounded-full text-[var(--oppa-text)] transition duration-150 hover:bg-white active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--oppa-green)]"><Plus size={15} aria-hidden="true" /></button>
                     </div>
+                    <button type="button" aria-label={`Remove ${product.name} from order`} onClick={() => removeCartLine(line)} className="flex size-9 items-center justify-center rounded-lg text-[var(--oppa-danger)] transition duration-150 hover:bg-[var(--oppa-danger-soft)] active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-danger)]"><Trash2 size={16} aria-hidden="true" /></button>
                   </div>
-                  {editingNotesKey === key && <label className="mt-2 block text-xs font-semibold text-gray-600">Item notes<textarea value={itemNotes || ''} onChange={(event) => setCart((current) => ({ ...current, [key]: { ...current[key], specialInstructions: event.target.value || undefined } }))} placeholder="Add item-specific kitchen notes" maxLength={250} rows={2} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal" /></label>}
-                </div>;
+                  {editingNotesKey === key && <label className="mt-2 block text-xs font-semibold text-[var(--oppa-text-muted)]">Item notes<textarea value={itemNotes || ''} onChange={(event) => setCart((current) => ({ ...current, [key]: { ...current[key], specialInstructions: event.target.value || undefined } }))} placeholder="Add item-specific kitchen notes" maxLength={250} rows={2} className="mt-1 w-full resize-y rounded-lg border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-normal text-[var(--oppa-text)] focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20" /></label>}
+                </article>;
               })}
-              {!lines.length && <div className="flex min-h-52 flex-col items-center justify-center text-center"><span className="mb-3 flex size-16 items-center justify-center rounded-full bg-[#e3efe7] text-[#2d6a4f]"><ShoppingBag size={27} /></span><strong className="text-gray-800">No items yet</strong><p className="mt-1 text-sm text-gray-600">Tap a product to start an order.</p></div>}
+              {!lines.length && <div className="flex min-h-52 flex-col items-center justify-center px-4 text-center"><span className="mb-3 flex size-14 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]"><ShoppingBag size={25} aria-hidden="true" /></span><strong className="text-[var(--oppa-text)]">No items yet</strong><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Select products from the register menu.</p></div>}
             </div>
-            <div className="border-t border-gray-200 bg-white">
-              <div className="flex justify-between px-5 py-3 text-sm"><span className="text-gray-700">Order Subtotal</span><strong className="tabular-nums" aria-live="polite">{formatPeso(subtotal)}</strong></div>
-              <div className={`p-4 ${stage === 'checkout' ? 'cashier-checkout-totals space-y-2' : 'space-y-2'}`}>
-                {stage === 'menu' ? <button type="button" disabled={!lines.length} onClick={() => { setStage('checkout'); setShowOrderDrawer(false); }} className="min-h-12 w-full rounded-xl bg-[#2d6a4f] px-4 py-3.5 text-left text-base font-bold text-white shadow transition-colors hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:bg-gray-300"><span className="flex items-center justify-between"><span>Proceed to Checkout</span><span className="tabular-nums">{formatPeso(total)} →</span></span></button> : <>
-                  <div className="flex justify-between text-sm text-gray-700"><span>Subtotal</span><span className="tabular-nums">{formatPeso(subtotal)}</span></div>
-                  {discountType && <><div className="flex justify-between text-sm text-gray-600"><span>VAT-exempt base</span><span className="tabular-nums">{formatPeso(vatExemptBase)}</span></div><div className="flex justify-between text-sm font-medium text-emerald-700"><span>Discount ({discountType} 20%)</span><span className="tabular-nums">−{formatPeso(discountAmount)}</span></div></>}
-                  <div className="flex justify-between text-sm text-gray-600"><span>VAT (12% inclusive)</span><span className="tabular-nums">{formatPeso(discountType ? 0 : Math.round(subtotal * 12 / 112))}</span></div>
-                  <div className="flex justify-between border-t border-gray-200 pt-3 text-lg font-bold"><span>Total</span><span className="tabular-nums text-[#2d6a4f]">{formatPeso(total)}</span></div>
-                  <button type="button" onClick={() => void submitOrder()} disabled={chargeDisabled} className="min-h-12 w-full rounded-xl bg-[#2d6a4f] py-3.5 text-base font-bold text-white transition-colors hover:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:bg-gray-300">{isSubmitting ? 'Processing Sale…' : `Charge ${formatPeso(total)}`}</button>
-                  {chargeDisabled && chargeHelperText && <p className="text-center text-xs text-gray-600">{chargeHelperText}</p>}
-                </>}
-              </div>
+            <div className="cashier-checkout-totals sticky bottom-0 z-10 shrink-0 space-y-2 border-t border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4 pb-[calc(16px+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(28,61,46,0.08)]">
+              {stage === 'menu' && <div className="flex justify-between text-sm text-[var(--oppa-text-muted)]"><span>Order Subtotal</span><strong className="tabular-nums text-[var(--oppa-text)]" aria-live="polite">{formatPeso(subtotal)}</strong></div>}
+              {stage === 'menu' ? <button type="button" disabled={!lines.length} onClick={() => { setStage('checkout'); setShowOrderDrawer(false); }} className="min-h-12 w-full rounded-xl bg-[var(--oppa-green)] px-4 py-3.5 text-left text-base font-bold text-white shadow-sm transition duration-150 hover:bg-[var(--oppa-green-dark)] active:scale-[.99] disabled:pointer-events-none disabled:opacity-50"><span className="flex items-center justify-between"><span>Proceed to Checkout</span><span className="tabular-nums">{formatPeso(total)} →</span></span></button> : <>
+                <div className="flex justify-between text-xs text-[var(--oppa-text-muted)]"><span>Subtotal</span><span className="tabular-nums text-right">{formatPeso(subtotal)}</span></div>
+                {discountType && <><div className="flex justify-between text-xs text-[var(--oppa-text-muted)]"><span>VAT-exempt base</span><span className="tabular-nums text-right">{formatPeso(vatExemptBase)}</span></div><div className="flex justify-between text-xs font-medium text-emerald-800"><span>Discount ({discountType} 20%)</span><span className="tabular-nums text-right">−{formatPeso(discountAmount)}</span></div></>}
+                <div className="flex justify-between text-xs text-[var(--oppa-text-muted)]"><span>VAT (12% inclusive)</span><span className="tabular-nums text-right">{formatPeso(discountType ? 0 : Math.round(subtotal * 12 / 112))}</span></div>
+                <div className="flex justify-between border-t border-[var(--oppa-border)] pt-3 text-xl font-bold"><span>Total</span><span className="tabular-nums text-right text-[var(--oppa-green)]">{formatPeso(total)}</span></div>
+                <button type="submit" form="franchise-pos-form" disabled={chargeDisabled} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-bold text-white shadow-sm transition duration-150 hover:bg-[var(--oppa-green-dark)] hover:shadow-md active:scale-[.99] disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none">{isSubmitting ? <><Receipt size={18} aria-hidden="true" />Processing Sale…</> : <><Receipt size={18} aria-hidden="true" />{isThirdParty ? `Confirm ${platformLabel} order` : `Charge ${formatPeso(total)}`}</>}</button>
+                {chargeDisabled && chargeHelperText && <p className="text-center text-xs text-[var(--oppa-text-muted)]">{chargeHelperText}</p>}
+              </>}
             </div>
           </div>
-          {!showOrderDrawer && !(cashierMode && searchParams.get('filter') === 'favorites') && <div className="flex flex-1 items-center gap-2 px-3 py-2 xl:hidden">
-            {stage === 'menu' ? <button type="button" disabled={!lines.length} onClick={() => setShowOrderDrawer(true)} className="min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"><span className="flex items-center justify-between"><span>View Order ({itemCount})</span><span className="tabular-nums">{formatPeso(total)}</span></span></button> : <button type="button" disabled={chargeDisabled} onClick={() => void submitOrder()} className="min-h-11 w-full rounded-xl bg-[#2d6a4f] px-4 text-base font-bold text-white disabled:bg-gray-300">{isSubmitting ? 'Processing…' : `Charge ${formatPeso(total)}`}</button>}
+          {stage === 'menu' && !showOrderDrawer && !(cashierMode && searchParams.get('filter') === 'favorites') && <div className="flex flex-1 items-center gap-2 px-3 py-2 xl:hidden">
+            <button type="button" disabled={!lines.length} onClick={() => setShowOrderDrawer(true)} className="min-h-11 w-full rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-bold text-white transition hover:bg-[var(--oppa-green-dark)] disabled:pointer-events-none disabled:opacity-50"><span className="flex items-center justify-between"><span>View Order ({itemCount})</span><span className="tabular-nums">{formatPeso(total)} →</span></span></button>
           </div>}
         </aside>
         {removedLine && <div role="status" aria-live="polite" className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-xl bg-gray-900 px-4 py-3 text-sm text-white shadow-xl xl:bottom-5">Item removed <button type="button" onClick={undoRemove} className="font-bold underline underline-offset-2">Undo</button></div>}
@@ -1100,7 +1166,7 @@ const FranchisePOSPage: React.FC = () => {
           <section role="dialog" aria-modal="true" aria-label={`${configuringProduct.name} options`} onClick={(event) => event.stopPropagation()} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div><h2 className="text-xl font-semibold">{configuringProduct.name}</h2><p className="mt-1 text-sm text-gray-600">Base price {formatPeso(Number(configuringProduct.price))}</p></div>
-              <button onClick={() => setConfiguringProduct(null)} aria-label="Close options" className="rounded-lg px-3 py-1 text-gray-500 hover:bg-gray-100">Close</button>
+              <button type="button" onClick={() => setConfiguringProduct(null)} aria-label="Close options" className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2d6a4f]"><X size={18} aria-hidden="true" /></button>
             </div>
             {isLoadingAddons ? <p className="py-4 text-sm text-gray-500">Loading available add-ons...</p> : addonGroups.map((group) => (
               <fieldset key={group.id} className="mb-5">

@@ -879,7 +879,7 @@ const FranchiseApplicationPage: React.FC = () => {
               <FormSection title="Personal information" className="franchise-form-subsection">
                 <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
                   <FormField id="contact_name" label="Full legal name" required helper="Enter the name shown on your valid ID." error={fieldErrors.contact_name}>
-                    <input id="contact_name" required autoComplete="name" minLength={2} maxLength={60} value={form.contact_name}
+                    <input id="contact_name" data-required="true" autoComplete="name" data-min-length={2} maxLength={60} value={form.contact_name}
                       onChange={(event) => updateField('contact_name', event.target.value)} onBlur={() => validateField('contact_name')}
                       placeholder="Your full legal name" className="franchise-control" aria-invalid={!!fieldErrors.contact_name}
                       aria-describedby={fieldDescription('contact_name', !!fieldErrors.contact_name)} />
@@ -1385,7 +1385,7 @@ const PhoneInput: React.FC<{
   describedBy: string;
   placeholder: string;
 }> = ({ id, value, onChange, onBlur, invalid, describedBy, placeholder }) => (
-  <input id={id} required type="tel" inputMode="tel" autoComplete="tel" maxLength={13} value={value}
+  <input id={id} data-required="true" type="tel" inputMode="tel" autoComplete="tel" maxLength={13} value={value}
     onChange={(event) => onChange(formatPhone(event.target.value))} onBlur={onBlur}
     placeholder={placeholder} className="franchise-control" aria-invalid={invalid} aria-describedby={describedBy} />
 );
@@ -1431,7 +1431,7 @@ const SearchableSelect: React.FC<{
 
   return (
     <div className={`franchise-searchable-select${isOpen ? ' is-open' : ''}`}>
-      <input id={id} required={required} role="combobox" aria-autocomplete="list" aria-expanded={isOpen}
+      <input id={id} data-required={required} role="combobox" aria-autocomplete="list" aria-expanded={isOpen}
         aria-controls={listId} aria-activedescendant={isOpen && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
         autoComplete="off" maxLength={150} value={value} disabled={disabled}
         onChange={(event) => { if (disabled) return; onChange(event.target.value); setIsOpen(true); setActiveIndex(-1); }}
@@ -1466,7 +1466,7 @@ const CurrencyInput: React.FC<{
 }> = ({ id, value, onChange, onBlur, invalid, describedBy }) => (
   <div className="relative">
     <span className="franchise-currency-prefix" aria-hidden="true">₱</span>
-    <input id={id} required inputMode="decimal" maxLength={16} value={value}
+    <input id={id} data-required="true" inputMode="decimal" maxLength={16} value={value}
       onChange={(event) => onChange(formatCurrencyInput(event.target.value))}
       onBlur={onBlur} placeholder="2,500,000" className="franchise-control franchise-currency-control"
       aria-invalid={invalid} aria-describedby={describedBy} />
@@ -1508,7 +1508,7 @@ const AutoGrowTextarea: React.FC<{
   describedBy?: string;
 }> = ({ id, value, onChange, onBlur, placeholder, maxLength, rows, required, invalid, describedBy }) => (
   <div>
-    <textarea id={id} required={required} maxLength={maxLength} rows={rows} value={value} placeholder={placeholder}
+    <textarea id={id} data-required={required} maxLength={maxLength} rows={rows} value={value} placeholder={placeholder}
       onChange={(event) => {
         onChange(event.target.value);
         event.target.style.height = 'auto';
@@ -1619,7 +1619,7 @@ const ReviewItem: React.FC<{ label: string; value?: string; optional?: boolean }
 
 const ConsentCheckbox: React.FC<{ id: string; checked: boolean; onChange: (checked: boolean) => void; children: React.ReactNode }> = ({ id, checked, onChange, children }) => (
   <label htmlFor={id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg p-2 text-sm leading-6 text-[var(--oppa-text)]">
-    <input id={id} type="checkbox" required checked={checked} onChange={(event) => onChange(event.target.checked)} className="franchise-checkbox mt-1 size-5 shrink-0" />
+    <input id={id} type="checkbox" data-required="true" checked={checked} onChange={(event) => onChange(event.target.checked)} className="franchise-checkbox mt-1 size-5 shrink-0" />
     <span>{children}<span className="franchise-required-mark ml-1" aria-hidden="true">*</span><span className="sr-only"> (required)</span></span>
   </label>
 );

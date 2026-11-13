@@ -81,7 +81,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.message || 'Could not load inventory alert count.');
         if (active) setInventoryAttentionCount(Number(payload.data?.needs_restocking || 0));
-      } catch (error) {
+      } catch {
         if (active) setInventoryAttentionCount(0);
       }
     };

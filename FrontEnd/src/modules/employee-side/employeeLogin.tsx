@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, BriefcaseBusiness, ChefHat, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { employeeAuth } from "../../services/employeeAuth"; 
 import LoginBrandPanel from "../../components/LoginBrandPanel";
+import { ValidatedForm } from '../../components/ui/FormValidation';
 
 interface EmployeeLoginPageProps {
   portal?: "employee" | "kitchen";
@@ -75,7 +76,7 @@ const EmployeeLoginPage: React.FC<EmployeeLoginPageProps> = ({ portal = "employe
 
           {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</div>}
 
-          <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-lg sm:p-8">
+          <ValidatedForm onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-[var(--oppa-border)] bg-white p-6 shadow-lg sm:p-8">
             <div>
               <label htmlFor="employee-email" className="mb-1.5 block text-sm font-medium text-[var(--oppa-green)]">Email Address</label>
               <div className="relative">
@@ -98,7 +99,7 @@ const EmployeeLoginPage: React.FC<EmployeeLoginPageProps> = ({ portal = "employe
             <button type="submit" disabled={isLoading} className="w-full rounded-xl bg-[var(--oppa-green)] py-3 font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)] disabled:cursor-not-allowed disabled:opacity-60">
               {isLoading ? "Signing in..." : "Sign In"}
             </button>
-          </form>
+          </ValidatedForm>
 
           <div className="mt-6 flex items-center justify-center gap-2 text-sm text-[var(--oppa-text-muted)]">
             <span>{isKitchenPortal ? "Cashier instead?" : "Kitchen staff?"}</span>

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
 import { useAuth } from '../../../../contexts/Authcontext';
 import { authService } from '../../../../services/authService';
 import { API_URL } from '../../../../services/apiConfig';
 import { LimitedInput } from '../../../../components/ui/LimitedInput';
 import { INPUT_LIMITS } from '../../../../constants/inputLimits';
+import { ValidatedForm } from '../../../../components/ui/FormValidation';
 
 const SecuritySection: React.FC = () => {
   const { user } = useAuth();
@@ -15,6 +16,20 @@ const SecuritySection: React.FC = () => {
     confirmPassword: '',
   });
   const [isSaving, setIsSaving] = useState(false);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
+
+  const handleNewPasswordChange = (val: string) => {
+    setFormData(prev => ({ ...prev, newPassword: val }));
+    if (confirmPasswordRef.current && formData.confirmPassword) {
+      confirmPasswordRef.current.setCustomValidity(formData.confirmPassword !== val ? 'Passwords do not match' : '');
+    }
+  };
+
+  const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setFormData(prev => ({ ...prev, confirmPassword: val }));
+    e.target.setCustomValidity(val !== formData.newPassword ? 'Passwords do not match' : '');
+  };
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,17 +97,17 @@ const SecuritySection: React.FC = () => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <ValidatedForm onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
           <div className="relative">
             <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type={showPassword ? 'text' : 'password'}
+              required
               value={formData.currentPassword}
               onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
               className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20 transition text-sm"
-              required
             />
           </div>
         </div>
@@ -103,12 +118,12 @@ const SecuritySection: React.FC = () => {
             <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <LimitedInput
               type={showPassword ? 'text' : 'password'}
+              required
               minLength={INPUT_LIMITS.password.min}
               maxLength={INPUT_LIMITS.password.max}
               value={formData.newPassword}
-              onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
+              onChange={(e) => handleNewPasswordChange(e.target.value)}
               className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20 transition text-sm"
-              required
             />
           </div>
         </div>
@@ -118,12 +133,13 @@ const SecuritySection: React.FC = () => {
           <div className="relative">
             <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <LimitedInput
+              ref={confirmPasswordRef}
               type={showPassword ? 'text' : 'password'}
+              required
               maxLength={INPUT_LIMITS.password.max}
               value={formData.confirmPassword}
-              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+              onChange={handleConfirmPasswordChange}
               className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20 transition text-sm"
-              required
             />
           </div>
         </div>
@@ -146,7 +162,7 @@ const SecuritySection: React.FC = () => {
         >
           {isSaving ? 'Changing Password...' : 'Change Password'}
         </button>
-      </form>
+      </ValidatedForm>
     </div>
   );
 };

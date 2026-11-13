@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { CartItem } from '../../../../types/product.types';
 import { formatPeso } from '../../../../utils/formatters';
 import { calculateItemTotal, calculateSubtotal } from '../../../../services/cartService';
+import { getThirdPartyPlatformLabel, type OrderSource } from '../../../../constants/thirdPartyPlatforms';
 
 interface CheckoutSummaryProps {
   cartItems: CartItem[];
@@ -12,6 +13,9 @@ interface CheckoutSummaryProps {
   promoDiscount?: number;
   promoCode?: string;
   isPlacingOrder?: boolean;
+  orderSource?: OrderSource;
+  externalOrderRef?: string;
+  isOrderSourceValid?: boolean;
 }
 
 const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
@@ -22,6 +26,9 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   promoDiscount = 0,
   promoCode = '',
   isPlacingOrder = false,
+  orderSource = 'walk_in',
+  externalOrderRef = '',
+  isOrderSourceValid = true,
 }) => {
   const navigate = useNavigate();
   const subtotal = calculateSubtotal(cartItems);
@@ -34,6 +41,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   const vat = hasStatutoryDiscount ? 0 : Math.round(netBeforeTax * 12 / 112 * 100) / 100;
   const finalTotal = netBeforeTax;
   const hasItems = cartItems.length > 0;
+  const platformLabel = getThirdPartyPlatformLabel(orderSource);
 
   if (!hasItems) {
     return (
@@ -61,8 +69,14 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
       </div>
 
       <p className="text-xs font-semibold text-[var(--oppa-green)] uppercase tracking-wider mb-3">
-        Oppa Dru Korean Fried Chicken • Onsite
+        Oppa Dru Korean Fried Chicken • {platformLabel || 'Onsite'}
       </p>
+      {platformLabel && (
+        <div className="mb-3 inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--oppa-green)]/20 bg-[var(--oppa-green-soft)] px-3 py-1 text-xs font-semibold text-[var(--oppa-green-dark)]">
+          <span>{platformLabel}</span>
+          {externalOrderRef && <span className="max-w-40 truncate font-mono font-medium" title={externalOrderRef}>{externalOrderRef}</span>}
+        </div>
+      )}
 
       <div className="space-y-3 mb-4 max-h-60 overflow-y-auto divide-y divide-gray-50 pr-1">
         {cartItems.map((item) => {
@@ -135,11 +149,11 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
       </div>
 
       <button
-        onClick={onPlaceOrder}
+        type="submit"
         disabled={isPlacingOrder || !hasItems}
         className="w-full mt-6 py-3.5 bg-[var(--oppa-green)] text-white font-bold rounded-xl shadow-lg hover:bg-[var(--oppa-green-dark)] transition-all disabled:opacity-60 disabled:cursor-not-allowed text-center text-base"
       >
-        {isPlacingOrder ? 'Processing Sale...' : `Charge ${formatPeso(finalTotal)}`}
+        {isPlacingOrder ? 'Processing Sale...' : platformLabel ? `Confirm ${platformLabel} order` : `Charge ${formatPeso(finalTotal)}`}
       </button>
     </div>
   );
