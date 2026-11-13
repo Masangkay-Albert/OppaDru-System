@@ -86,15 +86,21 @@ const refreshAdminSession = async (): Promise<string | null> => {
 
 export const fetchWithAdminAuth = async (url: string, init: RequestInit = {}): Promise<Response> => {
   const token = await ensureAdminSession();
+  if (!token) {
+    return new Response(JSON.stringify({ message: 'Unauthenticated administrator.' }), {
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const headers = new Headers(init.headers);
   if (init.body instanceof FormData) {
     headers.delete('Content-Type');
   } else {
     headers.set('Content-Type', 'application/json');
   }
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
+  headers.set('Authorization', `Bearer ${token}`);
 
   const response = await fetch(url, { ...init, headers });
   if (response.status !== 401) {

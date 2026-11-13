@@ -13,6 +13,7 @@ use App\Models\StockBatch;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 
 class InventoryService
@@ -156,6 +157,9 @@ class InventoryService
                 ->where('ingredient_id', $ingredientId)
                 ->lockForUpdate()
                 ->first();
+            if ($stock?->is_archived) {
+                throw new InvalidArgumentException('Archived branch ingredients cannot be adjusted.');
+            }
             if (! $stock && ! in_array($type, ['stock_in', 'opening_stock'], true)) {
                 throw new InvalidArgumentException('This ingredient has no stock recorded for the branch.');
             }
@@ -193,6 +197,7 @@ class InventoryService
             $stock = BranchIngredientStock::query()
                 ->where('branch_id', $branchId)
                 ->where('ingredient_id', $ingredientId)
+                ->where('is_archived', false)
                 ->lockForUpdate()
                 ->firstOrFail();
             $delta = round(round($targetQuantity, 3) - (float) $stock->quantity, 3);
@@ -320,6 +325,32 @@ class InventoryService
                 if ($quantity <= 0) {
                     continue;
                 }
+                if (! $mainBranch) {
+                    $branchStock = BranchIngredientStock::query()
+                        ->where('branch_id', $order->branch_id)
+                        ->where('ingredient_id', $ingredientId)
+                        ->where('is_archived', false)
+                        ->lockForUpdate()
+                        ->first();
+                    if (! $branchStock) {
+                        Log::warning('Skipped recipe ingredient deduction because branch stock is not tracked.', [
+                            'order_id' => $order->id,
+                            'branch_id' => $order->branch_id,
+                            'ingredient_id' => (int) $ingredientId,
+                        ]);
+                        DB::table($deductionsTable)->insert([
+                            'order_id' => $order->id,
+                            'branch_id' => $order->branch_id,
+                            'ingredient_id' => $ingredientId,
+                            'quantity' => $quantity,
+                            'movement_id' => null,
+                            'is_reversed' => false,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                        continue;
+                    }
+                }
                 $movement = $mainBranch
                     ? $this->move(
                         (int) $ingredientId,
@@ -372,6 +403,13 @@ class InventoryService
             $deductions = $deductionsQuery->get();
 
             foreach ($deductions as $deduction) {
+                if (! $deduction->movement_id) {
+                    DB::table($deductionsTable)->where('id', $deduction->id)->update([
+                        'is_reversed' => true,
+                        'updated_at' => now(),
+                    ]);
+                    continue;
+                }
                 if ($mainBranch) {
                     $ingredient = MainBranchIngredient::query()->findOrFail((int) $deduction->ingredient_id);
                     $movement = $this->setQuantity(
@@ -418,6 +456,12 @@ class InventoryService
             || Franchise::query()->whereKey($branchId)->where('is_main', true)->exists();
         $recipes = DB::table('ingredient_recipes')
             ->join('main_branch_ingredients', 'ingredient_recipes.ingredient_id', '=', 'main_branch_ingredients.id')
+            ->when(! $usesMainStock, fn ($query) => $query
+                ->join('branch_ingredient_stocks', function ($join) use ($branchId) {
+                    $join->on('branch_ingredient_stocks.ingredient_id', '=', 'ingredient_recipes.ingredient_id')
+                        ->where('branch_ingredient_stocks.branch_id', '=', $branchId)
+                        ->where('branch_ingredient_stocks.is_archived', '=', false);
+                }))
             ->where('ingredient_recipes.product_id', $productId)
             ->where('main_branch_ingredients.is_archived', false)
             ->get([
@@ -444,6 +488,7 @@ class InventoryService
             : (float) (BranchIngredientStock::query()
                 ->where('branch_id', $branchId)
                 ->where('ingredient_id', $ingredientId)
+                ->where('is_archived', false)
                 ->value('quantity') ?? 0);
         $expiredQuantity = (float) StockBatch::query()
             ->where('ingredient_id', $ingredientId)
@@ -454,6 +499,12 @@ class InventoryService
             ->sum('quantity_remaining');
 
         return max(0, round($stockQuantity - $expiredQuantity, 3));
+    }
+
+    public function refreshBranchAvailability(int $ingredientId, string $branchId): void
+    {
+        $ingredient = MainBranchIngredient::query()->findOrFail($ingredientId);
+        $this->refreshProductAvailability($ingredient, $branchId);
     }
 
     private function applyDelta(
@@ -467,7 +518,6 @@ class InventoryService
         if ($ingredient->is_archived) {
             throw new InvalidArgumentException('Archived ingredients cannot be adjusted.');
         }
-
         $before = round((float) $ingredient->quantity, 3);
         $change = round($delta, 3);
         $after = round($before + $change, 3);
@@ -526,6 +576,9 @@ class InventoryService
     ): MainBranchStockMovement {
         if ($ingredient->is_archived) {
             throw new InvalidArgumentException('Archived ingredients cannot be adjusted.');
+        }
+        if ($stock->is_archived) {
+            throw new InvalidArgumentException('Archived branch ingredients cannot be adjusted.');
         }
 
         $before = round((float) $stock->quantity, 3);

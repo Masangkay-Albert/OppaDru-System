@@ -13,12 +13,15 @@ class BranchIngredientStock extends Model
         'quantity',
         'reorder_level',
         'unit_cost',
+        'notes',
+        'is_archived',
     ];
 
     protected $casts = [
         'quantity' => 'decimal:3',
         'reorder_level' => 'decimal:3',
         'unit_cost' => 'decimal:2',
+        'is_archived' => 'boolean',
     ];
 
     public function ingredient(): BelongsTo

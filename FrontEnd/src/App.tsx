@@ -59,6 +59,8 @@ const FranchisePOSPage = lazy(() => import("./modules/franchise-side/pages/Franc
 const FranchisePosActivityPage = lazy(() => import("./modules/franchise-side/pages/FranchisePosActivityPage"));
 const FranchiseOrdersPage = lazy(() => import("./modules/franchise-side/pages/FranchiseOrdersPage"));
 const FranchiseInventoryPage = lazy(() => import("./modules/franchise-side/pages/FranchiseInventoryPage"));
+const FranchiseIngredientInventoryPage = lazy(() => import("./modules/franchise-side/pages/FranchiseIngredientInventoryPage"));
+const FranchiseIngredientInventoryHistoryPage = lazy(() => import("./modules/franchise-side/pages/FranchiseIngredientInventoryHistoryPage"));
 const FranchiseReportsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseReportsPage"));
 const FranchiseUsersPage = lazy(() => import("./modules/franchise-side/pages/FranchiseUsersPage"));
 const FranchiseSettingsPage = lazy(() => import("./modules/franchise-side/pages/FranchiseSettingsPage"));
@@ -173,6 +175,8 @@ function App() {
                       <Route path="/franchise/pos/activity" element={<ProtectedFranchiseRoute><FranchisePosActivityPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/orders" element={<ProtectedFranchiseRoute><FranchiseOrdersPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/inventory" element={<ProtectedFranchiseRoute><FranchiseInventoryPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/inventory/ingredients" element={<ProtectedFranchiseRoute><FranchiseIngredientInventoryPage /></ProtectedFranchiseRoute>} />
+                      <Route path="/franchise/inventory/ingredients/history" element={<ProtectedFranchiseRoute><FranchiseIngredientInventoryHistoryPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/reports" element={<ProtectedFranchiseRoute><FranchiseReportsPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/users" element={<ProtectedFranchiseRoute><FranchiseUsersPage /></ProtectedFranchiseRoute>} />
                       <Route path="/franchise/settings" element={<ProtectedFranchiseRoute><FranchiseSettingsPage /></ProtectedFranchiseRoute>} />

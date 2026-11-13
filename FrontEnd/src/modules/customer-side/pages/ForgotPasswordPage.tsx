@@ -3,6 +3,7 @@ import { ArrowLeft, Eye, EyeOff, KeyRound, Mail, Phone, ShieldCheck } from "luci
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/ToastProvider";
 import { authService } from "../../../services/authService";
+import LoginBrandPanel from "../../../components/LoginBrandPanel";
 
 const passwordRules = [
   { label: "At least 8 characters", test: (value: string) => value.length >= 8 },
@@ -93,12 +94,11 @@ const ForgotPasswordPage: React.FC = () => {
   const passwordValid = passwordRules.every((rule) => rule.test(password));
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--oppa-cream)] px-4 py-8 text-[var(--oppa-text)] sm:px-6">
-      <div aria-hidden="true" className="pointer-events-none absolute -left-32 -top-40 size-96 rounded-full bg-[var(--oppa-green-soft)]/70 blur-3xl" />
-      <div aria-hidden="true" className="pointer-events-none absolute -bottom-48 -right-32 size-[28rem] rounded-full bg-white/80 blur-3xl" />
+    <div className="min-h-screen bg-[var(--oppa-cream)] text-[var(--oppa-text)] lg:grid lg:grid-cols-2">
+      <LoginBrandPanel title="Let's get you back in." description="Verify your account and choose a new password securely." />
 
-      <main className="relative flex w-full max-w-[28rem] items-center justify-center">
-        <div className="w-full rounded-3xl border border-[var(--oppa-border)]/90 bg-white p-6 shadow-[0_20px_60px_-32px_rgba(28,61,46,0.28)] sm:p-8">
+      <main className="relative flex min-h-screen items-center justify-center px-5 py-8 sm:px-10 lg:px-12">
+        <div className="w-full max-w-[430px] rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-sm sm:p-7">
           <div className="mb-7 text-center">
             <div className="mb-3 inline-flex size-12 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green)] ring-4 ring-[var(--oppa-green-soft)]/40">
               {step === 1 ? <ShieldCheck className="size-5" aria-hidden="true" /> : <KeyRound className="size-5" aria-hidden="true" />}

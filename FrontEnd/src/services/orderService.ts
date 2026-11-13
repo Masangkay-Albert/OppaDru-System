@@ -247,26 +247,38 @@ class OrderService {
     }
 
     async getUserOrders(): Promise<Order[]> {
+        if (!this.getToken()) {
+            return [];
+        }
+
         const response = await fetch(`${API_URL}/orders/user`, {
             headers: this.getHeaders(),
         });
 
         if (!response.ok) {
-            throw new OrderServiceError(response.status === 401
-                ? 'Order history request was unauthorized (401).'
-                : 'Failed to fetch orders', response.status);
+            if (response.status === 401) {
+                return [];
+            }
+            throw new OrderServiceError('Failed to fetch orders', response.status);
         }
 
         return response.json();
     }
 
     async getUserOrder(id: string, signal?: AbortSignal): Promise<Order> {
+        if (!this.getToken()) {
+            throw new OrderServiceError('Please sign in to view this order.', 401);
+        }
+
         const response = await fetch(`${API_URL}/orders/user/${encodeURIComponent(id)}`, {
             headers: this.getHeaders(),
             signal,
         });
         if (!response.ok) {
             const payload = await response.json().catch(() => ({}));
+            if (response.status === 401) {
+                throw new OrderServiceError('Please sign in to view this order.', 401);
+            }
             throw new OrderServiceError(
                 response.status === 404 || response.status === 403
                     ? 'This order could not be found in your account.'

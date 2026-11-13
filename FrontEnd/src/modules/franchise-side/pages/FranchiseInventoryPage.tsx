@@ -13,6 +13,7 @@ import type {
   BranchIngredient,
 } from '../../../services/franchiseIngredientInventoryService';
 import { formatCurrency } from '../../../utils/formatters';
+import { formatInventoryQuantity } from '../../../utils/inventoryFormatters';
 import StatCard from '../../admin-side/components/StatCard';
 import { PageHeader } from '../../admin-side/components/AdminUI';
 import Select from '../../../components/ui/Select';
@@ -184,8 +185,8 @@ const FranchiseInventoryPage: React.FC = () => {
                   const edit = ingredientEdit[ingredient.id] || { type: 'stock_in' as const, quantity: '', reason: '' };
                   return <tr key={ingredient.id}>
                     <td className="px-3 py-3"><strong>{ingredient.name}</strong><span className="block text-xs text-[var(--oppa-text-muted)]">{ingredient.category}</span></td>
-                    <td className="px-3 py-3">{Number(ingredient.quantity).toLocaleString('en-PH', { maximumFractionDigits: 3 })} {ingredient.unit}</td>
-                    <td className="px-3 py-3">{Number(ingredient.reorder_level).toLocaleString('en-PH', { maximumFractionDigits: 3 })} {ingredient.unit}</td>
+                    <td className="px-3 py-3">{formatInventoryQuantity(ingredient.quantity, ingredient.unit)}</td>
+                    <td className="px-3 py-3">{formatInventoryQuantity(ingredient.reorder_level, ingredient.unit)}</td>
                     <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${ingredient.status === 'out_of_stock' ? 'bg-red-100 text-red-800' : ingredient.status === 'low_stock' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>{ingredient.status.replaceAll('_', ' ')}</span></td>
                     <td className="px-3 py-3"><select aria-label={`Movement for ${ingredient.name}`} value={edit.type} onChange={(event) => setIngredientEdit((current) => ({ ...current, [ingredient.id]: { ...edit, type: event.target.value as typeof edit.type } }))} className="h-9 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2"><option value="stock_in">Stock in</option><option value="stock_out">Stock out</option><option value="adjustment">Adjust total</option><option value="waste">Waste</option></select></td>
                     <td className="px-3 py-3"><input type="number" min="0" step="0.001" value={edit.quantity} onChange={(event) => setIngredientEdit((current) => ({ ...current, [ingredient.id]: { ...edit, quantity: event.target.value } }))} className="h-9 w-28 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-2" aria-label={`Quantity for ${ingredient.name}`} /></td>
@@ -205,8 +206,8 @@ const FranchiseInventoryPage: React.FC = () => {
               </form>
               <section className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4">
                 <h3 className="font-semibold text-[var(--oppa-text)]">Restock requests and transfers</h3>
-                <ul className="mt-3 space-y-3 text-sm">{ingredientInventory?.restock_requests.map((request) => <li key={`request-${request.id}`} className="border-b border-[var(--oppa-border)] pb-2"><strong>Request #{request.id}</strong> · {request.status}<p className="text-xs text-[var(--oppa-text-muted)]">{request.items.map((item) => `${item.ingredient.name} × ${item.requested_quantity}`).join(', ')}</p></li>)}
-                  {ingredientInventory?.transfers.map((transfer) => <li key={`transfer-${transfer.id}`} className="flex items-center justify-between gap-2 border-b border-[var(--oppa-border)] pb-2"><span><strong>{transfer.reference}</strong> · {transfer.status}<span className="block text-xs text-[var(--oppa-text-muted)]">{transfer.items.map((item) => `${item.ingredient.name} × ${item.quantity}`).join(', ')}</span></span>{transfer.status === 'dispatched' && <button type="button" onClick={() => void confirmTransfer(transfer.id)} className="rounded-lg border border-[var(--oppa-border)] px-3 py-1.5 text-xs font-semibold">Confirm receipt</button>}</li>)}</ul>
+                <ul className="mt-3 space-y-3 text-sm">{ingredientInventory?.restock_requests.map((request) => <li key={`request-${request.id}`} className="border-b border-[var(--oppa-border)] pb-2"><strong>Request #{request.id}</strong> · {request.status}<p className="text-xs text-[var(--oppa-text-muted)]">{request.items.map((item) => `${item.ingredient.name} × ${formatInventoryQuantity(item.requested_quantity, item.ingredient.unit)}`).join(', ')}</p></li>)}
+                  {ingredientInventory?.transfers.map((transfer) => <li key={`transfer-${transfer.id}`} className="flex items-center justify-between gap-2 border-b border-[var(--oppa-border)] pb-2"><span><strong>{transfer.reference}</strong> · {transfer.status}<span className="block text-xs text-[var(--oppa-text-muted)]">{transfer.items.map((item) => `${item.ingredient.name} × ${formatInventoryQuantity(item.quantity, item.ingredient.unit)}`).join(', ')}</span></span>{transfer.status === 'dispatched' && <button type="button" onClick={() => void confirmTransfer(transfer.id)} className="rounded-lg border border-[var(--oppa-border)] px-3 py-1.5 text-xs font-semibold">Confirm receipt</button>}</li>)}</ul>
               </section>
             </div>
           </div>

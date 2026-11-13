@@ -16,13 +16,13 @@ use App\Models\StockBatch;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 
 class MainBranchInventoryController extends Controller
 {
-    private const UNITS = ['kg', 'g', 'l', 'ml', 'pcs', 'piece', 'pack', 'box', 'tray'];
     private const CATEGORIES = ['Meat', 'Vegetables', 'Dairy', 'Dry goods', 'Beverages', 'Packaging', 'Other'];
     private const MOVEMENT_TYPES = [
         'stock_in',
@@ -33,6 +33,14 @@ class MainBranchInventoryController extends Controller
         'count_adjustment',
         'opening_stock',
     ];
+
+    private function inventoryUnits(): array
+    {
+        return array_values(array_unique(array_merge(
+            config('inventory.countable_units', []),
+            config('inventory.legacy_units', [])
+        )));
+    }
 
     public function index()
     {
@@ -84,8 +92,8 @@ class MainBranchInventoryController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:160',
             'category' => ['required', 'string', Rule::in(self::CATEGORIES)],
-            'unit' => ['required', 'string', Rule::in(self::UNITS)],
-            'purchase_unit' => ['nullable', 'string', Rule::in(self::UNITS)],
+            'unit' => ['required', 'string', Rule::in($this->inventoryUnits())],
+            'purchase_unit' => ['nullable', 'string', Rule::in($this->inventoryUnits())],
             'conversion_factor' => 'nullable|numeric|gt:0|max:999999.999999',
             'quantity' => 'required|numeric|min:0|max:999999999.999',
             'reorder_level' => 'required|numeric|min:0|max:999999999.999',
@@ -125,8 +133,8 @@ class MainBranchInventoryController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:160',
             'category' => 'required|string|max:100',
-            'unit' => ['required', 'string', Rule::in(self::UNITS)],
-            'purchase_unit' => ['nullable', 'string', Rule::in(self::UNITS)],
+            'unit' => ['required', 'string', Rule::in($this->inventoryUnits())],
+            'purchase_unit' => ['nullable', 'string', Rule::in($this->inventoryUnits())],
             'conversion_factor' => 'required|numeric|gt:0|max:999999.999999',
             'reorder_level' => 'required|numeric|min:0|max:999999999.999',
             'unit_cost' => 'nullable|numeric|min:0|max:999999999.99',
@@ -353,7 +361,7 @@ class MainBranchInventoryController extends Controller
             'branch_id' => 'required|string|exists:franchises,id',
             'request_id' => 'nullable|integer|exists:inventory_restock_requests,id',
             'items' => 'required|array|min:1|max:100',
-            'items.*.ingredient_id' => ['required', 'integer', 'distinct', Rule::exists('main_branch_ingredients', 'id')->where('is_archived', false)],
+            'items.*.ingredient_id' => ['required', 'integer', 'distinct', Rule::exists('main_branch_ingredients', 'id')->where('is_archived', 0)],
             'items.*.quantity' => 'required|numeric|gt:0|max:999999999.999',
             'notes' => 'nullable|string|max:2000',
         ]);
@@ -398,14 +406,24 @@ class MainBranchInventoryController extends Controller
                     'destination_branch_id' => $validated['branch_id'],
                     'request_id' => $restockRequest?->id,
                     'reference' => 'TRF-'.now()->format('Ymd').'-'.Str::upper(Str::random(6)),
-                    'status' => 'dispatched',
+                    'status' => 'received',
                     'notes' => $validated['notes'] ?? null,
                     'dispatched_by' => $request->user()?->id,
+                    'received_at' => now(),
                 ]);
                 foreach ($validated['items'] as $item) {
                     $dispatch = $inventory->dispatchToBranch(
                         (int) $item['ingredient_id'],
                         (float) $item['quantity'],
+                        $request->user(),
+                        'Stock transfer '.$transfer->reference,
+                    );
+                    $inventory->receiveTransferItem(
+                        (string) $validated['branch_id'],
+                        (int) $item['ingredient_id'],
+                        (float) $item['quantity'],
+                        $dispatch['movement']->unit_cost === null ? null : (float) $dispatch['movement']->unit_cost,
+                        $dispatch['batch_lots'],
                         $request->user(),
                         'Stock transfer '.$transfer->reference,
                     );
@@ -425,7 +443,7 @@ class MainBranchInventoryController extends Controller
                 }
                 if ($restockRequest) {
                     $restockRequest->update([
-                        'status' => 'dispatched',
+                        'status' => 'fulfilled',
                         'reviewed_by' => $request->user()?->id,
                     ]);
                 }
@@ -483,7 +501,7 @@ class MainBranchInventoryController extends Controller
             $validator = validator($row, [
                 'name' => 'required|string|max:160',
                 'category' => ['required', 'string', Rule::in(self::CATEGORIES)],
-                'unit' => ['required', 'string', Rule::in(self::UNITS)],
+                'unit' => ['required', 'string', Rule::in($this->inventoryUnits())],
                 'quantity' => 'required|numeric|min:0|max:999999999.999',
                 'reorder_level' => 'required|numeric|min:0|max:999999999.999',
                 'unit_cost' => 'nullable|numeric|min:0|max:999999999.99',
@@ -593,7 +611,7 @@ class MainBranchInventoryController extends Controller
             'recipes' => 'required|array|max:100',
             'recipes.*.ingredient_id' => 'required|integer|distinct|exists:main_branch_ingredients,id',
             'recipes.*.quantity' => 'required|numeric|gt:0|max:999999.999999',
-            'recipes.*.unit' => ['required', 'string', Rule::in(self::UNITS)],
+            'recipes.*.unit' => ['required', 'string', Rule::in($this->inventoryUnits())],
         ]);
 
         foreach ($validated['recipes'] as $recipe) {
@@ -736,6 +754,14 @@ class MainBranchInventoryController extends Controller
 
     private function attachUsableQuantities(Collection $ingredients): void
     {
+        if (! Schema::hasTable('stock_batches') || ! Schema::hasColumn('stock_batches', 'ingredient_id')) {
+            foreach ($ingredients as $ingredient) {
+                $ingredient->setAttribute('usable_quantity', max(0, (float) $ingredient->quantity));
+            }
+
+            return;
+        }
+
         $expiredByIngredient = StockBatch::query()
             ->whereNull('branch_id')
             ->where('quantity_remaining', '>', 0)

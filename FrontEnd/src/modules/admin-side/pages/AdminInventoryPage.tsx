@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, RefreshCw } from 'lucide-react';
+import { ClipboardList, Plus, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import AdminLayout from '../components/AdminLayout';
 import { ConfirmDialog } from '../components/AdminUI';
 import { useToast } from '../../customer-side/components/ToastProvider';
@@ -11,9 +9,7 @@ import {
   adjustIngredientStock,
   countIngredientStock,
   createIngredient,
-  downloadIngredientCsv,
   getMainBranchInventory,
-  importIngredientCsv,
   receiveIngredientStock,
   updateIngredient,
 } from '../../../services/mainBranchInventoryService';
@@ -24,19 +20,13 @@ import type {
   MainBranchStockMovement,
   StockMovementType,
 } from '../../../services/mainBranchInventoryService';
-import { formatCurrency } from '../../../utils/formatters';
 import { AdjustStockModal, CountStockModal, IngredientFormModal, QuickStockActionModal, ReceiveStockModal } from '../components/MainBranchInventoryModals';
 import { RecipeManager, SupplierManager } from '../components/InventorySetupPanels';
 import { RestockRequestsManager } from '../components/RestockRequestsManager';
-import { IngredientList, InventoryMoreMenu, InventorySummaryCards, InventoryToolbar, RecentActivity } from '../components/InventoryDashboardSections';
-import type { InventoryStatusFilter } from '../components/InventoryDashboardSections';
+import { IngredientList, InventoryMoreMenu, InventorySummaryCards, InventoryToolbar, RecentActivity } from '../../shared/components/InventoryDashboardComponents';
+import type { InventoryStatusFilter } from '../../shared/components/InventoryDashboardComponents';
 
 const PAGE_SIZE = 12;
-
-const quantityLabel = (quantity: number | string, unit: string) => {
-  const parsed = Number(quantity);
-  return `${Number.isFinite(parsed) ? parsed.toLocaleString('en-PH', { maximumFractionDigits: 3 }) : '0'} ${unit}`;
-};
 
 const getIngredientStatus = (ingredient: MainBranchIngredient): 'out_of_stock' | 'low_stock' | 'in_stock' => {
   const quantity = Number(ingredient.usable_quantity ?? ingredient.quantity);
@@ -71,7 +61,6 @@ const AdminInventoryPage: React.FC = () => {
   const [archiveTarget, setArchiveTarget] = useState<MainBranchIngredient | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [reload, setReload] = useState(0);
-  const [csvErrors, setCsvErrors] = useState<Array<{ row: number; errors: string[] }>>([]);
   const [managingSuppliers, setManagingSuppliers] = useState(false);
   const [managingRecipes, setManagingRecipes] = useState(false);
   const [managingRestockRequests, setManagingRestockRequests] = useState(false);
@@ -225,53 +214,6 @@ const AdminInventoryPage: React.FC = () => {
     }
   };
 
-  const exportCsv = async () => {
-    try {
-      const blob = await downloadIngredientCsv();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = 'ingredients.csv';
-      anchor.click();
-      URL.revokeObjectURL(url);
-    } catch (exportError) {
-      showToast(exportError instanceof Error ? exportError.message : 'Unable to export CSV.', 'error');
-    }
-  };
-
-  const exportPdf = () => {
-    const pdf = new jsPDF();
-    pdf.setFontSize(18);
-    pdf.text('Main branch ingredient inventory', 14, 18);
-    autoTable(pdf, {
-      startY: 25,
-      head: [['Ingredient', 'Category', 'Quantity', 'Reorder', 'Unit cost', 'Status']],
-      body: filteredIngredients.map((ingredient) => [
-        ingredient.name,
-        ingredient.category,
-        quantityLabel(ingredient.quantity, ingredient.unit),
-        quantityLabel(ingredient.reorder_level, ingredient.unit),
-        ingredient.unit_cost === null ? '—' : formatCurrency(Number(ingredient.unit_cost)),
-        getIngredientStatus(ingredient).replaceAll('_', ' '),
-      ]),
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [30, 112, 64] },
-    });
-    pdf.save('ingredients.pdf');
-  };
-
-  const importCsv = async (file: File) => {
-    setCsvErrors([]);
-    try {
-      const result = await importIngredientCsv(file);
-      setCsvErrors(result.errors);
-      showToast(`${result.imported} ingredient${result.imported === 1 ? '' : 's'} imported${result.errors.length ? `; ${result.errors.length} row${result.errors.length === 1 ? '' : 's'} need attention` : ''}.`, result.errors.length ? 'error' : 'success');
-      refresh();
-    } catch (importError) {
-      showToast(importError instanceof Error ? importError.message : 'Unable to import CSV.', 'error');
-    }
-  };
-
   const archive = async () => {
     if (!archiveTarget) return;
     setArchiving(true);
@@ -295,24 +237,21 @@ const AdminInventoryPage: React.FC = () => {
             <h1 className="font-serif text-3xl font-bold leading-tight text-[var(--oppa-text)] sm:text-4xl">Inventory</h1>
             <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Track what you have in the kitchen. Main branch.</p>
           </div>
-          <div className="flex w-full gap-2 sm:w-auto">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             <button type="button" onClick={() => setCreating(true)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] sm:flex-none">
               <Plus size={17} aria-hidden="true" /> Add ingredient
             </button>
+            <button type="button" onClick={() => setManagingRestockRequests(true)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-4 py-2.5 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] sm:flex-none">
+              <ClipboardList size={16} aria-hidden="true" /> Branch requests
+            </button>
             <InventoryMoreMenu
-              onManageSuppliers={() => setManagingSuppliers(true)}
-              onManageRecipes={() => setManagingRecipes(true)}
-              onManageRestockRequests={() => setManagingRestockRequests(true)}
-              onExportCsv={() => { void exportCsv(); }}
-              onExportPdf={exportPdf}
-              onImportCsv={(file) => { void importCsv(file); }}
+              actions={[
+                { label: 'Manage suppliers', onSelect: () => setManagingSuppliers(true) },
+                { label: 'Product recipes', onSelect: () => setManagingRecipes(true) },
+              ]}
             />
           </div>
         </header>
-        {csvErrors.length > 0 && <section role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-          <h2 className="font-semibold">Some CSV rows need fixing</h2>
-          <ul className="mt-2 list-inside list-disc space-y-1">{csvErrors.map((item) => <li key={`${item.row}-${item.errors.join('|')}`}>Row {item.row}: {item.errors.join(' ')}</li>)}</ul>
-        </section>}
 
         <InventorySummaryCards
           summary={summary}
@@ -354,14 +293,14 @@ const AdminInventoryPage: React.FC = () => {
           onAddFirstIngredient={() => setCreating(true)}
           onRetry={refresh}
           onToggleDetails={(ingredient) => setExpandedDetails((current) => current === ingredient.id ? null : ingredient.id)}
-          onAddStock={(ingredient) => setQuickAction({ ingredient, type: 'stock_in' })}
-          onUseStock={(ingredient) => setQuickAction({ ingredient, type: 'stock_out' })}
-          onReceiveStock={setReceiving}
-          onAdjustStock={(ingredient) => { setAdjustingType('adjustment'); setAdjusting(ingredient); }}
-          onLogWaste={(ingredient) => { setAdjustingType('waste'); setAdjusting(ingredient); }}
-          onCountStock={setCounting}
-          onEditIngredient={setEditing}
-          onArchiveIngredient={setArchiveTarget}
+          onAddStock={(ingredient) => setQuickAction({ ingredient: ingredient as MainBranchIngredient, type: 'stock_in' })}
+          onUseStock={(ingredient) => setQuickAction({ ingredient: ingredient as MainBranchIngredient, type: 'stock_out' })}
+          onReceiveStock={(ingredient) => setReceiving(ingredient as MainBranchIngredient)}
+          onAdjustStock={(ingredient) => { setAdjustingType('adjustment'); setAdjusting(ingredient as MainBranchIngredient); }}
+          onLogWaste={(ingredient) => { setAdjustingType('waste'); setAdjusting(ingredient as MainBranchIngredient); }}
+          onCountStock={(ingredient) => setCounting(ingredient as MainBranchIngredient)}
+          onEditIngredient={(ingredient) => setEditing(ingredient as MainBranchIngredient)}
+          onArchiveIngredient={(ingredient) => setArchiveTarget(ingredient as MainBranchIngredient)}
           onViewHistory={(ingredient) => navigate(`/admin/inventory/history?ingredient_id=${ingredient.id}`)}
         />
         <RecentActivity movements={recentMovements} />

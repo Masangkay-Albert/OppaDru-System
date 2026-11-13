@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Franchise;
 
 use App\Models\Employee;
+use App\Models\BranchIngredientStock;
 use App\Models\Franchise;
 use App\Models\FranchiseUser;
 use App\Models\Order;
 use App\Models\Product;
 use App\Services\FranchiseInventoryService;
+use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -28,6 +30,21 @@ trait FranchiseDashboardActions
         $branchOrders = fn () => Order::where('branch_id', $branchId);
         $salesOrders = fn () => Order::where('branch_id', $branchId)->countedAsRevenue();
         $inventory = app(FranchiseInventoryService::class)->catalog($branchId);
+        $ingredientStocks = BranchIngredientStock::query()
+            ->with('ingredient:id,is_archived')
+            ->where('branch_id', $branchId)
+            ->where('is_archived', false)
+            ->get()
+            ->filter(fn (BranchIngredientStock $stock) => $stock->ingredient && ! $stock->ingredient->is_archived);
+        $inventoryService = app(InventoryService::class);
+        $ingredientLowStock = $ingredientStocks->filter(function (BranchIngredientStock $stock) use ($inventoryService, $branchId) {
+            $available = $inventoryService->availableQuantity($stock->ingredient_id, $branchId);
+
+            return $available > 0 && $available <= (float) $stock->reorder_level;
+        })->count();
+        $ingredientOutOfStock = $ingredientStocks->filter(
+            fn (BranchIngredientStock $stock) => $inventoryService->availableQuantity($stock->ingredient_id, $branchId) <= 0
+        )->count();
         $franchise = Franchise::findOrFail($branchId);
         $posOrders = fn () => $branchOrders()->where('delivery_type', 'onsite');
 
@@ -44,6 +61,9 @@ trait FranchiseDashboardActions
                 'available_items' => $inventory->where('branch_available', true)->count(),
                 'inventory_items' => $inventory->count(),
                 'tracked_inventory_items' => $inventory->where('branch_stock_tracked', true)->count(),
+                'ingredient_inventory_items' => $ingredientStocks->count(),
+                'ingredient_low_stock_items' => $ingredientLowStock,
+                'ingredient_out_of_stock_items' => $ingredientOutOfStock,
                 'orders' => $branchOrders()->count(),
                 'total_orders' => $branchOrders()->count(),
                 'branch_users' => FranchiseUser::where('franchise_id', $branchId)->count()

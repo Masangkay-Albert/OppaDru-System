@@ -6,6 +6,7 @@ import { AdminDate, EmptyState } from '../components/AdminUI';
 import Select from '../../../components/ui/Select';
 import { getMainBranchInventory, getStockMovements } from '../../../services/mainBranchInventoryService';
 import type { MainBranchStockMovement } from '../../../services/mainBranchInventoryService';
+import { formatInventoryQuantity } from '../../../utils/inventoryFormatters';
 
 const TYPES = [
   { value: 'all', label: 'All movement types' },
@@ -22,11 +23,11 @@ const movementLabel = (type: MainBranchStockMovement['type']) => TYPES.find((ite
 
 const amountLabel = (amount: number | string, unit: string) => {
   const parsed = Number(amount);
-  return `${parsed > 0 ? '+' : ''}${parsed.toLocaleString('en-PH', { maximumFractionDigits: 3 })} ${unit}`;
+  return `${parsed > 0 ? '+' : ''}${formatInventoryQuantity(parsed, unit)}`;
 };
 
 const quantityLabel = (amount: number | string, unit: string) =>
-  `${Number(amount).toLocaleString('en-PH', { maximumFractionDigits: 3 })} ${unit}`;
+  formatInventoryQuantity(amount, unit);
 
 const AdminInventoryHistoryPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();

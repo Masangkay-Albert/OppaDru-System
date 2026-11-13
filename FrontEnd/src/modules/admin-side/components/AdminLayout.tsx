@@ -11,7 +11,7 @@ import oppaDruLogo from '../../../assets/oppadrulogo.jpg';
 import { applyTheme, getSavedTheme } from '../../../services/theme';
 import SearchInput from '../../../components/ui/SearchInput';
 import { API_URL } from '../../../services/apiConfig';
-import { fetchWithAdminAuth } from '../../../services/adminAuthService';
+import { fetchWithAdminAuth, getStoredAdminToken } from '../../../services/adminAuthService';
 
 interface AdminErrorBoundaryState { hasError: boolean }
 
@@ -67,12 +67,22 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     let active = true;
     const loadInventoryAttention = async () => {
       try {
+        if (!getStoredAdminToken()) {
+          if (active) setInventoryAttentionCount(0);
+          return;
+        }
+
         const response = await fetchWithAdminAuth(`${API_URL}/admin/inventory/summary`);
+        if (response.status === 401) {
+          if (active) setInventoryAttentionCount(0);
+          return;
+        }
+
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.message || 'Could not load inventory alert count.');
         if (active) setInventoryAttentionCount(Number(payload.data?.needs_restocking || 0));
       } catch (error) {
-        console.error('Could not load the inventory sidebar alert count.', error);
+        if (active) setInventoryAttentionCount(0);
       }
     };
     const refreshOnFocus = () => { void loadInventoryAttention(); };

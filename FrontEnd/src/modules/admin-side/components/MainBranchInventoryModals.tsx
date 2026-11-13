@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import Select from '../../../components/ui/Select';
+import { formatInventoryUnitOption, getInventoryUnitOptions, isWholeQuantityUnit } from '../../../constants/inventoryUnits';
 import type { InventorySupplier, MainBranchIngredient, StockMovementType } from '../../../services/mainBranchInventoryService';
-
-const INVENTORY_UNITS = ['kg', 'g', 'l', 'ml', 'pcs', 'piece', 'pack', 'box', 'tray'];
+import { formatInventoryQuantity } from '../../../utils/inventoryFormatters';
 
 const fieldClass = 'mt-1 h-11 w-full rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)] outline-none focus:border-[var(--oppa-green)] focus:ring-2 focus:ring-[var(--oppa-green)]/20';
 const labelClass = 'block text-sm font-medium text-[var(--oppa-text)]';
@@ -51,9 +53,9 @@ const InventoryModal: React.FC<{
     };
   }, []);
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/40 sm:items-center sm:p-4"
+      className="fixed inset-0 z-[120] flex items-end justify-center bg-[#173826]/20 backdrop-blur-[2px] sm:items-center sm:p-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget) closeRef.current(); }}
     >
       <section
@@ -62,7 +64,7 @@ const InventoryModal: React.FC<{
         aria-modal="true"
         aria-labelledby="inventory-modal-title"
         aria-describedby={description ? 'inventory-modal-description' : undefined}
-        className="h-[100dvh] max-h-[100dvh] w-full overflow-y-auto rounded-none border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-2xl sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-2xl sm:p-6"
+        className="max-h-[95dvh] w-full overflow-y-auto rounded-t-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-2xl sm:max-w-xl sm:rounded-2xl"
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
@@ -73,7 +75,8 @@ const InventoryModal: React.FC<{
         </div>
         {children}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -99,12 +102,29 @@ export const IngredientFormModal: React.FC<{
   onSave: (values: IngredientFormValues, addAnother: boolean) => Promise<void>;
 }> = ({ ingredient, categories, suppliers, busy, onClose, onSave }) => {
   const [error, setError] = useState('');
+  const [selectedUnit, setSelectedUnit] = useState<string>(ingredient?.unit || 'pcs');
   const editing = Boolean(ingredient);
   const availableCategories = [...new Set([
     'Meat', 'Vegetables', 'Dairy', 'Dry goods', 'Beverages', 'Packaging', 'Other',
     ...categories,
     ...(ingredient ? [ingredient.category] : []),
   ])];
+  const unitOptions = getInventoryUnitOptions(ingredient?.unit);
+  const categoryOptions = availableCategories.map((item) => ({ value: item, label: item }));
+  const unitSelectOptions = unitOptions.map((unit) => ({ value: unit, label: formatInventoryUnitOption(unit) }));
+  const supplierOptions = suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }));
+  const quantityMode = isWholeQuantityUnit(selectedUnit) ? 'numeric' : 'decimal';
+  const quantityStep = isWholeQuantityUnit(selectedUnit) ? 1 : 0.001;
+
+  useEffect(() => {
+    setSelectedUnit(ingredient?.unit || 'pcs');
+  }, [ingredient?.unit]);
+
+  const preventDecimalEntry = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isWholeQuantityUnit(selectedUnit) && ['.', 'e', 'E', '+', '-'].includes(event.key)) {
+      event.preventDefault();
+    }
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -163,40 +183,82 @@ export const IngredientFormModal: React.FC<{
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className={labelClass}>Category <span className="text-red-600" aria-hidden="true">*</span>
-            <select
+            <Select
               name="category"
+              options={categoryOptions}
               defaultValue={ingredient?.category || ''}
+              placeholder="Select an ingredient category"
               required
-              className={fieldClass}
-            >
-              <option value="" disabled>Select an ingredient category</option>
-              {availableCategories.map((item) => {
-                return <option key={item} value={item}>{item}</option>;
-              })}
-            </select>
+              className="mt-1"
+              triggerClassName={fieldClass}
+            />
           </label>
           <label className={labelClass}>Usage unit <span className="text-red-600" aria-hidden="true">*</span>
-            <select name="unit" required defaultValue={ingredient?.unit || ''} className={fieldClass}>
-              <option value="" disabled>Select a unit</option>
-              {INVENTORY_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-            </select>
+            <Select
+              name="unit"
+              options={unitSelectOptions}
+              value={selectedUnit}
+              onChange={(nextUnit) => setSelectedUnit(String(nextUnit))}
+              placeholder="Select usage unit"
+              required
+              className="mt-1"
+              triggerClassName={fieldClass}
+            />
           </label>
         </div>
         <p className="-mt-2 text-xs text-[var(--oppa-text-muted)]">Ingredient categories describe supplies, not menu product types. Usage and purchase units are independent.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           {!editing && <label className={labelClass}>Current quantity
-            <input name="quantity" required type="number" min="0" max="999999999" step="0.001" defaultValue="0" className={fieldClass} />
+            <input
+              name="quantity"
+              required
+              type="number"
+              min="0"
+              max="999999999"
+              step={quantityStep}
+              inputMode={quantityMode}
+              onKeyDown={preventDecimalEntry}
+              defaultValue="0"
+              className={fieldClass}
+            />
           </label>}
           <label className={labelClass}>Reorder level <span className="text-red-600" aria-hidden="true">*</span>
-            <input name="reorder_level" required type="number" min="0" max="999999999" step="0.001" defaultValue={ingredient?.reorder_level ?? '5'} className={fieldClass} />
+            <input
+              name="reorder_level"
+              required
+              type="number"
+              min="0"
+              max="999999999"
+              step={quantityStep}
+              inputMode={quantityMode}
+              onKeyDown={preventDecimalEntry}
+              defaultValue={ingredient?.reorder_level ?? '5'}
+              className={fieldClass}
+            />
           </label>
           <label className={labelClass}>Purchase unit
-            <select name="purchase_unit" defaultValue={ingredient?.purchase_unit || ingredient?.unit || ''} className={fieldClass}>
-              {INVENTORY_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-            </select>
+            <Select
+              name="purchase_unit"
+              options={unitSelectOptions}
+              defaultValue={ingredient?.purchase_unit || ingredient?.unit || 'pcs'}
+              placeholder="Select purchase unit"
+              className="mt-1"
+              triggerClassName={fieldClass}
+            />
           </label>
           <label className={labelClass}>Purchase-to-usage conversion
-            <input name="conversion_factor" required type="number" min="0.000001" max="999999.999999" step="0.000001" defaultValue={ingredient?.conversion_factor ?? '1'} className={fieldClass} />
+            <input
+              name="conversion_factor"
+              required
+              type="number"
+              min="1"
+              max="999999"
+              step="1"
+              inputMode="numeric"
+              onKeyDown={preventDecimalEntry}
+              defaultValue={ingredient?.conversion_factor ?? '1'}
+              className={fieldClass}
+            />
           </label>
           <label className={labelClass}>Unit cost <span className="font-normal text-[var(--oppa-text-muted)]">(optional)</span>
             <span className="mt-1 flex">
@@ -207,10 +269,14 @@ export const IngredientFormModal: React.FC<{
         </div>
         {editing && <p className="-mt-2 text-xs text-[var(--oppa-text-muted)]">Change current stock using Adjust stock so every change is recorded.</p>}
         <label className={labelClass}>Supplier <span className="font-normal text-[var(--oppa-text-muted)]">(optional)</span>
-          <select name="supplier_id" defaultValue={ingredient?.supplier_id || ''} className={fieldClass}>
-            <option value="">No supplier</option>
-            {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-          </select>
+          <Select
+            name="supplier_id"
+            options={[{ value: '', label: 'No supplier' }, ...supplierOptions]}
+            defaultValue={ingredient?.supplier_id ?? ''}
+            placeholder="No supplier"
+            className="mt-1"
+            triggerClassName={fieldClass}
+          />
         </label>
         <label className={labelClass}>Notes <span className="font-normal text-[var(--oppa-text-muted)]">(optional)</span>
           <textarea name="notes" maxLength={5000} rows={3} defaultValue={ingredient?.notes || ''} className={`${fieldClass} h-auto py-2`} />
@@ -339,7 +405,7 @@ export const QuickStockActionModal: React.FC<{
   };
 
   return (
-    <InventoryModal title={actionLabel} description={`${ingredient.name} · Current stock: ${Number(ingredient.quantity).toLocaleString('en-PH', { maximumFractionDigits: 3 })} ${ingredient.unit}`} onClose={onClose}>
+    <InventoryModal title={actionLabel} description={`${ingredient.name} · Current stock: ${formatInventoryQuantity(ingredient.quantity, ingredient.unit)}`} onClose={onClose}>
       <form onSubmit={(event) => { void submit(event); }} className="space-y-4">
         <label className={labelClass}>Quantity
           <span className="mt-1 flex">
@@ -469,11 +535,11 @@ export const CountStockModal: React.FC<{
   return (
     <InventoryModal title="Physical stock count" description={ingredient.name} onClose={onClose}>
       <form onSubmit={(event) => { void submit(event); }} className="space-y-4">
-        <p className="rounded-xl bg-[var(--oppa-cream)] px-4 py-3 text-sm">System quantity: <strong>{current.toLocaleString('en-PH', { maximumFractionDigits: 3 })} {ingredient.unit}</strong></p>
+        <p className="rounded-xl bg-[var(--oppa-cream)] px-4 py-3 text-sm">System quantity: <strong>{formatInventoryQuantity(current, ingredient.unit)}</strong></p>
         <label className={labelClass}>Counted quantity <span className="text-red-600" aria-hidden="true">*</span>
           <input type="number" min="0" max="999999999" step="0.001" value={quantity} onChange={(event) => setQuantity(event.target.value)} required className={fieldClass} />
         </label>
-        {quantity !== '' && Number.isFinite(counted) && <p className={`text-sm font-semibold ${variance < 0 ? 'text-red-700' : 'text-emerald-700'}`}>Variance: {variance > 0 ? '+' : ''}{variance.toLocaleString('en-PH', { maximumFractionDigits: 3 })} {ingredient.unit}</p>}
+        {quantity !== '' && Number.isFinite(counted) && <p className={`text-sm font-semibold ${variance < 0 ? 'text-red-700' : 'text-emerald-700'}`}>Variance: {variance > 0 ? '+' : ''}{formatInventoryQuantity(variance, ingredient.unit)}</p>}
         <label className={labelClass}>Reason <span className="text-red-600" aria-hidden="true">*</span>
           <textarea name="reason" required maxLength={2000} rows={3} className={`${fieldClass} h-auto py-2`} placeholder="Describe the stock count or discrepancy" />
         </label>

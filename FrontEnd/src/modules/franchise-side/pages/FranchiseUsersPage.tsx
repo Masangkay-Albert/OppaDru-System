@@ -214,62 +214,66 @@ const FranchiseUsersPage: React.FC = () => {
 
   return (
     <>
-      {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => void loadUsers()} className="font-semibold underline">Retry</button></div>}
-      <PageHeader
-        title="Branch Users"
-        subtitle={isMainBranch ? 'Manage Main Branch staff and view employees from other branches.' : 'Manage cashier, kitchen, and driver accounts for this branch.'}
-        actions={canManageStaff ? <button type="button" onClick={() => { setSubmitError(''); setShowAdd(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><UserPlus size={16} />Add Staff</button> : undefined}
-      />
-      {managers.length > 0 && <section className="admin-card mb-4 overflow-hidden">
-        <div className="border-b border-[var(--oppa-border)] px-4 py-3"><h2 className="font-semibold text-[var(--oppa-text)]">Branch management</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Owner and manager accounts are shown for reference and cannot be changed here.</p></div>
-        <div className="divide-y divide-[var(--oppa-border)]">
-          {managers.map((manager) => {
-            const currentUser = String(manager.id) === String(franchiseUser?.id);
-            const label = currentUser && isOwner ? 'Owner' : 'Manager';
-            return <div key={`manager-${manager.id}`} className="flex items-center gap-3 px-4 py-3">
-              <Avatar name={manager.name} />
-              <div className="min-w-0 flex-1"><p className="truncate font-semibold text-[var(--oppa-text)]">{manager.name}{currentUser && <span className="ml-2 text-xs font-normal text-[var(--oppa-text-muted)]">(You)</span>}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{manager.email}</p></div>
-              <RoleBadge role={label} />
-              <StatusBadge status={manager.status} />
-            </div>;
-          })}
+      <main className="min-h-screen bg-[var(--oppa-cream)]">
+        <div className="mx-auto max-w-[1500px]">
+          {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => void loadUsers()} className="font-semibold underline">Retry</button></div>}
+          <PageHeader
+            title="Branch Users"
+            subtitle={isMainBranch ? 'Manage Main Branch staff and view employees from other branches.' : 'Manage cashier, kitchen, and driver accounts for this branch.'}
+            actions={canManageStaff ? <button type="button" onClick={() => { setSubmitError(''); setShowAdd(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><UserPlus size={16} />Add Staff</button> : undefined}
+          />
+          {managers.length > 0 && <section className="admin-card mb-4 overflow-hidden">
+            <div className="border-b border-[var(--oppa-border)] px-4 py-3"><h2 className="font-semibold text-[var(--oppa-text)]">Branch management</h2><p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Owner and manager accounts are shown for reference and cannot be changed here.</p></div>
+            <div className="divide-y divide-[var(--oppa-border)]">
+              {managers.map((manager) => {
+                const currentUser = String(manager.id) === String(franchiseUser?.id);
+                const label = currentUser && isOwner ? 'Owner' : 'Manager';
+                return <div key={`manager-${manager.id}`} className="flex items-center gap-3 px-4 py-3">
+                  <Avatar name={manager.name} />
+                  <div className="min-w-0 flex-1"><p className="truncate font-semibold text-[var(--oppa-text)]">{manager.name}{currentUser && <span className="ml-2 text-xs font-normal text-[var(--oppa-text-muted)]">(You)</span>}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{manager.email}</p></div>
+                  <RoleBadge role={label} />
+                  <StatusBadge status={manager.status} />
+                </div>;
+              })}
+            </div>
+          </section>}
+
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row">
+            <SearchInput
+              aria-label="Search branch users by name or email"
+              value={search}
+              onChange={setSearch}
+              placeholder="Search name or email..."
+              wrapperClassName="min-w-0 flex-1"
+            />
+            <Select<string> aria-label="Filter branch users by position" value={positionFilter} onChange={setPositionFilter} options={positionOptions} className="w-full sm:w-48" />
+          </div>
+
+          <DataTable
+            headers={['Employee', 'Position', ...(isMainBranch ? ['Branch'] : []), 'Status', 'Joined', 'Actions']}
+            caption="Branch staff accounts"
+            columnWidths={isMainBranch ? ['30%', '16%', '18%', '12%', '14%', '10%'] : ['38%', '20%', '14%', '16%', '12%']}
+            loading={loading}
+            emptyState={<EmptyState title={search || positionFilter !== 'all' ? 'No staff match these filters' : 'No staff yet. Add your first cashier, kitchen, or driver account.'} description={search || positionFilter !== 'all' ? 'Try another name, email, or position.' : 'Staff accounts for this branch will appear here after they are added.'} />}
+          >
+            {filteredStaff.map((user) => <tr key={`${user.user_type}-${user.id}`} className="border-b border-[var(--oppa-border)]/70 last:border-0 hover:bg-[var(--oppa-cream)]">
+              <td data-label="Employee" className="px-4 py-3"><div className="flex min-w-0 items-center gap-3"><Avatar name={user.name} /><div className="min-w-0"><p className="truncate font-semibold text-[var(--oppa-text)]">{user.name}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{user.email}</p></div></div></td>
+              <td data-label="Position" className="px-4 py-3">
+                <RoleBadge role={user.role} />
+              </td>
+              {isMainBranch && <td data-label="Branch" className="px-4 py-3 text-xs text-[var(--oppa-text-muted)]">{user.branch_name || 'Branch not found'}</td>}
+              <td data-label="Status" className="px-4 py-3"><StatusBadge status={user.status} /></td>
+              <td data-label="Joined" className="px-4 py-3 text-[var(--oppa-text-muted)]"><AdminDate value={user.created_at} /></td>
+              <td data-label="Actions" className="px-4 py-3"><div className="flex justify-end">{currentBranchId && String(user.franchise_id || '') === currentBranchId ? <RowActionsMenu label={user.name} items={[
+                ...(user.user_type === 'employee' && ['cashier', 'kitchen_staff'].includes(user.role) ? [{ label: 'Edit role', onSelect: () => { setRoleDraft(user.role); setEditingRoleUser(user); } }] : []),
+                { label: user.status === 'active' ? 'Deactivate staff' : 'Activate staff', onSelect: () => void toggleStatus(user) },
+                { label: 'Reset password', onSelect: () => void resetPassword(user) },
+                { label: 'Remove staff', onSelect: () => void removeStaff(user), destructive: true },
+              ]} /> : <span className="text-xs text-[var(--oppa-text-muted)]">Read only</span>}</div></td>
+            </tr>)}
+          </DataTable>
         </div>
-      </section>}
-
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-        <SearchInput
-          aria-label="Search branch users by name or email"
-          value={search}
-          onChange={setSearch}
-          placeholder="Search name or email..."
-          wrapperClassName="min-w-0 flex-1"
-        />
-        <Select<string> aria-label="Filter branch users by position" value={positionFilter} onChange={setPositionFilter} options={positionOptions} className="w-full sm:w-48" />
-      </div>
-
-      <DataTable
-        headers={['Employee', 'Position', ...(isMainBranch ? ['Branch'] : []), 'Status', 'Joined', 'Actions']}
-        caption="Branch staff accounts"
-        columnWidths={isMainBranch ? ['30%', '16%', '18%', '12%', '14%', '10%'] : ['38%', '20%', '14%', '16%', '12%']}
-        loading={loading}
-        emptyState={<EmptyState title={search || positionFilter !== 'all' ? 'No staff match these filters' : 'No staff yet. Add your first cashier, kitchen, or driver account.'} description={search || positionFilter !== 'all' ? 'Try another name, email, or position.' : 'Staff accounts for this branch will appear here after they are added.'} />}
-      >
-        {filteredStaff.map((user) => <tr key={`${user.user_type}-${user.id}`} className="border-b border-[var(--oppa-border)]/70 last:border-0 hover:bg-[var(--oppa-cream)]">
-          <td data-label="Employee" className="px-4 py-3"><div className="flex min-w-0 items-center gap-3"><Avatar name={user.name} /><div className="min-w-0"><p className="truncate font-semibold text-[var(--oppa-text)]">{user.name}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{user.email}</p></div></div></td>
-          <td data-label="Position" className="px-4 py-3">
-            <RoleBadge role={user.role} />
-          </td>
-          {isMainBranch && <td data-label="Branch" className="px-4 py-3 text-xs text-[var(--oppa-text-muted)]">{user.branch_name || 'Branch not found'}</td>}
-          <td data-label="Status" className="px-4 py-3"><StatusBadge status={user.status} /></td>
-          <td data-label="Joined" className="px-4 py-3 text-[var(--oppa-text-muted)]"><AdminDate value={user.created_at} /></td>
-          <td data-label="Actions" className="px-4 py-3"><div className="flex justify-end">{currentBranchId && String(user.franchise_id || '') === currentBranchId ? <RowActionsMenu label={user.name} items={[
-            ...(user.user_type === 'employee' && ['cashier', 'kitchen_staff'].includes(user.role) ? [{ label: 'Edit role', onSelect: () => { setRoleDraft(user.role); setEditingRoleUser(user); } }] : []),
-            { label: user.status === 'active' ? 'Deactivate staff' : 'Activate staff', onSelect: () => void toggleStatus(user) },
-            { label: 'Reset password', onSelect: () => void resetPassword(user) },
-            { label: 'Remove staff', onSelect: () => void removeStaff(user), destructive: true },
-          ]} /> : <span className="text-xs text-[var(--oppa-text-muted)]">Read only</span>}</div></td>
-        </tr>)}
-      </DataTable>
+      </main>
 
       <AccountCreationModal
         mode="branch-staff"

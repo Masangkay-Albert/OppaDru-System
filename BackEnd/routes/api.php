@@ -85,7 +85,13 @@ Route::prefix('franchise')->group(function () {
         Route::get('/dashboard', [FranchiseController::class, 'dashboard']);
         Route::get('/summary', [FranchiseController::class, 'branchSummary']);
         Route::get('/inventory', [FranchiseController::class, 'inventorySummary']);
-        Route::get('/inventory/ingredients', [BranchInventoryController::class, 'index'])->middleware('franchise.role:owner,manager');
+        Route::get('/inventory/ingredients', [BranchInventoryController::class, 'index']);
+        Route::get('/inventory/ingredients/history', [BranchInventoryController::class, 'history']);
+        Route::get('/inventory/ingredients/export', [BranchInventoryController::class, 'export']);
+        Route::post('/inventory/ingredients/import', [BranchInventoryController::class, 'import'])->middleware('franchise.role:owner,manager');
+        Route::post('/inventory/ingredients', [BranchInventoryController::class, 'store'])->middleware('franchise.role:owner,manager');
+        Route::put('/inventory/ingredients/{ingredient}', [BranchInventoryController::class, 'update'])->middleware('franchise.role:owner,manager');
+        Route::patch('/inventory/ingredients/{ingredient}/archive', [BranchInventoryController::class, 'archive'])->middleware('franchise.role:owner,manager');
         Route::post('/inventory/ingredients/{ingredient}/adjustments', [BranchInventoryController::class, 'adjust'])->middleware('franchise.role:owner,manager');
         Route::post('/inventory/restock-requests', [BranchInventoryController::class, 'requestRestock'])->middleware('franchise.role:owner,manager');
         Route::patch('/inventory/transfers/{transfer}/receive', [BranchInventoryController::class, 'receiveTransfer'])->middleware('franchise.role:owner,manager');

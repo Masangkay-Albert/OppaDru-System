@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Product } from '../types/product.types';
 import { useAuth } from './Authcontext';
@@ -41,8 +42,9 @@ export const FavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const emp = JSON.parse(raw);
         return emp?.id ? `emp_${emp.id}` : null;
       }
-    } catch {}
-    return null;
+    } catch {
+      return null;
+    }
   };
   const activeUserId = getActiveUserId();
 

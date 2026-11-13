@@ -176,7 +176,15 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const syncDiscountApplication = async () => {
       const token = authService.getToken();
-      if (!token || isRequestInFlight || authorizationFailed) return;
+      if (!token) {
+        setDiscountInfo((previous) => {
+          const next = { ...defaultDiscountInfo, fullName: user?.full_name || '' };
+          return areDiscountInfoEqual(previous, next) ? previous : next;
+        });
+        return;
+      }
+
+      if (isRequestInFlight || authorizationFailed) return;
 
       isRequestInFlight = true;
       try {

@@ -9,7 +9,31 @@ export interface BranchIngredient {
   quantity: number | string;
   reorder_level: number | string;
   unit_cost: number | string | null;
+  usable_quantity?: number | string;
+  notes?: string | null;
+  updated_at?: string | null;
+  stock_value?: number | string;
   status: 'in_stock' | 'low_stock' | 'out_of_stock';
+}
+
+export interface BranchIngredientSummary {
+  total: number;
+  low_stock: number;
+  out_of_stock: number;
+  needs_restocking: number;
+  stock_value: number;
+}
+
+export interface BranchIngredientMovement {
+  id: number;
+  ingredient_id: number;
+  ingredient_name: string;
+  type: 'stock_in' | 'stock_out' | 'adjustment' | 'waste' | 'order_usage' | 'count_adjustment' | 'opening_stock';
+  unit: string;
+  quantity_change: number | string;
+  performed_by: string;
+  occurred_at: string | null;
+  created_at: string;
 }
 
 export interface BranchRestockRequest {
@@ -39,6 +63,10 @@ export interface BranchInventoryTransfer {
 
 export interface BranchIngredientInventory {
   ingredients: BranchIngredient[];
+  available_ingredients: Array<Pick<BranchIngredient, 'id' | 'name' | 'category' | 'unit' | 'reorder_level' | 'unit_cost'>>;
+  suppliers: Array<{ id: number; name: string }>;
+  summary: BranchIngredientSummary;
+  recent_movements: BranchIngredientMovement[];
   expiring_soon: Array<{
     id: number;
     quantity_remaining: number | string;
@@ -75,6 +103,38 @@ export const adjustBranchIngredient = (
   body: JSON.stringify(values),
 });
 
+export const addBranchIngredient = (values: {
+  initial_quantity?: number;
+  reorder_level: number;
+  unit_cost: number | null;
+  notes: string;
+} & (
+  | { ingredient_id: number }
+  | {
+    name: string;
+    category: string;
+    unit: string;
+    purchase_unit: string;
+    conversion_factor: number;
+    supplier_id?: number | null;
+  }
+)) => request<BranchIngredient>('/franchise/inventory/ingredients', {
+  method: 'POST',
+  body: JSON.stringify(values),
+});
+
+export const updateBranchIngredient = (id: number, values: {
+  reorder_level: number;
+  unit_cost: number | null;
+  notes: string;
+}) => request<BranchIngredient>(`/franchise/inventory/ingredients/${id}`, {
+  method: 'PUT',
+  body: JSON.stringify(values),
+});
+
+export const archiveBranchIngredient = (id: number) =>
+  request<{ ingredient_id: number; is_archived: boolean }>(`/franchise/inventory/ingredients/${id}/archive`, { method: 'PATCH' });
+
 export const submitRestockRequest = (values: {
   items: Array<{ ingredient_id: number; quantity: number }>;
   notes: string;
@@ -85,3 +145,38 @@ export const submitRestockRequest = (values: {
 
 export const receiveBranchTransfer = (id: number) =>
   request<BranchInventoryTransfer>(`/franchise/inventory/transfers/${id}/receive`, { method: 'PATCH' });
+
+export const getBranchIngredientHistory = (params: {
+  page?: number;
+  ingredient_id?: number;
+  type?: BranchIngredientMovement['type'];
+}) => {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.ingredient_id) search.set('ingredient_id', String(params.ingredient_id));
+  if (params.type) search.set('type', params.type);
+  return request<{
+    data: BranchIngredientMovement[];
+    current_page: number;
+    last_page: number;
+    total: number;
+  }>(`/franchise/inventory/ingredients/history?${search.toString()}`);
+};
+
+export const importBranchIngredientInventory = (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request<{ imported: number; errors: Array<{ row: number; errors: string[] }> }>('/franchise/inventory/ingredients/import', {
+    method: 'POST',
+    body: formData,
+  });
+};
+
+export const exportBranchIngredientInventory = async (): Promise<Blob> => {
+  const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/inventory/ingredients/export`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { message?: string };
+    throw new Error(payload.message || 'Could not export branch ingredient inventory.');
+  }
+  return response.blob();
+};

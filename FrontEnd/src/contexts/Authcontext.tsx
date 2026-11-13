@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authService } from '../services/authService';
 import type { User, RegisterData } from '../services/authService';
@@ -50,10 +51,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       setIsLoading(false);
       return false;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error);
       setIsLoading(false);
-    throw error;
+      throw error;
     }
   };
 
@@ -68,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       setIsLoading(false);
       return false;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Register error:', error);
       setIsLoading(false);
       throw error;

@@ -21,12 +21,6 @@ interface BranchOrder {
   created_at?: string;
 }
 
-interface InventoryItem {
-  branch_stock?: number | null;
-  branch_stock_tracked?: boolean;
-  low_stock?: boolean;
-}
-
 interface BranchUser {
   status?: string;
 }
@@ -37,6 +31,9 @@ interface DashboardState {
   branch_address?: string;
   branch_status?: string;
   inventory_items?: number;
+  ingredient_inventory_items?: number;
+  ingredient_low_stock_items?: number;
+  ingredient_out_of_stock_items?: number;
   total_orders?: number;
   total_revenue?: number;
   pos_activity_count?: number;
@@ -46,7 +43,6 @@ interface DashboardState {
 interface SectionErrors {
   dashboard?: string;
   orders?: string;
-  inventory?: string;
   users?: string;
 }
 
@@ -88,10 +84,9 @@ const FranchiseDashboardPage: React.FC = () => {
   const { franchiseUser } = useFranchiseAuth();
   const [dashboard, setDashboard] = useState<DashboardState>({});
   const [orders, setOrders] = useState<BranchOrder[]>([]);
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [users, setUsers] = useState<BranchUser[]>([]);
   const [errors, setErrors] = useState<SectionErrors>({});
-  const [loading, setLoading] = useState({ dashboard: true, orders: true, inventory: true, users: true });
+  const [loading, setLoading] = useState({ dashboard: true, orders: true, users: true });
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
@@ -114,12 +109,11 @@ const FranchiseDashboardPage: React.FC = () => {
       }
     };
 
-    setLoading({ dashboard: true, orders: true, inventory: true, users: true });
+    setLoading({ dashboard: true, orders: true, users: true });
     setErrors({});
     void Promise.all([
       loadSection<DashboardState>('dashboard', '/franchise/dashboard', (data) => setDashboard(data), 'Unable to load this branch dashboard.'),
       loadSection<BranchOrder[]>('orders', '/franchise/orders', (data) => setOrders(Array.isArray(data) ? data : []), 'Unable to load this branch’s orders.'),
-      loadSection<{ items?: InventoryItem[] }>('inventory', '/franchise/inventory', (data) => setInventory(Array.isArray(data?.items) ? data.items : []), 'Unable to load this branch’s inventory.'),
       loadSection<BranchUser[]>('users', '/franchise/users', (data) => setUsers(Array.isArray(data) ? data : []), 'Unable to load this branch’s staff.'),
     ]);
 
@@ -187,7 +181,7 @@ const FranchiseDashboardPage: React.FC = () => {
   const branchId = dashboard.franchise_id || franchiseUser?.franchise_id || franchiseUser?.branch_id || '—';
   const ownerName = franchiseUser?.full_name || franchiseUser?.name || 'there';
   const recentOrders = orders.slice(0, 6);
-  const trackedAlerts = inventory.filter((item) => item.low_stock || (item.branch_stock_tracked && item.branch_stock === 0)).length;
+  const ingredientAlerts = (dashboard.ingredient_low_stock_items || 0) + (dashboard.ingredient_out_of_stock_items || 0);
   const activeUsers = users.filter((user) => String(user.status || '').toLowerCase() === 'active').length;
   const orderSparkline = Array.from({ length: 7 }, (_, index) => {
     const date = todayStart - (6 - index) * DAY_MS;
@@ -239,13 +233,13 @@ const FranchiseDashboardPage: React.FC = () => {
             loading={loading.dashboard || loading.orders}
           />
           <KpiCard
-            to="/franchise/inventory"
-            label="Inventory items"
-            value={loading.dashboard ? '…' : dashboard.inventory_items ?? inventory.length}
+            to="/franchise/inventory/ingredients"
+            label="Ingredients tracked"
+            value={loading.dashboard ? '…' : dashboard.ingredient_inventory_items ?? 0}
             icon={Boxes}
-            subline={loading.inventory ? 'Loading stock status…' : errors.inventory ? 'Stock status unavailable' : trackedAlerts > 0 ? `${trackedAlerts} low or out of stock` : 'All items available'}
-            sublineTone={!loading.inventory && !errors.inventory && trackedAlerts === 0 ? 'green' : trackedAlerts > 0 ? 'warning' : 'muted'}
-            loading={loading.dashboard || loading.inventory}
+            subline={loading.dashboard ? 'Loading stock status…' : errors.dashboard ? 'Stock status unavailable' : ingredientAlerts > 0 ? `${ingredientAlerts} low or out of stock` : 'All items available'}
+            sublineTone={!loading.dashboard && !errors.dashboard && ingredientAlerts === 0 ? 'green' : ingredientAlerts > 0 ? 'warning' : 'muted'}
+            loading={loading.dashboard}
           />
           <KpiCard
             to="/franchise/users"
