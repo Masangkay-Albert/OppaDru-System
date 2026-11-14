@@ -363,10 +363,13 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const getActiveDiscount = () => {
-    if (discountInfo.status === 'approved' && discountInfo.isPWD) {
+    const today = new Date();
+    const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const isExpired = Boolean(discountInfo.expiryDate && discountInfo.expiryDate < todayDate);
+    if (!isExpired && discountInfo.status === 'approved' && discountInfo.isPWD) {
       return { type: 'PWD' as const, discountRate: 0.20 };
     }
-    if (discountInfo.status === 'approved' && discountInfo.isSenior) {
+    if (!isExpired && discountInfo.status === 'approved' && discountInfo.isSenior) {
       return { type: 'Senior' as const, discountRate: 0.20 };
     }
     return { type: null, discountRate: 0 };

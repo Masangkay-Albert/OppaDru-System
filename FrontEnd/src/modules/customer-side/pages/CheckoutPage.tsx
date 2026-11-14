@@ -49,8 +49,7 @@ const CheckoutPage: React.FC = () => {
   const [scheduleDisplay, setScheduleDisplay] = useState('Select date & time');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [discountType, setDiscountType] = useState<'PWD' | 'Senior Citizen' | null>(activeDiscount.type === 'PWD' ? 'PWD' : activeDiscount.type === 'Senior' ? 'Senior Citizen' : null);
-  const [discountProof, setDiscountProof] = useState<File | null>(null);
+  const discountType = activeDiscount.type === 'PWD' ? 'PWD' : activeDiscount.type === 'Senior' ? 'Senior Citizen' : null;
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<Coordinates | null>(null);
   const [additionalStreet, setAdditionalStreet] = useState('');
   const [deliveryInstructions, setDeliveryInstructions] = useState<DeliveryInstructions>({});
@@ -103,17 +102,6 @@ const CheckoutPage: React.FC = () => {
 
     return () => { active = false; };
   }, [activeBranchId, cartItems.length, validateCartAgainstMenu]);
-
-  useEffect(() => {
-    if (!activeDiscount.type) {
-      setDiscountType(null);
-      setDiscountProof(null);
-      return;
-    }
-
-    setDiscountType(activeDiscount.type === 'PWD' ? 'PWD' : 'Senior Citizen');
-  }, [activeDiscount.type]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const {
     address,
@@ -345,11 +333,6 @@ const CheckoutPage: React.FC = () => {
       const scheduleDisplayValue = deliveryType === 'scheduled' ? scheduleDisplay : null;
       const scheduleWindowValue = deliveryType === 'scheduled' ? selectedTime : null;
 
-      if (discountType && !discountProof) {
-        showToast('Please upload your valid ID or proof for the discount request.', 'error');
-        return;
-      }
-
       const placedOrderId = await placeOrder(
         cartItems,
         0,
@@ -367,7 +350,7 @@ const CheckoutPage: React.FC = () => {
         scheduleDisplayValue,
         scheduleWindowValue,
         discountType,
-        discountProof,
+        null,
         checkoutBranchId,
         appliedPromo?.code || null,
         deliveryInstructions,
@@ -544,8 +527,6 @@ const CheckoutPage: React.FC = () => {
               scheduleDisplay={scheduleDisplay}
               onScheduleClick={() => setShowScheduleModal(true)}
               discountType={discountType}
-              discountProof={discountProof}
-              onDiscountProofChange={setDiscountProof}
             />
           </div>
 

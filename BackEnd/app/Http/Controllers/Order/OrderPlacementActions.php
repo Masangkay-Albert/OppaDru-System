@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Order;
 
 use App\Models\Addon;
+use App\Models\DiscountApplication;
 use App\Models\DiscountVerificationRequest;
 use App\Models\Franchise;
 use App\Models\Order;
@@ -107,6 +108,20 @@ trait OrderPlacementActions
         $this->decodeArrayInput($request, 'delivery_coordinates');
         $this->decodeArrayInput($request, 'delivery_instructions');
 
+        $requestedDiscountType = trim((string) $request->input('discount_type', ''));
+        $approvedDiscountApplication = null;
+        if (in_array($requestedDiscountType, ['PWD', 'Senior Citizen'], true)) {
+            $approvedDiscountApplication = DiscountApplication::query()
+                ->where('user_id', $request->user()->getAuthIdentifier())
+                ->where('discount_type', $requestedDiscountType)
+                ->where('status', 'approved')
+                ->where(function ($query) {
+                    $query->whereNull('expiry_date')
+                        ->orWhereDate('expiry_date', '>=', now()->toDateString());
+                })
+                ->first();
+        }
+
         $validator = Validator::make($request->all(), [
             'email' => 'required|string|email',
             'items' => 'required|array|min:1',
@@ -156,9 +171,10 @@ trait OrderPlacementActions
             ],
         ]);
 
-        $validator->after(function ($validator) use ($request) {
+        $validator->after(function ($validator) use ($request, $approvedDiscountApplication) {
             if (
                 $request->filled('discount_type')
+                && ! $approvedDiscountApplication
                 && ! $request->hasFile('proof_image')
                 && ! $request->hasFile('discount_proof_image')
             ) {
@@ -266,8 +282,11 @@ trait OrderPlacementActions
             }
         }
 
-        $discountType = trim((string) $request->input('discount_type', ''));
-        $discountRate = $discountType !== '' ? (float) $request->input('discount_rate', 0.20) : 0.0;
+        $discountType = $requestedDiscountType;
+        $hasApprovedDiscount = $approvedDiscountApplication !== null;
+        $discountRate = $discountType !== ''
+            ? ($hasApprovedDiscount ? 0.20 : (float) $request->input('discount_rate', 0.20))
+            : 0.0;
         $promoCode = strtoupper((string) preg_replace('/\s+/', '', trim((string) $request->input('promo_code', ''))));
         $promoDiscount = 0.0;
         $promoId = null;
@@ -388,6 +407,8 @@ trait OrderPlacementActions
                 $discountRate,
                 $discountAmount,
                 $discountProofData,
+                $hasApprovedDiscount,
+                $approvedDiscountApplication,
                 $branchResolution,
                 $promoId,
                 $promoCode,
@@ -477,12 +498,14 @@ trait OrderPlacementActions
                     'promo_id' => $promoId,
                     'promo_code' => $promoCode,
                     'promo_discount' => $promoDiscount > 0 ? $promoDiscount : null,
-                    'discount_status' => $discountType !== '' ? 'pending' : 'not_requested',
+                    'discount_status' => $discountType !== ''
+                        ? ($hasApprovedDiscount ? 'approved' : 'pending')
+                        : 'not_requested',
                     'discount_proof_image' => null,
-                    'discount_proof_image_data' => $discountType !== '' ? $discountProofData : null,
-                    'discount_requested_at' => $discountType !== '' ? now() : null,
+                    'discount_proof_image_data' => $discountType !== '' && ! $hasApprovedDiscount ? $discountProofData : null,
+                    'discount_requested_at' => $discountType !== '' && ! $hasApprovedDiscount ? now() : null,
                     'discount_rejection_reason' => null,
-                    'discount_reviewed_at' => null,
+                    'discount_reviewed_at' => $hasApprovedDiscount ? $approvedDiscountApplication->reviewed_at : null,
                 ]);
 
                 app(\App\Services\InventoryService::class)->deductForOrder($order);
@@ -515,7 +538,7 @@ trait OrderPlacementActions
         }
 
         $discountRequest = null;
-        if ($discountType !== '') {
+        if ($discountType !== '' && ! $hasApprovedDiscount) {
             $discountRequest = DiscountVerificationRequest::create([
                 'order_id' => $order->id,
                 'discount_type' => $discountType,

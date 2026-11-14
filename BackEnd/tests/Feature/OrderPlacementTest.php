@@ -1818,6 +1818,98 @@ class OrderPlacementTest extends TestCase
         $this->assertGreaterThan(0, (float) $order->discount_amount);
     }
 
+    public function test_admin_approved_discount_is_applied_without_another_proof_upload(): void
+    {
+        $this->createOnlineDeliveryBranch('Approved Discount Branch');
+        $user = User::create([
+            'full_name' => 'Approved PWD Customer',
+            'email' => 'approved-pwd@example.com',
+            'phone' => '09171234568',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        DiscountApplication::create([
+            'user_id' => $user->id,
+            'discount_type' => 'PWD',
+            'full_name' => $user->full_name,
+            'id_number' => 'PWD-12345',
+            'expiry_date' => now()->addMonths(6)->toDateString(),
+            'status' => 'approved',
+            'submitted_at' => now()->subDay(),
+            'reviewed_at' => now(),
+        ]);
+        $product = Product::create([
+            'name' => 'Approved discount chicken',
+            'description' => 'Test approved discount checkout',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => 'approved-discount-chicken.jpg',
+            'is_available' => true,
+        ]);
+
+        $this->actingAs($user, 'api')->postJson('/api/orders', [
+            'email' => $user->email,
+            'items' => [[
+                'product_id' => $product->id,
+                'product_name' => $product->name,
+                'product_price' => 199,
+                'quantity' => 1,
+            ]],
+            'delivery_address' => 'Block 10, Lot 2, Dasmarinas, Cavite',
+            'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
+            'payment_method' => 'cash_on_delivery',
+            'phone' => '09171234568',
+            'discount_type' => 'PWD',
+        ])->assertCreated()
+            ->assertJsonPath('order.discount_type', 'PWD')
+            ->assertJsonPath('order.discount_status', 'approved')
+            ->assertJsonPath('discount_request', null);
+
+        $order = Order::query()->where('user_id', $user->id)->firstOrFail();
+        $this->assertSame(0.2, (float) $order->discount_rate);
+        $this->assertSame(53.0, (float) $order->discount_amount);
+        $this->assertNull($order->getRawOriginal('discount_proof_image_data'));
+        $this->assertDatabaseCount('discount_verification_requests', 0);
+    }
+
+    public function test_order_discount_without_an_approved_application_still_requires_proof(): void
+    {
+        $this->createOnlineDeliveryBranch('Pending Discount Branch');
+        $user = User::create([
+            'full_name' => 'Pending PWD Customer',
+            'email' => 'pending-pwd@example.com',
+            'phone' => '09171234568',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $product = Product::create([
+            'name' => 'Pending discount chicken',
+            'description' => 'Test proof requirement',
+            'price' => 199,
+            'category' => 'chicken',
+            'image' => 'pending-discount-chicken.jpg',
+            'is_available' => true,
+        ]);
+
+        $this->actingAs($user, 'api')->postJson('/api/orders', [
+            'email' => $user->email,
+            'items' => [[
+                'product_id' => $product->id,
+                'product_name' => $product->name,
+                'product_price' => 199,
+                'quantity' => 1,
+            ]],
+            'delivery_address' => 'Block 10, Lot 2, Dasmarinas, Cavite',
+            'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
+            'payment_method' => 'cash_on_delivery',
+            'phone' => '09171234568',
+            'discount_type' => 'PWD',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['proof_image']);
+    }
+
     private function createOnlineDeliveryBranch(string $name): Franchise
     {
         return Franchise::create([
