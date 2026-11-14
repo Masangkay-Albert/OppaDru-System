@@ -84,12 +84,14 @@ const AddressCard: React.FC<AddressCardProps> = ({
         </div>
         <div className="flex items-center gap-1 ml-4 flex-shrink-0">
           <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
             className="checkout-address-action p-2 text-gray-400 hover:text-[#2d6a4f] hover:bg-[#f0fdf4] rounded-lg transition"
           >
             <FiEdit2 size={16} />
           </button>
           <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); onSetDefault(); }}
             className={`checkout-address-action p-2 rounded-lg transition ${
               isDefault
@@ -101,6 +103,7 @@ const AddressCard: React.FC<AddressCardProps> = ({
             <FiHome size={16} />
           </button>
           <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             className="checkout-address-action checkout-address-delete p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
           >

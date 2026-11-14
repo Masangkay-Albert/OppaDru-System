@@ -1,5 +1,5 @@
 // src/hooks/useAddressManagement.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface AddressDetails {
@@ -70,6 +70,11 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [selectedAddressDetails, setSelectedAddressDetails] = useState<AddressDetails>({});
   const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
+  const onAddressSelectRef = useRef(onAddressSelect);
+
+  useEffect(() => {
+    onAddressSelectRef.current = onAddressSelect;
+  }, [onAddressSelect]);
 
   // Load addresses from localStorage
   useEffect(() => {
@@ -86,15 +91,11 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
           if (defaultAddr) {
             setSelectedAddressId(defaultAddr.id);
             setSelectedAddressDetails(defaultAddr.details || {});
-            if (onAddressSelect) {
-              onAddressSelect(defaultAddr.address, defaultAddr.details, getCoordinates(defaultAddr));
-            }
+            onAddressSelectRef.current?.(defaultAddr.address, defaultAddr.details, getCoordinates(defaultAddr));
           } else {
             setSelectedAddressId(normalized[0].id);
             setSelectedAddressDetails(normalized[0].details || {});
-            if (onAddressSelect) {
-              onAddressSelect(normalized[0].address, normalized[0].details, getCoordinates(normalized[0]));
-            }
+            onAddressSelectRef.current?.(normalized[0].address, normalized[0].details, getCoordinates(normalized[0]));
           }
         }
       } catch (error) {
@@ -102,7 +103,7 @@ export const useAddressManagement = ({ userId, onAddressSelect }: UseAddressMana
         setSavedAddresses([]);
       }
     }
-  }, [onAddressSelect, userId]);
+  }, [userId]);
 
   // Save addresses to localStorage whenever they change
   useEffect(() => {
