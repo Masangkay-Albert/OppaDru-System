@@ -371,7 +371,7 @@ const DiscountSection: React.FC = () => {
                 maxLength={20}
                 data-pattern="(?=.*\d)[A-Za-z0-9][A-Za-z0-9 -]{5,19}"
                 className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-[#2d6a4f] focus:outline-none transition text-sm"
-                required minLength={6} maxLength={20} pattern="[A-Za-z0-9 -]{6,20}" title="6-20 characters with at least one number"
+                required minLength={6} pattern="[A-Za-z0-9 -]{6,20}" title="6-20 characters with at least one number"
               />
             </div>
           </div>

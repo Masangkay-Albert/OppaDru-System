@@ -438,13 +438,6 @@ const FranchisePOSPage: React.FC = () => {
   const phoneDigits = phone.replace(/\D/g, '');
   const phoneIsValid = !phoneDigits || /^09\d{9}$/.test(phoneDigits);
   const orderReferenceIsValid = /^[A-Z0-9-]{3,30}$/.test(externalOrderRef);
-  const paymentIsValid = isThirdParty
-    ? orderReferenceIsValid
-    : paymentMethod === 'cash'
-    ? tenderedAmount >= total
-    : paymentMethod === 'gcash'
-      ? Boolean(paymentReference.trim() && paymentConfirmed)
-      : Boolean(terminalReference.trim());
   const chargeDisabled = !lines.length || isSubmitting || isLoading
     || Boolean(discountType && (!discountIdNumber.trim() || !discountCardholderName.trim()))
     || (!isThirdParty && (paymentMethod === 'cash' ? tenderedAmount < total : paymentMethod === 'gcash' ? !Boolean(paymentReference.trim() && paymentConfirmed) : !Boolean(terminalReference.trim())));

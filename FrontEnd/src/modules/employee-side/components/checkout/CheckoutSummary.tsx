@@ -20,7 +20,6 @@ interface CheckoutSummaryProps {
 
 const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   cartItems,
-  onPlaceOrder,
   discountRate = 0,
   discountAmount = 0,
   promoDiscount = 0,
@@ -28,7 +27,6 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   isPlacingOrder = false,
   orderSource = 'walk_in',
   externalOrderRef = '',
-  isOrderSourceValid = true,
 }) => {
   const navigate = useNavigate();
   const subtotal = calculateSubtotal(cartItems);

@@ -47,7 +47,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   setOrderSource,
   externalOrderRef,
   setExternalOrderRef,
-  orderReferenceError = '',
   setOrderReferenceError,
   diningOption,
   setDiningOption,

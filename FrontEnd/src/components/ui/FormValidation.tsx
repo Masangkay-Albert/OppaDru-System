@@ -2,7 +2,6 @@ import {
   Children,
   cloneElement,
   isValidElement,
-  useId,
   useRef,
   useState,
 } from 'react';
@@ -95,15 +94,6 @@ type ValidatedFormProps = Omit<FormHTMLAttributes<HTMLFormElement>, 'onSubmit'> 
   children: ReactNode;
   onSubmit?: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
 };
-
-interface UseFormValidationOptions {
-  onSubmit?: ValidatedFormProps['onSubmit'];
-}
-
-function useFormValidation(_options: UseFormValidationOptions) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  return { isSubmitting, setIsSubmitting };
-}
 
 export function ValidatedForm({ children, onSubmit, ...formProps }: ValidatedFormProps) {
   const submitting = useRef(false);
