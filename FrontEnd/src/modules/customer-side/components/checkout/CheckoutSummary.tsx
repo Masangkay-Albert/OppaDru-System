@@ -197,20 +197,11 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         <div className="checkout-summary-items mb-4">
           {cartItems.map((item) => {
             const itemTotal = calculateItemTotal(item);
-            const itemDiscount = activeDiscount.discountRate > 0 ? itemTotal * activeDiscount.discountRate : 0;
-            const discountedPrice = itemTotal - itemDiscount;
             return (
               <div key={item.id} className="checkout-summary-item text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-700">{item.quantity}x {item.name}</span>
-                  {activeDiscount.discountRate > 0 ? (
-                    <div className="text-right">
-                      <span className="text-gray-400 line-through text-xs mr-1">{formatCurrency(itemTotal)}</span>
-                      <span className="font-medium text-[#2d6a4f]">{formatCurrency(discountedPrice)}</span>
-                    </div>
-                  ) : (
-                    <span className="font-medium text-gray-800">{formatCurrency(itemTotal)}</span>
-                  )}
+                  <span className="font-medium text-gray-800">{formatCurrency(itemTotal)}</span>
                 </div>
                 {item.selectedAddons && item.selectedAddons.length > 0 && (
                   <div className="text-xs text-gray-400 ml-4">

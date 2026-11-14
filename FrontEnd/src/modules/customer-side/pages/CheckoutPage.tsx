@@ -526,7 +526,6 @@ const CheckoutPage: React.FC = () => {
               setPaymentMethod={setPaymentMethod}
               scheduleDisplay={scheduleDisplay}
               onScheduleClick={() => setShowScheduleModal(true)}
-              discountType={discountType}
             />
           </div>
 

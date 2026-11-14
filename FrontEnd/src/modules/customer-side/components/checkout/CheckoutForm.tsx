@@ -41,7 +41,6 @@ interface CheckoutFormProps {
   setPaymentMethod: (method: string) => void;
   scheduleDisplay: string;
   onScheduleClick: () => void;
-  discountType?: 'PWD' | 'Senior Citizen' | null;
   onAddressCoordinatesChange?: (coordinates: { lat: number; lng: number } | null) => void;
   onStreetDetailChange?: (street: string) => void;
   onDeliveryInstructionsChange?: (details: AddressDetails) => void;
@@ -59,7 +58,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   setPaymentMethod,
   scheduleDisplay,
   onScheduleClick,
-  discountType,
   onAddressCoordinatesChange,
   onStreetDetailChange,
   onDeliveryInstructionsChange,
@@ -258,17 +256,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       />
 
       <PaymentMethods paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />
-
-      {discountType && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-emerald-800">Discount verified</p>
-              <p className="text-xs text-emerald-700">Your approved {discountType} discount will be applied automatically.</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showLocationPicker && (
         <LocationPicker
