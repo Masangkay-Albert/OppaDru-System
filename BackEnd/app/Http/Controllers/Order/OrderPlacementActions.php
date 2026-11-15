@@ -108,6 +108,11 @@ trait OrderPlacementActions
         $this->decodeArrayInput($request, 'delivery_coordinates');
         $this->decodeArrayInput($request, 'delivery_instructions');
 
+        $includeCutlery = $request->input('include_cutlery');
+        if (is_string($includeCutlery) && in_array(strtolower($includeCutlery), ['true', 'false'], true)) {
+            $request->merge(['include_cutlery' => filter_var($includeCutlery, FILTER_VALIDATE_BOOLEAN)]);
+        }
+
         $requestedDiscountType = trim((string) $request->input('discount_type', ''));
         $approvedDiscountApplication = null;
         if (in_array($requestedDiscountType, ['PWD', 'Senior Citizen'], true)) {

@@ -175,7 +175,7 @@ class OrderService {
             if (data.delivery_instructions) {
                 formData.append('delivery_instructions', JSON.stringify(data.delivery_instructions));
             }
-            formData.append('include_cutlery', String(data.include_cutlery ?? false));
+            formData.append('include_cutlery', data.include_cutlery ? '1' : '0');
             formData.append('payment_method', data.payment_method);
             if (data.delivery_type) formData.append('delivery_type', data.delivery_type);
             formData.append('phone', data.phone);

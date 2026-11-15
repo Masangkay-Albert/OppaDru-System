@@ -275,7 +275,7 @@ class OrderPlacementTest extends TestCase
                 'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
                 'payment_method' => 'cash_on_delivery',
                 'phone' => '09171234567',
-                'include_cutlery' => true,
+                'include_cutlery' => 'false',
             ]);
         $orderResponse
             ->assertCreated()
@@ -288,11 +288,11 @@ class OrderPlacementTest extends TestCase
             ->assertJsonPath('order.delivery_instructions.unit', 'A')
             ->assertJsonPath('order.delivery_instructions.building', 'Building A')
             ->assertJsonPath('order.delivery_instructions.note', 'Gate code 1234')
-            ->assertJsonPath('order.include_cutlery', true);
+            ->assertJsonPath('order.include_cutlery', false);
 
         $this->assertDatabaseHas('orders', [
             'id' => $orderResponse->json('order.id'),
-            'include_cutlery' => true,
+            'include_cutlery' => false,
         ]);
         $this->getJson('/api/orders/user')
             ->assertOk()
