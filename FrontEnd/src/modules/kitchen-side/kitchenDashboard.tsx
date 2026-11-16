@@ -244,7 +244,7 @@ const KitchenDashboardPage: React.FC = () => {
     && new Date(order.scheduledFor).getTime() < now
     && order.status === 'pending',
   );
-  const isPriority = (order: KitchenOrder) => order.deliveryType === 'priority' || isAutoPriority(order);
+  const isPriority = (order: KitchenOrder) => order.is_replacement === true || order.deliveryType === 'priority' || isAutoPriority(order);
   const today = manilaDate(now);
   const weekdayNumber = ({ Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 } as Record<string, number>)[
     new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', weekday: 'short' }).format(new Date(now))
@@ -279,6 +279,7 @@ const KitchenDashboardPage: React.FC = () => {
       <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${order.channel === 'onsite' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
         {order.channel === 'onsite' ? 'Onsite' : 'Online'}
       </span>
+      {order.is_replacement && <span className="inline-flex rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold text-white">REPLACEMENT · Original {order.original_order_number || 'order'}</span>}
       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${order.include_cutlery ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
         <Utensils size={11} aria-hidden="true" />{order.include_cutlery ? 'Cutlery included' : 'No cutlery'}
       </span>

@@ -26,6 +26,7 @@ import StaffBranchBadge from '../../shared/components/StaffBranchBadge';
 import SearchInput from '../../../components/ui/SearchInput';
 import Select from '../../../components/ui/Select';
 import '../../../styles/cashier-pos.css';
+import ReplaceOnsiteItemAction from '../../shared/components/ReplaceOnsiteItemAction';
 
 interface CashierOrderItem {
   id: number | string;
@@ -58,6 +59,9 @@ interface CashierOrder {
   delivery_address?: string | null;
   items?: Array<{ name?: string; product_name?: string; price?: number; product_price?: number; quantity?: number }>;
   order_items?: CashierOrderItem[];
+  third_party_platform?: string | null;
+  replacement_of_order_id?: string | null;
+  original_order_number?: string | null;
   discount_type?: string | null;
   discount_amount?: number | string | null;
   vat?: number | string | null;
@@ -465,10 +469,10 @@ const CashierTransactionsPage: React.FC = () => {
       </div>
 
       {selectedOrder && <div className="cashier-order-drawer-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedOrder(null); }}><aside className="cashier-order-drawer" role="dialog" aria-modal="true" aria-labelledby="cashier-order-drawer-title">
-        <header><div><p className="text-xs font-bold uppercase tracking-wider text-[#b77b16]">Order details</p><h2 id="cashier-order-drawer-title" className="mt-1 font-mono text-base font-bold">{selectedOrder.order_number || selectedOrder.id}</h2></div><button type="button" onClick={() => setSelectedOrder(null)} aria-label="Close order details"><X size={20} /></button></header>
+        <header><div><p className="text-xs font-bold uppercase tracking-wider text-[#b77b16]">Order details</p><h2 id="cashier-order-drawer-title" className="mt-1 font-mono text-base font-bold">{selectedOrder.order_number || selectedOrder.id}</h2>{selectedOrder.replacement_of_order_id && <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-900">REPLACEMENT · Original {selectedOrder.original_order_number || selectedOrder.replacement_of_order_id}</span>}</div><button type="button" onClick={() => setSelectedOrder(null)} aria-label="Close order details"><X size={20} /></button></header>
         <div className="cashier-order-drawer-body">
           <div className="flex items-center justify-between"><span className={`cashier-order-status ${statusClass[selectedOrder.status.toLowerCase()] || 'border-gray-200 bg-gray-50 text-gray-700'}`}><i />{selectedOrder.status.replaceAll('_', ' ')}</span><span className="text-xs text-gray-500">{friendlyDate(selectedOrder.created_at)}</span></div>
-          <div className="grid grid-cols-2 gap-4 rounded-xl bg-[#fbf8f1] p-4 text-sm"><div><small className="block text-xs uppercase text-gray-500">Customer</small><strong>{orderCustomer(selectedOrder)}</strong></div><div><small className="block text-xs uppercase text-gray-500">Type</small><strong>{orderType(selectedOrder)}</strong></div><div><small className="block text-xs uppercase text-gray-500">Payment</small><strong className="inline-flex items-center gap-1">{paymentIcon(selectedOrder.payment_method)}{paymentLabel(selectedOrder.payment_method)}</strong></div><div><small className="block text-xs uppercase text-gray-500">Payment status</small><strong>{(selectedOrder.payment_status || '—').replaceAll('_', ' ')}</strong></div></div>
+          <div className="grid grid-cols-2 gap-4 rounded-xl bg-[#fbf8f1] p-4 text-sm"><div><small className="block text-xs uppercase text-gray-500">Customer</small><strong>{orderCustomer(selectedOrder)}</strong></div><div><small className="block text-xs uppercase text-gray-500">Type</small><strong>{orderType(selectedOrder)}</strong></div><div><small className="block text-xs uppercase text-gray-500">Payment</small><strong className="inline-flex items-center gap-1">{paymentIcon(selectedOrder.payment_method)}{selectedOrder.replacement_of_order_id ? 'Replacement (no charge)' : paymentLabel(selectedOrder.payment_method)}</strong></div><div><small className="block text-xs uppercase text-gray-500">Payment status</small><strong>{(selectedOrder.payment_status || '—').replaceAll('_', ' ')}</strong></div></div>
           {selectedOrder.status_history?.length ? <section><h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Status timeline</h3><ol className="space-y-2 border-l-2 border-[#d9e6dc] pl-4">{selectedOrder.status_history.map((entry, index) => <li key={`${entry.status}-${index}`} className="text-sm"><strong className="capitalize">{entry.status?.replaceAll('_', ' ') || 'Updated'}</strong><small className="ml-2 text-gray-500">{entry.changed_at || entry.created_at ? friendlyDate(entry.changed_at || entry.created_at || '') : ''}</small>{entry.note && <p className="text-xs text-gray-500">{entry.note}</p>}</li>)}</ol></section> : null}
           <section><h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Items</h3><div className="divide-y divide-[#eee9de] rounded-xl bg-[#fbf8f1] px-4">{(selectedOrder.order_items || selectedOrder.items || []).map((item, index) => {
             const name = 'product_name' in item ? item.product_name : item.name || 'Item';
@@ -478,6 +482,20 @@ const CashierTransactionsPage: React.FC = () => {
           })}</div></section>
           {selectedOrder.delivery_address && <p className="text-sm text-gray-600">{selectedOrder.delivery_address}</p>}
           {selectedOrder.special_instructions && <p className="rounded-xl border border-[#e7e1d6] p-3 text-sm"><strong>Order notes</strong><span className="mt-1 block text-gray-600">{selectedOrder.special_instructions}</span></p>}
+          {selectedOrder.delivery_type === 'onsite'
+            && !selectedOrder.third_party_platform
+            && !selectedOrder.replacement_of_order_id
+            && <ReplaceOnsiteItemAction
+              orderId={selectedOrder.id}
+              items={(selectedOrder.order_items || []).map((item) => ({
+                id: item.id,
+                product_name: item.product_name,
+                quantity: item.quantity,
+              }))}
+              endpointPrefix="/employee/pos/orders"
+              fetcher={fetchWithEmployeeAuth}
+              onComplete={() => { void loadOrders(true); }}
+            />}
           <div className="space-y-2 border-t border-[#e7e1d6] pt-4 text-sm"><div className="flex justify-between"><span>Subtotal</span><strong>{formatPeso(calculateOrderSubtotal(selectedOrder.order_items || selectedOrder.items || []))}</strong></div>{selectedOrder.discount_type && <div className="flex justify-between text-emerald-700"><span>{selectedOrder.discount_type} discount</span><strong>−{formatPeso(Number(selectedOrder.discount_amount || 0))}</strong></div>}<div className="flex justify-between"><span>VAT</span><strong>{formatPeso(Number(selectedOrder.vat || 0))}</strong></div><div className="flex justify-between border-t border-[#e7e1d6] pt-3 text-lg font-bold"><span>Total</span><strong>{formatPeso(Number(selectedOrder.total))}</strong></div>{selectedOrder.payment_method.toLowerCase().includes('cash') && selectedOrder.cash_tendered !== null && selectedOrder.cash_tendered !== undefined && <><div className="flex justify-between text-xs text-gray-600"><span>Cash tendered</span><strong>{formatPeso(Number(selectedOrder.cash_tendered))}</strong></div><div className="flex justify-between text-xs text-gray-600"><span>Change due</span><strong>{formatPeso(Number(selectedOrder.change_due || 0))}</strong></div></>}{selectedOrder.payment_reference && <div className="flex justify-between gap-3 text-xs text-gray-500"><span>Reference</span><span className="break-all text-right">{selectedOrder.payment_reference}</span></div>}</div>
         </div>
         <footer><button type="button" onClick={() => window.print()} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[#d9e6dc] font-semibold text-[#1c3d2e]"><Printer size={16} /> Print Receipt</button><button type="button" onClick={() => setSelectedOrder(null)} className="min-h-11 flex-1 rounded-xl bg-[#216b49] font-semibold text-white">Close</button></footer>

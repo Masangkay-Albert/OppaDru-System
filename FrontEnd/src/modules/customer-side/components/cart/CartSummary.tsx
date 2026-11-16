@@ -15,21 +15,21 @@ const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutler
     <div className="menu-cart-summary border-t border-gray-200 bg-white">
       <div className="space-y-4 px-5 pt-4 text-sm">
         <div className="flex items-center justify-between">
-          <span className="text-gray-500">Subtotal</span>
-          <span className="font-bold text-gray-800">{hasItems ? formatCurrency(subtotal) : '—'}</span>
+          <span className="text-[15px] font-medium text-gray-600">Subtotal</span>
+          <span className="text-[15px] font-bold text-gray-800">{hasItems ? formatCurrency(subtotal) : '—'}</span>
         </div>
 
-        <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 rounded-xl border border-gray-100 bg-[#fbfaf7] px-3 py-2 transition hover:border-[#d7e5d8]">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#e7f1e8] text-[#276343]">
+        <label className="flex min-h-[68px] cursor-pointer items-center justify-between gap-3 rounded-[18px] border border-[#dfe6df] bg-[#f6f4f1] px-3 py-2.5 transition hover:border-[#cfe1d2] hover:bg-[#f3f5f0]">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#dfeee5] text-[#276343] shadow-inner shadow-[#eaf6ee]">
               <Utensils className="size-4" aria-hidden="true" />
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-gray-800">Cutlery</span>
-              <span className="block text-xs text-gray-500">{useCutlery ? 'Included with your order' : 'No cutlery requested'}</span>
+              <span className="block text-[16px] font-semibold leading-none text-gray-800">Cutlery</span>
+              <span className="mt-1 block text-[12px] text-gray-500">{useCutlery ? 'Included with your order' : 'No cutlery requested'}</span>
             </span>
           </div>
-          <span className="relative inline-flex h-6 w-11 shrink-0">
+          <span className="relative inline-flex h-7 w-[52px] shrink-0 items-center">
             <input
               type="checkbox"
               checked={useCutlery}
@@ -38,7 +38,7 @@ const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutler
               role="switch"
               className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0"
             />
-            <span aria-hidden="true" className="menu-cutlery-switch pointer-events-none relative block h-6 w-11 rounded-full bg-gray-300 transition-colors peer-checked:bg-[#276343] after:absolute after:left-[3px] after:top-[3px] after:size-[18px] after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-[20px] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#276343]" />
+            <span aria-hidden="true" className="menu-cutlery-switch pointer-events-none relative block h-7 w-[52px] rounded-full bg-[#cbd2cb] transition-colors peer-checked:bg-[#276343] after:absolute after:left-[3px] after:top-[3px] after:h-[18px] after:w-[18px] after:rounded-full after:bg-white after:shadow-[0_1px_3px_rgba(20,35,25,0.2)] after:transition-transform peer-checked:after:translate-x-[25px] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#276343]" />
           </span>
         </label>
       </div>

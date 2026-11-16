@@ -38,6 +38,9 @@ interface DriverOrderItem {
 export interface DriverOrder {
   id: string;
   order_number?: string;
+  is_replacement?: boolean;
+  original_order_number?: string | null;
+  payment_message?: string | null;
   driver_id?: string | null;
   customerName: string;
   status: string;
@@ -339,6 +342,8 @@ const DriverDashboardPage: React.FC = () => {
                   <div className="min-w-0">
                     <StatusBadge status={order.status} />
                     <p className="mt-2 font-mono text-[13px] tabular-nums text-[var(--oppa-text-muted)]">{getDisplayOrderNumber(order)}</p>
+                    {order.is_replacement && <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-900">REPLACEMENT · Original {order.original_order_number || 'order'}</span>}
+                    {order.is_replacement && <p className="mt-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300">Replacement, no payment to collect</p>}
                     <p className="truncate font-medium text-[var(--oppa-text)]">{order.customerName || 'Customer'}</p>
                     <p className="mt-0.5 text-[10px] text-[var(--oppa-text-muted)]">{formatDate(order.created_at)}</p>
                   </div>
@@ -487,6 +492,7 @@ const DriverDashboardPage: React.FC = () => {
               <div>
                 <h2 className="text-xl font-bold">Delivery Details</h2>
                 <p className="font-mono text-sm text-[var(--oppa-text-muted)]">{getDisplayOrderNumber(selectedOrder)}</p>
+                {selectedOrder.is_replacement && <p className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-900">REPLACEMENT · Original {selectedOrder.original_order_number || 'order'}</p>}
               </div>
               <button
                 type="button"
@@ -503,6 +509,7 @@ const DriverDashboardPage: React.FC = () => {
             </div>
             
             <div className="space-y-5">
+              {selectedOrder.is_replacement && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Replacement, no payment to collect. Do not collect or return the original food.</p>}
               {/* Customer & Date */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="min-w-0">

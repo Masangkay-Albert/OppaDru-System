@@ -8,6 +8,7 @@ use App\Models\OrderItem;
 use App\Models\OrderItemAddon;
 use App\Models\Product;
 use App\Services\FranchiseInventoryService;
+use App\Support\OrderReplacementPolicy;
 
 class OrderDataService
 {
@@ -85,6 +86,9 @@ class OrderDataService
             'payment_status' => $order->payment_status,
             'third_party_platform' => $order->third_party_platform,
             'external_order_ref' => $order->external_order_ref,
+            'replacement_of_order_id' => $order->replacement_of_order_id,
+            'is_replacement' => (bool) $order->replacement_of_order_id,
+            'original_order_number' => $order->originalOrder?->order_number,
             'delivery_address' => $order->delivery_address,
             'delivery_instructions' => $order->delivery_instructions,
             'delivery_coordinates' => ($order->delivery_lat !== null && $order->delivery_lng !== null)
@@ -138,6 +142,59 @@ class OrderDataService
             'schedule_window' => $order->schedule_window,
             'created_at' => $createdAt ? $this->convertToPhilippineTime($createdAt) : null,
             'timestamp' => $createdAt ? $this->convertToPhilippineTime($createdAt) : null,
+            'replacement_request' => $order->relationLoaded('replacementRequests')
+                ? $this->replacementRequestData($order)
+                : null,
+        ];
+    }
+
+    private function replacementRequestData(Order $order): array
+    {
+        $requests = $order->relationLoaded('replacementRequests')
+            ? $order->replacementRequests
+            : $order->replacementRequests()->with('replacementOrder:id,order_number,status')->latest()->get();
+        $latest = $requests->sortByDesc('created_at')->first();
+        $replacementOrder = $latest?->replacementOrder;
+        $status = $latest?->status;
+        if ($replacementOrder && in_array(strtolower((string) $replacementOrder->status), ['delivered', 'completed'], true)) {
+            $status = 'replaced';
+        } elseif ($replacementOrder && in_array(strtolower((string) $replacementOrder->status), ['on_the_way', 'arrived'], true)) {
+            $status = 'replacement_sent';
+        } elseif ($replacementOrder) {
+            $status = 'approved';
+        }
+
+        $deliveredAt = $order->delivery_confirmed_at;
+        if (! $deliveredAt) {
+            $entry = collect($order->status_history ?? [])
+                ->reverse()
+                ->first(fn (array $history) => strtolower((string) ($history['status'] ?? '')) === 'delivered');
+            $deliveredAt = isset($entry['created_at']) ? \Illuminate\Support\Carbon::parse($entry['created_at']) : null;
+        }
+        $open = $latest && in_array($latest->status, OrderReplacementPolicy::OPEN_STATUSES, true)
+            && ! ($replacementOrder && in_array(strtolower((string) $replacementOrder->status), ['delivered', 'completed'], true));
+        $withinWindow = $deliveredAt
+            && ! $deliveredAt->isFuture()
+            && $deliveredAt->gte(now()->subHours(OrderReplacementPolicy::CUSTOMER_REPORT_WINDOW_HOURS));
+        $canReport = strtolower((string) $order->status) === 'delivered'
+            && $order->delivery_type !== 'onsite'
+            && $order->delivery_calculation_method !== 'onsite'
+            && ! $order->third_party_platform
+            && $withinWindow
+            && ! $open;
+
+        return [
+            'can_report_problem' => (bool) $canReport,
+            'report_window_ended' => strtolower((string) $order->status) === 'delivered'
+                && ! $withinWindow,
+            'request' => $latest ? [
+                'id' => $latest->id,
+                'status' => $status,
+                'reject_reason' => $latest->reject_reason,
+                'replacement_order_id' => $latest->replacement_order_id,
+                'replacement_order_number' => $replacementOrder?->order_number,
+                'affected_items' => $latest->affected_items,
+            ] : null,
         ];
     }
 

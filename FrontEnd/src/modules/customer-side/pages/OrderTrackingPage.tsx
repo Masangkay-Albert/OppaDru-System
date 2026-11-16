@@ -19,6 +19,7 @@ import DriverMarker from '../components/tracking/DriverMarker';
 import MapLegend from '../components/tracking/MapLegend';
 import ProgressBar from '../components/tracking/ProgressBar';
 import OrderDetailsCards from '../components/tracking/OrderDetailsCards';
+import ReportOrderProblem from '../components/tracking/ReportOrderProblem';
 import { storeIcon, destinationIcon } from '../components/tracking/MapIcons';
 
 interface TrackingLocationState { orderId?: string }
@@ -74,8 +75,8 @@ const OrderTrackingPageContent: React.FC = () => {
         setConnectionError(false);
         setNotFound(false);
         setIsFirstFetch(false);
-        if (isFinalStatus(latest.status)) return;
-        timeout = window.setTimeout(poll, 6000);
+        if (isFinalStatus(latest.status) && normalizeOrderStatus(latest.status) !== 'delivered') return;
+        timeout = window.setTimeout(poll, normalizeOrderStatus(latest.status) === 'delivered' ? 20000 : 6000);
       } catch (error) {
         if (stopped) return;
         setIsFirstFetch(false);
@@ -260,6 +261,7 @@ const OrderTrackingPageContent: React.FC = () => {
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#7b887e]">Order {order.orderNumber || `#${order.id}`}</p>
               <h1 className="truncate font-serif text-xl font-bold text-[#1c3d2e] sm:text-2xl">Track your order</h1>
+              {order.replacementOfOrderId && <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-900">REPLACEMENT · Original {order.originalOrderNumber || order.replacementOfOrderId}</span>}
             </div>
           </div>
           <span className={`rounded-full px-3.5 py-1.5 text-xs font-bold sm:text-sm ${statusColor}`}>
@@ -308,6 +310,12 @@ const OrderTrackingPageContent: React.FC = () => {
               const date = new Date(value);
               return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
             }} />
+            <ReportOrderProblem
+              orderId={order.id}
+              items={order.replacementItems || []}
+              policy={order.replacementPolicy}
+              onSubmitted={async () => { await refreshOrderById(order.id); }}
+            />
             {isDelivered && <button onClick={() => navigate('/customer/orders')} className="mt-4 w-full rounded-xl bg-[#2d6a4f] py-3 font-semibold text-white shadow-md">Back to My Orders</button>}
           </div>
         </div>

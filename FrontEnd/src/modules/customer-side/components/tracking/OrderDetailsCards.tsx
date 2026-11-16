@@ -83,6 +83,11 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
           </div>
         </div>
       )}
+      {currentOrder.replacementOfOrderId && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-900">
+          REPLACEMENT · Original order {currentOrder.originalOrderNumber || currentOrder.replacementOfOrderId}
+        </div>
+      )}
       <div className="rounded-2xl border border-white/80 bg-white p-4 shadow-lg">
         <h3 className="font-semibold text-gray-800 mb-3">Order Items</h3>
         <div className="space-y-3 max-h-56 overflow-y-auto mb-3">
@@ -188,7 +193,9 @@ const OrderDetailsCards: React.FC<OrderDetailsCardsProps> = ({ currentOrder, for
           <div className="flex justify-between">
             <span className="text-gray-500">Payment Method</span>
             <span className="text-gray-700 font-medium">
-              {currentOrder.paymentMethod?.replace('_', ' ').toUpperCase() || 'N/A'}
+              {currentOrder.replacementOfOrderId
+                ? 'Replacement (no charge)'
+                : currentOrder.paymentMethod?.replace('_', ' ').toUpperCase() || 'N/A'}
             </span>
           </div>
         </div>

@@ -9,6 +9,8 @@ import { formatCurrency } from '../../../utils/formatters';
 import { AdminDate, PageHeader, StatusBadge } from '../../admin-side/components/AdminUI';
 import OrdersFilterBar from '../../shared/components/OrdersFilterBar';
 import { getThirdPartyPlatformLabel, getThirdPartyReferencePrefix, type ThirdPartyPlatform } from '../../../constants/thirdPartyPlatforms';
+import ReplacementRequestsPanel from '../../shared/components/ReplacementRequestsPanel';
+import ReplaceOnsiteItemAction from '../../shared/components/ReplaceOnsiteItemAction';
 
 interface OrderItem {
   id?: string;
@@ -29,6 +31,8 @@ interface BranchOrder {
   payment_status?: string | null;
   delivery_type?: string | null;
   third_party_platform?: ThirdPartyPlatform | null;
+  replacement_of_order_id?: string | null;
+  original_order_number?: string | null;
   external_order_ref?: string | null;
   delivery_address?: string | null;
   phone?: string | null;
@@ -92,6 +96,8 @@ const FranchiseOrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<BranchOrder | null>(null);
   const [copiedOrderId, setCopiedOrderId] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
+  const [showReplacementRequests, setShowReplacementRequests] = useState(false);
+  const replacementFetcher = useCallback((url: string, init?: RequestInit) => fetchWithFranchiseAuth(url, init), []);
   const orderDetailsPanelRef = useRef<HTMLElement>(null);
   const previousOrderStatuses = useRef(new Map<string, string>());
   const branchName = franchiseUser?.branch?.name || franchiseUser?.franchise?.name || 'Current branch';
@@ -239,6 +245,12 @@ const FranchiseOrdersPage: React.FC = () => {
     <main className="admin-orders-page min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="mx-auto max-w-[1500px]">
         <PageHeader title="Orders" subtitle="Track this branch’s online and onsite orders. Statuses update as authorized kitchen and delivery roles process each order." />
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => setShowReplacementRequests((visible) => !visible)} className="min-h-10 rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-900">
+            {showReplacementRequests ? 'Hide replacement requests' : 'Replacement requests'}
+          </button>
+        </div>
+        {showReplacementRequests && <div className="mb-5"><ReplacementRequestsPanel endpoint={`${API_URL}/franchise/replacement-requests`} fetcher={replacementFetcher} onClose={() => setShowReplacementRequests(false)} /></div>}
 
         {cancellationNotice && <div role="status" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><span>{cancellationNotice}</span><button type="button" aria-label="Dismiss cancellation notice" onClick={() => setCancellationNotice('')} className="rounded-lg p-1 text-red-700 transition hover:bg-red-100"><X size={16} /></button></div>}
         {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="font-semibold underline">Retry</button></div>}
@@ -338,6 +350,7 @@ const FranchiseOrdersPage: React.FC = () => {
                     <Copy size={13} aria-hidden="true" />
                   </button>
                   <StatusBadge status={selectedOrder.status} />
+                  {selectedOrder.replacement_of_order_id && <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-900">REPLACEMENT · Original {selectedOrder.original_order_number || selectedOrder.replacement_of_order_id}</span>}
                 </div>
               </div>
               <button type="button" aria-label="Close order details" onClick={() => setSelectedOrder(null)} className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] transition hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]">
@@ -350,7 +363,7 @@ const FranchiseOrdersPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-5 text-sm">
                   <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Customer</p><p className="mt-1 font-medium">{getCustomerName(selectedOrder)}</p>{(selectedOrder.email || selectedOrder.user?.email) && <p className="break-all text-xs text-[var(--oppa-text-muted)]">{selectedOrder.email || selectedOrder.user?.email}</p>}</div>
                   <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">{getThirdPartyPlatformLabel(selectedOrder.third_party_platform) ? 'Source' : 'Channel'}</p><p className="mt-1 font-medium">{getThirdPartyPlatformLabel(selectedOrder.third_party_platform) || getChannel(selectedOrder)}</p></div>
-                  <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Payment Method</p><p className="mt-1 font-medium">{getThirdPartyPlatformLabel(selectedOrder.third_party_platform) ? `Paid via ${getThirdPartyPlatformLabel(selectedOrder.third_party_platform)}` : selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div>
+                  <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Payment Method</p><p className="mt-1 font-medium">{selectedOrder.replacement_of_order_id ? 'Replacement (no charge)' : getThirdPartyPlatformLabel(selectedOrder.third_party_platform) ? `Paid via ${getThirdPartyPlatformLabel(selectedOrder.third_party_platform)}` : selectedOrder.payment_method?.replaceAll('_', ' ') || '—'}</p></div>
                   {selectedOrder.third_party_platform && selectedOrder.external_order_ref && <div className="col-span-2"><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Platform order number</p><div className="mt-1 flex min-w-0 items-center gap-2"><span className="truncate font-mono font-semibold" title={selectedOrder.external_order_ref}>{selectedOrder.external_order_ref}</span><button type="button" onClick={() => copyExternalOrderRef(selectedOrder.external_order_ref || '', getThirdPartyPlatformLabel(selectedOrder.third_party_platform) || 'Platform')} aria-label="Copy platform order number" title={copiedOrderId === selectedOrder.external_order_ref ? 'Copied' : 'Copy platform order number'} className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] transition hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"><Copy size={14} aria-hidden="true" /></button></div></div>}
                   <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Status</p><div className="mt-1"><StatusBadge status={selectedOrder.status} /></div></div>
                   <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Delivery</p><p className="mt-1 font-medium capitalize">{(selectedOrder.delivery_type || 'standard').replaceAll('_', ' ')}</p></div>
@@ -390,6 +403,20 @@ const FranchiseOrdersPage: React.FC = () => {
                       <span className="shrink-0 font-semibold">{formatCurrency(itemTotal)}</span>
                     </div>;
                   })}<div className="flex justify-between border-t border-[var(--oppa-border)]/30 pt-2 font-bold"><span>Total</span><span>{formatCurrency(selectedOrder.total)}</span></div></div> : <p className="rounded-xl bg-[var(--oppa-cream)] p-3 text-sm text-[var(--oppa-text-muted)]">No item details provided.</p>}
+                  {selectedOrder.delivery_type?.toLowerCase() === 'onsite'
+                    && !selectedOrder.third_party_platform
+                    && !selectedOrder.replacement_of_order_id
+                    && <ReplaceOnsiteItemAction
+                      orderId={selectedOrder.id}
+                      items={detailItems.map((item) => ({
+                        id: item.id ?? '',
+                        product_name: item.product_name,
+                        name: item.name,
+                        quantity: item.quantity,
+                      }))}
+                      endpointPrefix="/franchise/orders"
+                      fetcher={replacementFetcher}
+                    />}
                 </div>
               </div>}
             </div>

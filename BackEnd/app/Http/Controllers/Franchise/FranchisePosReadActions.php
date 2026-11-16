@@ -159,7 +159,7 @@ trait FranchisePosReadActions
         $orders = Order::where('branch_id', $user->franchise_id)
                 ->where('cashier_employee_id', $user->id)
                 ->where('delivery_type', 'onsite')
-                ->with(['branch:id,name', 'orderItems.addons'])
+                ->with(['branch:id,name', 'orderItems.addons', 'originalOrder:id,order_number'])
                 ->orderByDesc('created_at')
                 ->limit(100)
                 ->get([
@@ -182,9 +182,14 @@ trait FranchisePosReadActions
                     'vat',
                     'special_instructions',
                     'include_cutlery',
+                    'third_party_platform',
+                    'replacement_of_order_id',
                     'created_at',
                 ]);
-        $orders->each(fn (Order $order) => $order->setAttribute('branch_name', $order->branch?->name));
+        $orders->each(function (Order $order): void {
+            $order->setAttribute('branch_name', $order->branch?->name);
+            $order->setAttribute('original_order_number', $order->originalOrder?->order_number);
+        });
 
         return response()->json(['data' => $orders]);
     }

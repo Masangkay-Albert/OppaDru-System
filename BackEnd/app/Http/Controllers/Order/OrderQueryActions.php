@@ -32,6 +32,7 @@ trait OrderQueryActions
             'third_party_platform', 'external_order_ref',
             'delivery_proof_image', 'delivery_proof_uploaded_at', 'delivery_confirmed_at',
             'discount_proof_image',
+            'replacement_of_order_id',
             'delivery_fee', 'delivery_distance_km', 'delivery_calculation_method', 'delivery_type', 'service_fee', 'priority_fee', 'service_fee_rule',
             'scheduled_at', 'scheduled_date', 'scheduled_time', 'schedule_display', 'schedule_window',
         ])
@@ -42,6 +43,8 @@ trait OrderQueryActions
             'branch:id,name,address,latitude,longitude',
             'franchise:id,name,address,latitude,longitude',
             'orderItems',
+            'replacementRequests.replacementOrder:id,order_number,status',
+            'originalOrder:id,order_number',
         ])
             ->orderBy('created_at', 'desc')
             ->get();
@@ -52,7 +55,7 @@ trait OrderQueryActions
     public function show(Request $request, $id)
     {
         $order = $this->customerOrders($request)
-            ->with(['user', 'branch', 'franchise', 'orderItems', 'driver:id,name,phone,vehicleType'])
+            ->with(['user', 'branch', 'franchise', 'orderItems', 'driver:id,name,phone,vehicleType', 'replacementRequests.replacementOrder:id,order_number,status', 'originalOrder:id,order_number'])
             ->findOrFail($id);
 
         return response()->json($this->orderDataService->formatOrder($order));
@@ -65,6 +68,8 @@ trait OrderQueryActions
                 'orderItems',
                 'branch:id,name,address,latitude,longitude',
                 'franchise:id,name,address,latitude,longitude',
+                'replacementRequests.replacementOrder:id,order_number,status',
+                'originalOrder:id,order_number',
             ])
             ->orderBy('created_at', 'desc')
             ->get();
@@ -79,6 +84,8 @@ trait OrderQueryActions
                 'orderItems',
                 'branch:id,name,address,latitude,longitude',
                 'franchise:id,name,address,latitude,longitude',
+                'replacementRequests.replacementOrder:id,order_number,status',
+                'originalOrder:id,order_number',
             ])
             ->find($id);
 

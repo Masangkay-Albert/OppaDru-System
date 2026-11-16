@@ -5,12 +5,16 @@ import { CheckCircle, X, Eye, Package, Copy, Globe2, ShoppingBag, Store, RotateC
 import AdminLayout from '../components/AdminLayout';
 import { AdminDate, Avatar, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
 import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
+import { fetchWithAdminAuth } from '../../../services/adminAuthService';
+import { API_URL } from '../../../services/apiConfig';
 import { formatCurrency } from '../../../utils/formatters';
 import { getScheduledOrderDetails } from '../../../utils/orderUtils';
 import Select from '../../../components/ui/Select';
 import type { SelectOption } from '../../../components/ui/Select';
 import OrdersFilterBar from '../../shared/components/OrdersFilterBar';
 import { getThirdPartyPlatformLabel, getThirdPartyReferencePrefix, type ThirdPartyPlatform } from '../../../constants/thirdPartyPlatforms';
+import ReplacementRequestsPanel from '../../shared/components/ReplacementRequestsPanel';
+import ReplaceOnsiteItemAction from '../../shared/components/ReplaceOnsiteItemAction';
 
 const statusOptionsBase = [
   { value: 'all', label: 'All', color: undefined },
@@ -63,6 +67,8 @@ const AdminOrdersPage: React.FC = () => {
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [sortBy, setSortBy] = useState<'date' | 'total'>('date');
   const [notice, setNotice] = useState('');
+  const [showReplacementRequests, setShowReplacementRequests] = useState(false);
+  const replacementFetcher = useCallback((url: string, init?: RequestInit) => fetchWithAdminAuth(url, init), []);
   const routeOrderId = useRef((location.state as { orderId?: string } | null)?.orderId);
   const previousOrderStatuses = useRef(new Map<string, string>());
 
@@ -334,6 +340,12 @@ const AdminOrdersPage: React.FC = () => {
       <div className="admin-orders-page">
       {notice && <Toast message={notice} tone={notice.startsWith('Could') || notice.startsWith('Copying') ? 'error' : 'success'} onDismiss={() => setNotice('')} />}
       <PageHeader title="Orders" subtitle="Track online and onsite orders in real time." />
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => setShowReplacementRequests((visible) => !visible)} className="min-h-10 rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-900">
+          {showReplacementRequests ? 'Hide replacement requests' : 'Replacement requests'}
+        </button>
+      </div>
+      {showReplacementRequests && <div className="mb-5"><ReplacementRequestsPanel endpoint={`${API_URL}/admin/replacement-requests`} fetcher={replacementFetcher} onClose={() => setShowReplacementRequests(false)} /></div>}
 
       <section className="admin-orders-controls">
         <OrdersFilterBar
@@ -549,6 +561,7 @@ const AdminOrdersPage: React.FC = () => {
                     <Copy size={15} aria-hidden="true" />
                   </button>
                   <StatusBadge status={statusLabels[selectedOrder.status] || selectedOrder.status} />
+                  {selectedOrder.replacement_of_order_id && <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-900">REPLACEMENT · Original {selectedOrder.originalOrderNumber || selectedOrder.replacement_of_order_id}</span>}
                 </div>
               </div>
               <button
@@ -579,7 +592,9 @@ const AdminOrdersPage: React.FC = () => {
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-[var(--oppa-text-muted)]">Payment Method</p>
                   <p className="mt-1 text-sm font-medium text-[var(--oppa-text)]">
-                    {getThirdPartyPlatformLabel(selectedOrder.third_party_platform)
+                    {selectedOrder.replacement_of_order_id
+                      ? 'Replacement (no charge)'
+                      : getThirdPartyPlatformLabel(selectedOrder.third_party_platform)
                       ? `Paid via ${getThirdPartyPlatformLabel(selectedOrder.third_party_platform)}`
                       : formatPaymentMethod(selectedOrder.paymentMethod || selectedOrder.payment_method)}
                   </p>
@@ -684,6 +699,20 @@ const AdminOrdersPage: React.FC = () => {
                     <p className="font-bold text-[var(--oppa-text)]">{formatCurrency(selectedOrder.total || 0)}</p>
                   </div>
                 </div>
+                {selectedOrder.channel === 'onsite'
+                  && !selectedOrder.third_party_platform
+                  && !selectedOrder.replacement_of_order_id
+                  && <ReplaceOnsiteItemAction
+                    orderId={selectedOrder.id}
+                    items={(selectedOrder.order_items || selectedOrder.orderItems || []).map((item) => ({
+                      id: item.id,
+                      product_name: item.product_name,
+                      quantity: item.quantity,
+                    }))}
+                    endpointPrefix="/orders"
+                    fetcher={replacementFetcher}
+                    onComplete={() => { void loadOrders(true, false); }}
+                  />}
               </div>
             </div>
           </div>

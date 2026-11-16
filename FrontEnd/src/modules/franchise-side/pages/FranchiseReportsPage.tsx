@@ -3,6 +3,7 @@ import { BarChart3, CalendarDays, CreditCard, FileText, Loader2, Shield, Shoppin
 import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithFranchiseAuth } from '../../../services/franchiseAuthService';
+import ReplacementReportLine from '../../shared/components/ReplacementReportLine';
 import { formatCurrency } from '../../../utils/formatters';
 import { generateFranchiseReportPdf } from '../../../utils/franchiseReportPdfGenerator';
 import { deleteFranchiseSalesTarget, updateFranchiseSalesTarget } from '../../../services/franchiseSalesTargetService';
@@ -42,6 +43,7 @@ interface BranchReportOrder {
   id: string;
   total: number | string;
   status: string;
+  replacement_of_order_id?: string | null;
   payment_status?: string | null;
   payment_method?: string | null;
   delivery_type?: string | null;
@@ -85,7 +87,7 @@ const isRevenueOrder = (order: BranchReportOrder): boolean => {
   const status = String(order.status || '').trim().toLowerCase();
   const paymentStatus = String(order.payment_status || '').trim().toLowerCase();
   const paymentMethod = String(order.payment_method || '').trim().toLowerCase();
-  if (['cancelled', 'failed'].includes(status) || ['failed', 'cancelled', 'expired'].includes(paymentStatus)) return false;
+  if (order.replacement_of_order_id || ['cancelled', 'failed'].includes(status) || ['failed', 'cancelled', 'expired'].includes(paymentStatus)) return false;
   return paymentStatus === 'paid'
     || (paymentMethod === 'cash_on_delivery' && status === 'delivered' && ['pending', 'unpaid', ''].includes(paymentStatus));
 };
@@ -437,6 +439,7 @@ const FranchiseReportsPage: React.FC = () => {
           )}
         />
 
+        <ReplacementReportLine endpoint={`${API_URL}/franchise/replacement-requests/report`} fetcher={fetchWithFranchiseAuth} from={from} to={to} />
         <ReportFilterCard className="mb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="franchise-report-periods flex min-w-0 gap-2 overflow-x-auto pb-1" aria-label="Quick date ranges">

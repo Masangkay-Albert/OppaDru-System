@@ -3,7 +3,8 @@ import { BarChart3, FileText, Globe2, Loader2, Shield, Store } from 'lucide-reac
 import AdminLayout from '../components/AdminLayout';
 import { getAllOrders, isRevenueOrder, type AdminOrder } from '../../../services/adminOrderService';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
-import { getCurrentAdmin } from '../../../services/adminAuthService';
+import { fetchWithAdminAuth, getCurrentAdmin } from '../../../services/adminAuthService';
+import { API_URL } from '../../../services/apiConfig';
 import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
 import { formatCurrency, formatPeso } from '../../../utils/formatters';
 import { formatInventoryQuantity } from '../../../utils/inventoryFormatters';
@@ -22,6 +23,7 @@ import {
   SalesTotalCard,
   TopProductCard,
 } from '../../shared/components/SalesReportCards';
+import ReplacementReportLine from '../../shared/components/ReplacementReportLine';
 
 type ReportRange = 'daily' | 'weekly' | 'monthly' | 'yearly';
 type QuickRange = 'custom' | 'today' | '7days' | '30days' | 'month' | 'year';
@@ -464,6 +466,7 @@ const AdminReportsPage: React.FC = () => {
         </div>
       } />
 
+      <ReplacementReportLine endpoint={`${API_URL}/admin/replacement-requests/report`} fetcher={fetchWithAdminAuth} />
       <ReportFilterCard className="mb-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2" aria-label="Quick date ranges">

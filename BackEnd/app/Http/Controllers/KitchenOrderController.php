@@ -37,7 +37,7 @@ class KitchenOrderController extends Controller
         }
 
         $pendingOrders = $this->ordersForBranch($this->branchIdForEmployee($employee))
-            ->with(['user', 'branch:id,name', 'franchise:id,name'])
+            ->with(['user', 'branch:id,name', 'franchise:id,name', 'originalOrder:id,order_number'])
             ->where('status', 'pending')
             ->where(function (Builder $query): void {
                 $this->whereCustomerCancellationWindowElapsed($query);
@@ -192,11 +192,12 @@ class KitchenOrderController extends Controller
     private function ordersForTab(?string $branchId, string $tab)
     {
         $query = $this->ordersForBranch($branchId)
-            ->with(['user', 'branch:id,name', 'franchise:id,name']);
+            ->with(['user', 'branch:id,name', 'franchise:id,name', 'originalOrder:id,order_number']);
 
         if ($tab === 'scheduled') {
             $pending = $query->where('status', 'pending')
                 ->where(fn (Builder $pendingQuery) => $this->whereCustomerCancellationWindowElapsed($pendingQuery))
+                ->orderByRaw('CASE WHEN replacement_of_order_id IS NOT NULL THEN 0 ELSE 1 END')
                 ->orderBy('created_at')
                 ->get();
 
@@ -206,6 +207,7 @@ class KitchenOrderController extends Controller
         if ($tab === 'pending') {
             $pending = $query->where('status', 'pending')
                 ->where(fn (Builder $pendingQuery) => $this->whereCustomerCancellationWindowElapsed($pendingQuery))
+                ->orderByRaw('CASE WHEN replacement_of_order_id IS NOT NULL THEN 0 ELSE 1 END')
                 ->orderBy('created_at')
                 ->get();
 
@@ -213,11 +215,14 @@ class KitchenOrderController extends Controller
         }
 
         if ($tab === 'preparing') {
-            return $query->where('status', 'preparing')->orderBy('created_at')->get();
+            return $query->where('status', 'preparing')
+                ->orderByRaw('CASE WHEN replacement_of_order_id IS NOT NULL THEN 0 ELSE 1 END')
+                ->orderBy('created_at')->get();
         }
 
         return $query
             ->whereIn('status', ['prepared', 'ready', 'delivered', 'completed', 'cancelled'])
+            ->orderByRaw('CASE WHEN replacement_of_order_id IS NOT NULL THEN 0 ELSE 1 END')
             ->orderByDesc('created_at')
             ->get();
     }
@@ -282,6 +287,9 @@ class KitchenOrderController extends Controller
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
+            'is_replacement' => (bool) $order->replacement_of_order_id,
+            'replacement_of_order_id' => $order->replacement_of_order_id,
+            'original_order_number' => $order->originalOrder?->order_number,
             'branch_name' => $order->branch?->name ?? $order->franchise?->name,
             'customerName' => $customerName,
             'phone' => $order->phone,

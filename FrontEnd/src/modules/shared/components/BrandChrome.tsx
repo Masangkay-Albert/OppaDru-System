@@ -133,6 +133,12 @@ export const BrandFooter: React.FC<BrandFooterProps> = ({ variant = 'customer' }
             <span className="brand-logo-copy"><strong>Oppa Dru</strong><span>Korean Fried Chicken</span></span>
           </Link>
           <p>Bold Korean-style flavors, crispy textures, and food prepared fresh for every order.</p>
+          {!isFranchise && (
+            <div className="mt-4">
+              <h2 className="text-sm font-bold">Quality &amp; Replacement Policy</h2>
+              <p>We don&apos;t offer returns or exchanges. We make sure our food is good quality. If something is wrong, tell us and we&apos;ll replace it right away, no need to return the food.</p>
+            </div>
+          )}
         </div>
 
         <div className="brand-footer-column">

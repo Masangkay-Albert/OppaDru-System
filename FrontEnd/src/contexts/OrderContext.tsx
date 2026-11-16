@@ -5,6 +5,7 @@ import { useAuth } from './Authcontext';
 import { orderService } from '../services/orderService';
 import { authService } from '../services/authService';
 import type { CreateOrderData, DeliveryInstructions } from '../services/orderService';
+import type { ReplacementOrderState } from '../services/replacementService';
 
 export interface Order {
   id: string;
@@ -60,6 +61,10 @@ export interface Order {
     vehicle_type?: string;
     vehicleType?: string;
   } | null;
+  replacementPolicy?: ReplacementOrderState;
+  replacementItems?: Array<{ id: number; name: string; quantity: number }>;
+  replacementOfOrderId?: string | null;
+  originalOrderNumber?: string | null;
 }
 
 interface OrderContextType {
@@ -234,6 +239,16 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         vehicle_type: apiOrder.driver.vehicle_type || apiOrder.driver.vehicleType || 'Motorcycle',
       } : null,
       scheduleWindow: apiOrder.schedule_window || null,
+      replacementPolicy: apiOrder.replacement_request || undefined,
+      replacementItems: Array.isArray(apiOrder.order_items)
+        ? apiOrder.order_items.map((item: { id: number; product_name?: string; quantity?: number }) => ({
+          id: Number(item.id),
+          name: item.product_name || 'Item',
+          quantity: Number(item.quantity || 1),
+        }))
+        : [],
+      replacementOfOrderId: apiOrder.replacement_of_order_id || null,
+      originalOrderNumber: apiOrder.original_order_number || null,
     };
   }, [userEmail, userId]);
 

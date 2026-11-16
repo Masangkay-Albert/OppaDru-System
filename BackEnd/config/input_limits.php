@@ -32,6 +32,10 @@ return [
     ],
     'short_description' => 120,
     'long_text' => 255,
+    'replacement_description' => [
+        'min' => 3,
+        'max' => 255,
+    ],
     'reason' => [
         'min' => 3,
         'max' => 200,

@@ -6,6 +6,7 @@ use App\Http\Controllers\CustomerPasswordRecoveryController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderReplacementController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminAuthController;
@@ -121,6 +122,10 @@ Route::prefix('franchise')->group(function () {
         // Franchise users can change branch availability/stock; product creation is branch-scoped.
         Route::patch('/products/{id}/toggle', [ProductController::class, 'franchiseToggleAvailability'])->middleware('franchise.role:owner,manager');
         Route::get('/orders', [FranchiseController::class, 'orders']);
+        Route::get('/replacement-requests', [OrderReplacementController::class, 'indexFranchise']);
+        Route::get('/replacement-requests/report', [OrderReplacementController::class, 'reportFranchise']);
+        Route::patch('/replacement-requests/{id}', [OrderReplacementController::class, 'reviewFranchise']);
+        Route::post('/orders/{orderId}/replace-onsite', [OrderReplacementController::class, 'replaceOnsiteFranchise']);
         Route::get('/orders/{id}', [FranchiseController::class, 'showOrder']);
         Route::post('/pos/orders', [FranchiseController::class, 'storePosOrder']);
         Route::get('/pos/orders', [FranchiseController::class, 'franchisePosOrders']);
@@ -141,11 +146,13 @@ Route::middleware(['employee.access:cashier'])->group(function () {
     Route::put('/employee/pos/draft', [FranchiseController::class, 'saveEmployeePosDraft']);
     Route::get('/employee/pos/addon-groups', [AddonController::class, 'index']);
     Route::post('/employee/pos/orders', [FranchiseController::class, 'storePosOrder']);
+    Route::post('/employee/pos/orders/{orderId}/replace-onsite', [OrderReplacementController::class, 'replaceOnsiteEmployee']);
     Route::post('/employee/pos/payments/gcash', [FranchiseController::class, 'createPosPayment']);
     Route::get('/cashier/popular-meals', [PopularMealsController::class, 'getMostPopularThisMonth']);
 });
 Route::middleware(['admin.access'])->group(function () {
     Route::get('/orders', [OrderController::class, 'index']);
+    Route::post('/orders/{orderId}/replace-onsite', [OrderReplacementController::class, 'replaceOnsiteAdmin']);
     Route::get('/orders/customers', [OrderController::class, 'getAllCustomers']);
     Route::get('/employees', [EmployeeController::class, 'index']);
     Route::post('/employees', [EmployeeController::class, 'store']);
@@ -220,6 +227,7 @@ Route::middleware(['auth:api', 'verified-user'])->group(function () {
     Route::put('/settings/pricing', [SettingController::class, 'update']);
 
     Route::post('/orders', [OrderController::class, 'store']);
+    Route::post('/orders/{orderId}/replacement-requests', [OrderReplacementController::class, 'storeCustomerRequest']);
     Route::put('/orders/{id}', [OrderController::class, 'update']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);
     Route::post('/orders/{id}/discount-verification', [DiscountVerificationController::class, 'store']);
@@ -248,6 +256,9 @@ Route::middleware('franchise.applicant.access')->group(function () {
 });
 
 Route::middleware(['admin.access'])->prefix('admin')->group(function () {
+    Route::get('/replacement-requests', [OrderReplacementController::class, 'indexAdmin']);
+    Route::get('/replacement-requests/report', [OrderReplacementController::class, 'reportAdmin']);
+    Route::patch('/replacement-requests/{id}', [OrderReplacementController::class, 'reviewAdmin']);
     Route::get('/inventory/suppliers', [MainBranchInventoryController::class, 'suppliers']);
     Route::post('/inventory/suppliers', [MainBranchInventoryController::class, 'storeSupplier']);
     Route::put('/inventory/suppliers/{supplier}', [MainBranchInventoryController::class, 'updateSupplier']);

@@ -9,6 +9,9 @@ export interface KitchenOrderItem {
 export interface KitchenOrder {
   id: string;
   order_number?: string;
+  is_replacement?: boolean;
+  original_order_number?: string | null;
+  replacement_of_order_id?: string | null;
   branch_name?: string | null;
   branchName?: string | null;
   customerName: string;

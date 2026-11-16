@@ -180,7 +180,10 @@ trait FranchiseDashboardActions
             return response()->json(['message' => 'Order not found for this franchise'], 404);
         }
 
-        return response()->json(['data' => $order->load(['user:id,full_name,email,phone', 'orderItems'])]);
+        $order->load(['user:id,full_name,email,phone', 'orderItems', 'originalOrder:id,order_number']);
+        $order->setAttribute('original_order_number', $order->originalOrder?->order_number);
+
+        return response()->json(['data' => $order]);
     }
 
 }

@@ -25,12 +25,13 @@ const getOnlineOrderStorageKeys = (): string[] => {
   return keys;
 };
 
-export const isRevenueOrder = (order: Pick<AdminOrder, 'status' | 'payment_status' | 'payment_method' | 'paymentMethod' | 'channel'>): boolean => {
+export const isRevenueOrder = (order: Pick<AdminOrder, 'status' | 'payment_status' | 'payment_method' | 'paymentMethod' | 'channel' | 'replacement_of_order_id' | 'replacementOfOrderId'>): boolean => {
   const status = String(order.status || '').trim().toLowerCase();
   const paymentStatus = String(order.payment_status || '').trim().toLowerCase();
   const paymentMethod = String(order.payment_method || order.paymentMethod || '').trim().toLowerCase();
 
-  if (['cancelled', 'failed'].includes(status) || ['failed', 'cancelled', 'expired'].includes(paymentStatus)) {
+  if (order.replacement_of_order_id || order.replacementOfOrderId
+    || ['cancelled', 'failed'].includes(status) || ['failed', 'cancelled', 'expired'].includes(paymentStatus)) {
     return false;
   }
 
@@ -73,6 +74,9 @@ export type AdminOrderItem = Partial<CartItem> & {
 
 export type AdminOrder = Omit<Order, 'timestamp' | 'items'> & {
   items: AdminOrderItem[];
+  order_items?: Array<AdminOrderItem & { id: number | string }>;
+  orderItems?: Array<AdminOrderItem & { id: number | string }>;
+  replacement_of_order_id?: string | null;
   channel: OrderChannel;
   third_party_platform?: ThirdPartyPlatform | null;
   external_order_ref?: string | null;

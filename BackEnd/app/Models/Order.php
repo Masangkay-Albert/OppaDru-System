@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use App\Models\OrderReplacementRequest;
+use App\Notifications\ReplacementStatusNotification;
+use Illuminate\Support\Facades\DB;
 
 class Order extends Model
 {
@@ -80,6 +83,7 @@ class Order extends Model
         'promo_id',
         'promo_code',
         'promo_discount',
+        'replacement_of_order_id',
     ];
 
     protected $casts = [
@@ -207,6 +211,43 @@ class Order extends Model
             if ($refundedStatus || $refundedPayment) {
                 app(\App\Services\InventoryService::class)->reverseOrder($model);
             }
+
+            if ($model->replacement_of_order_id && $model->wasChanged('status')) {
+                if (strtolower((string) $model->status) === 'cancelled') {
+                    app(\App\Services\InventoryService::class)->reverseOrder($model);
+                }
+                DB::afterCommit(function () use ($model): void {
+                    $replacementRequest = OrderReplacementRequest::query()
+                        ->with('order')
+                        ->where('replacement_order_id', $model->id)
+                        ->first();
+                    if (! $replacementRequest) {
+                        return;
+                    }
+
+                    $status = match (strtolower((string) $model->status)) {
+                        'on_the_way', 'arrived' => 'replacement_sent',
+                        'delivered', 'completed' => 'replaced',
+                        default => strtolower((string) $model->status),
+                    };
+                    if ($status === 'replacement_sent' && $replacementRequest->status === 'approved') {
+                        $replacementRequest->update([
+                            'status' => 'replacement_sent',
+                            'handled_at' => now(),
+                        ]);
+                    }
+
+                    $customer = $replacementRequest->customer
+                        ?? ($replacementRequest->order?->user)
+                        ?? ($replacementRequest->order?->email
+                            ? \App\Models\User::query()->where('email', $replacementRequest->order->email)->first()
+                            : null);
+                    $customer?->notify(new ReplacementStatusNotification(
+                        (string) ($replacementRequest->order?->order_number ?? $replacementRequest->order_id),
+                        $status,
+                    ));
+                });
+            }
         });
     }
 
@@ -214,6 +255,7 @@ class Order extends Model
     {
         return $query
             ->whereNotIn('status', ['cancelled', 'failed'])
+            ->whereNull('replacement_of_order_id')
             ->where(function (Builder $paymentQuery) {
                 $paymentQuery
                     ->where('payment_status', 'paid')
@@ -235,7 +277,7 @@ class Order extends Model
         $status = strtolower((string) $this->status);
         $paymentStatus = strtolower((string) ($this->payment_status ?? 'pending'));
 
-        if (in_array($status, ['cancelled', 'failed'], true) || in_array($paymentStatus, ['failed', 'cancelled', 'expired'], true)) {
+        if ($this->replacement_of_order_id || in_array($status, ['cancelled', 'failed'], true) || in_array($paymentStatus, ['failed', 'cancelled', 'expired'], true)) {
             return false;
         }
 
@@ -290,5 +332,20 @@ class Order extends Model
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class, 'order_id', 'id')->with('addons');
+    }
+
+    public function replacementRequests()
+    {
+        return $this->hasMany(OrderReplacementRequest::class, 'order_id', 'id');
+    }
+
+    public function originalOrder()
+    {
+        return $this->belongsTo(self::class, 'replacement_of_order_id', 'id');
+    }
+
+    public function replacementOrder()
+    {
+        return $this->hasOne(self::class, 'replacement_of_order_id', 'id');
     }
 }

@@ -39,6 +39,7 @@ class DriverOrderController extends Controller
             'user',
             'branch:id,name,address,latitude,longitude',
             'franchise:id,name,address,latitude,longitude',
+            'originalOrder:id,order_number',
         ]);
         DriverOrderScope::applyBranch($query, $branchId);
         DriverOrderScope::applyDeliveryEligibility($query);
@@ -69,6 +70,10 @@ class DriverOrderController extends Controller
             return [
                 'id' => $order->id,
                 'order_number' => $order->order_number,
+                'is_replacement' => (bool) $order->replacement_of_order_id,
+                'original_order_number' => $order->originalOrder?->order_number,
+                'payment_method' => $order->replacement_of_order_id ? 'replacement' : $order->payment_method,
+                'payment_message' => $order->replacement_of_order_id ? 'Replacement, no payment to collect' : null,
                 'driver_id' => $order->driver_id,
                 'customerName' => $customerName,
                 'status' => $order->status,
