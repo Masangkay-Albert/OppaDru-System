@@ -29,6 +29,15 @@ class OrderReplacementService
         return DB::transaction(function () use ($original, $affectedItems, $replacementRequest, $actor): Order {
             $original = Order::query()->lockForUpdate()->findOrFail($original->id);
             $branchId = $original->branch_id ?: $original->franchise_id;
+            if (! $branchId) {
+                abort(422, 'The original order is missing its branch. Please contact support.');
+            }
+            if (
+                strtolower((string) $original->delivery_type) !== 'onsite'
+                && ! $original->delivery_address
+            ) {
+                abort(422, 'The original delivery address is missing. Please contact support.');
+            }
             $orderItems = OrderItem::query()
                 ->with('addons')
                 ->where('order_id', $original->id)
@@ -118,6 +127,7 @@ class OrderReplacementService
                     'status' => 'approved',
                     'affected_items' => $storedAffectedItems,
                     'handled_by' => $actor ? (string) $actor->getAuthIdentifier() : null,
+                    'handled_by_name' => $this->actorName($actor),
                     'handled_at' => now(),
                     'replacement_order_id' => $replacement->id,
                 ]);
@@ -146,5 +156,21 @@ class OrderReplacementService
             'quantity' => (int) $item->quantity,
             'unit_price' => (float) $item->product_price,
         ])->values()->all();
+    }
+
+    private function actorName(?object $actor): ?string
+    {
+        if (! $actor) {
+            return null;
+        }
+
+        foreach (['full_name', 'fullName', 'name'] as $attribute) {
+            $name = $actor->{$attribute} ?? null;
+            if (is_string($name) && trim($name) !== '') {
+                return trim($name);
+            }
+        }
+
+        return null;
     }
 }

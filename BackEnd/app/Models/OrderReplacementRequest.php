@@ -19,6 +19,7 @@ class OrderReplacementRequest extends Model
         'status',
         'reject_reason',
         'handled_by',
+        'handled_by_name',
         'handled_at',
         'replacement_order_id',
     ];

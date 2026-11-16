@@ -96,15 +96,17 @@ const FranchiseOrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<BranchOrder | null>(null);
   const [copiedOrderId, setCopiedOrderId] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
-  const [showReplacementRequests, setShowReplacementRequests] = useState(false);
+  const [activeOrdersTab, setActiveOrdersTab] = useState<'orders' | 'replacements'>('orders');
+  const [replacementWaitingCount, setReplacementWaitingCount] = useState(0);
   const replacementFetcher = useCallback((url: string, init?: RequestInit) => fetchWithFranchiseAuth(url, init), []);
   const orderDetailsPanelRef = useRef<HTMLElement>(null);
   const previousOrderStatuses = useRef(new Map<string, string>());
   const branchName = franchiseUser?.branch?.name || franchiseUser?.franchise?.name || 'Current branch';
 
+  const selectedOrderId = selectedOrder?.id;
   useEffect(() => {
-    if (selectedOrder) orderDetailsPanelRef.current?.scrollTo({ top: 0 });
-  }, [selectedOrder?.id]);
+    if (selectedOrderId) orderDetailsPanelRef.current?.scrollTo({ top: 0 });
+  }, [selectedOrderId]);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -143,7 +145,29 @@ const FranchiseOrdersPage: React.FC = () => {
     }
   }, []);
 
+  const loadReplacementWaitingCount = useCallback(async () => {
+    try {
+      const response = await replacementFetcher(`${API_URL}/franchise/replacement-requests?status=pending`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Could not load replacement request count.');
+      setReplacementWaitingCount(Number(payload.waiting_count || 0));
+    } catch (countError) {
+      console.error('Could not load replacement request count:', countError);
+    }
+  }, [replacementFetcher]);
+
   useEffect(() => { void Promise.resolve().then(loadOrders); }, [loadOrders, reload]);
+  useEffect(() => {
+    const refresh = () => { void loadReplacementWaitingCount(); };
+    const initialLoad = window.setTimeout(refresh, 0);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('replacement-requests-updated', refresh);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('replacement-requests-updated', refresh);
+    };
+  }, [loadReplacementWaitingCount]);
   useEffect(() => {
     const interval = window.setInterval(() => { void loadOrders(); }, 15000);
     return () => window.clearInterval(interval);
@@ -161,6 +185,10 @@ const FranchiseOrdersPage: React.FC = () => {
       return true;
     });
   }, [orders, search, status, channel, date]);
+  const replacementOrderIds = useMemo(
+    () => new Set(orders.map((order) => order.replacement_of_order_id).filter((orderId): orderId is string => Boolean(orderId))),
+    [orders],
+  );
 
   const statusCount = (filter: StatusFilter) =>
     orders.filter((order) => filter === 'all' || order.status.toLowerCase() === filter).length;
@@ -245,13 +273,25 @@ const FranchiseOrdersPage: React.FC = () => {
     <main className="admin-orders-page min-h-screen bg-[var(--oppa-cream)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="mx-auto max-w-[1500px]">
         <PageHeader title="Orders" subtitle="Track this branch’s online and onsite orders. Statuses update as authorized kitchen and delivery roles process each order." />
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setShowReplacementRequests((visible) => !visible)} className="min-h-10 rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-900">
-            {showReplacementRequests ? 'Hide replacement requests' : 'Replacement requests'}
+        <div role="tablist" aria-label="Orders sections" className="mb-4 flex w-fit max-w-full gap-1 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-1">
+          <button type="button" role="tab" aria-selected={activeOrdersTab === 'orders'} onClick={() => setActiveOrdersTab('orders')} className={`min-h-11 rounded-lg px-4 text-sm font-semibold ${activeOrdersTab === 'orders' ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]'}`}>All orders</button>
+          <button type="button" role="tab" aria-selected={activeOrdersTab === 'replacements'} onClick={() => setActiveOrdersTab('replacements')} className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-semibold ${activeOrdersTab === 'replacements' ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]'}`}>
+            Replacements
+            {replacementWaitingCount > 0 && <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-bold ${activeOrdersTab === 'replacements' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900'}`}>{replacementWaitingCount > 99 ? '99+' : replacementWaitingCount}</span>}
           </button>
         </div>
-        {showReplacementRequests && <div className="mb-5"><ReplacementRequestsPanel endpoint={`${API_URL}/franchise/replacement-requests`} fetcher={replacementFetcher} onClose={() => setShowReplacementRequests(false)} /></div>}
 
+        {activeOrdersTab === 'replacements' ? <ReplacementRequestsPanel
+          endpoint={`${API_URL}/franchise/replacement-requests`}
+          fetcher={replacementFetcher}
+          onHandled={() => { setReload((value) => value + 1); void loadReplacementWaitingCount(); }}
+          onOpenOrder={(orderId) => {
+            setActiveOrdersTab('orders');
+            const order = orders.find((item) => item.id === orderId);
+            if (order) void viewOrder(order);
+            else setError('Could not find that order in this branch.');
+          }}
+        /> : <>
         {cancellationNotice && <div role="status" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><span>{cancellationNotice}</span><button type="button" aria-label="Dismiss cancellation notice" onClick={() => setCancellationNotice('')} className="rounded-lg p-1 text-red-700 transition hover:bg-red-100"><X size={16} /></button></div>}
         {error && <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="font-semibold underline">Retry</button></div>}
         <section className="admin-orders-controls">
@@ -306,7 +346,7 @@ const FranchiseOrdersPage: React.FC = () => {
                     const platformLabel = getThirdPartyPlatformLabel(order.third_party_platform);
                     const referencePrefix = getThirdPartyReferencePrefix(order.third_party_platform);
                     return <tr key={order.id} className="group border-b border-[var(--oppa-border)]/60 last:border-0 transition hover:bg-[var(--oppa-cream)]/50">
-                      <td className="min-w-0 px-3 py-3 font-mono text-xs font-semibold text-[var(--oppa-text)]"><span className="block truncate" title={orderId}>{orderId}</span>{platformLabel && order.external_order_ref && <span className="block max-w-36 truncate text-[10px] font-medium text-[var(--oppa-text-muted)]" title={`${referencePrefix}: ${order.external_order_ref}`}>{referencePrefix}: {order.external_order_ref}</span>}</td>
+                      <td className="min-w-0 px-3 py-3 font-mono text-xs font-semibold text-[var(--oppa-text)]"><span className="block truncate" title={orderId}>{orderId}</span>{order.replacement_of_order_id && <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 font-sans text-xs font-bold text-emerald-900">REPLACEMENT</span>}{replacementOrderIds.has(order.id) && <span className="mt-1 inline-flex rounded-full bg-blue-100 px-2 py-0.5 font-sans text-xs font-semibold text-blue-900">Replacement sent</span>}{platformLabel && order.external_order_ref && <span className="block max-w-36 truncate text-[10px] font-medium text-[var(--oppa-text-muted)]" title={`${referencePrefix}: ${order.external_order_ref}`}>{referencePrefix}: {order.external_order_ref}</span>}</td>
                       <td className="px-3 py-2.5"><div className="flex min-w-0 items-center gap-2"><span aria-hidden="true" className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">{customerName.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || '?'}</span><div className="min-w-0"><span className="block truncate font-medium text-[var(--oppa-text)]">{customerName}</span><span className="block truncate text-xs text-[var(--oppa-text-muted)]">{order.email || order.user?.email || ' '}</span></div></div></td>
                       <td className="px-3 py-3"><span className={`franchise-channel-badge ${orderChannel === 'onsite' ? 'franchise-channel-badge--onsite' : 'franchise-channel-badge--online'}`}>{platformLabel ? <><ShoppingBag size={12} aria-hidden="true" />{platformLabel}</> : <>{orderChannel === 'onsite' ? <Store size={12} aria-hidden="true" /> : <Globe2 size={12} aria-hidden="true" />}{orderChannel === 'onsite' ? 'Onsite' : 'Online'}</>}</span></td>
                       <td className="truncate px-3 py-3 text-[var(--oppa-text)]" title={branchName}>{branchName}</td>
@@ -322,6 +362,7 @@ const FranchiseOrdersPage: React.FC = () => {
             </div>
           </div>
         )}
+        </>}
       </div>
 
       {selectedOrder && typeof document !== 'undefined' && createPortal(
@@ -350,7 +391,7 @@ const FranchiseOrdersPage: React.FC = () => {
                     <Copy size={13} aria-hidden="true" />
                   </button>
                   <StatusBadge status={selectedOrder.status} />
-                  {selectedOrder.replacement_of_order_id && <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-900">REPLACEMENT · Original {selectedOrder.original_order_number || selectedOrder.replacement_of_order_id}</span>}
+                  {selectedOrder.replacement_of_order_id && <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-900">REPLACEMENT · Original {selectedOrder.original_order_number || selectedOrder.replacement_of_order_id}</span>}
                 </div>
               </div>
               <button type="button" aria-label="Close order details" onClick={() => setSelectedOrder(null)} className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--oppa-text-muted)] transition hover:bg-[var(--oppa-cream)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]">

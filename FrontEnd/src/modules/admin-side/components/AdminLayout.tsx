@@ -35,13 +35,13 @@ interface AdminNavItem {
   to: string;
   label: string;
   icon: LucideIcon;
-  badge?: 'inventory';
+  badge?: 'inventory' | 'replacements';
 }
 
 const navGroups: Array<{ title: string; items: AdminNavItem[] }> = [
   { title: 'Overview', items: [{ to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard }] },
   { title: 'Catalog', items: [{ to: '/admin/products', label: 'Products', icon: Package }, { to: '/admin/addons', label: 'Add-ons', icon: SlidersHorizontal }] },
-  { title: 'Sales & Marketing', items: [{ to: '/admin/orders', label: 'Orders', icon: ShoppingBag }, { to: '/admin/promos', label: 'Promos', icon: Tag }, { to: '/admin/discount-approvals', label: 'Discount Approvals', icon: BadgeCheck }, { to: '/admin/reports', label: 'Reports', icon: FileBarChart }] },
+  { title: 'Sales & Marketing', items: [{ to: '/admin/orders', label: 'Orders', icon: ShoppingBag, badge: 'replacements' }, { to: '/admin/promos', label: 'Promos', icon: Tag }, { to: '/admin/discount-approvals', label: 'Discount Approvals', icon: BadgeCheck }, { to: '/admin/reports', label: 'Reports', icon: FileBarChart }] },
   { title: 'Communication', items: [{ to: '/admin/announcements', label: 'Announcements', icon: Megaphone }] },
   { title: 'People', items: [{ to: '/admin/customers', label: 'Customers', icon: Users }, { to: '/admin/admins', label: 'Admins', icon: Users }, { to: '/admin/employees', label: 'Employees', icon: Briefcase }] },
   { title: 'Operations', items: [{ to: '/admin/inventory', label: 'Inventory', icon: Boxes, badge: 'inventory' }, { to: '/admin/franchises', label: 'Franchises', icon: Store }, { to: '/admin/franchise-applications', label: 'Franchise Apps', icon: BadgeCheck }, { to: '/admin/delivery', label: 'Delivery', icon: Car }] },
@@ -60,6 +60,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [menu, setMenu] = useState<'profile' | null>(null);
   const [dark, setDark] = useState(() => getSavedTheme() === 'dark');
   const [inventoryAttentionCount, setInventoryAttentionCount] = useState(0);
+  const [replacementWaitingCount, setReplacementWaitingCount] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const navRef = useRef<HTMLElement>(null);
 
@@ -93,6 +94,33 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       active = false;
       window.removeEventListener('inventory-updated', refreshOnFocus);
       window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [location.pathname]);
+
+  useEffect(() => {
+    let active = true;
+    const loadReplacementCount = async () => {
+      try {
+        if (!getStoredAdminToken()) {
+          if (active) setReplacementWaitingCount(0);
+          return;
+        }
+        const response = await fetchWithAdminAuth(`${API_URL}/admin/replacement-requests?status=pending`);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.message || 'Could not load replacement request count.');
+        if (active) setReplacementWaitingCount(Number(payload.waiting_count || 0));
+      } catch (error) {
+        console.error('Could not load admin replacement request count:', error);
+      }
+    };
+    const refresh = () => { void loadReplacementCount(); };
+    void loadReplacementCount();
+    window.addEventListener('focus', refresh);
+    window.addEventListener('replacement-requests-updated', refresh);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('replacement-requests-updated', refresh);
     };
   }, [location.pathname]);
 
@@ -150,6 +178,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     <Icon size={18} aria-hidden="true" />
                     <span className={collapsed ? 'md:sr-only' : ''}>{label}</span>
                     {badge === 'inventory' && inventoryAttentionCount > 0 && <span aria-label={`${inventoryAttentionCount} ingredients need restocking`} className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-300 px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-950">{inventoryAttentionCount > 99 ? '99+' : inventoryAttentionCount}</span>}
+                    {badge === 'replacements' && replacementWaitingCount > 0 && <span aria-label={`${replacementWaitingCount} replacement requests waiting`} className={`ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-300 px-1.5 py-0.5 text-xs font-bold leading-none text-amber-950 ${collapsed ? 'md:absolute md:-right-1 md:-top-1' : ''}`}>{replacementWaitingCount > 99 ? '99+' : replacementWaitingCount}</span>}
                     {collapsed && <span role="tooltip" className="pointer-events-none absolute left-[calc(100%+10px)] z-50 hidden whitespace-nowrap rounded-md bg-gray-950 px-2 py-1 text-xs text-white shadow-lg group-hover:block group-focus-visible:block">{label}</span>}
                   </NavLink>
                 ))}

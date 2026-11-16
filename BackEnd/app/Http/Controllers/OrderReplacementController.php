@@ -12,11 +12,16 @@ use App\Notifications\ReplacementStatusNotification;
 use App\Services\OrderReplacementService;
 use App\Support\OrderReplacementPolicy;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
+use Throwable;
 
 class OrderReplacementController extends Controller
 {
@@ -127,7 +132,7 @@ class OrderReplacementController extends Controller
             return [$replacementRequest, $order];
         });
 
-        $user->notify(new ReplacementStatusNotification($created[1]->order_number, 'pending'));
+        $this->notifyCustomer($created[0], 'pending');
 
         return response()->json([
             'message' => 'Sorry about that! We’ll send a replacement. You don’t need to return the food.',
@@ -178,20 +183,27 @@ class OrderReplacementController extends Controller
     {
         $query = OrderReplacementRequest::query()->with([
             'order.user:id,full_name,email',
-            'replacementOrder:id,order_number,status',
+            'replacementOrder:id,order_number,status,created_at',
         ]);
-        if ($request->query('status') === 'pending') {
+        $status = (string) $request->query('status', 'all');
+        if ($status === 'pending') {
             $query->where('status', 'pending');
-        } elseif ($request->query('status') === 'done') {
+        } elseif ($status === 'done') {
             $query->whereIn('status', ['approved', 'rejected', 'replacement_sent']);
         }
 
-        $requests = $query->latest()->get();
+        $requests = $query->orderBy('created_at', $status === 'pending' ? 'asc' : 'desc')->get();
+        $monthlyRequests = OrderReplacementRequest::query()
+            ->whereHas('replacementOrder', fn (Builder $replacementQuery) => $replacementQuery
+                ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()]))
+            ->with('replacementOrder:id,order_number,status,created_at')
+            ->get();
 
         return response()->json([
             'data' => $requests->map(fn (OrderReplacementRequest $item) => $this->formatRequest($item, true)),
             'waiting_count' => OrderReplacementRequest::query()->where('status', 'pending')->count(),
             'replacements' => $this->replacementStats(OrderReplacementRequest::query()->with('replacementOrder:id,status')->get()),
+            'monthly_replacements' => $this->replacementStats($monthlyRequests),
         ]);
     }
 
@@ -202,19 +214,26 @@ class OrderReplacementController extends Controller
             return response()->json(['message' => 'Branch access required.'], 403);
         }
 
+        $status = (string) $request->query('status', 'all');
         $query = $this->branchRequests((string) $user->franchise_id)->with([
             'order.user:id,full_name,email',
-            'replacementOrder:id,order_number,status',
+            'replacementOrder:id,order_number,status,created_at',
         ]);
-        $this->applyRequestFilter($query, (string) $request->query('status', 'all'));
-        $requests = $query->latest()->get();
+        $this->applyRequestFilter($query, $status);
+        $requests = $query->orderBy('created_at', $status === 'pending' ? 'asc' : 'desc')->get();
+        $monthlyRequests = $this->branchRequests((string) $user->franchise_id)
+            ->whereHas('replacementOrder', fn (Builder $replacementQuery) => $replacementQuery
+                ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()]))
+            ->with('replacementOrder:id,order_number,status,created_at')
+            ->get();
 
         return response()->json([
-            'data' => $requests->map(fn (OrderReplacementRequest $item) => $this->formatRequest($item, true)),
+            'data' => $requests->map(fn (OrderReplacementRequest $item) => $this->formatRequest($item, true, (string) $user->franchise_id)),
             'waiting_count' => $this->branchRequests((string) $user->franchise_id)->where('status', 'pending')->count(),
             'replacements' => $this->replacementStats(
                 $this->branchRequests((string) $user->franchise_id)->with('replacementOrder:id,status')->get(),
             ),
+            'monthly_replacements' => $this->replacementStats($monthlyRequests),
         ]);
     }
 
@@ -277,6 +296,15 @@ class OrderReplacementController extends Controller
 
     private function reviewRequest(Request $request, string $id, ?string $branchId)
     {
+        if (
+            ! Schema::hasColumn('orders', 'replacement_of_order_id')
+            || ! Schema::hasColumn('order_replacement_requests', 'handled_by_name')
+        ) {
+            return response()->json([
+                'message' => 'Replacement database updates are not applied. Please contact the system administrator.',
+            ], 503);
+        }
+
         $validated = $request->validate([
             'action' => ['required', 'string', Rule::in(['approve', 'reject'])],
             'reject_reason' => [
@@ -294,42 +322,66 @@ class OrderReplacementController extends Controller
             }
         }
 
-        [$replacementRequest, $replacement] = DB::transaction(function () use ($request, $id, $branchId, $validated) {
-            $query = OrderReplacementRequest::query()->with('order.orderItems.addons');
-            if ($branchId !== null) {
-                $query = $this->branchRequests($branchId)->with('order.orderItems.addons');
-            }
-            $replacementRequest = $query->lockForUpdate()->findOrFail($id);
-            if ($replacementRequest->status !== 'pending') {
-                abort(409, 'This replacement request has already been handled.');
-            }
+        try {
+            [$replacementRequest, $replacement] = DB::transaction(function () use ($request, $id, $branchId, $validated) {
+                $query = OrderReplacementRequest::query()->with('order.orderItems.addons');
+                if ($branchId !== null) {
+                    $query = $this->branchRequests($branchId)->with('order.orderItems.addons');
+                }
+                $replacementRequest = $query->lockForUpdate()->findOrFail($id);
+                if ($replacementRequest->status !== 'pending') {
+                    abort(409, 'This replacement request has already been handled.');
+                }
+                if (! $replacementRequest->order) {
+                    abort(422, 'The original order is no longer available. Please contact support.');
+                }
 
-            if ($validated['action'] === 'reject') {
-                $replacementRequest->update([
-                    'status' => 'rejected',
-                    'reject_reason' => $validated['reject_reason'],
-                    'handled_by' => (string) $request->user()->getAuthIdentifier(),
-                    'handled_at' => now(),
-                ]);
+                if ($validated['action'] === 'reject') {
+                    $replacementRequest->update([
+                        'status' => 'rejected',
+                        'reject_reason' => $validated['reject_reason'],
+                        'handled_by' => (string) $request->user()->getAuthIdentifier(),
+                        'handled_by_name' => $this->actorName($request->user()),
+                        'handled_at' => now(),
+                    ]);
 
-                return [$replacementRequest->fresh(), null];
-            }
+                    return [$replacementRequest->fresh(), null];
+                }
 
-            $affectedItems = collect($replacementRequest->affected_items)
-                ->map(fn (array $item) => [
-                    'order_item_id' => (int) $item['order_item_id'],
-                    'quantity' => (int) $item['quantity'],
-                ])
-                ->all();
-            $replacement = $this->replacementService->createReplacementOrder(
-                $replacementRequest->order,
-                $affectedItems,
-                $replacementRequest,
-                $request->user(),
-            );
+                $affectedItems = collect($replacementRequest->affected_items ?? [])
+                    ->map(function ($item): array {
+                        if (
+                            ! is_array($item)
+                            || ! filter_var($item['order_item_id'] ?? null, FILTER_VALIDATE_INT)
+                            || ! filter_var($item['quantity'] ?? null, FILTER_VALIDATE_INT)
+                            || (int) $item['quantity'] < 1
+                        ) {
+                            abort(422, 'The affected items are incomplete. Please contact support.');
+                        }
 
-            return [$replacementRequest->fresh(), $replacement];
-        });
+                        return [
+                            'order_item_id' => (int) $item['order_item_id'],
+                            'quantity' => (int) $item['quantity'],
+                        ];
+                    })
+                    ->all();
+                if ($affectedItems === []) {
+                    abort(422, 'The affected items are missing. Please contact support.');
+                }
+                $replacement = $this->replacementService->createReplacementOrder(
+                    $replacementRequest->order,
+                    $affectedItems,
+                    $replacementRequest,
+                    $request->user(),
+                );
+
+                return [$replacementRequest->fresh(), $replacement];
+            });
+        } catch (InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        } catch (ModelNotFoundException) {
+            return response()->json(['message' => 'Replacement request was not found.'], 404);
+        }
 
         if ($validated['action'] === 'reject') {
             $this->notifyCustomer($replacementRequest, 'rejected', $replacementRequest->reject_reason);
@@ -363,47 +415,51 @@ class OrderReplacementController extends Controller
         if (mb_strlen($validated['reason']) < (int) config('input_limits.reason.min')) {
             abort(422, 'A replacement reason must be at least 3 characters.');
         }
-        [$replacementRequest, $replacement] = DB::transaction(function () use ($request, $orderId, $branchId, $cashierId, $validated) {
-            $query = Order::query()->with('orderItems.addons');
-            if ($branchId !== null) {
-                $query->where(function (Builder $branchQuery) use ($branchId): void {
-                    $branchQuery->where('branch_id', $branchId)
-                        ->orWhere(fn (Builder $legacyQuery) => $legacyQuery->whereNull('branch_id')->where('franchise_id', $branchId));
-                });
-            }
-            if ($cashierId !== null) {
-                $query->where('cashier_employee_id', $cashierId);
-            }
-            $order = $query->lockForUpdate()->findOrFail($orderId);
-            if (
-                ($order->delivery_type !== 'onsite' && $order->delivery_calculation_method !== 'onsite')
-                || $order->third_party_platform
-            ) {
-                abort(422, 'Only Oppa Dru onsite orders can use this replacement action.');
-            }
+        try {
+            [$replacementRequest, $replacement] = DB::transaction(function () use ($request, $orderId, $branchId, $cashierId, $validated) {
+                $query = Order::query()->with('orderItems.addons');
+                if ($branchId !== null) {
+                    $query->where(function (Builder $branchQuery) use ($branchId): void {
+                        $branchQuery->where('branch_id', $branchId)
+                            ->orWhere(fn (Builder $legacyQuery) => $legacyQuery->whereNull('branch_id')->where('franchise_id', $branchId));
+                    });
+                }
+                if ($cashierId !== null) {
+                    $query->where('cashier_employee_id', $cashierId);
+                }
+                $order = $query->lockForUpdate()->findOrFail($orderId);
+                if (
+                    ($order->delivery_type !== 'onsite' && $order->delivery_calculation_method !== 'onsite')
+                    || $order->third_party_platform
+                ) {
+                    abort(422, 'Only Oppa Dru onsite orders can use this replacement action.');
+                }
 
-            $affectedItems = $this->replacementService->itemPayload($order, [(int) $validated['item_id']]);
-            $replacementRequest = OrderReplacementRequest::create([
-                'order_id' => $order->id,
-                'user_id' => $order->user_id,
-                'branch_id' => $order->branch_id,
-                'franchise_id' => $order->franchise_id,
-                'franchise_account_id' => $order->franchise_account_id,
-                'issue_type' => 'other',
-                'affected_items' => $affectedItems,
-                'description' => $validated['reason'],
-                'photo_paths' => [],
-                'status' => 'pending',
-            ]);
-            $replacement = $this->replacementService->createReplacementOrder(
-                $order,
-                $affectedItems,
-                $replacementRequest,
-                $request->user(),
-            );
+                $affectedItems = $this->replacementService->itemPayload($order, [(int) $validated['item_id']]);
+                $replacementRequest = OrderReplacementRequest::create([
+                    'order_id' => $order->id,
+                    'user_id' => $order->user_id,
+                    'branch_id' => $order->branch_id,
+                    'franchise_id' => $order->franchise_id,
+                    'franchise_account_id' => $order->franchise_account_id,
+                    'issue_type' => 'other',
+                    'affected_items' => $affectedItems,
+                    'description' => $validated['reason'],
+                    'photo_paths' => [],
+                    'status' => 'pending',
+                ]);
+                $replacement = $this->replacementService->createReplacementOrder(
+                    $order,
+                    $affectedItems,
+                    $replacementRequest,
+                    $request->user(),
+                );
 
-            return [$replacementRequest->fresh(), $replacement];
-        });
+                return [$replacementRequest->fresh(), $replacement];
+            });
+        } catch (InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
         $this->notifyCustomer($replacementRequest->fresh(), 'approved');
 
         return response()->json([
@@ -487,15 +543,39 @@ class OrderReplacementController extends Controller
                 ? User::query()->where('email', $replacementRequest->order->email)->first()
                 : null);
         if ($customer) {
-            $customer->notify(new ReplacementStatusNotification(
-                (string) ($replacementRequest->order?->order_number ?? $replacementRequest->order_id),
-                $status,
-                $reason,
-            ));
+            try {
+                $customer->notify(new ReplacementStatusNotification(
+                    (string) ($replacementRequest->order?->order_number ?? $replacementRequest->order_id),
+                    $status,
+                    $reason,
+                ));
+            } catch (Throwable $exception) {
+                Log::warning('Replacement request notification failed after the database change was committed.', [
+                    'replacement_request_id' => $replacementRequest->id,
+                    'status' => $status,
+                    'exception' => $exception->getMessage(),
+                ]);
+            }
         }
     }
 
-    private function formatRequest(OrderReplacementRequest $replacementRequest, bool $includeAdminFields = false): array
+    private function actorName(object $actor): ?string
+    {
+        foreach (['full_name', 'fullName', 'name'] as $attribute) {
+            $name = $actor->{$attribute} ?? null;
+            if (is_string($name) && trim($name) !== '') {
+                return trim($name);
+            }
+        }
+
+        return null;
+    }
+
+    private function formatRequest(
+        OrderReplacementRequest $replacementRequest,
+        bool $includeAdminFields = false,
+        ?string $scopeBranchId = null,
+    ): array
     {
         $replacementRequest->loadMissing(['order.user:id,full_name,email', 'replacementOrder:id,order_number,status']);
         $replacementOrder = $replacementRequest->replacementOrder;
@@ -527,17 +607,37 @@ class OrderReplacementController extends Controller
 
         if ($includeAdminFields) {
             $customer = $replacementRequest->order?->user;
+            $pastRequestsQuery = OrderReplacementRequest::query()
+                ->where('user_id', $replacementRequest->user_id)
+                ->where('id', '!=', $replacementRequest->id);
+            if ($scopeBranchId !== null) {
+                $pastRequestsQuery->where(function (Builder $query) use ($scopeBranchId): void {
+                    $query->where('branch_id', $scopeBranchId)
+                        ->orWhere(fn (Builder $legacyQuery) => $legacyQuery
+                            ->whereNull('branch_id')
+                            ->where('franchise_id', $scopeBranchId));
+                });
+            }
+            $deliveredAt = $replacementRequest->order?->delivery_confirmed_at;
+            if (! $deliveredAt) {
+                $deliveredEntry = collect($replacementRequest->order?->status_history ?? [])
+                    ->reverse()
+                    ->first(fn (array $entry) => strtolower((string) ($entry['status'] ?? '')) === 'delivered');
+                $deliveredAt = isset($deliveredEntry['created_at'])
+                    ? \Illuminate\Support\Carbon::parse($deliveredEntry['created_at'])
+                    : null;
+            }
             $data += [
                 'customer_name' => $customer?->full_name ?? $replacementRequest->order?->email ?? 'Walk-in customer',
-                'customer_email' => $replacementRequest->order?->email,
+                'customer_email' => $replacementRequest->order?->email ?? $customer?->email,
+                'customer_phone' => $replacementRequest->order?->phone,
                 'order_number' => $replacementRequest->order?->order_number,
+                'delivery_address' => $replacementRequest->order?->delivery_address,
+                'delivered_at' => $deliveredAt?->toISOString(),
+                'handled_by_name' => $replacementRequest->handled_by_name,
+                'handled_at' => $replacementRequest->handled_at?->toISOString(),
                 'branch_id' => $replacementRequest->branch_id ?: $replacementRequest->franchise_id,
-                'past_request_count' => $replacementRequest->user_id
-                    ? OrderReplacementRequest::query()
-                        ->where('user_id', $replacementRequest->user_id)
-                        ->where('id', '!=', $replacementRequest->id)
-                        ->count()
-                    : 0,
+                'past_request_count' => $replacementRequest->user_id ? $pastRequestsQuery->count() : 0,
             ];
         }
 

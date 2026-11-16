@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle, CalendarClock, CheckCircle, ChefHat, Clock3, Copy, PackageCheck, Phone,
   ShoppingBag, Truck, Utensils, X,
@@ -114,36 +114,6 @@ export const OrderItemsList = ({
   );
 };
 
-export const OrderTimeline = ({ order, now }: { order: KitchenOrder; now: number }) => {
-  const [expanded, setExpanded] = useState(false);
-  const timeline = [
-    { label: 'Placed', date: order.created_at, complete: true },
-    { label: 'Scheduled for', date: order.isScheduled ? order.scheduledFor : null, complete: Boolean(order.isScheduled && order.scheduledFor && new Date(order.scheduledFor).getTime() <= now) },
-    { label: 'Prep starts', date: order.isScheduled ? order.prepStartTime : null, complete: order.status !== 'pending' },
-    { label: 'Ready', date: null, complete: ['prepared', 'ready', 'delivered', 'completed'].includes(order.status) },
-    { label: 'Completed', date: null, complete: ['delivered', 'completed'].includes(order.status) },
-  ];
-
-  return (
-    <section className="rounded-xl border border-[var(--oppa-border)]">
-      <button type="button" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} className="flex min-h-11 w-full items-center justify-between px-4 text-left font-semibold">
-        Order timeline <span className="text-xs text-gray-500">{expanded ? 'Hide' : 'Show'}</span>
-      </button>
-      {expanded && (
-        <ol className="space-y-3 border-t border-gray-100 px-4 py-3">
-          {timeline.map((step) => (
-            <li key={step.label} className={`flex items-center gap-3 text-sm ${step.complete ? 'text-[var(--oppa-green)]' : 'text-gray-400'}`}>
-              {step.complete ? <CheckCircle size={16} /> : <span className="size-4 rounded-full border border-current" />}
-              <span className="font-medium">{step.label}</span>
-              {step.date && <time className="ml-auto text-xs">{formatKitchenManilaDateTime(step.date)}</time>}
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
-  );
-};
-
 const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, onReschedule, onCancel }: OrderDetailsModalProps) => {
   const { showToast } = useToast();
   const [now, setNow] = useState(() => Date.now());
@@ -154,14 +124,13 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
   const [rescheduling, setRescheduling] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'start-early' | 'cancel' | null>(null);
   const [newSchedule, setNewSchedule] = useState(order.scheduledFor ? toLocalDateTimeInput(order.scheduledFor) : '');
-  const [timelineId] = useState(() => `${order.id}-title`);
+  const [modalTitleId] = useState(() => `${order.id}-title`);
   const modalRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const isCancelled = ['cancelled', 'canceled'].includes(order.status);
   const prepIsOpen = !order.isScheduled || !order.prepStartTime || new Date(order.prepStartTime).getTime() <= now;
   const checkedItems = checklist.orderId === order.id ? checklist.checked : {};
   const allItemsChecked = order.items.length > 0 && order.items.every((_, index) => checkedItems[index]);
-  const timelineStatus = useMemo(() => order.status.replaceAll('_', ' '), [order.status]);
 
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -223,10 +192,10 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section ref={modalRef} role="dialog" aria-modal="true" aria-labelledby={timelineId} className="flex max-h-[92vh] w-full max-w-2xl animate-[fadeScale_180ms_ease-out] flex-col rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+      <section ref={modalRef} role="dialog" aria-modal="true" aria-labelledby={modalTitleId} className="flex max-h-[92vh] w-full max-w-2xl animate-[fadeScale_180ms_ease-out] flex-col rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
         <header className="sticky top-0 z-10 flex items-start gap-3 rounded-t-2xl border-b border-gray-100 bg-white px-5 py-4 sm:px-6">
           <div className="min-w-0 flex-1">
-            <h2 id={timelineId} className="font-serif text-xl font-bold text-[var(--oppa-text)]">Order Details</h2>
+            <h2 id={modalTitleId} className="font-serif text-xl font-bold text-[var(--oppa-text)]">Order Details</h2>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <p className="font-mono text-xs text-gray-500">{order.order_number || order.id}</p>
               <button type="button" onClick={() => void copyOrderId()} aria-label="Copy order ID" className="rounded p-1 text-gray-500 hover:bg-gray-100"><Copy size={14} /></button>
@@ -299,8 +268,6 @@ const OrderDetailsModal = ({ order, busy = false, onClose, onStart, onComplete, 
                 : `Mark all ${order.items.length} ${order.items.length === 1 ? 'item' : 'items'} complete before continuing (${Object.values(checkedItems).filter(Boolean).length}/${order.items.length}).`}
             </p>
           )}
-          <OrderTimeline order={order} now={now} />
-          <p className="sr-only" aria-live="polite">Current order status: {timelineStatus}</p>
         </div>
 
         <footer className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-gray-100 bg-white px-5 py-4 sm:px-6">

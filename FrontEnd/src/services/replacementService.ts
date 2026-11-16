@@ -27,6 +27,7 @@ export interface ReplacementRequestListItem {
   id: number;
   order_id: string;
   order_number?: string;
+  customer_phone?: string | null;
   customer_name: string;
   customer_email?: string;
   issue_type: ReplacementIssueType;
@@ -35,6 +36,12 @@ export interface ReplacementRequestListItem {
   photos: string[];
   status: string;
   reject_reason?: string | null;
+  handled_by_name?: string | null;
+  handled_at?: string | null;
+  delivery_address?: string | null;
+  delivered_at?: string | null;
+  created_at?: string | null;
+  replacement_order_id?: string | null;
   replacement_order_number?: string | null;
   past_request_count: number;
 }

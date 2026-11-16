@@ -67,7 +67,8 @@ const AdminOrdersPage: React.FC = () => {
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [sortBy, setSortBy] = useState<'date' | 'total'>('date');
   const [notice, setNotice] = useState('');
-  const [showReplacementRequests, setShowReplacementRequests] = useState(false);
+  const [activeOrdersTab, setActiveOrdersTab] = useState<'orders' | 'replacements'>('orders');
+  const [replacementWaitingCount, setReplacementWaitingCount] = useState(0);
   const replacementFetcher = useCallback((url: string, init?: RequestInit) => fetchWithAdminAuth(url, init), []);
   const routeOrderId = useRef((location.state as { orderId?: string } | null)?.orderId);
   const previousOrderStatuses = useRef(new Map<string, string>());
@@ -108,6 +109,29 @@ const AdminOrdersPage: React.FC = () => {
       if (showLoading) setLoading(false);
     }
   }, [location.pathname, navigate]);
+
+  const loadReplacementWaitingCount = useCallback(async () => {
+    try {
+      const response = await replacementFetcher(`${API_URL}/admin/replacement-requests?status=pending`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Could not load replacement request count.');
+      setReplacementWaitingCount(Number(payload.waiting_count || 0));
+    } catch (error) {
+      console.error('Could not load replacement request count:', error);
+    }
+  }, [replacementFetcher]);
+
+  useEffect(() => {
+    const refresh = () => { void loadReplacementWaitingCount(); };
+    const initialLoad = window.setTimeout(refresh, 0);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('replacement-requests-updated', refresh);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('replacement-requests-updated', refresh);
+    };
+  }, [loadReplacementWaitingCount]);
 
   useEffect(() => {
     const syncFiltersFromUrl = () => {
@@ -213,6 +237,10 @@ const AdminOrdersPage: React.FC = () => {
       return sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
     });
   }, [orders, channelFilter, statusFilter, dateFilter, sortOrder, searchTerm, sortBy]);
+  const replacementOrderIds = useMemo(
+    () => new Set(orders.map((order) => order.replacement_of_order_id).filter((orderId): orderId is string => Boolean(orderId))),
+    [orders],
+  );
 
   const statusCounts = (status: string) => orders.filter((order) => status === 'all' || String(order.status).toLowerCase() === status).length;
   const statusOptions: SelectOption<string>[] = statusOptionsBase.map((option) => ({
@@ -340,13 +368,25 @@ const AdminOrdersPage: React.FC = () => {
       <div className="admin-orders-page">
       {notice && <Toast message={notice} tone={notice.startsWith('Could') || notice.startsWith('Copying') ? 'error' : 'success'} onDismiss={() => setNotice('')} />}
       <PageHeader title="Orders" subtitle="Track online and onsite orders in real time." />
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => setShowReplacementRequests((visible) => !visible)} className="min-h-10 rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-900">
-          {showReplacementRequests ? 'Hide replacement requests' : 'Replacement requests'}
+      <div role="tablist" aria-label="Orders sections" className="mb-4 flex w-fit max-w-full gap-1 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-1">
+        <button type="button" role="tab" aria-selected={activeOrdersTab === 'orders'} onClick={() => setActiveOrdersTab('orders')} className={`min-h-11 rounded-lg px-4 text-sm font-semibold ${activeOrdersTab === 'orders' ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]'}`}>All orders</button>
+        <button type="button" role="tab" aria-selected={activeOrdersTab === 'replacements'} onClick={() => setActiveOrdersTab('replacements')} className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-semibold ${activeOrdersTab === 'replacements' ? 'bg-[var(--oppa-green)] text-white' : 'text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]'}`}>
+          Replacements
+          {replacementWaitingCount > 0 && <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-bold ${activeOrdersTab === 'replacements' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900'}`}>{replacementWaitingCount > 99 ? '99+' : replacementWaitingCount}</span>}
         </button>
       </div>
-      {showReplacementRequests && <div className="mb-5"><ReplacementRequestsPanel endpoint={`${API_URL}/admin/replacement-requests`} fetcher={replacementFetcher} onClose={() => setShowReplacementRequests(false)} /></div>}
 
+      {activeOrdersTab === 'replacements' ? <ReplacementRequestsPanel
+        endpoint={`${API_URL}/admin/replacement-requests`}
+        fetcher={replacementFetcher}
+        onHandled={() => { void loadOrders(true, false); void loadReplacementWaitingCount(); }}
+        onOpenOrder={(orderId) => {
+          setActiveOrdersTab('orders');
+          const order = orders.find((item) => item.id === orderId);
+          if (order) setSelectedOrder(order);
+          else setNotice('Could not find that order in the current order list.');
+        }}
+      /> : <>
       <section className="admin-orders-controls">
         <OrdersFilterBar
           search={searchTerm}
@@ -428,6 +468,8 @@ const AdminOrdersPage: React.FC = () => {
                     <td data-label="Order ID" className="order-id-cell" title={orderId}>
                       <span>{getCompactOrderId(orderId)}</span>
                       <button type="button" aria-label={`Copy order ID ${orderId}`} title={copiedOrderId === orderId ? 'Copied' : 'Copy order ID'} onClick={(event) => { event.stopPropagation(); copyOrderId(orderId); }} className="admin-order-copy"><Copy size={14} /></button>
+                      {order.replacement_of_order_id && <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-900">REPLACEMENT</span>}
+                      {replacementOrderIds.has(order.id) && <span className="mt-1 inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-900">Replacement sent</span>}
                       {platformLabel && order.external_order_ref && <span className="block max-w-full truncate text-[10px] font-medium text-[var(--oppa-text-muted)]" title={`${referencePrefix}: ${order.external_order_ref}`}>{referencePrefix}: {order.external_order_ref}</span>}
                     </td>
                     <td data-label="Customer" className="customer-cell">
@@ -498,7 +540,7 @@ const AdminOrdersPage: React.FC = () => {
               return (
                 <article key={order.id} className="admin-order-card">
                   <div className="admin-order-card-heading">
-                  <span className="min-w-0"><span className="admin-order-card-id" title={orderId}>{getCompactOrderId(orderId)}</span>{platformLabel && order.external_order_ref && <span className="block max-w-48 truncate text-[10px] font-medium text-[var(--oppa-text-muted)]" title={`${referencePrefix}: ${order.external_order_ref}`}>{referencePrefix}: {order.external_order_ref}</span>}</span>
+                  <span className="min-w-0"><span className="admin-order-card-id" title={orderId}>{getCompactOrderId(orderId)}</span>{order.replacement_of_order_id && <span className="mt-1 block w-fit rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-900">REPLACEMENT</span>}{replacementOrderIds.has(order.id) && <span className="mt-1 block w-fit rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-900">Replacement sent</span>}{platformLabel && order.external_order_ref && <span className="block max-w-48 truncate text-[10px] font-medium text-[var(--oppa-text-muted)]" title={`${referencePrefix}: ${order.external_order_ref}`}>{referencePrefix}: {order.external_order_ref}</span>}</span>
                     <span className="admin-order-status-group">
                     {platformLabel && <span className="admin-order-channel is-onsite"><ShoppingBag size={12} aria-hidden="true" />{platformLabel}</span>}
                       <StatusBadge status={statusLabels[order.status] || order.status} />
@@ -535,6 +577,7 @@ const AdminOrdersPage: React.FC = () => {
           </footer>
         </div>
       )}
+      </>}
 
       {selectedOrder && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] flex justify-end overflow-hidden bg-black/50" onClick={() => setSelectedOrder(null)}>

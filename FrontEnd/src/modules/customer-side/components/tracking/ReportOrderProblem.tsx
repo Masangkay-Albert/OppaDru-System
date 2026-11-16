@@ -84,9 +84,9 @@ const ReportOrderProblem: React.FC<ReportOrderProblemProps> = ({ orderId, items,
   };
 
   return (
-    <section className="mt-4 rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm sm:p-5">
-      <h2 className="font-serif text-lg font-bold text-[#1c3d2e]">Quality &amp; Replacement Policy</h2>
-      <p className="mt-2 text-sm leading-6 text-gray-600">
+    <section className="mt-4 rounded-2xl border border-white/80 bg-white p-4 shadow-lg">
+      <h3 className="mb-3 font-semibold text-gray-800">Quality &amp; Replacement Policy</h3>
+      <p className="text-sm leading-6 text-gray-600">
         We don&apos;t offer returns or exchanges. We make sure our food is good quality. If something is wrong, tell us and we&apos;ll replace it right away, no need to return the food.
       </p>
 

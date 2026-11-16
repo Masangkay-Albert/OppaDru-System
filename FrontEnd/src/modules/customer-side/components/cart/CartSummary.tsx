@@ -38,7 +38,7 @@ const CartSummary: React.FC<CartSummaryProps> = ({ subtotal, hasItems, useCutler
               role="switch"
               className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0"
             />
-            <span aria-hidden="true" className="menu-cutlery-switch pointer-events-none relative block h-7 w-[52px] rounded-full bg-[#cbd2cb] transition-colors peer-checked:bg-[#276343] after:absolute after:left-[3px] after:top-[3px] after:h-[18px] after:w-[18px] after:rounded-full after:bg-white after:shadow-[0_1px_3px_rgba(20,35,25,0.2)] after:transition-transform peer-checked:after:translate-x-[25px] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#276343]" />
+            <span aria-hidden="true" className="menu-cutlery-switch pointer-events-none" />
           </span>
         </label>
       </div>

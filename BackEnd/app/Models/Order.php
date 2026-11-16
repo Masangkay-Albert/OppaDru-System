@@ -9,6 +9,8 @@ use Illuminate\Support\Str;
 use App\Models\OrderReplacementRequest;
 use App\Notifications\ReplacementStatusNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class Order extends Model
 {
@@ -242,10 +244,21 @@ class Order extends Model
                         ?? ($replacementRequest->order?->email
                             ? \App\Models\User::query()->where('email', $replacementRequest->order->email)->first()
                             : null);
-                    $customer?->notify(new ReplacementStatusNotification(
-                        (string) ($replacementRequest->order?->order_number ?? $replacementRequest->order_id),
-                        $status,
-                    ));
+                    if ($customer) {
+                        try {
+                            $customer->notify(new ReplacementStatusNotification(
+                                (string) ($replacementRequest->order?->order_number ?? $replacementRequest->order_id),
+                                $status,
+                            ));
+                        } catch (Throwable $exception) {
+                            Log::warning('Replacement status notification failed after the order change was committed.', [
+                                'replacement_request_id' => $replacementRequest->id,
+                                'replacement_order_id' => $model->id,
+                                'status' => $status,
+                                'exception' => $exception->getMessage(),
+                            ]);
+                        }
+                    }
                 });
             }
         });

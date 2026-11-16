@@ -1,19 +1,39 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, RefreshCw, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+  Image as ImageIcon,
+  LoaderCircle,
+  Package,
+  Search,
+  X,
+} from 'lucide-react';
 import type { ReplacementRequestListItem, ReplacementStats } from '../../../services/replacementService';
+import { INPUT_LIMITS } from '../../../constants/inputLimits';
 import { formatCurrency } from '../../../utils/formatters';
 
 type RequestTab = 'pending' | 'done' | 'all';
+type ActionKind = 'approve' | 'reject';
+type ActionError = { message: string; detail?: string };
 type ReplacementResponse = {
   data?: ReplacementRequestListItem[];
   waiting_count?: number;
-  replacements?: ReplacementStats;
+  monthly_replacements?: ReplacementStats;
+};
+type ApiPayload = {
+  message?: string;
+  errors?: Record<string, unknown>;
+  replacement_order?: { order_number?: string };
 };
 
 interface ReplacementRequestsPanelProps {
   endpoint: string;
   fetcher: (input: string, init?: RequestInit) => Promise<Response>;
-  onClose: () => void;
+  onHandled: () => void;
+  onOpenOrder: (orderId: string) => void;
 }
 
 const issueLabels: Record<string, string> = {
@@ -33,184 +53,527 @@ const statusLabels: Record<string, string> = {
   rejected: 'Not approved',
 };
 
-const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({ endpoint, fetcher, onClose }) => {
+const readPayload = async (response: Response): Promise<ApiPayload> =>
+  response.json().catch(() => ({})) as Promise<ApiPayload>;
+
+const apiDetail = (payload: ApiPayload): string | undefined => {
+  const messages = Object.values(payload.errors || {}).flatMap((value) =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [],
+  );
+  return messages[0] || payload.message;
+};
+
+const relativeTime = (value?: string | null): string => {
+  if (!value) return 'Date unavailable';
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return 'Date unavailable';
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
+
+const fullDate = (value?: string | null): string => {
+  if (!value) return 'Date unavailable';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? 'Date unavailable'
+    : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+};
+
+const waitTone = (value?: string | null): string => {
+  const elapsed = value ? Date.now() - new Date(value).getTime() : 0;
+  if (elapsed >= 24 * 60 * 60 * 1000) return 'border-red-200 bg-red-50 text-red-800';
+  if (elapsed >= 6 * 60 * 60 * 1000) return 'border-amber-200 bg-amber-50 text-amber-900';
+  return 'border-[var(--oppa-border)] bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)]';
+};
+
+const itemSummary = (request: ReplacementRequestListItem): string => {
+  const first = request.affected_items[0];
+  if (!first) return 'Items unavailable';
+  const label = `${first.quantity}x ${first.name}`;
+  return request.affected_items.length > 1 ? `${label} +${request.affected_items.length - 1} more` : label;
+};
+
+const statusTone = (status: string): string => {
+  if (status === 'pending') return 'border-amber-200 bg-amber-50 text-amber-900';
+  if (status === 'rejected') return 'border-red-200 bg-red-50 text-red-800';
+  if (status === 'replaced') return 'border-emerald-200 bg-emerald-50 text-emerald-900';
+  return 'border-blue-200 bg-blue-50 text-blue-900';
+};
+
+const StatusIcon: React.FC<{ status: string }> = ({ status }) => {
+  if (status === 'pending') return <Clock3 size={14} aria-hidden="true" />;
+  if (status === 'rejected') return <AlertCircle size={14} aria-hidden="true" />;
+  if (status === 'replaced') return <CheckCircle2 size={14} aria-hidden="true" />;
+  return <Package size={14} aria-hidden="true" />;
+};
+
+const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
+  endpoint,
+  fetcher,
+  onHandled,
+  onOpenOrder,
+}) => {
   const [tab, setTab] = useState<RequestTab>('pending');
+  const [issueFilter, setIssueFilter] = useState('all');
+  const [search, setSearch] = useState('');
   const [requests, setRequests] = useState<ReplacementRequestListItem[]>([]);
   const [waitingCount, setWaitingCount] = useState(0);
-  const [stats, setStats] = useState<ReplacementStats | null>(null);
+  const [monthlyStats, setMonthlyStats] = useState<ReplacementStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<number | null>(null);
-  const [rejecting, setRejecting] = useState<ReplacementRequestListItem | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [selected, setSelected] = useState<ReplacementRequestListItem | null>(null);
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [rejectMode, setRejectMode] = useState(false);
   const [reason, setReason] = useState('');
-  const [error, setError] = useState('');
-  const [zoomPhoto, setZoomPhoto] = useState<string | null>(null);
-
-  const fetchRequests = useCallback(async () => {
-    const response = await fetcher(`${endpoint}?status=${tab}`);
-    const payload = await response.json() as ReplacementResponse & { message?: string };
-    if (!response.ok) throw new Error(payload.message || 'Could not load replacement requests.');
-    return payload;
-  }, [endpoint, fetcher, tab]);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<ActionError | null>(null);
+  const [toast, setToast] = useState('');
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [zoomed, setZoomed] = useState(false);
+  const focusRequestId = useRef<number | null>(null);
+  const busyRef = useRef(false);
+  const retryAction = useRef<{ request: ReplacementRequestListItem; action: ActionKind; reason?: string } | null>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const lightboxRef = useRef<HTMLDivElement>(null);
+  const photoTrigger = useRef<HTMLElement | null>(null);
 
   const loadRequests = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setLoadError('');
     try {
-      const payload = await fetchRequests();
-      setRequests(Array.isArray(payload.data) ? payload.data : []);
-      setWaitingCount(Number(payload.waiting_count || 0));
-      setStats(payload.replacements || null);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Could not load replacement requests.');
+      const response = await fetcher(`${endpoint}?status=${tab}`);
+      const payload = await readPayload(response);
+      if (!response.ok) {
+        throw new Error(response.status >= 500 ? 'Could not load replacement requests. Please try again.' : payload.message || 'Could not load replacement requests.');
+      }
+      const data = payload as ReplacementResponse;
+      setRequests(Array.isArray(data.data) ? data.data : []);
+      setWaitingCount(Number(data.waiting_count || 0));
+      setMonthlyStats(data.monthly_replacements || null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Could not load replacement requests.');
     } finally {
       setLoading(false);
     }
-  }, [fetchRequests]);
+  }, [endpoint, fetcher, tab]);
 
   useEffect(() => {
-    let active = true;
-    fetchRequests()
-      .then((payload) => {
-        if (!active) return;
-        setRequests(Array.isArray(payload.data) ? payload.data : []);
-        setWaitingCount(Number(payload.waiting_count || 0));
-        setStats(payload.replacements || null);
-        setError('');
-      })
-      .catch((loadError: unknown) => {
-        if (active) setError(loadError instanceof Error ? loadError.message : 'Could not load replacement requests.');
-      })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [fetchRequests]);
+    void Promise.resolve().then(loadRequests);
+  }, [loadRequests]);
 
-  const action = async (item: ReplacementRequestListItem, nextAction: 'approve' | 'reject', rejectReason?: string) => {
-    setBusyId(item.id);
-    setError('');
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timeout = window.setTimeout(() => setToast(''), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
+  useEffect(() => {
+    if (selected) {
+      const drawer = drawerRef.current;
+      const focusable = drawer?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      focusable?.[0]?.focus();
+      return;
+    }
+    if (loading || focusRequestId.current === null) return;
+    const request = requests.find((item) => item.id === focusRequestId.current);
+    if (tab === 'done' && request?.status === 'pending') return;
+    const target = document.querySelector<HTMLElement>(`[data-replacement-request-id="${focusRequestId.current}"]`);
+    target?.focus();
+    if (target) focusRequestId.current = null;
+  }, [loading, requests, selected, tab]);
+
+  useEffect(() => {
+    if (lightboxIndex !== null) lightboxRef.current?.focus();
+    else photoTrigger.current?.focus();
+  }, [lightboxIndex]);
+
+  const visibleRequests = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    return requests.filter((request) => {
+      const requestText = `${request.order_number || request.order_id} ${request.customer_name} ${request.customer_email || ''}`.toLowerCase();
+      return (issueFilter === 'all' || request.issue_type === issueFilter)
+        && (!normalizedSearch || requestText.includes(normalizedSearch));
+    });
+  }, [issueFilter, requests, search]);
+
+  const openRequest = (request: ReplacementRequestListItem, trigger: HTMLElement) => {
+    focusRequestId.current = request.id;
+    trigger.focus();
+    setSelected(request);
+    setActionError(null);
+    setRejectMode(false);
+    setReason('');
+  };
+
+  const closeDrawer = () => {
+    if (busy) return;
+    setSelected(null);
+    setConfirmSend(false);
+    setRejectMode(false);
+    setActionError(null);
+  };
+
+  const performAction = async (request: ReplacementRequestListItem, action: ActionKind, rejectReason?: string) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setActionError(null);
+    retryAction.current = { request, action, reason: rejectReason };
     try {
-      const response = await fetcher(`${endpoint}/${item.id}`, {
+      const response = await fetcher(`${endpoint}/${request.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          action: nextAction,
+          action,
           ...(rejectReason ? { reject_reason: rejectReason } : {}),
         }),
       });
-      const payload = await response.json() as { message?: string };
-      if (!response.ok) throw new Error(payload.message || 'The replacement request could not be updated.');
-      setRejecting(null);
+      const payload = await readPayload(response);
+      if (!response.ok) {
+        const detail = response.status === 409 || response.status === 422 ? apiDetail(payload) : undefined;
+        throw {
+          message: action === 'approve'
+            ? 'We couldn’t send the replacement. Please try again.'
+            : 'We couldn’t update this request. Please try again.',
+          detail,
+        };
+      }
+
+      const orderNumber = payload.replacement_order?.order_number;
+      focusRequestId.current = request.id;
+      setToast(action === 'approve' && orderNumber
+        ? `Replacement order ${orderNumber} created.`
+        : 'Request updated.');
+      setSelected(null);
+      setConfirmSend(false);
+      setRejectMode(false);
       setReason('');
-      await loadRequests();
-    } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'The replacement request could not be updated.');
+      setTab('done');
+      window.dispatchEvent(new Event('replacement-requests-updated'));
+      onHandled();
+    } catch (error) {
+      setActionError(!(error instanceof Error) && typeof error === 'object' && error !== null
+        && 'message' in error && typeof error.message === 'string' && 'detail' in error
+        ? error as ActionError
+        : { message: action === 'approve' ? 'We couldn’t send the replacement. Please try again.' : 'We couldn’t update this request. Please try again.' });
     } finally {
-      setBusyId(null);
+      busyRef.current = false;
+      setBusy(false);
     }
   };
 
-  const tabCounts = useMemo(() => ({
-    pending: requests.filter((request) => request.status === 'pending').length,
-    done: requests.filter((request) => request.status !== 'pending').length,
-  }), [requests]);
+  const retry = () => {
+    const action = retryAction.current;
+    if (action) void performAction(action.request, action.action, action.reason);
+  };
+
+  const tabLabels: Array<{ value: RequestTab; label: string }> = [
+    { value: 'pending', label: 'Waiting' },
+    { value: 'done', label: 'Done' },
+    { value: 'all', label: 'All' },
+  ];
 
   return (
-    <section className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4 shadow-sm sm:p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-serif text-xl font-bold text-[var(--oppa-text)]">Replacement requests</h2>
-          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Review quality issues and arrange no-charge replacements.</p>
-        </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => void loadRequests()} aria-label="Refresh replacement requests" className="grid size-10 place-items-center rounded-lg border border-[var(--oppa-border)]"><RefreshCw size={16} /></button>
-          <button type="button" onClick={onClose} className="grid size-10 place-items-center rounded-lg border border-[var(--oppa-border)]" aria-label="Close replacement requests"><X size={17} /></button>
-        </div>
-      </header>
-
-      {stats && (
-        <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
-          <p className="text-sm font-bold text-emerald-900">Replacements · {stats.count} · {stats.item_count} items · {formatCurrency(stats.cost)}</p>
-          {Object.keys(stats.by_issue_type).length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {Object.entries(stats.by_issue_type).map(([issue, value]) => (
-                <span key={issue} className="rounded-full bg-white px-3 py-1 text-xs text-emerald-900">
-                  {issueLabels[issue] || issue.replaceAll('_', ' ')}: {value.count} · {formatCurrency(value.cost)}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div role="tablist" aria-label="Replacement request status" className="mt-4 flex flex-wrap gap-2 border-b border-[var(--oppa-border)] pb-3">
-        {([
-          ['pending', 'Waiting'],
-          ['done', 'Done'],
-          ['all', 'All'],
-        ] as Array<[RequestTab, string]>).map(([value, label]) => (
-          <button key={value} type="button" role="tab" aria-selected={tab === value} onClick={() => { setTab(value); setLoading(true); }} className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${tab === value ? 'bg-[var(--oppa-green)] text-white' : 'border border-[var(--oppa-border)] text-[var(--oppa-text)]'}`}>
-            {label}{value === 'pending' && <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs">{waitingCount || tabCounts.pending}</span>}
-          </button>
-        ))}
+    <section className="replacement-request-ui space-y-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatCard label="Waiting" value={String(waitingCount)} helper="Needs review" />
+        <StatCard label="Replaced this month" value={String(monthlyStats?.count || 0)} helper="Replacement orders sent" />
+        <StatCard
+          label="Cost this month"
+          value={formatCurrency(monthlyStats?.cost || 0)}
+          helper={`${monthlyStats?.item_count || 0} items replaced`}
+        />
       </div>
 
-      {error && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-      {loading ? <p className="py-8 text-center text-sm text-[var(--oppa-text-muted)]">Loading requests…</p>
-        : requests.length === 0 ? <p className="py-8 text-center text-sm text-[var(--oppa-text-muted)]">No replacement requests in this tab.</p>
-          : <div className="mt-4 space-y-3">
-            {requests.map((item) => (
-              <article key={item.id} className="rounded-xl border border-[var(--oppa-border)] p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-bold text-[var(--oppa-text)]">{item.order_number || item.order_id}</p>
-                    <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">{item.customer_name} · {item.customer_email || 'No email'}</p>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-bold ${item.status === 'pending' ? 'bg-amber-100 text-amber-900' : item.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-900'}`}>
-                    {statusLabels[item.status] || item.status}
-                  </span>
-                </div>
-                <p className="mt-3 text-sm"><strong>Issue:</strong> {issueLabels[item.issue_type] || item.issue_type}</p>
-                <p className="mt-1 text-sm"><strong>Items:</strong> {item.affected_items.map((affected) => `${affected.quantity}x ${affected.name}`).join(', ')}</p>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--oppa-text-muted)]">{item.description}</p>
-                <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">Admin note: {item.past_request_count} previous request{item.past_request_count === 1 ? '' : 's'}.</p>
-                {item.photos.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {item.photos.map((photo) => <button key={photo} type="button" onClick={() => setZoomPhoto(photo)} className="relative size-16 overflow-hidden rounded-lg border border-[var(--oppa-border)]" aria-label="Enlarge customer photo"><img src={photo} alt="Customer-provided issue" className="size-full object-cover" /><Image size={14} className="absolute bottom-1 right-1 rounded bg-white p-0.5 text-gray-700" /></button>)}
-                  </div>
-                )}
-                {item.reject_reason && <p className="mt-2 text-sm text-red-700"><strong>Reason:</strong> {item.reject_reason}</p>}
-                {item.status === 'pending' && (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button type="button" disabled={busyId === item.id} onClick={() => void action(item, 'approve')} className="min-h-10 rounded-lg bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white disabled:opacity-50">Send replacement</button>
-                    <button type="button" disabled={busyId === item.id} onClick={() => { setRejecting(item); setReason(''); }} className="min-h-10 rounded-lg border border-red-200 px-4 text-sm font-semibold text-red-700 disabled:opacity-50">Not approved</button>
-                  </div>
-                )}
-              </article>
-            ))}
-          </div>}
+      <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-sm">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--oppa-border)] p-4 sm:px-5">
+          <div>
+            <h2 className="text-lg font-bold text-[var(--oppa-text)]">Replacement requests</h2>
+            <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Review a report and arrange a no-charge replacement.</p>
+          </div>
+        </header>
 
-      {rejecting && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
-          <form onSubmit={(event) => { event.preventDefault(); void action(rejecting, 'reject', reason.trim()); }} className="w-full max-w-md rounded-2xl bg-[var(--oppa-surface)] p-5 shadow-xl">
-            <h3 className="text-lg font-bold text-[var(--oppa-text)]">Not approved</h3>
-            <label className="mt-3 block text-sm font-medium">Reason (3–200 characters)
-              <textarea value={reason} onChange={(event) => setReason(event.target.value.slice(0, 200))} minLength={3} maxLength={200} required rows={3} className="mt-1 w-full rounded-lg border border-[var(--oppa-border)] bg-transparent p-3" />
+        <div className="flex flex-col gap-3 border-b border-[var(--oppa-border)] p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div role="tablist" aria-label="Replacement request status" className="flex gap-1 overflow-x-auto rounded-xl bg-[var(--oppa-cream)] p-1">
+            {tabLabels.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={tab === value}
+                onClick={() => setTab(value)}
+                className={`min-h-10 shrink-0 rounded-lg px-3 text-sm font-semibold transition ${tab === value ? 'bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'}`}
+              >
+                {label}
+                {value === 'pending' && waitingCount > 0 && <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-900">{waitingCount > 99 ? '99+' : waitingCount}</span>}
+              </button>
+            ))}
+          </div>
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+            <label className="relative min-w-0 sm:w-64">
+              <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--oppa-text-muted)]" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Order ID or customer" aria-label="Search order ID or customer" className="min-h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] pl-9 pr-3 text-sm text-[var(--oppa-text)] placeholder:text-[var(--oppa-text-muted)]" />
             </label>
-            <p className="mt-1 text-right text-xs text-[var(--oppa-text-muted)]">{reason.length}/200</p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" onClick={() => setRejecting(null)} className="min-h-10 rounded-lg border border-[var(--oppa-border)] px-4">Cancel</button>
-              <button type="submit" disabled={busyId === rejecting.id || reason.trim().length < 3} className="min-h-10 rounded-lg bg-red-700 px-4 font-semibold text-white disabled:opacity-50">Confirm</button>
+            <select value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)} aria-label="Filter by issue type" className="min-h-10 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]">
+              <option value="all">All issue types</option>
+              {Object.entries(issueLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {loadError && <div role="alert" className="m-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <span>{loadError}</span>
+          <button type="button" onClick={() => void loadRequests()} className="font-semibold underline">Try again</button>
+        </div>}
+
+        {loading ? (
+          <div role="status" className="p-10 text-center text-sm text-[var(--oppa-text-muted)]"><LoaderCircle size={20} className="mx-auto mb-2 animate-spin" />Loading requests…</div>
+        ) : visibleRequests.length === 0 ? (
+          <p className="p-10 text-center text-sm text-[var(--oppa-text-muted)]">{tab === 'pending' ? 'No requests waiting. You’re all caught up.' : 'No replacement requests found.'}</p>
+        ) : (
+          <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[850px] text-left text-sm">
+                <thead className="bg-[var(--oppa-cream)] text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">
+                  <tr><th className="px-4 py-3">Order ID</th><th className="px-4 py-3">Customer</th><th className="px-4 py-3">Issue</th><th className="px-4 py-3">Items</th><th className="px-4 py-3">Submitted</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right"> </th></tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--oppa-border)]">
+                  {visibleRequests.map((request) => (
+                    <tr key={request.id} className="hover:bg-[var(--oppa-cream)]/50">
+                      <td className="max-w-40 truncate px-4 py-3 font-mono text-xs font-semibold text-[var(--oppa-text)]" title={request.order_number || request.order_id}>{request.order_number || request.order_id}</td>
+                      <td className="max-w-48 px-4 py-3">
+                        <span className="block truncate font-medium text-[var(--oppa-text)]" title={request.customer_name}>{request.customer_name}</span>
+                        <span className="block truncate text-xs text-[var(--oppa-text-muted)]" title={request.customer_email || ''}>{request.customer_email || 'No email'}</span>
+                      </td>
+                      <td className="px-4 py-3"><IssueChip issue={request.issue_type} /></td>
+                      <td className="max-w-52 truncate px-4 py-3 text-[var(--oppa-text-muted)]" title={request.affected_items.map((item) => `${item.quantity}x ${item.name}`).join(', ')}>{itemSummary(request)}</td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <span title={fullDate(request.created_at)} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${request.status === 'pending' ? waitTone(request.created_at) : 'border-transparent text-[var(--oppa-text-muted)]'}`}>
+                          {request.status === 'pending' && <Clock3 size={13} aria-hidden="true" />}
+                          {request.status === 'pending' ? `Waiting ${relativeTime(request.created_at).replace(' ago', '')}` : relativeTime(request.created_at)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3"><StatusPill status={request.status} /></td>
+                      <td className="px-4 py-3 text-right">
+                        <button type="button" data-replacement-request-id={request.id} onClick={(event) => openRequest(request, event.currentTarget)} className="min-h-10 rounded-lg border border-[var(--oppa-border)] px-3 text-sm font-semibold text-[var(--oppa-text)] hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]">Review</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </form>
+            <div className="divide-y divide-[var(--oppa-border)] md:hidden">
+              {visibleRequests.map((request) => (
+                <article key={request.id} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0"><p className="truncate font-mono text-sm font-bold text-[var(--oppa-text)]" title={request.order_number || request.order_id}>{request.order_number || request.order_id}</p><p className="mt-1 truncate text-sm text-[var(--oppa-text-muted)]" title={request.customer_name}>{request.customer_name}</p></div>
+                    <StatusPill status={request.status} />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2"><IssueChip issue={request.issue_type} /><span title={fullDate(request.created_at)} className={`rounded-full border px-2.5 py-1 text-xs ${request.status === 'pending' ? waitTone(request.created_at) : 'border-[var(--oppa-border)] text-[var(--oppa-text-muted)]'}`}>{request.status === 'pending' ? `Waiting ${relativeTime(request.created_at).replace(' ago', '')}` : relativeTime(request.created_at)}</span></div>
+                  <p className="truncate text-sm text-[var(--oppa-text-muted)]">{itemSummary(request)}</p>
+                  <button type="button" data-replacement-request-id={request.id} onClick={(event) => openRequest(request, event.currentTarget)} className="min-h-10 w-full rounded-lg border border-[var(--oppa-border)] px-3 text-sm font-semibold text-[var(--oppa-text)] hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]">Review</button>
+                </article>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
+      {toast && <div role="status" aria-live="polite" className="fixed bottom-5 left-1/2 z-[140] -translate-x-1/2 rounded-xl bg-[var(--oppa-green-dark)] px-4 py-3 text-sm font-semibold text-white shadow-xl">{toast}</div>}
+
+      {selected && (
+        <div className="fixed inset-0 z-[100] flex justify-end bg-black/50" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDrawer(); }}>
+          <aside
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="replacement-review-title"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation();
+                if (lightboxIndex !== null) setLightboxIndex(null);
+                else if (confirmSend) setConfirmSend(false);
+                else closeDrawer();
+              }
+              if (event.key === 'Tab') {
+                const elements = drawerRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])');
+                if (!elements?.length) return;
+                const first = elements[0];
+                const last = elements[elements.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                  event.preventDefault();
+                  last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                  event.preventDefault();
+                  first.focus();
+                }
+              }
+            }}
+            className="flex h-dvh w-full flex-col overflow-hidden border-l border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-2xl sm:max-w-xl"
+          >
+            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--oppa-border)] px-5 py-4" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Review request</p>
+                <h2 id="replacement-review-title" className="mt-1 truncate font-mono text-base font-bold" title={selected.order_number || selected.order_id}>{selected.order_number || selected.order_id}</h2>
+                <button type="button" onClick={() => onOpenOrder(selected.order_id)} className="mt-1 text-sm font-semibold text-[var(--oppa-green-dark)] underline">Open original order</button>
+                <div className="mt-2 flex flex-wrap items-center gap-2"><IssueChip issue={selected.issue_type} /><StatusPill status={selected.status} /></div>
+              </div>
+              <button type="button" onClick={closeDrawer} aria-label="Close review drawer" className="grid size-10 shrink-0 place-items-center rounded-lg border border-[var(--oppa-border)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]"><X size={18} /></button>
+            </header>
+
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
+              <section className="grid grid-cols-1 gap-3 rounded-xl bg-[var(--oppa-cream)] p-4 sm:grid-cols-2">
+                <div className="min-w-0"><DetailLabel>Customer</DetailLabel><p className="truncate text-sm font-semibold" title={selected.customer_name}>{selected.customer_name}</p></div>
+                <div className="min-w-0"><DetailLabel>Email</DetailLabel><p className="truncate text-sm" title={selected.customer_email || ''}>{selected.customer_email || 'Not provided'}</p></div>
+                <div><DetailLabel>Phone</DetailLabel><p className="text-sm">{selected.customer_phone || 'Not provided'}</p></div>
+                <div><DetailLabel>Submitted</DetailLabel><p className="text-sm" title={fullDate(selected.created_at)}>{relativeTime(selected.created_at)}</p></div>
+              </section>
+
+              <section>
+                <DetailLabel>Affected items</DetailLabel>
+                <ul className="mt-2 divide-y divide-[var(--oppa-border)] rounded-xl border border-[var(--oppa-border)]">
+                  {selected.affected_items.map((item) => <li key={`${selected.id}-${item.order_item_id}`} className="flex justify-between gap-3 px-3 py-2.5 text-sm"><span>{item.name}</span><span className="shrink-0 font-semibold">Qty {item.quantity}</span></li>)}
+                </ul>
+              </section>
+
+              <section>
+                <DetailLabel>Customer’s description</DetailLabel>
+                <blockquote className="mt-2 whitespace-pre-wrap rounded-xl border-l-4 border-[var(--oppa-green)] bg-[var(--oppa-cream)] p-4 text-sm leading-6">{selected.description}</blockquote>
+              </section>
+
+              <section>
+                <div className="flex items-center justify-between gap-2"><DetailLabel>Photos</DetailLabel><span className="text-xs text-[var(--oppa-text-muted)]">{selected.photos.length} photo{selected.photos.length === 1 ? '' : 's'}</span></div>
+                {selected.photos.length ? <div className="mt-2 grid grid-cols-3 gap-2">{selected.photos.map((photo, index) => <button key={photo} type="button" onClick={(event) => { photoTrigger.current = event.currentTarget; setLightboxIndex(index); setZoomed(false); }} aria-label={`Open customer photo ${index + 1}`} className="group relative aspect-square overflow-hidden rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]"><img src={photo} alt={`Customer issue photo ${index + 1}`} className="size-full object-cover transition group-hover:scale-105" /><span className="absolute bottom-2 right-2 rounded-md bg-black/65 p-1.5 text-white"><ImageIcon size={15} aria-hidden="true" /></span></button>)}</div>
+                  : <p className="mt-2 rounded-xl border border-dashed border-[var(--oppa-border)] p-4 text-sm text-[var(--oppa-text-muted)]">No photos attached.</p>}
+              </section>
+
+              <section className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4">
+                <div><DetailLabel>Delivery address</DetailLabel><p className="mt-1 break-words text-sm">{selected.delivery_address || 'Address unavailable'}</p></div>
+                <div><DetailLabel>Delivered</DetailLabel><p className="mt-1 text-sm">{fullDate(selected.delivered_at)}</p></div>
+              </section>
+
+              <section className="rounded-xl border border-[var(--oppa-border)] p-4">
+                <DetailLabel>Customer history</DetailLabel>
+                <p className="mt-1 text-sm">{selected.past_request_count === 0 ? 'First report' : `${selected.past_request_count} previous report${selected.past_request_count === 1 ? '' : 's'}`}</p>
+                {selected.past_request_count > 0 && <button type="button" onClick={() => { setSearch(selected.customer_email || selected.customer_name); setTab('all'); setSelected(null); }} className="mt-2 text-sm font-semibold text-[var(--oppa-green-dark)] underline">View customer’s requests</button>}
+              </section>
+
+              {selected.handled_at && <p className="text-xs text-[var(--oppa-text-muted)]">Handled by {selected.handled_by_name || 'staff'} · {fullDate(selected.handled_at)}</p>}
+              {selected.reject_reason && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><strong>Not approved:</strong> {selected.reject_reason}</p>}
+              {selected.replacement_order_number && <button type="button" onClick={() => selected.replacement_order_id && onOpenOrder(selected.replacement_order_id)} className="text-sm font-semibold text-[var(--oppa-green-dark)] underline">Replacement order {selected.replacement_order_number}</button>}
+
+              {rejectMode && selected.status === 'pending' && <label className="block text-sm font-semibold">
+                Not approved reason ({INPUT_LIMITS.reason.min}–{INPUT_LIMITS.reason.max} characters)
+                <textarea value={reason} onChange={(event) => setReason(event.target.value.slice(0, INPUT_LIMITS.reason.max))} minLength={INPUT_LIMITS.reason.min} maxLength={INPUT_LIMITS.reason.max} required rows={3} aria-describedby="replacement-reason-counter" className="mt-2 w-full resize-y rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 text-sm font-normal text-[var(--oppa-text)]" />
+                <span id="replacement-reason-counter" className="mt-1 block text-right text-xs font-normal text-[var(--oppa-text-muted)]">{reason.length}/{INPUT_LIMITS.reason.max}</span>
+              </label>}
+            </div>
+
+            <footer className="shrink-0 border-t border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+              {actionError && <div role="alert" aria-live="assertive" className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                <p>{actionError.message}</p>
+                {actionError.detail && <p className="mt-1">{actionError.detail}</p>}
+                <button type="button" onClick={retry} disabled={busy} className="mt-2 font-semibold underline disabled:opacity-50">Retry</button>
+              </div>}
+              {selected.status === 'pending' ? rejectMode ? (
+                <div className="flex gap-2">
+                  <button type="button" disabled={busy} onClick={() => { setRejectMode(false); setActionError(null); }} className="min-h-11 flex-1 rounded-xl border border-[var(--oppa-border)] px-3 text-sm font-semibold">Cancel</button>
+                  <button type="button" disabled={busy || reason.trim().length < INPUT_LIMITS.reason.min} onClick={() => void performAction(selected, 'reject', reason.trim())} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-red-300 bg-red-50 px-3 text-sm font-semibold text-red-800 disabled:opacity-50">
+                    {busy ? <LoaderCircle size={16} className="animate-spin" /> : null} Not approved
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <button type="button" disabled={busy} onClick={() => { setRejectMode(true); setReason(''); setActionError(null); }} className="min-h-11 flex-1 rounded-xl border border-red-300 px-3 text-sm font-semibold text-red-800 hover:bg-red-50">Not approved</button>
+                  <button type="button" disabled={busy} onClick={() => setConfirmSend(true)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-50">
+                    <CheckCircle2 size={16} aria-hidden="true" /> Send replacement
+                  </button>
+                </div>
+              ) : <button type="button" onClick={closeDrawer} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] px-3 text-sm font-semibold">Close</button>}
+            </footer>
+          </aside>
         </div>
       )}
 
-      {zoomPhoto && (
-        <button type="button" onClick={() => setZoomPhoto(null)} className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4" aria-label="Close enlarged photo">
-          <img src={zoomPhoto} alt="Enlarged customer issue" className="max-h-full max-w-full rounded-xl object-contain" />
-          <span className="absolute right-4 top-4 grid size-11 place-items-center rounded-full bg-white text-gray-900"><X size={20} /></span>
-        </button>
+      {confirmSend && selected && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirmSend(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="replacement-confirm-title" className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 text-[var(--oppa-text)] shadow-2xl">
+            <h3 id="replacement-confirm-title" className="text-lg font-bold">Send a free replacement?</h3>
+            <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">Send a free replacement to {selected.customer_name}? It will create a new ₱0 order for: {selected.affected_items.map((item) => `${item.quantity}x ${item.name}`).join(', ')} and go to the kitchen.</p>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" disabled={busy} onClick={() => setConfirmSend(false)} className="min-h-11 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold">Cancel</button>
+              <button type="button" disabled={busy} onClick={() => void performAction(selected, 'approve')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white disabled:opacity-50">
+                {busy ? <LoaderCircle size={16} className="animate-spin" /> : null} Yes, send replacement
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {lightboxIndex !== null && selected && selected.photos[lightboxIndex] && (
+        <div
+          ref={lightboxRef}
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/90 p-3 sm:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Customer photo ${lightboxIndex + 1} of ${selected.photos.length}`}
+          tabIndex={-1}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              setLightboxIndex(null);
+            }
+            if (event.key === 'ArrowRight') {
+              event.preventDefault();
+              setLightboxIndex((index) => index === null ? 0 : (index + 1) % selected.photos.length);
+            }
+            if (event.key === 'ArrowLeft') {
+              event.preventDefault();
+              setLightboxIndex((index) => index === null ? 0 : (index - 1 + selected.photos.length) % selected.photos.length);
+            }
+          }}
+        >
+          <button type="button" onClick={() => setLightboxIndex(null)} aria-label="Close photo lightbox" className="absolute right-4 top-4 z-10 grid size-11 place-items-center rounded-full bg-white text-gray-900"><X size={20} /></button>
+          {selected.photos.length > 1 && <button type="button" onClick={() => setLightboxIndex((index) => index === null ? 0 : (index - 1 + selected.photos.length) % selected.photos.length)} aria-label="Previous photo" className="absolute left-3 top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-gray-900 sm:left-6"><ArrowLeft size={20} /></button>}
+          <img src={selected.photos[lightboxIndex]} alt={`Customer issue photo ${lightboxIndex + 1}`} className={`max-h-full max-w-full rounded-lg object-contain transition-transform ${zoomed ? 'scale-150 cursor-zoom-out' : 'cursor-zoom-in'}`} onClick={() => setZoomed((value) => !value)} />
+          <button type="button" onClick={() => setZoomed((value) => !value)} className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-900">{zoomed ? 'Zoom out' : 'Zoom in'}</button>
+          {selected.photos.length > 1 && <button type="button" onClick={() => setLightboxIndex((index) => index === null ? 0 : (index + 1) % selected.photos.length)} aria-label="Next photo" className="absolute right-3 top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-gray-900 sm:right-6"><ArrowRight size={20} /></button>}
+        </div>
       )}
     </section>
   );
 };
+
+const StatCard: React.FC<{ label: string; value: string; helper: string }> = ({ label, value, helper }) => (
+  <article className="rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4 shadow-sm">
+    <p className="text-sm font-semibold text-[var(--oppa-text-muted)]">{label}</p>
+    <p className="mt-1 truncate text-2xl font-bold text-[var(--oppa-text)]" title={value}>{value}</p>
+    <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">{helper}</p>
+  </article>
+);
+
+const DetailLabel: React.FC<React.PropsWithChildren> = ({ children }) => (
+  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">{children}</p>
+);
+
+const IssueChip: React.FC<{ issue: string }> = ({ issue }) => {
+  const tone = issue === 'hair_or_foreign_object' || issue === 'not_fresh'
+    ? 'border-red-200 bg-red-50 text-red-800'
+    : issue === 'wrong_item' || issue === 'missing_item'
+      ? 'border-amber-200 bg-amber-50 text-amber-900'
+      : 'border-blue-200 bg-blue-50 text-blue-900';
+  return <span className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}`}><AlertCircle size={13} aria-hidden="true" /><span className="truncate">{issueLabels[issue] || issue.replaceAll('_', ' ')}</span></span>;
+};
+
+const StatusPill: React.FC<{ status: string }> = ({ status }) => (
+  <span className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone(status)}`}><StatusIcon status={status} /><span className="truncate">{statusLabels[status] || status.replaceAll('_', ' ')}</span></span>
+);
 
 export default ReplacementRequestsPanel;
