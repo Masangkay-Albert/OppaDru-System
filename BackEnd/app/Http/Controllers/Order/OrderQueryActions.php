@@ -52,7 +52,7 @@ trait OrderQueryActions
         return response()->json($this->orderDataService->formatOrders($orders));
     }
 
-    public function show(Request $request, $id)
+    public function show(Request $request, string $id)
     {
         $order = $this->customerOrders($request)
             ->with(['user', 'branch', 'franchise', 'orderItems', 'driver:id,name,phone,vehicleType', 'replacementRequests.replacementOrder:id,order_number,status', 'originalOrder:id,order_number'])

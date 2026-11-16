@@ -137,14 +137,14 @@ class Order extends Model
             ->selectRaw("CASE WHEN discount_proof_image_data IS NOT NULL AND discount_proof_image_data <> '' THEN 1 ELSE 0 END AS has_discount_proof_image_data");
     }
 
-    public function getDeliveryProofImageAttribute($value): ?string
+    public function getDeliveryProofImageAttribute(?string $value): ?string
     {
         return $value || !empty($this->attributes['delivery_proof_image_data']) || !empty($this->attributes['has_delivery_proof_image_data'])
             ? url('/api/orders/'.$this->id.'/delivery-proof')
             : null;
     }
 
-    public function getDiscountProofImageAttribute($value): ?string
+    public function getDiscountProofImageAttribute(?string $value): ?string
     {
         if (!empty($this->attributes['discount_proof_image_data']) || !empty($this->attributes['has_discount_proof_image_data'])) {
             return url('/api/orders/'.$this->id.'/discount-proof');

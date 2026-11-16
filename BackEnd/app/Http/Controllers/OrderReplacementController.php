@@ -13,6 +13,7 @@ use App\Services\OrderReplacementService;
 use App\Support\OrderReplacementPolicy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -433,7 +434,7 @@ class OrderReplacementController extends Controller
      * Costs use the unit-cost snapshots recorded by the inventory movements for
      * each replacement order, rather than menu prices.
      */
-    private function replacementStats($requests): array
+    private function replacementStats(Collection $requests): array
     {
             $byIssueType = [];
             $requestCount = 0;

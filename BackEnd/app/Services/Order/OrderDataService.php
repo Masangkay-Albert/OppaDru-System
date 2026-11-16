@@ -9,16 +9,21 @@ use App\Models\OrderItemAddon;
 use App\Models\Product;
 use App\Services\FranchiseInventoryService;
 use App\Support\OrderReplacementPolicy;
+use DateTime;
+use DateTimeInterface;
+use Illuminate\Support\Collection;
 
 class OrderDataService
 {
-    public function convertToPhilippineTime($timestamp): ?string
+    public function convertToPhilippineTime(DateTimeInterface|string|null $timestamp): ?string
     {
         if (!$timestamp) {
             return null;
         }
 
-        $date = new \DateTime($timestamp);
+        $date = $timestamp instanceof DateTimeInterface
+            ? DateTime::createFromInterface($timestamp)
+            : new DateTime($timestamp);
         $date->setTimezone(new \DateTimeZone('Asia/Manila'));
 
         return $date->format('Y-m-d\TH:i:sP');
@@ -198,7 +203,7 @@ class OrderDataService
         ];
     }
 
-    public function formatOrders($orders): array
+    public function formatOrders(Collection $orders): array
     {
         return $orders->map(fn (Order $order) => $this->formatOrder($order))->all();
     }
