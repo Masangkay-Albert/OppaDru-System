@@ -161,10 +161,27 @@ class FranchiseAccountController extends Controller
                 'is_active' => $driver->isActive,
             ]);
 
-        $orders = Order::whereIn('franchise_id', $locationIds);
-        $revenueOrders = Order::whereIn('franchise_id', $locationIds)->countedAsRevenue();
-        $locationPerformance = $account->locations->map(function (Franchise $location) {
-            $locationOrders = Order::where('franchise_id', $location->id);
+        $month = CarbonImmutable::now('Asia/Manila');
+        $monthStart = $month->startOfMonth()->utc();
+        $monthEnd = $month->endOfMonth()->utc();
+        $forAccountLocations = static fn ($query) => $query->where(function ($branchQuery) use ($locationIds) {
+            $branchQuery->whereIn('branch_id', $locationIds)
+                ->orWhere(function ($legacyQuery) use ($locationIds) {
+                    $legacyQuery->whereNull('branch_id')->whereIn('franchise_id', $locationIds);
+                });
+        });
+        $orders = $forAccountLocations(Order::query())
+            ->whereBetween('created_at', [$monthStart, $monthEnd]);
+        $revenueOrders = (clone $orders)->countedAsRevenue();
+        $locationPerformance = $account->locations->map(function (Franchise $location) use ($forAccountLocations, $monthStart, $monthEnd) {
+            $locationOrders = $forAccountLocations(Order::query())
+                ->whereBetween('created_at', [$monthStart, $monthEnd])
+                ->where(function ($branchQuery) use ($location) {
+                    $branchQuery->where('branch_id', $location->id)
+                        ->orWhere(function ($legacyQuery) use ($location) {
+                            $legacyQuery->whereNull('branch_id')->where('franchise_id', $location->id);
+                        });
+                });
 
             return [
                 'franchise_id' => $location->id,
@@ -173,6 +190,23 @@ class FranchiseAccountController extends Controller
                 'total_sales' => (float) (clone $locationOrders)->countedAsRevenue()->sum('total'),
             ];
         });
+        $locationNames = $account->locations->keyBy('id');
+        $recentOrders = $forAccountLocations(Order::query())
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get(['id', 'order_number', 'branch_id', 'franchise_id', 'total', 'status', 'created_at'])
+            ->map(function (Order $order) use ($locationNames) {
+                $locationId = $order->branch_id ?: $order->franchise_id;
+
+                return [
+                    'id' => $order->id,
+                    'order_number' => $order->order_number ?: $order->id,
+                    'location_name' => $locationNames->get($locationId)?->name,
+                    'total' => (float) $order->total,
+                    'status' => $order->status,
+                    'created_at' => $order->created_at,
+                ];
+            })->values();
 
         return response()->json([
             'data' => [
@@ -180,6 +214,7 @@ class FranchiseAccountController extends Controller
                 'locations' => $account->locations,
                 'managers' => $account->managers,
                 'staff' => $staff->concat($drivers)->values(),
+                'recent_orders' => $recentOrders,
                 'performance' => [
                     'total_locations' => $account->locations->count(),
                     'total_managers' => $account->managers->count(),

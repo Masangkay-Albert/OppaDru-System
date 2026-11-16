@@ -171,6 +171,14 @@ export interface FranchiseAccountOverview {
   account: FranchiseAccount;
   locations: NonNullable<FranchiseAccount['locations']>;
   managers: FranchiseAdminUser[];
+  recent_orders: Array<{
+    id: string;
+    order_number: string;
+    location_name: string | null;
+    total: number;
+    status: string;
+    created_at: string;
+  }>;
   staff: Array<{
     id: string;
     franchise_id: string;
@@ -321,6 +329,7 @@ export const getFranchiseAccountOverview = async (id: string): Promise<Franchise
     ...data,
     locations: Array.isArray(data.locations) ? data.locations : [],
     managers: Array.isArray(data.managers) ? data.managers : [],
+    recent_orders: Array.isArray(data.recent_orders) ? data.recent_orders : [],
     staff: Array.isArray(data.staff) ? data.staff : [],
     performance: {
       total_locations: Number(performance.total_locations) || 0,

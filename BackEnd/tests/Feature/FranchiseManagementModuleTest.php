@@ -265,6 +265,76 @@ class FranchiseManagementModuleTest extends TestCase
             ->assertJsonPath('recent_activity.0.location_name', 'Northstar Downtown');
     }
 
+    public function test_franchise_account_overview_reports_branch_month_sales_only(): void
+    {
+        $adminToken = $this->createAdminToken();
+        $account = FranchiseAccount::create(['name' => 'Monthly Sales Foods', 'status' => 'active']);
+        $location = Franchise::create([
+            'franchise_account_id' => $account->id,
+            'name' => 'Monthly Sales Branch',
+            'status' => 'active',
+        ]);
+        $legacyMainBranch = Franchise::create(['name' => 'Legacy Main Branch', 'status' => 'active']);
+        $otherBranch = Franchise::create(['name' => 'Other Branch', 'status' => 'active']);
+
+        Order::create([
+            'franchise_id' => $location->id,
+            'email' => 'monthly.legacy@test',
+            'phone' => '09170000031',
+            'items' => [],
+            'total' => 120,
+            'delivery_address' => 'Onsite - Takeout',
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+            'status' => 'completed',
+        ]);
+        Order::create([
+            'franchise_id' => $legacyMainBranch->id,
+            'branch_id' => $location->id,
+            'email' => 'monthly.branch@test',
+            'phone' => '09170000032',
+            'items' => [],
+            'total' => 80,
+            'delivery_address' => 'Onsite - Takeout',
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+            'status' => 'completed',
+        ]);
+        Order::create([
+            'franchise_id' => $location->id,
+            'email' => 'previous.month@test',
+            'phone' => '09170000033',
+            'items' => [],
+            'total' => 900,
+            'delivery_address' => 'Onsite - Takeout',
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+            'status' => 'completed',
+            'created_at' => now()->subMonth(),
+        ]);
+        Order::create([
+            'franchise_id' => $location->id,
+            'branch_id' => $otherBranch->id,
+            'email' => 'other.branch@test',
+            'phone' => '09170000034',
+            'items' => [],
+            'total' => 700,
+            'delivery_address' => 'Onsite - Takeout',
+            'payment_method' => 'cash',
+            'payment_status' => 'paid',
+            'status' => 'completed',
+        ]);
+
+        $this->getJson('/api/admin/franchise-accounts/'.$account->id, [
+            'Authorization' => 'Bearer '.$adminToken,
+        ])->assertOk()
+            ->assertJsonPath('data.performance.total_orders', 2)
+            ->assertJsonPath('data.performance.total_sales', 200)
+            ->assertJsonPath('data.performance.locations.0.total_sales', 200)
+            ->assertJsonCount(3, 'data.recent_orders')
+            ->assertJsonPath('data.recent_orders.0.location_name', 'Monthly Sales Branch');
+    }
+
     public function test_franchise_account_report_uses_existing_revenue_rule_and_omits_inventory(): void
     {
         $adminToken = $this->createAdminToken();

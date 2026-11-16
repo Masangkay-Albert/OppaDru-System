@@ -19,6 +19,7 @@ import { INPUT_LIMITS } from '../../../constants/inputLimits';
 import FranchiseAccountReportSection from './FranchiseAccountReport';
 import '../styles/franchise-account-detail.css';
 import { ValidatedForm } from '../../../components/ui/FormValidation';
+import { formatPeso } from '../../../utils/formatters';
 
 type Tab = 'overview' | 'report' | 'locations' | 'team' | 'settings';
 
@@ -360,12 +361,19 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
                   <div className="franchise-account-card p-4"><p className="text-xs text-[var(--oppa-text-muted)]">Locations</p><strong className="mt-2 block text-2xl font-semibold">{locations.length}</strong></div>
                   <div className="franchise-account-card p-4"><p className="text-xs text-[var(--oppa-text-muted)]">Managers</p><strong className="mt-2 block text-2xl font-semibold">{data.performance.total_managers}</strong></div>
                   <div className="franchise-account-card p-4"><p className="text-xs text-[var(--oppa-text-muted)]">Staff</p><strong className="mt-2 block text-2xl font-semibold">{data.performance.total_staff}</strong></div>
-                  <div className="franchise-account-card p-4"><p className="text-xs text-[var(--oppa-text-muted)]">Sales this month</p><strong className="mt-2 block text-2xl font-semibold">{new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 2 }).format(data.performance.total_sales)}</strong></div>
+                  <div className="franchise-account-card p-4"><p className="text-xs text-[var(--oppa-text-muted)]">Sales this month</p><strong className="mt-2 block text-2xl font-semibold">{formatPeso(data.performance.total_sales)}</strong></div>
                 </div>
                 <div className="grid gap-5 xl:grid-cols-[1.7fr_0.9fr]">
                   <section className="franchise-account-card">
                     <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Recent orders</h2><button type="button" className="text-sm font-medium text-[var(--oppa-green)]">View all orders</button></div>
-                    <div className="overflow-x-auto"><table className="franchise-soft-table"><thead><tr><th>Order</th><th>Date</th><th>Status</th><th>Total</th></tr></thead><tbody><tr><td>OPPA-ORD-001</td><td>Nov 5, 2026</td><td><span className="rounded-full bg-green-100 px-2 py-1 text-[10px] font-semibold text-green-800">Delivered</span></td><td>?673.00</td></tr><tr><td>OPPA-ORD-002</td><td>Nov 6, 2026</td><td><span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-800">Processing</span></td><td>?320.00</td></tr></tbody></table></div>
+                    <div className="overflow-x-auto"><table className="franchise-soft-table"><thead><tr><th>Order</th><th>Date</th><th>Status</th><th>Total</th></tr></thead><tbody>
+                      {data.recent_orders.length ? data.recent_orders.map((order) => <tr key={order.id}>
+                        <td>{order.order_number}</td>
+                        <td>{new Date(order.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })}</td>
+                        <td><span className="rounded-full bg-[var(--oppa-green-soft)] px-2 py-1 text-[10px] font-semibold capitalize text-[var(--oppa-green)]">{order.status.replaceAll('_', ' ')}</span></td>
+                        <td>{formatPeso(order.total)}</td>
+                      </tr>) : <tr><td colSpan={4} className="text-center text-[var(--oppa-text-muted)]">No orders yet.</td></tr>}
+                    </tbody></table></div>
                   </section>
                   <aside className="franchise-account-card">
                     <h2 className="text-lg font-semibold">Top product</h2>
@@ -406,7 +414,7 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
                       const stats = (Array.isArray(locationStats) ? locationStats : []).find((item) => String(item.location_id) === String(location.id));
                       return (
                         <article key={location.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/50 p-3">
-                          <div className="flex min-w-0 items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]"><Building2 size={17} /></span><div className="min-w-0"><p className="font-medium">{location.name}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{location.address || 'Address not set'}</p><div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-[var(--oppa-text-muted)]"><span>{location.id}</span><button type="button" aria-label={`Copy ${location.name} code`} onClick={() => void copyCode(location.id, 'Location code')} className="rounded p-1 text-[var(--oppa-green)]"><Copy size={12} /></button><span className={deliveryReady ? 'text-green-700' : 'text-amber-700'}>{deliveryReady ? 'Online delivery ready' : 'Delivery unavailable: check location status and map pin.'}</span></div><p className="mt-1 text-[10px] text-[var(--oppa-text-muted)]">{stats ? `${stats.orders} orders ? ${new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(stats.sales)}` : 'Sales stats load from the report.'}</p></div></div>
+                          <div className="flex min-w-0 items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]"><Building2 size={17} /></span><div className="min-w-0"><p className="font-medium">{location.name}</p><p className="truncate text-xs text-[var(--oppa-text-muted)]">{location.address || 'Address not set'}</p><div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-[var(--oppa-text-muted)]"><span>{location.id}</span><button type="button" aria-label={`Copy ${location.name} code`} onClick={() => void copyCode(location.id, 'Location code')} className="rounded p-1 text-[var(--oppa-green)]"><Copy size={12} /></button><span className={deliveryReady ? 'text-green-700' : 'text-amber-700'}>{deliveryReady ? 'Online delivery ready' : 'Delivery unavailable: check location status and map pin.'}</span></div><p className="mt-1 text-[10px] text-[var(--oppa-text-muted)]">{stats ? `${stats.orders} orders · ${formatPeso(stats.sales)}` : 'Sales stats load from the report.'}</p></div></div>
                           <div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-xs ${location.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>{location.status}</span><button type="button" onClick={() => void toggleLocation(location.id, location.status)} className="franchise-secondary-button disabled:opacity-50" disabled={saving}>{location.status === 'active' ? 'Deactivate' : 'Activate'}</button></div>
                         </article>
                       );
