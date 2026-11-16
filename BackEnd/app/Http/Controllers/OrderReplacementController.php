@@ -340,7 +340,7 @@ class OrderReplacementController extends Controller
                     $replacementRequest->update([
                         'status' => 'rejected',
                         'reject_reason' => $validated['reject_reason'],
-                        'handled_by' => (string) $request->user()->getAuthIdentifier(),
+                        'handled_by' => (string) $request->user()->getKey(),
                         'handled_by_name' => $this->actorName($request->user()),
                         'handled_at' => now(),
                     ]);

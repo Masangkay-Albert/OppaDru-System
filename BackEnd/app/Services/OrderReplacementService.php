@@ -126,7 +126,7 @@ class OrderReplacementService
                 $replacementRequest->update([
                     'status' => 'approved',
                     'affected_items' => $storedAffectedItems,
-                    'handled_by' => $actor ? (string) $actor->getAuthIdentifier() : null,
+                    'handled_by' => $actor ? (string) $actor->getKey() : null,
                     'handled_by_name' => $this->actorName($actor),
                     'handled_at' => now(),
                     'replacement_order_id' => $replacement->id,

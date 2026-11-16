@@ -5,6 +5,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock3,
+  ExternalLink,
   Image as ImageIcon,
   LoaderCircle,
   Package,
@@ -421,7 +422,9 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Review request</p>
                 <h2 id="replacement-review-title" className="mt-1 truncate font-mono text-base font-bold" title={selected.order_number || selected.order_id}>{selected.order_number || selected.order_id}</h2>
-                <button type="button" onClick={() => onOpenOrder(selected.order_id)} className="mt-1 text-sm font-semibold text-[var(--oppa-green-dark)] underline">Open original order</button>
+                <button type="button" onClick={() => onOpenOrder(selected.order_id)} className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] px-3 text-xs font-semibold text-[var(--oppa-green-dark)] hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]">
+                  Open original order <ExternalLink size={14} aria-hidden="true" />
+                </button>
                 <div className="mt-2 flex flex-wrap items-center gap-2"><IssueChip issue={selected.issue_type} /><StatusPill status={selected.status} /></div>
               </div>
               <button type="button" onClick={closeDrawer} aria-label="Close review drawer" className="grid size-10 shrink-0 place-items-center rounded-lg border border-[var(--oppa-border)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]"><X size={18} /></button>
