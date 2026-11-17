@@ -418,58 +418,75 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
             }}
             className="flex h-dvh w-full flex-col overflow-hidden border-l border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-2xl sm:max-w-xl"
           >
-            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--oppa-border)] px-5 py-4" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-4 py-4 sm:px-5" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Review request</p>
-                <h2 id="replacement-review-title" className="mt-1 truncate font-mono text-base font-bold" title={selected.order_number || selected.order_id}>{selected.order_number || selected.order_id}</h2>
-                <button type="button" onClick={() => onOpenOrder(selected.order_id)} className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] px-3 text-xs font-semibold text-[var(--oppa-green-dark)] hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]">
-                  Open original order <ExternalLink size={14} aria-hidden="true" />
-                </button>
-                <div className="mt-2 flex flex-wrap items-center gap-2"><IssueChip issue={selected.issue_type} /><StatusPill status={selected.status} /></div>
+                <h2 id="replacement-review-title" className="text-lg font-bold text-[var(--oppa-text)]">Replacement request</h2>
+                <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="max-w-56 truncate font-mono text-xs font-semibold text-[var(--oppa-text-muted)] sm:max-w-64" title={selected.order_number || selected.order_id}>{selected.order_number || selected.order_id}</span>
+                  <button type="button" onClick={() => onOpenOrder(selected.order_id)} aria-label={`Open original order ${selected.order_number || selected.order_id}`} className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]">
+                    Open original order <ExternalLink size={13} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2"><StatusPill status={selected.status} /><IssueChip issue={selected.issue_type} /></div>
               </div>
-              <button type="button" onClick={closeDrawer} aria-label="Close review drawer" className="grid size-10 shrink-0 place-items-center rounded-lg border border-[var(--oppa-border)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]"><X size={18} /></button>
+              <button type="button" onClick={closeDrawer} aria-label="Close replacement request details" className="grid size-10 shrink-0 place-items-center rounded-lg border border-[var(--oppa-border)] text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"><X size={18} aria-hidden="true" /></button>
             </header>
 
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
-              <section className="grid grid-cols-1 gap-3 rounded-xl bg-[var(--oppa-cream)] p-4 sm:grid-cols-2">
-                <div className="min-w-0"><DetailLabel>Customer</DetailLabel><p className="truncate text-sm font-semibold" title={selected.customer_name}>{selected.customer_name}</p></div>
-                <div className="min-w-0"><DetailLabel>Email</DetailLabel><p className="truncate text-sm" title={selected.customer_email || ''}>{selected.customer_email || 'Not provided'}</p></div>
-                <div><DetailLabel>Phone</DetailLabel><p className="text-sm">{selected.customer_phone || 'Not provided'}</p></div>
-                <div><DetailLabel>Submitted</DetailLabel><p className="text-sm" title={fullDate(selected.created_at)}>{relativeTime(selected.created_at)}</p></div>
-              </section>
-
-              <section>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
+              <section className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4">
                 <DetailLabel>Affected items</DetailLabel>
-                <ul className="mt-2 divide-y divide-[var(--oppa-border)] rounded-xl border border-[var(--oppa-border)]">
-                  {selected.affected_items.map((item) => <li key={`${selected.id}-${item.order_item_id}`} className="flex justify-between gap-3 px-3 py-2.5 text-sm"><span>{item.name}</span><span className="shrink-0 font-semibold">Qty {item.quantity}</span></li>)}
+                <ul className="divide-y divide-[var(--oppa-border)]">
+                  {selected.affected_items.map((item) => <li key={`${selected.id}-${item.order_item_id}`} className="flex justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0"><span className="font-semibold text-[var(--oppa-text)]">{item.name}</span><span className="shrink-0 font-semibold text-[var(--oppa-text)]">Qty {item.quantity}</span></li>)}
                 </ul>
+                <div className="mt-4 border-t border-[var(--oppa-border)] pt-3">
+                  <DetailLabel>Customer’s description</DetailLabel>
+                  <blockquote className="mt-2 whitespace-pre-wrap rounded-r-xl border-l-4 border-[var(--oppa-green)] bg-[var(--oppa-cream)] px-4 py-3 text-base leading-7 text-[var(--oppa-text)]">{selected.description}</blockquote>
+                </div>
               </section>
 
-              <section>
-                <DetailLabel>Customer’s description</DetailLabel>
-                <blockquote className="mt-2 whitespace-pre-wrap rounded-xl border-l-4 border-[var(--oppa-green)] bg-[var(--oppa-cream)] p-4 text-sm leading-6">{selected.description}</blockquote>
-              </section>
-
-              <section>
+              <section className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4">
                 <div className="flex items-center justify-between gap-2"><DetailLabel>Photos</DetailLabel><span className="text-xs text-[var(--oppa-text-muted)]">{selected.photos.length} photo{selected.photos.length === 1 ? '' : 's'}</span></div>
-                {selected.photos.length ? <div className="mt-2 grid grid-cols-3 gap-2">{selected.photos.map((photo, index) => <button key={photo} type="button" onClick={(event) => { photoTrigger.current = event.currentTarget; setLightboxIndex(index); setZoomed(false); }} aria-label={`Open customer photo ${index + 1}`} className="group relative aspect-square overflow-hidden rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]"><img src={photo} alt={`Customer issue photo ${index + 1}`} className="size-full object-cover transition group-hover:scale-105" /><span className="absolute bottom-2 right-2 rounded-md bg-black/65 p-1.5 text-white"><ImageIcon size={15} aria-hidden="true" /></span></button>)}</div>
-                  : <p className="mt-2 rounded-xl border border-dashed border-[var(--oppa-border)] p-4 text-sm text-[var(--oppa-text-muted)]">No photos attached.</p>}
+                {selected.photos.length ? <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(96px,112px))] gap-2">{selected.photos.map((photo, index) => <ReplacementPhotoThumbnail key={`${photo}-${index}`} photo={photo} index={index} onClick={(event) => { photoTrigger.current = event.currentTarget; setLightboxIndex(index); setZoomed(false); }} />)}</div>
+                  : <p className="mt-2 text-sm text-[var(--oppa-text-muted)]">No photos attached.</p>}
               </section>
 
-              <section className="space-y-3 rounded-xl border border-[var(--oppa-border)] p-4">
-                <div><DetailLabel>Delivery address</DetailLabel><p className="mt-1 break-words text-sm">{selected.delivery_address || 'Address unavailable'}</p></div>
-                <div><DetailLabel>Delivered</DetailLabel><p className="mt-1 text-sm">{fullDate(selected.delivered_at)}</p></div>
+              <section className="rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4">
+                <div>
+                  <DetailLabel>Customer</DetailLabel>
+                  <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+                    <DetailValue label="Name"><span className="font-semibold">{selected.customer_name}</span></DetailValue>
+                    <DetailValue label="Email">
+                      {selected.customer_email
+                        ? <a href={`mailto:${selected.customer_email}`} className="break-all hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]" aria-label={`Email ${selected.customer_email}`}>{selected.customer_email}</a>
+                        : 'Not provided'}
+                    </DetailValue>
+                    <DetailValue label="Phone">
+                      {selected.customer_phone
+                        ? <a href={`tel:${selected.customer_phone}`} className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]" aria-label={`Call ${selected.customer_phone}`}>{selected.customer_phone}</a>
+                        : 'Not provided'}
+                    </DetailValue>
+                    <DetailValue label="Submitted" valueTitle={fullDate(selected.created_at)}>{relativeTime(selected.created_at)}</DetailValue>
+                    <DetailValue label="Customer history">
+                      {selected.past_request_count === 0 ? 'First report' : `${selected.past_request_count} previous report${selected.past_request_count === 1 ? '' : 's'}`}
+                      {selected.past_request_count > 0 && <button type="button" onClick={() => { setSearch(selected.customer_email || selected.customer_name); setTab('all'); setSelected(null); }} className="mt-1 block font-semibold text-[var(--oppa-green-dark)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]">View customer’s requests</button>}
+                    </DetailValue>
+                  </dl>
+                </div>
+                <div className="my-4 border-t border-[var(--oppa-border)]" />
+                <div>
+                  <DetailLabel>Delivery</DetailLabel>
+                  <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+                    <DetailValue label="Delivery address" className="sm:col-span-2"><span className="whitespace-pre-line break-words">{selected.delivery_address || 'Address unavailable'}</span></DetailValue>
+                    <DetailValue label="Delivered">{fullDate(selected.delivered_at)}</DetailValue>
+                  </dl>
+                </div>
               </section>
 
-              <section className="rounded-xl border border-[var(--oppa-border)] p-4">
-                <DetailLabel>Customer history</DetailLabel>
-                <p className="mt-1 text-sm">{selected.past_request_count === 0 ? 'First report' : `${selected.past_request_count} previous report${selected.past_request_count === 1 ? '' : 's'}`}</p>
-                {selected.past_request_count > 0 && <button type="button" onClick={() => { setSearch(selected.customer_email || selected.customer_name); setTab('all'); setSelected(null); }} className="mt-2 text-sm font-semibold text-[var(--oppa-green-dark)] underline">View customer’s requests</button>}
-              </section>
-
-              {selected.handled_at && <p className="text-xs text-[var(--oppa-text-muted)]">Handled by {selected.handled_by_name || 'staff'} · {fullDate(selected.handled_at)}</p>}
-              {selected.reject_reason && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><strong>Not approved:</strong> {selected.reject_reason}</p>}
-              {selected.replacement_order_number && <button type="button" onClick={() => selected.replacement_order_id && onOpenOrder(selected.replacement_order_id)} className="text-sm font-semibold text-[var(--oppa-green-dark)] underline">Replacement order {selected.replacement_order_number}</button>}
+              {(selected.handled_at || selected.reject_reason || selected.replacement_order_number) && <section className="space-y-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4">
+                {selected.handled_at && <p className="text-xs text-[var(--oppa-text-muted)]">Handled by {selected.handled_by_name || 'staff'} · {fullDate(selected.handled_at)}</p>}
+                {selected.reject_reason && <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><strong>Not approved:</strong> {selected.reject_reason}</p>}
+                {selected.replacement_order_number && <button type="button" onClick={() => selected.replacement_order_id && onOpenOrder(selected.replacement_order_id)} className="text-sm font-semibold text-[var(--oppa-green-dark)] underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]">Replacement order {selected.replacement_order_number}</button>}
+              </section>}
 
               {rejectMode && selected.status === 'pending' && <label className="block text-sm font-semibold">
                 Not approved reason ({INPUT_LIMITS.reason.min}–{INPUT_LIMITS.reason.max} characters)
@@ -478,7 +495,7 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
               </label>}
             </div>
 
-            <footer className="shrink-0 border-t border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+            <footer className="shrink-0 border-t border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4 shadow-[0_-8px_20px_rgba(15,23,42,0.06)]" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
               {actionError && <div role="alert" aria-live="assertive" className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                 <p>{actionError.message}</p>
                 {actionError.detail && <p className="mt-1">{actionError.detail}</p>}
@@ -493,8 +510,8 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
                 </div>
               ) : (
                 <div className="flex gap-2">
-                  <button type="button" disabled={busy} onClick={() => { setRejectMode(true); setReason(''); setActionError(null); }} className="min-h-11 flex-1 rounded-xl border border-red-300 px-3 text-sm font-semibold text-red-800 hover:bg-red-50">Not approved</button>
-                  <button type="button" disabled={busy} onClick={() => setConfirmSend(true)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-50">
+                  <button type="button" disabled={busy} onClick={() => { setRejectMode(true); setReason(''); setActionError(null); }} className="min-h-11 flex-1 rounded-xl border border-red-300 px-3 text-sm font-semibold text-red-800 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">Not approved</button>
+                  <button type="button" disabled={busy} onClick={() => setConfirmSend(true)} className="inline-flex min-h-11 flex-[1.15] items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-3 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2 disabled:opacity-50">
                     <CheckCircle2 size={16} aria-hidden="true" /> Send replacement
                   </button>
                 </div>
@@ -545,7 +562,7 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
         >
           <button type="button" onClick={() => setLightboxIndex(null)} aria-label="Close photo lightbox" className="absolute right-4 top-4 z-10 grid size-11 place-items-center rounded-full bg-white text-gray-900"><X size={20} /></button>
           {selected.photos.length > 1 && <button type="button" onClick={() => setLightboxIndex((index) => index === null ? 0 : (index - 1 + selected.photos.length) % selected.photos.length)} aria-label="Previous photo" className="absolute left-3 top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-gray-900 sm:left-6"><ArrowLeft size={20} /></button>}
-          <img src={selected.photos[lightboxIndex]} alt={`Customer issue photo ${lightboxIndex + 1}`} className={`max-h-full max-w-full rounded-lg object-contain transition-transform ${zoomed ? 'scale-150 cursor-zoom-out' : 'cursor-zoom-in'}`} onClick={() => setZoomed((value) => !value)} />
+          <ReplacementLightboxPhoto key={`${selected.id}-${lightboxIndex}`} photo={selected.photos[lightboxIndex]} index={lightboxIndex} zoomed={zoomed} onToggleZoom={() => setZoomed((value) => !value)} />
           <button type="button" onClick={() => setZoomed((value) => !value)} className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-900">{zoomed ? 'Zoom out' : 'Zoom in'}</button>
           {selected.photos.length > 1 && <button type="button" onClick={() => setLightboxIndex((index) => index === null ? 0 : (index + 1) % selected.photos.length)} aria-label="Next photo" className="absolute right-3 top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-gray-900 sm:right-6"><ArrowRight size={20} /></button>}
         </div>
@@ -563,8 +580,56 @@ const StatCard: React.FC<{ label: string; value: string; helper: string }> = ({ 
 );
 
 const DetailLabel: React.FC<React.PropsWithChildren> = ({ children }) => (
-  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">{children}</p>
+  <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--oppa-text-muted)]">{children}</p>
 );
+
+const DetailValue: React.FC<React.PropsWithChildren<{
+  label: string;
+  valueTitle?: string;
+  className?: string;
+}>> = ({ label, valueTitle, className = '', children }) => (
+  <div className={`min-w-0 ${className}`}>
+    <dt><DetailLabel>{label}</DetailLabel></dt>
+    <dd title={valueTitle} className="break-words text-sm font-medium leading-5 text-[var(--oppa-text)]">{children}</dd>
+  </div>
+);
+
+const ReplacementPhotoThumbnail: React.FC<{
+  photo: string;
+  index: number;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+}> = ({ photo, index, onClick }) => {
+  const [unavailable, setUnavailable] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Open customer photo ${index + 1}`}
+      className="group relative aspect-square w-full overflow-hidden rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] focus-visible:ring-offset-2"
+    >
+      {unavailable
+        ? <span className="flex size-full flex-col items-center justify-center gap-1 px-2 text-center text-xs text-[var(--oppa-text-muted)]"><ImageIcon size={20} aria-hidden="true" /><span>Photo unavailable</span></span>
+        : <img src={photo} alt={`Customer issue photo ${index + 1}`} onError={() => setUnavailable(true)} className="size-full object-cover transition group-hover:scale-105" />}
+      {!unavailable && <span className="absolute bottom-2 right-2 rounded-md bg-black/65 p-1.5 text-white"><ImageIcon size={15} aria-hidden="true" /></span>}
+    </button>
+  );
+};
+
+const ReplacementLightboxPhoto: React.FC<{
+  photo: string;
+  index: number;
+  zoomed: boolean;
+  onToggleZoom: () => void;
+}> = ({ photo, index, zoomed, onToggleZoom }) => {
+  const [unavailable, setUnavailable] = useState(false);
+
+  if (unavailable) {
+    return <div className="flex size-64 flex-col items-center justify-center gap-2 rounded-xl bg-white/10 text-sm text-white"><ImageIcon size={28} aria-hidden="true" /><span>Photo unavailable</span></div>;
+  }
+
+  return <img src={photo} alt={`Customer issue photo ${index + 1}`} className={`max-h-full max-w-full rounded-lg object-contain transition-transform ${zoomed ? 'scale-150 cursor-zoom-out' : 'cursor-zoom-in'}`} onError={() => setUnavailable(true)} onClick={onToggleZoom} />;
+};
 
 const IssueChip: React.FC<{ issue: string }> = ({ issue }) => {
   const tone = issue === 'hair_or_foreign_object' || issue === 'not_fresh'

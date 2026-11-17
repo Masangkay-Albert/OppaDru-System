@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../../contexts/Authcontext";
-import { UserPlus, Eye, EyeOff, Phone, Mail, Lock, User } from "lucide-react";
+import { UserPlus, Eye, EyeOff, Phone, Mail, Lock, User, X } from "lucide-react";
 import LoginBrandPanel from "../../../components/LoginBrandPanel";
 import { INPUT_LIMITS, normalizePhilippinePhone } from "../../../constants/inputLimits";
 import { LimitedInput } from "../../../components/ui/LimitedInput";
@@ -21,7 +21,12 @@ const RegistrationPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [termsAttempted, setTermsAttempted] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
   const confirmPasswordRef = useRef<HTMLInputElement>(null);
+  const termsTriggerRef = useRef<HTMLButtonElement>(null);
+  const termsDialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const returnTo = new URLSearchParams(location.search).get("returnTo");
@@ -29,6 +34,13 @@ const RegistrationPage: React.FC = () => {
       navigate(`/franchise/register?returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
     }
   }, [location.search, navigate]);
+
+  useEffect(() => {
+    if (!termsOpen) return undefined;
+    termsDialogRef.current?.querySelector<HTMLElement>("button")?.focus();
+    const trigger = termsTriggerRef.current;
+    return () => trigger?.focus();
+  }, [termsOpen]);
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPhone(e.currentTarget.value.replace(/\D/g, "").slice(0, 11));
@@ -59,6 +71,10 @@ const RegistrationPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!termsAgreed) {
+      setTermsAttempted(true);
+      return;
+    }
     setError("");
     setIsLoading(true);
 
@@ -247,15 +263,137 @@ const RegistrationPage: React.FC = () => {
             </div>
 
             <div className="pt-1">
+              <div className="flex items-start gap-2">
+                <input
+                  id="registration-terms"
+                  type="checkbox"
+                  checked={termsAgreed}
+                  onChange={(event) => {
+                    setTermsAgreed(event.target.checked);
+                    if (event.target.checked) setTermsAttempted(false);
+                  }}
+                  aria-labelledby="registration-terms-intro registration-terms-link"
+                  aria-describedby={termsAttempted && !termsAgreed ? "registration-terms-error" : undefined}
+                  className="mt-1 size-4 shrink-0 accent-[var(--oppa-green)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
+                />
+                <div className="text-sm leading-6 text-[var(--oppa-text)]">
+                  <label id="registration-terms-intro" htmlFor="registration-terms">I agree to the</label>{" "}
+                  <button
+                    ref={termsTriggerRef}
+                    id="registration-terms-link"
+                    type="button"
+                    onClick={() => setTermsOpen(true)}
+                    className="font-semibold text-[var(--oppa-green)] hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
+                  >
+                    Terms and Conditions
+                  </button>
+                </div>
+              </div>
+              {termsAttempted && !termsAgreed && (
+                <p id="registration-terms-error" role="alert" className="mt-1 text-xs text-red-700">
+                  Please agree to the Terms and Conditions to continue.
+                </p>
+              )}
+            </div>
+
+            <div className="pt-1">
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !termsAgreed}
                 className="min-h-12 w-full rounded-xl bg-[var(--oppa-green)] py-3 font-semibold text-white transition-colors hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? "Creating Account..." : "Sign Up"}
               </button>
             </div>
           </ValidatedForm>
+
+          {termsOpen && (
+            <div
+              className="fixed inset-0 z-[150] flex items-center justify-center bg-black/55 p-0 sm:p-4"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setTermsOpen(false);
+              }}
+            >
+              <section
+                ref={termsDialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="registration-terms-title"
+                tabIndex={-1}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setTermsOpen(false);
+                    return;
+                  }
+                  if (event.key !== "Tab") return;
+                  const focusable = termsDialogRef.current?.querySelectorAll<HTMLElement>(
+                    'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+                  );
+                  if (!focusable?.length) return;
+                  const first = focusable[0];
+                  const last = focusable[focusable.length - 1];
+                  if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                  } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                  }
+                }}
+                className="flex h-dvh w-full flex-col overflow-hidden border border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-2xl sm:h-auto sm:max-h-[90dvh] sm:max-w-2xl sm:rounded-2xl"
+              >
+                <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[var(--oppa-border)] px-5 py-4">
+                  <h2 id="registration-terms-title" className="text-lg font-bold text-[var(--oppa-green)]">Terms and Conditions</h2>
+                  <button
+                    type="button"
+                    onClick={() => setTermsOpen(false)}
+                    aria-label="Close Terms and Conditions"
+                    className="grid size-10 shrink-0 place-items-center rounded-lg text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
+                  >
+                    <X size={20} aria-hidden="true" />
+                  </button>
+                </header>
+
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 text-sm leading-6">
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">1. Who we are</h3><p>Oppa Dru is a platform for ordering Korean fried chicken and related food from Oppa Dru and its franchise branches. By creating an account, you agree to these Terms.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">2. Eligibility and your account</h3><p>You must be at least 18 years old, or have the consent of a parent or legal guardian. Give accurate and complete details (name, email, phone number). Keep your password private. You are responsible for all activity and orders under your account. Tell us right away if you notice unauthorized access.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">3. Orders</h3><p>Review your items, address, and total before placing an order. Once an order is placed and accepted by the branch, it is treated as a confirmed order. Photos on the platform are for illustration only and the actual food may look different. We will try to follow your special instructions, but we cannot guarantee them. If you have allergies, please contact the branch before ordering, as we cannot guarantee that any item is allergen-free.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">4. Prices and payment</h3><p>Prices are shown in Philippine pesos. Delivery fees and other charges are shown before checkout, and the final total is the amount you agree to pay. Prices and charges may change.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">5. Delivery</h3><p>Delivery times are estimates and may change because of traffic, weather, or order volume. Please make sure someone can receive your order. If we cannot reach you or no one receives the order, it may be cancelled without a refund.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">6. Cancellations, refunds, and replacements</h3><p>You can cancel an order only before the branch accepts it. Orders cancelled after acceptance are not refundable. If your order is wrong, missing items, or not fresh, report it as soon as possible with a clear description and photos. After review, we may arrange a replacement or refund at our discretion.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">7. Vouchers and promos</h3><p>Vouchers and promos have limits and expiry dates. They cannot be exchanged for cash or transferred. We may cancel or reject a voucher that is misused or suspected of fraud.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">8. Acceptable use</h3><p>Do not use the platform for anything unlawful, to harass others, to post harmful or false content, to collect other people's data, or to attempt fraud or abuse of the system.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">9. Account suspension</h3><p>We may suspend or close an account that breaks these Terms or shows suspicious or fraudulent activity.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">10. Liability</h3><p>The platform is provided "as is". To the extent allowed by law, Oppa Dru is not liable for indirect or consequential losses. Nothing here limits your rights under Philippine consumer laws.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">11. Privacy</h3><p>We collect and use your personal data to run your account and process your orders, in line with our Privacy Policy and applicable Philippine data privacy law.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">12. Changes</h3><p>We may update these Terms at any time. Continued use of the platform means you accept the updated Terms.</p></section>
+                  <section><h3 className="font-semibold text-[var(--oppa-text)]">13. Governing law</h3><p>These Terms are governed by the laws of the Republic of the Philippines.</p></section>
+                </div>
+
+                <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-4 shadow-[0_-8px_20px_rgba(15,23,42,0.06)]">
+                  <button
+                    type="button"
+                    onClick={() => setTermsOpen(false)}
+                    className="min-h-11 rounded-xl border border-[var(--oppa-border)] px-4 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTermsAgreed(true);
+                      setTermsAttempted(false);
+                      setTermsOpen(false);
+                    }}
+                    className="min-h-11 rounded-xl bg-[var(--oppa-green)] px-4 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
+                  >
+                    I agree
+                  </button>
+                </footer>
+              </section>
+            </div>
+          )}
 
           <div className="mt-4 flex flex-col gap-3">
             <p className="text-center text-sm text-[var(--oppa-text-muted)]">
