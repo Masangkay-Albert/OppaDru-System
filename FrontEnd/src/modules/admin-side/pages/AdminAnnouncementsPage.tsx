@@ -79,17 +79,6 @@ const PRIORITY_BADGES: Record<AnnouncementPriority, { label: string; style: stri
   urgent: { label: 'Urgent Alert', style: 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-300 dark:border-red-800' },
 };
 
-const formatDateForInput = (isoDate?: string | null): string => {
-  if (!isoDate) return '';
-  const d = new Date(isoDate);
-  if (isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
-
-const getMinimumScheduleDateTime = (): string =>
-  formatDateForInput(new Date(Date.now() + 60_000).toISOString());
-
 const formatDisplayDate = (isoDate?: string | null): string => {
   if (!isoDate) return 'Immediate';
   const d = new Date(isoDate);
@@ -143,7 +132,6 @@ const AdminAnnouncementsPage: React.FC = () => {
     publish_to_facebook: true,
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [sendMode, setSendMode] = useState<'immediate' | 'schedule'>('immediate');
   const [selectedRecipients, setSelectedRecipients] = useState({ customers: true, franchiseBranches: false });
   const [branchMode, setBranchMode] = useState<'all' | 'selected'>('all');
   const [franchiseBranches, setFranchiseBranches] = useState<FranchiseBranchOption[]>([]);
@@ -266,15 +254,12 @@ const AdminAnnouncementsPage: React.FC = () => {
     setSelectedBranchIds([]);
     setBranchSearch('');
     setRecipientError('');
-    setSendMode('immediate');
     setImagePreview(null);
     setIsFormOpen(true);
   };
 
   const handleOpenEdit = (item: Announcement) => {
     setEditingItem(item);
-    const isScheduled = item.status === 'scheduled';
-    setSendMode(isScheduled ? 'schedule' : 'immediate');
     const audiences = item.target_audiences || [item.target_audience];
     const hasCustomers = audiences.includes('customers') || audiences.includes('all');
     const hasFranchiseBranches = audiences.includes('franchise_branches');
@@ -360,19 +345,10 @@ const AdminAnnouncementsPage: React.FC = () => {
     }
 
     const submittedStatus = statusOverride ?? (
-      sendMode === 'schedule'
-        ? 'scheduled'
-        : editingItem || formData.status === 'published'
+      editingItem || formData.status === 'published'
         ? 'published'
         : formData.status
     );
-    if (submittedStatus === 'scheduled') {
-      const scheduledTime = Date.parse(formData.scheduled_at || '');
-      if (!Number.isFinite(scheduledTime) || scheduledTime <= Date.now()) {
-        showToast('Choose a schedule date and time in the future.', 'error');
-        return;
-      }
-    }
 
     setIsSubmitting(true);
     try {
@@ -390,12 +366,10 @@ const AdminAnnouncementsPage: React.FC = () => {
         status: submittedStatus,
         date_sent: submittedStatus === 'draft'
           ? formData.date_sent
-          : sendMode === 'immediate'
-          ? (editingItem?.status === 'published'
+          : (editingItem?.status === 'published'
             ? formData.date_sent || new Date().toISOString()
-            : new Date().toISOString())
-          : undefined,
-        scheduled_at: submittedStatus === 'scheduled' ? formData.scheduled_at : undefined,
+            : new Date().toISOString()),
+        scheduled_at: undefined,
       };
 
       if (editingItem) {
@@ -418,8 +392,6 @@ const AdminAnnouncementsPage: React.FC = () => {
           } catch {
             showToast('Announcement published to customers, but Facebook publishing failed.', 'error');
           }
-        } else if (submissionData.status === 'scheduled') {
-          showToast('Announcement scheduled successfully!');
         } else if (submissionData.status === 'draft') {
           showToast('Announcement saved as a draft.');
         } else {
@@ -436,8 +408,6 @@ const AdminAnnouncementsPage: React.FC = () => {
             setFbStatus(await announcementService.getFacebookStatus());
             setIsFbSettingsOpen(true);
           }
-        } else if (submissionData.status === 'scheduled') {
-          showToast('Announcement scheduled successfully!');
         } else if (submissionData.status === 'draft') {
           showToast('Announcement saved as a draft.');
         } else {
@@ -1131,58 +1101,6 @@ Oppa Dru Korean Fried Chicken
 
                   </div>
 
-                  {/* 5. Date Sent & Scheduling */}
-                  <div className="space-y-3">
-                    <p className={ANNOUNCEMENT_FIELD_LABEL}>Delivery</p>
-                    <div role="group" aria-label="Delivery timing" className="grid grid-cols-2 rounded-xl bg-[var(--oppa-cream)] p-1 dark:bg-black/15">
-                      <label className={`flex cursor-pointer items-center justify-center rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-colors ${sendMode === 'immediate' ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'}`}>
-                        <input
-                          type="radio"
-                          name="sendMode"
-                          checked={sendMode === 'immediate'}
-                          onChange={() => setSendMode('immediate')}
-                          className="sr-only"
-                        />
-                        <span>Send immediately</span>
-                      </label>
-
-                      <label className={`flex cursor-pointer items-center justify-center rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-colors ${sendMode === 'schedule' ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'}`}>
-                        <input
-                          type="radio"
-                          name="sendMode"
-                          checked={sendMode === 'schedule'}
-                          onChange={() => setSendMode('schedule')}
-                          className="sr-only"
-                        />
-                        <span>Schedule date &amp; time</span>
-                      </label>
-                    </div>
-
-                    {sendMode === 'schedule' && <div className="min-w-0">
-                      <label
-                        htmlFor="announcement-scheduled-at"
-                        className={ANNOUNCEMENT_FIELD_LABEL}
-                      >
-                        Schedule date and time
-                      </label>
-                      <input
-                        id="announcement-scheduled-at"
-                        type="datetime-local"
-                        data-required="true"
-                        data-min={getMinimumScheduleDateTime()}
-                        value={formatDateForInput(formData.scheduled_at)}
-                        onChange={(e) => {
-                          const selectedTime = e.target.value
-                            ? new Date(e.target.value).toISOString()
-                            : '';
-                          setFormData((prev) => ({ ...prev, scheduled_at: selectedTime }));
-                        }}
-                        className="admin-input box-border block h-11 w-full min-w-0 max-w-full rounded-xl px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] sm:text-sm"
-                      />
-                      <p className="mt-1.5 text-[11px] text-[var(--oppa-text-muted)]">Choose a future date and time for this announcement.</p>
-                    </div>}
-                  </div>
-
                   {selectedRecipients.customers && (!editingItem || (
                     editingItem.status === 'draft' &&
                     !editingItem.metadata?.facebook_published_at
@@ -1200,7 +1118,7 @@ Oppa Dru Korean Fried Chicken
                           Also publish to Oppa Dru Facebook Page
                         </span>
                         <span className="mt-1 block text-xs leading-relaxed text-[var(--oppa-text-muted)]">
-                          Checked by default. Publishes the headline, message, and optional image. Drafts and scheduled announcements are not posted early.
+                          Checked by default. Publishes the headline, message, and optional image when the announcement is sent. Drafts are not posted.
                         </span>
                       </div>
                     </label>
@@ -1234,11 +1152,7 @@ Oppa Dru Korean Fried Chicken
                   >
                     {isSubmitting ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Send size={15} aria-hidden="true" />}
                     <span>
-                      {isSubmitting
-                        ? 'Saving…'
-                        : sendMode === 'schedule'
-                        ? 'Schedule announcement'
-                        : 'Send announcement'}
+                      {isSubmitting ? 'Saving…' : 'Send announcement'}
                     </span>
                   </button>
                 </div>

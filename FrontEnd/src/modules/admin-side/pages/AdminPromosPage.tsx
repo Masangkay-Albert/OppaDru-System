@@ -824,16 +824,17 @@ export default function AdminPromosPage() {
           icon={LuTag}
           onClose={() => setIsModalOpen(false)}
           labelledBy="promo-modal-title"
-          footer={modalFooter}
-        >
-          <ValidatedForm id="promo-form" onSubmit={handleSubmit} className="promo-modal-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
-            {formError && (
-              <div role="alert" className="flex items-start gap-2 rounded-xl border border-[var(--promo-danger-border)] bg-[var(--promo-danger-bg)] p-3 text-sm text-[var(--promo-danger-text)]">
+          alert={formError && (
+            <div className="shrink-0 px-4 pt-3 sm:px-6">
+              <div role="alert" aria-live="assertive" className="flex items-start gap-2 rounded-xl border border-[var(--promo-danger-border)] bg-[var(--promo-danger-bg)] p-3 text-sm text-[var(--promo-danger-text)]">
                 <LuX size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
                 <span>{formError}</span>
               </div>
-            )}
-
+            </div>
+          )}
+          footer={modalFooter}
+        >
+          <ValidatedForm id="promo-form" onSubmit={handleSubmit} className="promo-modal-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
               <div className="sm:col-span-7">
                 <FieldLabel htmlFor="promo-title">Promo title <span className="text-[var(--promo-danger-text)]">*</span></FieldLabel>

@@ -292,7 +292,7 @@ const SalesTargetPanel = ({
               disabled={(goalSet && !editing) || saving}
               placeholder="Set target"
               aria-label="Sales target amount"
-              className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[var(--oppa-text)] outline-none disabled:cursor-default"
+              className="min-w-0 flex-1 appearance-none border-0 bg-transparent text-sm font-semibold text-[var(--oppa-text)] shadow-none outline-none ring-0 focus:border-0 focus:ring-0 focus-visible:ring-0 disabled:cursor-default"
             />
           </span>
         </label>
@@ -589,7 +589,6 @@ const AdminReportsPage: React.FC = () => {
     });
     return [...summary.entries()].sort((left, right) => left[0].localeCompare(right[0]));
   }, [salesOrders]);
-  const totalPaymentSales = paymentEntries.reduce((sum, [, payment]) => sum + payment.amount, 0);
 
   const timelineRange: ReportRange = quickRange === 'today' || filters.date !== '' || filters.day !== ALL_FILTER
     ? 'daily'
@@ -931,29 +930,6 @@ const AdminReportsPage: React.FC = () => {
         />
       </div>
 
-      <section aria-label="Payment method summary" className="admin-card mb-6 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-[var(--oppa-text)]">Sales by payment method</h2>
-            <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Platform-paid orders are listed separately from register payments.</p>
-          </div>
-          <p className="text-sm text-[var(--oppa-text-muted)]">Sales total <strong className="ml-1 text-[var(--oppa-text)]">{formatCurrency(totalPaymentSales)}</strong></p>
-        </div>
-        {paymentEntries.length ? <div className="mt-4 grid auto-rows-fr gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {paymentEntries.map(([method, payment]) => (
-            <div key={method} className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-sm font-medium text-[var(--oppa-text)]">{getPaymentMethodLabel(method).replace(' (paid by platform)', '')}</span>
-                  {getPaymentMethodLabel(method).includes('(paid by platform)') && <span className="rounded-full bg-[var(--oppa-green-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--oppa-green-dark)]">Paid by platform</span>}
-                </div>
-                <span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">{payment.orders} {payment.orders === 1 ? 'order' : 'orders'}</span>
-              </div>
-              <strong className="shrink-0 text-sm tabular-nums text-[var(--oppa-text)]">{formatCurrency(payment.amount)}</strong>
-            </div>
-          ))}
-        </div> : <p className="mt-4 text-sm text-[var(--oppa-text-muted)]">No paid orders for these filters.</p>}
-      </section>
       <SalesTimelinePanel
         buckets={trendBuckets}
         orderCount={salesOrders.length}

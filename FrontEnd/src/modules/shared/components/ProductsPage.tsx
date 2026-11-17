@@ -779,14 +779,14 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
+        <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-20" onClick={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
           <div
             ref={(element) => { dialogRef.current = element; }}
             tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="product-form-title"
-            className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-2xl"
+            className="my-0 flex max-h-[calc(100dvh-6rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--oppa-border)] px-5 py-4 sm:px-6">

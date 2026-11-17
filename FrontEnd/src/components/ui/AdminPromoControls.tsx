@@ -143,11 +143,12 @@ interface PromoModalProps {
   icon: IconType;
   onClose: () => void;
   children: ReactNode;
+  alert?: ReactNode;
   footer: ReactNode;
   labelledBy: string;
 }
 
-export function PromoModal({ open, title, icon: Icon, onClose, children, footer, labelledBy }: PromoModalProps) {
+export function PromoModal({ open, title, icon: Icon, onClose, children, alert, footer, labelledBy }: PromoModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
 
@@ -229,6 +230,7 @@ export function PromoModal({ open, title, icon: Icon, onClose, children, footer,
             <LuX size={18} aria-hidden="true" />
           </button>
         </header>
+        {alert}
         {children}
         <footer className="sticky bottom-0 z-10 shrink-0 border-t border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-4 py-3 pb-[calc(12px+env(safe-area-inset-bottom))] sm:px-6">
           {footer}
