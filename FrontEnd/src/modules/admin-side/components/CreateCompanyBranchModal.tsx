@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Eye, EyeOff, Loader2, MapPin, Search, X } from 'lucide-react';
 import { ValidatedForm } from '../../../components/ui/FormValidation';
 import { createCompanyBranch, getCompanyBranchManagers } from '../../../services/franchiseAdminService';
@@ -252,10 +253,10 @@ const CreateCompanyBranchModal: React.FC<CreateCompanyBranchModalProps> = ({ onC
     ? <p id={`${field}-error`} role="alert" className="mt-1 text-xs text-red-700">{fieldError(field)}</p>
     : null;
 
-  return (
+  return createPortal(
     <>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-0 sm:p-4"
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-0 sm:p-4"
         role="presentation"
         onMouseDown={(event) => {
           if (event.target === event.currentTarget && !saving) onClose();
@@ -266,7 +267,7 @@ const CreateCompanyBranchModal: React.FC<CreateCompanyBranchModalProps> = ({ onC
           role="dialog"
           aria-modal="true"
           aria-labelledby="create-company-branch-title"
-          className="flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-none bg-white shadow-2xl sm:h-auto sm:max-h-[92dvh] sm:rounded-2xl"
+          className="flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-none bg-white shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
         >
           <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--oppa-border)] px-5 py-4 sm:px-6">
             <div>
@@ -508,7 +509,8 @@ const CreateCompanyBranchModal: React.FC<CreateCompanyBranchModalProps> = ({ onC
           setShowLocationPicker(false);
         }}
       />}
-    </>
+    </>,
+    document.body,
   );
 };
 

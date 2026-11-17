@@ -15,6 +15,7 @@ import GreetingBanner from '../components/common/GreetingBanner';
 import { FiShoppingCart, FiMenu, FiX } from 'react-icons/fi';
 import { LuStore } from 'react-icons/lu';
 import foodpandaLogo from '../../../assets/foodpanda.png';
+import grabLogo from '../../../assets/grab.png';
 import '../../../styles/global.css';
 import { productService } from '../../../services/productService';
 import Select from '../../../components/ui/Select';
@@ -239,18 +240,26 @@ const MenuPage: React.FC = () => {
 
           <div className="mt-6 pt-6 border-t border-gray-100">
             <p className="text-xs text-gray-400 mb-3">Order on</p>
-            <a 
-              href="https://www.foodpanda.ph/restaurant/l4fv/oppa-dru-zone-1"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block hover:opacity-80 transition-opacity duration-300"
-            >
-              <img 
-                src={foodpandaLogo} 
-                alt="Order on Foodpanda" 
-                className="h-10 w-auto object-contain"
-              />
-            </a>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="https://www.foodpanda.ph/restaurant/l4fv/oppa-dru-zone-1"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block hover:opacity-80 transition-opacity duration-300"
+                aria-label="Order on Foodpanda"
+              >
+                <img src={foodpandaLogo} alt="Order on Foodpanda" className="h-10 w-auto object-contain" />
+              </a>
+              <a
+                href="https://food.grab.com/ph/en/restaurant/oppa-dru-korean-fried-chicken-dasmari%C3%B1as-delivery/2-C2X2VVDTRZNTVA/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block hover:opacity-80 transition-opacity duration-300"
+                aria-label="Order on GrabFood"
+              >
+                <img src={grabLogo} alt="Order on GrabFood" className="h-10 w-auto object-contain" />
+              </a>
+            </div>
           </div>
         </aside>
 
@@ -316,18 +325,26 @@ const MenuPage: React.FC = () => {
 
           <div className="lg:hidden mt-8 pt-6 border-t border-gray-100">
             <p className="text-xs text-gray-400 mb-3 text-center">Order on</p>
-            <a 
-              href="https://www.foodpanda.ph/restaurant/l4fv/oppa-dru-zone-1"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block hover:opacity-80 transition-opacity duration-300 flex justify-center"
-            >
-              <img 
-                src={foodpandaLogo} 
-                alt="Order on Foodpanda" 
-                className="h-10 w-auto object-contain"
-              />
-            </a>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <a
+                href="https://www.foodpanda.ph/restaurant/l4fv/oppa-dru-zone-1"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block hover:opacity-80 transition-opacity duration-300"
+                aria-label="Order on Foodpanda"
+              >
+                <img src={foodpandaLogo} alt="Order on Foodpanda" className="h-10 w-auto object-contain" />
+              </a>
+              <a
+                href="https://food.grab.com/ph/en/restaurant/oppa-dru-korean-fried-chicken-dasmari%C3%B1as-delivery/2-C2X2VVDTRZNTVA/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block hover:opacity-80 transition-opacity duration-300"
+                aria-label="Order on GrabFood"
+              >
+                <img src={grabLogo} alt="Order on GrabFood" className="h-10 w-auto object-contain" />
+              </a>
+            </div>
           </div>
 
           {filteredProducts.length === 0 && (

@@ -569,29 +569,25 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
           }}
         >
           <div
-            className="customer-bell-modal relative flex h-[88dvh] max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col rounded-3xl border border-[var(--oppa-border)] bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 dark:border-[#2f4335] dark:bg-[#16251b] sm:h-[min(88vh,760px)]"
+            className="customer-bell-modal relative flex h-[88dvh] max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col rounded-3xl border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 sm:h-[min(88vh,760px)]"
             role="dialog"
             aria-modal="true"
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-[var(--oppa-border)] dark:border-[#2f4335] px-5 sm:px-7 py-4 bg-[var(--oppa-cream)]/80 dark:bg-[#1c2e22] shrink-0">
+            <div className="customer-bell-modal__header flex items-center justify-between border-b px-5 sm:px-7 py-4 shrink-0">
               <div className="flex items-center gap-3">
-                <div
-                  className={`flex size-10 items-center justify-center rounded-2xl shadow-xs ${
-                    'bg-[var(--oppa-green)] text-white'
-                  }`}
-                >
+                <div className="customer-notification-icon flex size-10 items-center justify-center rounded-2xl shadow-xs">
                   {activeNotification.type === 'promo' ? <Sparkles size={20} /> : activeNotification.type === 'replacement' ? <PackageCheck size={20} /> : <Megaphone size={20} />}
                 </div>
                 <div>
-                  <h2 className="font-serif text-base sm:text-xl font-bold text-slate-900 dark:text-white leading-tight">
+                  <h2 className="font-serif text-base sm:text-xl font-bold leading-tight">
                     {activeNotification.type === 'promo'
                       ? 'Oppa Dru Promo Offer'
                       : activeNotification.type === 'replacement'
                         ? 'Replacement update'
                         : 'Official Oppa Dru Announcement'}
                   </h2>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                  <p className="text-xs font-medium" style={{ color: 'var(--notification-body)' }}>
                     Notification {activeIndex + 1} of {unifiedNotifications.length}
                   </p>
                 </div>
@@ -600,12 +596,12 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
               {/* Prev / Next & Close Header Actions */}
               <div className="flex items-center gap-1.5">
                 {unifiedNotifications.length > 1 && (
-                  <div className="flex items-center gap-1 mr-2 border-r border-slate-200 dark:border-[#354b3c] pr-2">
+                  <div className="flex items-center gap-1 mr-2 border-r border-[var(--notification-border)] pr-2">
                     <button
                       type="button"
                       disabled={activeIndex === 0}
                       onClick={handlePrevNotification}
-                      className="p-1.5 rounded-lg border border-slate-200 dark:border-[#354b3c] text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                      className="customer-bell-modal-control p-1.5 rounded-lg border disabled:opacity-30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--notification-green)]"
                       title="Previous notification"
                       aria-label="Previous"
                     >
@@ -615,7 +611,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                       type="button"
                       disabled={activeIndex === unifiedNotifications.length - 1}
                       onClick={handleNextNotification}
-                      className="p-1.5 rounded-lg border border-slate-200 dark:border-[#354b3c] text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                      className="customer-bell-modal-control p-1.5 rounded-lg border disabled:opacity-30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--notification-green)]"
                       title="Next notification"
                       aria-label="Next"
                     >
@@ -627,7 +623,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                 <button
                   type="button"
                   onClick={() => setExpandedModal(false)}
-                  className="rounded-xl p-2 text-slate-500 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/10 hover:text-slate-900 dark:text-white transition-colors"
+                  className="customer-bell-modal-control rounded-xl border-0 p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--notification-green)]"
                   title="Close (Esc)"
                   aria-label="Close"
                 >
@@ -642,7 +638,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                 {/* Visual Media Column */}
                 <div className={activeNotification.image_url ? 'md:col-span-6' : 'md:col-span-4'}>
                   {activeNotification.image_url ? (
-                    <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-[#354b3c] shadow-md bg-black/5 group">
+                    <div className="relative overflow-hidden rounded-2xl border border-[var(--notification-border)] shadow-md bg-[var(--notification-row)] group">
                       <img
                         src={activeNotification.image_url}
                         alt={activeNotification.title}
@@ -660,16 +656,16 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                       )}
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed border-slate-200 dark:border-[#354b3c] bg-[var(--oppa-cream)]/50 dark:bg-white/5 text-center">
-                      <div className="size-16 rounded-full bg-[var(--oppa-green)]/15 text-[var(--oppa-green)] dark:bg-emerald-500/20 dark:text-emerald-300 flex items-center justify-center mb-3">
+                    <div className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed border-[var(--notification-border)] bg-[var(--notification-header)] text-center">
+                      <div className="customer-notification-icon size-16 rounded-full flex items-center justify-center mb-3">
                         {activeNotification.type === 'promo'
                           ? <Sparkles size={30} />
                           : activeNotification.type === 'replacement'
                             ? <PackageCheck size={30} />
                             : <Megaphone size={30} />}
                       </div>
-                      <span className="font-serif font-bold text-sm text-slate-900 dark:text-slate-100">Oppa Dru Bulletin</span>
-                      <span className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">Fresh & Authentic Korean Fried Chicken</span>
+                      <span className="font-serif font-bold text-sm">Oppa Dru Bulletin</span>
+                      <span className="text-xs mt-0.5" style={{ color: 'var(--notification-body)' }}>Fresh & Authentic Korean Fried Chicken</span>
                     </div>
                   )}
                 </div>
@@ -701,7 +697,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                     {/* Completion Status (Permanent once read) */}
                     {activeNotification.isCompleted ? (
                       <span
-                        className="rounded-full px-3 py-1 text-xs font-bold flex items-center gap-1.5 bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-700"
+                        className="rounded-full px-3 py-1 text-xs font-bold flex items-center gap-1.5 bg-[var(--notification-green-soft)] text-[var(--notification-green)] border border-[var(--notification-border)]"
                         title="Marked as read"
                       >
                         <Check size={13} className="stroke-[3]" />
@@ -711,7 +707,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                       <button
                         type="button"
                         onClick={() => handleMarkAsRead(activeNotification.id)}
-                        className="rounded-full px-3 py-1 text-xs font-bold flex items-center gap-1.5 bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]/80 border border-[var(--oppa-green)]/25 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700 dark:hover:bg-emerald-900/60 transition-colors shadow-xs"
+                        className="rounded-full px-3 py-1 text-xs font-bold flex items-center gap-1.5 bg-[var(--notification-green-soft)] text-[var(--notification-green)] hover:bg-[var(--notification-hover)] border border-[var(--notification-border)] transition-colors shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--notification-green)]"
                         title="Click to mark as read"
                       >
                         <Check size={13} />
@@ -720,7 +716,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                     )}
 
                     {/* Date Stamp */}
-                    <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--notification-muted)' }}>
                       <Clock size={12} />
                       <span>
                         {new Date(activeNotification.date).toLocaleDateString('en-US', {
@@ -735,36 +731,36 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                   </div>
 
                   {/* Headline */}
-                  <h1 className="font-serif text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white leading-tight">
+                  <h1 className="font-serif text-2xl sm:text-3xl font-extrabold leading-tight">
                     {activeNotification.title}
                   </h1>
 
                   {/* Promo Special Voucher Box (if Promo) */}
                   {activeNotification.type === 'promo' && activeNotification.promoCode && (
-                    <div className="rounded-2xl border-2 border-dashed border-[var(--oppa-green)]/40 dark:border-emerald-500/70 bg-[var(--oppa-green-soft)]/40 dark:bg-emerald-950/30 p-4 sm:p-5 space-y-3">
+                    <div className="rounded-2xl border-2 border-dashed border-[var(--notification-border)] bg-[var(--notification-row-unread)] p-4 sm:p-5 space-y-3">
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <div className="flex items-center gap-2">
-                          <Tag size={18} className="text-[var(--oppa-green-dark)] dark:text-emerald-300" />
-                          <span className="font-serif font-bold text-sm text-[var(--oppa-green-dark)] dark:text-emerald-100">
+                          <Tag size={18} className="text-[var(--notification-green)]" />
+                          <span className="font-serif font-bold text-sm text-[var(--notification-text)]">
                             Discount Voucher
                           </span>
                         </div>
                         {activeNotification.endDate && (
-                          <span className="text-[11px] font-medium text-[var(--oppa-green-dark)] dark:text-emerald-300">
+                          <span className="text-[11px] font-medium text-[var(--notification-muted)]">
                             Valid until {new Date(activeNotification.endDate).toLocaleDateString()}
                           </span>
                         )}
                       </div>
 
                       {/* Code Pill & Copy Button */}
-                      <div className="flex items-center justify-between gap-3 bg-white dark:bg-[#151c16] rounded-xl p-2.5 border border-[var(--oppa-green)]/25 dark:border-emerald-700/60 shadow-xs">
-                        <div className="font-mono text-base sm:text-lg font-black tracking-wider text-[var(--oppa-green-dark)] dark:text-emerald-200 pl-2">
+                      <div className="flex items-center justify-between gap-3 bg-[var(--notification-surface)] rounded-xl p-2.5 border border-[var(--notification-border)] shadow-xs">
+                        <div className="font-mono text-base sm:text-lg font-black tracking-wider text-[var(--notification-green)] pl-2">
                           {activeNotification.promoCode}
                         </div>
                         <button
                           type="button"
                           onClick={() => handleCopyCode(activeNotification.promoCode!)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--oppa-green)] hover:bg-[var(--oppa-green-dark)] text-white text-xs font-bold transition-all active:scale-95 shadow-xs"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--notification-active-tab)] hover:bg-[var(--notification-green)] text-white text-xs font-bold transition-all active:scale-95 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--notification-green)]"
                         >
                           {copiedCode === activeNotification.promoCode ? <Check size={14} /> : <Copy size={14} />}
                           <span>{copiedCode === activeNotification.promoCode ? 'Copied!' : 'Copy Code'}</span>
@@ -772,7 +768,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                       </div>
 
                       {/* Promo Terms / Min Order info */}
-                      <div className="text-[11px] text-[var(--oppa-green-dark)]/80 dark:text-emerald-200/90 space-y-0.5">
+                      <div className="text-[11px] text-[var(--notification-body)] space-y-0.5">
                         {activeNotification.minOrderAmount ? (
                           <p>• Minimum order amount: ₱{activeNotification.minOrderAmount.toLocaleString()}</p>
                         ) : (
@@ -786,7 +782,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                   )}
 
                   {/* Body Content */}
-                  <div className="text-sm sm:text-base leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-sans">
+                  <div className="text-sm sm:text-base leading-relaxed text-[var(--notification-text)] whitespace-pre-wrap font-sans">
                     {activeNotification.content}
                   </div>
 
@@ -795,12 +791,12 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
             </div>
 
             {/* Modal Sticky Footer */}
-            <div className="flex items-center justify-between border-t border-[var(--oppa-border)] dark:border-[#2f4335] px-6 py-3.5 bg-[var(--oppa-cream)]/80 dark:bg-[#1c2e22] text-xs text-slate-600 dark:text-slate-300 font-medium shrink-0">
+            <div className="customer-bell-modal__footer flex items-center justify-between border-t px-6 py-3.5 text-xs text-[var(--notification-body)] font-medium shrink-0">
               <span className="hidden sm:inline">Use arrow keys (← / →) to browse, Esc to close</span>
               <button
                 type="button"
                 onClick={() => setExpandedModal(false)}
-                className="ml-auto px-4 py-1.5 rounded-xl border border-slate-300 dark:border-[#354b3c] bg-white dark:bg-white/5 text-slate-800 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/10 text-xs font-bold transition-colors"
+                className="customer-bell-modal-control ml-auto px-4 py-1.5 rounded-xl border text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--notification-green)]"
               >
                 Close
               </button>
