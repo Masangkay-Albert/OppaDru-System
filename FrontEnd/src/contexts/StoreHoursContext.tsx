@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { API_URL } from '../services/apiConfig';
+import { getDeviceStoreHoursStatus } from '../utils/storeHoursClock';
 
 export type StoreHoursState = 'open' | 'last_order_passed' | 'closed';
 
@@ -62,7 +63,10 @@ export const StoreHoursProvider: React.FC<React.PropsWithChildren> = ({ children
       const payload: unknown = await response.json();
       if (!isStoreHoursStatus(payload)) throw new Error('Store hours response was invalid.');
 
-      setStatus(payload);
+      setStatus({
+        ...payload,
+        ...getDeviceStoreHoursStatus(payload.configured_hours),
+      });
     } catch (error) {
       console.error('Failed to check store hours:', error);
       setStatus(null);
@@ -78,11 +82,14 @@ export const StoreHoursProvider: React.FC<React.PropsWithChildren> = ({ children
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') void refreshStatus();
     };
+    const handleFocus = () => void refreshStatus();
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [refreshStatus]);
 
