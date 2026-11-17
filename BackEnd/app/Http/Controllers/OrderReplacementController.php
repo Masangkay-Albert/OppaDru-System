@@ -478,13 +478,23 @@ class OrderReplacementController extends Controller
     private function applyRequestFilter(Builder $query, string $status): void
     {
         if ($status === 'pending') {
-            $query->where('status', 'pending');
+            $query->where('status', 'pending')
+                ->whereDoesntHave('replacementOrder');
         } elseif ($status === 'in_progress') {
-            $query->whereIn('status', ['approved', 'replacement_sent']);
+            $query->where(function (Builder $progress): void {
+                $progress->whereIn('status', ['approved', 'replacement_sent'])
+                    ->orWhereHas('replacementOrder');
+            })->whereDoesntHave('replacementOrder', fn (Builder $replacementOrder) => $replacementOrder
+                ->whereIn('status', ['delivered', 'completed']));
         } elseif ($status === 'replaced') {
-            $query->where('status', 'replaced');
+            $query->where(function (Builder $replaced): void {
+                $replaced->where('status', 'replaced')
+                    ->orWhereHas('replacementOrder', fn (Builder $replacementOrder) => $replacementOrder
+                        ->whereIn('status', ['delivered', 'completed']));
+            });
         } elseif ($status === 'rejected') {
-            $query->where('status', 'rejected');
+            $query->where('status', 'rejected')
+                ->whereDoesntHave('replacementOrder');
         } elseif ($status === 'done') {
             $query->whereIn('status', ['approved', 'rejected', 'replacement_sent']);
         }
@@ -492,11 +502,17 @@ class OrderReplacementController extends Controller
 
     private function requestStatusCounts(Builder $query): array
     {
+        $countForStatus = function (string $status) use ($query): int {
+            $filtered = clone $query;
+            $this->applyRequestFilter($filtered, $status);
+            return $filtered->count();
+        };
+
         return [
-            'needs_review' => (clone $query)->where('status', 'pending')->count(),
-            'in_progress' => (clone $query)->whereIn('status', ['approved', 'replacement_sent'])->count(),
-            'replaced' => (clone $query)->where('status', 'replaced')->count(),
-            'not_approved' => (clone $query)->where('status', 'rejected')->count(),
+            'needs_review' => $countForStatus('pending'),
+            'in_progress' => $countForStatus('in_progress'),
+            'replaced' => $countForStatus('replaced'),
+            'not_approved' => $countForStatus('rejected'),
             'all' => (clone $query)->count(),
         ];
     }

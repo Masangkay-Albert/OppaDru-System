@@ -283,9 +283,7 @@ const AdminAddonsPage: React.FC = () => {
     });
   };
 
-  const getCategoryLabels = (group: AddonGroup) => (group.applicable_categories || [])
-    .map((id) => editableCategories.find((category) => category.id === id)?.name || id)
-    .join(', ');
+  const isCategoryAssignable = (category: string) => assignableCategories.some((item) => item.id === category);
 
   const cancelNewAddon = (groupId: number) => {
     setAddingAddonGroup(null);
@@ -302,16 +300,24 @@ const AdminAddonsPage: React.FC = () => {
 
       <section className="admin-card mb-6 p-5">
         <h2 className="font-serif text-lg font-semibold text-[var(--oppa-text)]">Create add-on group</h2>
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-          <LimitedInput aria-label="Add-on group name" data-min-length={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" showCounter value={newGroup.name} onChange={(event) => setNewGroup({ ...newGroup, name: event.target.value })} placeholder="Group name" className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--oppa-border)] px-3 text-sm" />
-          <button type="button" disabled={newGroup.name.trim().length < INPUT_LIMITS.categoryOrSupplierName.min || newGroup.categories.length === 0} onClick={() => void addGroup()} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-green-700 px-4 text-sm font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50"><Plus size={16} />Add group</button>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label htmlFor="new-addon-group-name" className="block min-w-0 flex-1 text-sm font-medium text-[var(--oppa-text)]">
+            Group name
+            <span className="relative mt-1.5 block">
+              <LimitedInput id="new-addon-group-name" aria-describedby="new-addon-group-name-counter" data-min-length={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" value={newGroup.name} onChange={(event) => setNewGroup({ ...newGroup, name: event.target.value })} placeholder="Group name" className="h-11 w-full min-w-0 rounded-xl border border-[var(--oppa-border)] px-3 pr-16 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30" />
+              <span id="new-addon-group-name-counter" aria-live="polite" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-normal text-[var(--oppa-text-muted)]">{newGroup.name.length}/{INPUT_LIMITS.categoryOrSupplierName.max}</span>
+            </span>
+          </label>
+          <button type="button" disabled={newGroup.name.trim().length < INPUT_LIMITS.categoryOrSupplierName.min || newGroup.categories.length === 0} onClick={() => void addGroup()} className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/40 focus-visible:ring-offset-2 enabled:bg-green-700 enabled:hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500 sm:w-auto"><Plus size={16} aria-hidden="true" />Add group</button>
         </div>
         <div className="mt-4">
           <p className="mb-2 text-xs font-semibold text-[var(--oppa-text-muted)]">Apply to categories</p>
-          <div className="flex flex-wrap gap-2">{assignableCategories.map((category) => {
+          <div className="flex flex-wrap gap-2">{editableCategories.map((category) => {
             const selected = newGroup.categories.includes(category.id);
-            return <button type="button" aria-pressed={selected} key={category.id} onClick={() => toggleCategory(category.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${selected ? 'border-green-700 bg-green-700 text-white' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:border-green-700'}`}>{selected && <Check size={13} />}{category.name}</button>;
+            const assignable = isCategoryAssignable(category.id);
+            return <button type="button" aria-pressed={selected} aria-label={assignable ? category.name : `${category.name}: add-ons are not available for this category`} title={assignable ? undefined : 'Add-ons are not available for this category'} disabled={!assignable} key={category.id} onClick={() => toggleCategory(category.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/40 focus-visible:ring-offset-1 ${selected ? 'border-green-700 bg-green-700 text-white' : assignable ? 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:border-green-700 hover:bg-green-50' : 'cursor-not-allowed border-[var(--oppa-border)] bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)] opacity-60'}`}>{selected && <Check size={13} aria-hidden="true" />}{category.name}</button>;
           })}</div>
+          <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">Select at least one category to create a group. Add-ons are not available for Fruity Soda or Non-Coffee.</p>
         </div>
       </section>
 
@@ -323,21 +329,26 @@ const AdminAddonsPage: React.FC = () => {
             const isExpanded = expandedGroups[group.id] !== false;
             const groupActive = group.is_active !== false;
             const draftGroup = editingGroups[group.id];
+            const groupCategoryLabels = (group.applicable_categories || [])
+              .map((id) => editableCategories.find((category) => category.id === id)?.name || id);
+            const hiddenCategoryCount = Math.max(0, groupCategoryLabels.length - 2);
+            const categoryTooltip = groupCategoryLabels.length ? `Categories: ${groupCategoryLabels.join(', ')}` : undefined;
             return <section key={group.id} className="admin-card overflow-visible p-0">
               <div className="flex min-w-0 flex-wrap items-center gap-3 p-4 sm:p-5">
-                <button type="button" aria-expanded={isExpanded} title={getCategoryLabels(group) ? `Categories: ${getCategoryLabels(group)}` : undefined} onClick={() => setExpandedGroups((current) => ({ ...current, [group.id]: !isExpanded }))} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                <button type="button" aria-expanded={isExpanded} aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${group.name}${groupCategoryLabels.length ? `. Categories: ${groupCategoryLabels.join(', ')}` : ''}`} title={categoryTooltip} onClick={() => setExpandedGroups((current) => ({ ...current, [group.id]: !isExpanded }))} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/40">
                   <ChevronDown aria-hidden="true" size={18} className={`shrink-0 text-green-700 transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-semibold text-[var(--oppa-text)]">{group.name}</span>
-                      {getCategoryLabels(group) && <span title={`Categories: ${getCategoryLabels(group)}`} className="max-w-48 truncate rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-medium text-stone-600">{getCategoryLabels(group)}</span>}
+                      {groupCategoryLabels.slice(0, 2).map((category) => <span key={category} className="max-w-40 truncate rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-medium text-stone-600">{category}</span>)}
+                      {hiddenCategoryCount > 0 && <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-medium text-stone-600">+{hiddenCategoryCount} more</span>}
                     </span>
                     <span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">{group.selection_type === 'single' ? 'Single selection' : 'Multiple selection'} · {group.addons.length} {group.addons.length === 1 ? 'item' : 'items'}{group.supports_quantity ? ' · Quantity enabled' : ''}</span>
                   </span>
                 </button>
-                <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3" onClick={(event) => event.stopPropagation()}>
+                <div className="ml-auto flex shrink-0 items-center gap-3" onClick={(event) => event.stopPropagation()}>
                   <span className="text-xs font-medium text-[var(--oppa-text-muted)]">{groupActive ? 'Active' : 'Inactive'}</span>
-                  <AvailabilitySwitch checked={groupActive} label={`Set ${group.name} ${groupActive ? 'inactive' : 'active'}`} activeText="Active" inactiveText="Inactive" onChange={() => { void productService.updateAddonGroup(group.id, { is_active: !groupActive }).then(refresh).catch((error: unknown) => { console.error('Unable to update group availability:', error); setMessage('Unable to update group availability.'); }); }} />
+                  <AvailabilitySwitch checked={groupActive} label={`${groupActive ? 'Deactivate' : 'Activate'} ${group.name}`} activeText="Active" inactiveText="Inactive" onChange={() => { void productService.updateAddonGroup(group.id, { is_active: !groupActive }).then(refresh).catch((error: unknown) => { console.error('Unable to update group availability:', error); setMessage('Unable to update group availability.'); }); }} />
                   <RowActionsMenu label={group.name} items={[{ label: 'Edit group', onSelect: () => beginGroupEdit(group) }, { label: 'Delete group', destructive: true, onSelect: () => void deleteGroup(group.id, group.name) }]} />
                 </div>
               </div>
@@ -350,14 +361,18 @@ const AdminAddonsPage: React.FC = () => {
                         <Select aria-label="Selection type" value={draftGroup.selection_type} onChange={(selection_type) => setEditingGroups({ ...editingGroups, [group.id]: { ...draftGroup, selection_type } })} options={[{ value: 'single', label: 'Single selection' }, { value: 'multiple', label: 'Multiple selection' }]} />
                         <button type="button" onClick={() => void saveGroup(group.id)} disabled={!draftGroup.name.trim() || draftGroup.categories.length === 0} className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Save</button>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2">{assignableCategories.map((category) => <button type="button" aria-pressed={draftGroup.categories.includes(category.id)} key={category.id} onClick={() => toggleGroupCategory(group.id, category.id)} className={`rounded-full border px-2.5 py-1 text-xs ${draftGroup.categories.includes(category.id) ? 'border-green-700 bg-green-700 text-white' : 'border-[var(--oppa-border)] bg-white text-[var(--oppa-text)]'}`}>{category.name}</button>)}</div>
+                      <div className="mt-3 flex flex-wrap gap-2">{editableCategories.map((category) => {
+                        const selected = draftGroup.categories.includes(category.id);
+                        const assignable = isCategoryAssignable(category.id);
+                        return <button type="button" aria-pressed={selected} aria-label={assignable ? category.name : `${category.name}: add-ons are not available for this category`} title={assignable ? undefined : 'Add-ons are not available for this category'} disabled={!assignable} key={category.id} onClick={() => toggleGroupCategory(group.id, category.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/40 focus-visible:ring-offset-1 ${selected ? 'border-green-700 bg-green-700 text-white' : assignable ? 'border-[var(--oppa-border)] bg-white text-[var(--oppa-text)] hover:border-green-700' : 'cursor-not-allowed border-[var(--oppa-border)] bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)] opacity-60'}`}>{selected && <Check size={12} aria-hidden="true" />}{category.name}</button>;
+                      })}</div>
                     </div>}
 
                     {group.addons.length === 0
                       ? <div className="mt-3 rounded-xl border border-dashed border-[var(--oppa-border)]">
                         <EmptyState icon={<PackageOpen size={20} />} title="No add-ons yet" description="Add the first option to this group." action={<button type="button" onClick={() => setAddingAddonGroup(group.id)} className="mt-1 inline-flex items-center gap-1 rounded-lg bg-green-700 px-3 py-2 text-xs font-semibold text-white"><Plus size={14} />Add add-on</button>} />
                       </div>
-                      : <div className="admin-scrollbar mt-3 grid gap-3 sm:grid-cols-2">{group.addons.map((addon) => {
+                      : <div className="admin-scrollbar mt-3 grid gap-3">{group.addons.map((addon) => {
                         const addonId = Number(addon.id);
                         const draft = editingAddon[addonId];
                         const available = addon.is_active !== false;
@@ -398,12 +413,16 @@ const AdminAddonsPage: React.FC = () => {
                                 <button type="button" disabled={!draft.name.trim() || Number(draft.price) <= 0} onClick={() => void saveAddon(addonId)} className="rounded-lg bg-green-700 px-3 py-2 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/40 disabled:opacity-50">Save</button>
                               </div>
                             </div>
-                            : <div className="grid grid-cols-[40px_minmax(0,1fr)_90px_auto_36px] items-center gap-4">
-                              <AddonImage name={addon.name} image={addon.image} />
-                              <span className="min-w-0 truncate text-sm font-medium text-[var(--oppa-text)]" title={addon.name}>{addon.name}</span>
-                              <span className="tabular-nums w-[90px] text-right text-sm font-semibold text-[var(--oppa-text)]">{formatCurrency(addon.price)}</span>
-                              <AvailabilitySwitch checked={available} label={`Set ${addon.name} ${available ? 'unavailable' : 'available'}`} activeText="Available" inactiveText="Unavailable" onChange={() => void toggleAddonAvailability(addonId, available)} />
-                              <RowActionsMenu label={addon.name} items={[{ label: 'Edit add-on', onSelect: () => setEditingAddon((current) => ({ ...current, [addonId]: { name: addon.name, price: String(addon.price), image: addon.image || '', preview: addon.image || '' } })) }, { label: 'Delete add-on', destructive: true, onSelect: () => void deleteAddon(addonId, addon.name) }]} />
+                            : <div className="flex w-full min-w-0 items-center justify-between gap-3">
+                              <div className="flex min-w-0 items-center gap-3">
+                                <AddonImage name={addon.name} image={addon.image} />
+                                <span className="min-w-0 truncate text-sm font-medium text-[var(--oppa-text)]" title={addon.name}>{addon.name}</span>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-3">
+                                <span className="w-20 text-right text-sm font-semibold tabular-nums text-[var(--oppa-text)]">{formatCurrency(addon.price)}</span>
+                                <AvailabilitySwitch checked={available} label={`Set ${addon.name} ${available ? 'unavailable' : 'available'}`} activeText="Available" inactiveText="Unavailable" onChange={() => void toggleAddonAvailability(addonId, available)} />
+                                <RowActionsMenu label={addon.name} items={[{ label: 'Edit add-on', onSelect: () => setEditingAddon((current) => ({ ...current, [addonId]: { name: addon.name, price: String(addon.price), image: addon.image || '', preview: addon.image || '' } })) }, { label: 'Delete add-on', destructive: true, onSelect: () => void deleteAddon(addonId, addon.name) }]} />
+                              </div>
                             </div>}
                         </div>;
                       })}</div>}
