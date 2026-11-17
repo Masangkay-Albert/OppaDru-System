@@ -35,7 +35,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
   const { addOrder } = useFavorites();
   const { status: storeHours } = useStoreHours();
   const canOrder = storeHours?.state === 'open';
-  const orderingClosed = storeHours?.state === 'last_order_passed';
+  const orderingClosed = storeHours?.state !== 'open';
   const [quantity, setQuantity] = useState(1);
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
   const [specialInstructions, setSpecialInstructions] = useState('');
@@ -289,7 +289,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
                   : 'bg-gray-300 text-gray-600 cursor-not-allowed'
               }`}
             >
-              {orderingClosed ? 'Ordering is closed for today.' : product.isAvailable ? (editMode ? 'Update Cart' : 'Add to Cart') : 'Not Available'}
+              {orderingClosed ? 'Ordering closed' : product.isAvailable ? (editMode ? 'Update Cart' : 'Add to Cart') : 'Not Available'}
             </button>
           </div>
         </div>

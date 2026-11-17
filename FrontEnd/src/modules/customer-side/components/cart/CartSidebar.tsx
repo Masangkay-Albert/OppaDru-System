@@ -23,7 +23,7 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
 
   const subtotal = calculateSubtotal(cartItems);
   const hasItems = cartItems.length > 0;
-  const orderingClosed = storeHours?.state === 'last_order_passed';
+  const orderingClosed = storeHours?.state !== 'open';
 
   const handleCheckout = () => {
     if (!hasItems || orderingClosed) return;
@@ -106,13 +106,20 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
 
       <div className="menu-cart-actions space-y-3 border-t border-gray-200 bg-white p-4">
         {hasItems ? (
-          <button
-            onClick={handleCheckout}
-            disabled={orderingClosed}
-            className="min-h-12 w-full rounded-xl bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] py-3 font-bold text-white shadow-sm transition hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d6a4f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {orderingClosed ? 'Ordering is closed for today.' : 'Checkout'}
-          </button>
+          <>
+            {orderingClosed && (
+              <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                {storeHours?.order_closed_message || 'Ordering status is unavailable. Please try again shortly.'}
+              </p>
+            )}
+            <button
+              onClick={handleCheckout}
+              disabled={orderingClosed}
+              className="min-h-12 w-full rounded-xl bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] py-3 font-bold text-white shadow-sm transition hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d6a4f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {orderingClosed ? 'Ordering closed' : 'Checkout'}
+            </button>
+          </>
         ) : (
           <button
             disabled

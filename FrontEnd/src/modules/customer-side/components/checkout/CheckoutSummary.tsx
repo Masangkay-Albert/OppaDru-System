@@ -67,7 +67,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   const { getActiveDiscount } = useSettings();
   const { status: storeHours } = useStoreHours();
   const activeDiscount = getActiveDiscount();
-  const orderingClosed = storeHours?.state === 'last_order_passed';
+  const orderingClosed = storeHours?.state !== 'open';
   const hasMixedCartError = hasMixedCartBranches || deliveryError?.code === 'CART_BRANCH_MISMATCH';
 
   const { subtotal, deliveryFee, serviceFee, priorityFee, discountAmount, vat, total, hasItems } = useCartCalculations({
@@ -273,7 +273,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
       <div className="checkout-summary-footer shrink-0">
         {orderingClosed && (
           <p role="alert" aria-live="assertive" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-            {storeHours.order_closed_message}
+            {storeHours?.order_closed_message || 'Ordering status is unavailable. Please try again shortly.'}
           </p>
         )}
         <div className="checkout-total">
@@ -312,7 +312,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
               Placing order...
             </span>
           ) : orderingClosed ? (
-            'Ordering is closed for today.'
+            'Ordering closed'
           ) : !canPlaceOrder ? (
             deliveryError?.code === 'OUT_OF_RANGE'
               ? 'Address out of delivery range'

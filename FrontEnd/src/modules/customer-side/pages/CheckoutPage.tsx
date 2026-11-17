@@ -74,11 +74,11 @@ const CheckoutPage: React.FC = () => {
   const selectedAddressCoordinatesRef = useRef<Coordinates | null>(null);
   const cartBranchIds = [...new Set(cartItems.map((item) => item.franchise_id).filter((id): id is string => Boolean(id)))];
   const hasMixedCartBranches = cartBranchIds.length > 1;
-  const orderingClosed = storeHours?.state === 'last_order_passed';
+  const orderingClosed = storeHours?.state !== 'open';
 
   const requireStoreOpen = () => {
     if (storeHours?.state === 'open') return true;
-    showToast(storeHours?.order_closed_message || 'Store availability is temporarily unavailable.', 'error');
+    showToast(storeHours?.order_closed_message || 'Ordering status is unavailable. Please try again shortly.', 'error');
     return false;
   };
 

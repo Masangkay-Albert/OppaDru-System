@@ -126,23 +126,23 @@ function App() {
                       <Route path="/franchise/my-applications" element={<ProtectedFranchiseApplicantRoute><FranchiseMyApplicationsPage /></ProtectedFranchiseApplicantRoute>} />
                       <Route path="/franchise/track-application" element={<Navigate to="/franchise-opportunities" replace />} />
                       <Route path="/franchise/login" element={<FranchiseLoginPage />} />
+                      <Route path="/" element={<LandingPage />} />
+                      <Route path="/login" element={<LoginPage />} />
+                      <Route path="/register" element={<RegistrationPage />} />
+                      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                       {/* ===== CUSTOMER ROUTES ===== */}
                       <Route element={<StoreHoursGate />}>
-                        <Route path="/" element={<LandingPage />} />
-                        <Route path="/login" element={<LoginPage />} />
-                        <Route path="/register" element={<RegistrationPage />} />
-                        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                        <Route path="/reset-password" element={<ResetPasswordPage />} />
                         <Route path="/customer" element={<ProtectedRoute><MenuPage /></ProtectedRoute>} />
-                        <Route path="/customer/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
-                        <Route path="/customer/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
-                        <Route path="/customer/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-                        <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
-                        <Route path="/tracking" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
-                        <Route path="/orders/:id/track" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
-                        <Route path="/payment/confirm/:reference" element={<PaymentConfirmPage />} />
                       </Route>
+                      <Route path="/customer/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
+                      <Route path="/customer/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
+                      <Route path="/customer/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                      <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+                      <Route path="/tracking" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
+                      <Route path="/orders/:id/track" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
+                      <Route path="/payment/confirm/:reference" element={<PaymentConfirmPage />} />
 
                       {/* ===== ADMIN ROUTES ===== */}
                       <Route path="/admin/login" element={<AdminLoginPage />} />

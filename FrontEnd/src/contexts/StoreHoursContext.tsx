@@ -5,6 +5,7 @@ export type StoreHoursState = 'open' | 'last_order_passed' | 'closed';
 
 export interface StoreHoursStatus {
   state: StoreHoursState;
+  current_store_time: string;
   next_opening_at: string;
   next_opening_label: string;
   configured_hours: {
@@ -14,11 +15,13 @@ export interface StoreHoursStatus {
     timezone: string;
   };
   order_closed_message: string;
+  simulation_enabled: boolean;
 }
 
 interface StoreHoursContextValue {
   status: StoreHoursStatus | null;
   isLoading: boolean;
+  refreshStatus: () => Promise<void>;
 }
 
 const StoreHoursContext = createContext<StoreHoursContextValue | undefined>(undefined);
@@ -31,9 +34,11 @@ const isStoreHoursStatus = (value: unknown): value is StoreHoursStatus => {
   const configuredHours = hours as Record<string, unknown>;
 
   return (candidate.state === 'open' || candidate.state === 'last_order_passed' || candidate.state === 'closed')
+    && typeof candidate.current_store_time === 'string'
     && typeof candidate.next_opening_at === 'string'
     && typeof candidate.next_opening_label === 'string'
     && typeof candidate.order_closed_message === 'string'
+    && typeof candidate.simulation_enabled === 'boolean'
     && typeof configuredHours.opening === 'string'
     && typeof configuredHours.last_order === 'string'
     && typeof configuredHours.closing === 'string'
@@ -84,7 +89,7 @@ export const StoreHoursProvider: React.FC<React.PropsWithChildren> = ({ children
   }, [refreshStatus]);
 
   return (
-    <StoreHoursContext.Provider value={{ status, isLoading }}>
+    <StoreHoursContext.Provider value={{ status, isLoading, refreshStatus }}>
       {children}
     </StoreHoursContext.Provider>
   );
