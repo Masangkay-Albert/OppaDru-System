@@ -1,5 +1,5 @@
-export type TargetAudience = 'all' | 'customers';
-export type AnnouncementAudience = 'all' | 'customers';
+export type TargetAudience = 'all' | 'customers' | 'franchise_branches';
+export type AnnouncementAudience = 'all' | 'customers' | 'franchise_branches';
 
 export type AnnouncementPriority = 'normal' | 'high' | 'urgent' | 'promo';
 
@@ -11,6 +11,7 @@ export interface Announcement {
   content: string;
   target_audience: AnnouncementAudience;
   target_audiences?: AnnouncementAudience[];
+  target_franchise_branches?: string[] | null;
   image_url?: string | null;
   image_path?: string | null;
   priority: AnnouncementPriority;
@@ -74,6 +75,8 @@ export interface AnnouncementFormData {
   title: string;
   content: string;
   target_audience: TargetAudience;
+  target_audiences?: AnnouncementAudience[];
+  target_franchise_branches?: string[] | null;
   priority: AnnouncementPriority;
   status: AnnouncementStatus;
   date_sent?: string;

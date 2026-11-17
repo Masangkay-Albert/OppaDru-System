@@ -1,5 +1,6 @@
 import { API_URL } from './apiConfig';
 import { fetchWithAdminAuth, getCurrentAdmin } from './adminAuthService';
+import { fetchWithFranchiseAuth } from './franchiseAuthService';
 import type {
   Announcement,
   AnnouncementCreateResult,
@@ -143,6 +144,13 @@ export const announcementService = {
       formData.append('title', data.title);
       formData.append('content', data.content);
       formData.append('target_audience', data.target_audience || 'customers');
+      (data.target_audiences || [data.target_audience || 'customers']).forEach((audience) => {
+        formData.append('target_audiences[]', audience);
+      });
+      formData.append('franchise_branch_mode', data.target_franchise_branches === null ? 'all' : 'selected');
+      (data.target_franchise_branches || []).forEach((branchId) => {
+        formData.append('target_franchise_branches[]', branchId);
+      });
       formData.append('priority', data.priority);
       formData.append('status', data.status);
       formData.append('author_name', authorName);
@@ -171,12 +179,15 @@ export const announcementService = {
             facebookPublish: json.facebook_publish ?? null,
           };
         }
+        if (data.target_audiences?.includes('franchise_branches')) {
+          throw new Error('The server did not return the saved announcement.');
+        }
       }
-      if (data.publish_to_facebook) {
+      if (data.publish_to_facebook || data.target_audiences?.includes('franchise_branches')) {
         throw new Error(json?.message || 'The server could not create this announcement.');
       }
     } catch (error) {
-      if (data.publish_to_facebook) {
+      if (data.publish_to_facebook || data.target_audiences?.includes('franchise_branches')) {
         throw error;
       }
       // Fall through to local fallback
@@ -193,7 +204,8 @@ export const announcementService = {
       title: data.title,
       content: data.content,
       target_audience: data.target_audience || 'customers',
-      target_audiences: [data.target_audience || 'customers'],
+      target_audiences: data.target_audiences || [data.target_audience || 'customers'],
+      target_franchise_branches: data.target_franchise_branches,
       image_url: imageUrl,
       priority: data.priority,
       status: data.status,
@@ -221,6 +233,13 @@ export const announcementService = {
       if (data.title) formData.append('title', data.title);
       if (data.content) formData.append('content', data.content);
       if (data.target_audience) formData.append('target_audience', data.target_audience);
+      if (data.target_audiences) {
+        data.target_audiences.forEach((audience) => formData.append('target_audiences[]', audience));
+      }
+      if (data.target_franchise_branches !== undefined) {
+        formData.append('franchise_branch_mode', data.target_franchise_branches === null ? 'all' : 'selected');
+        data.target_franchise_branches?.forEach((branchId) => formData.append('target_franchise_branches[]', branchId));
+      }
       if (data.priority) formData.append('priority', data.priority);
       if (data.status) formData.append('status', data.status);
       if (data.date_sent) formData.append('date_sent', data.date_sent);
@@ -246,8 +265,12 @@ export const announcementService = {
           return json.announcement;
         }
       }
-    } catch {
-      // Fallback
+      if (data.target_audiences?.includes('franchise_branches')) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.message || 'The server could not update this announcement.');
+      }
+    } catch (error) {
+      if (data.target_audiences?.includes('franchise_branches')) throw error;
     }
 
     const list = getStoredAnnouncements();
@@ -268,7 +291,10 @@ export const announcementService = {
       title: data.title ?? existing.title,
       content: data.content ?? existing.content,
       target_audience: data.target_audience ?? existing.target_audience,
-      target_audiences: data.target_audience ? [data.target_audience] : existing.target_audiences,
+      target_audiences: data.target_audiences ?? (data.target_audience ? [data.target_audience] : existing.target_audiences),
+      target_franchise_branches: data.target_franchise_branches !== undefined
+        ? data.target_franchise_branches
+        : existing.target_franchise_branches,
       priority: data.priority ?? existing.priority,
       status: data.status ?? existing.status,
       date_sent: data.status === 'published' && !existing.date_sent ? new Date().toISOString() : (data.date_sent ?? existing.date_sent),
@@ -380,6 +406,24 @@ export const announcementService = {
           a.target_audiences?.includes('customers') ||
           a.target_audiences?.includes('all'))
     );
+  },
+
+  async getFranchiseAnnouncements(): Promise<{ announcements: Array<Announcement & { is_read: boolean }>; unread_count: number }> {
+    const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/announcements`);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.message || 'Could not load branch announcements.');
+    return {
+      announcements: Array.isArray(payload.announcements) ? payload.announcements : [],
+      unread_count: Number(payload.unread_count || 0),
+    };
+  },
+
+  async markFranchiseAnnouncementRead(id: string): Promise<void> {
+    const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/announcements/${encodeURIComponent(id)}/read`, {
+      method: 'POST',
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.message || 'Could not mark this announcement as read.');
   },
 
   /**

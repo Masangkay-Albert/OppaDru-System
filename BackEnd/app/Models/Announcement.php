@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
@@ -19,6 +20,7 @@ class Announcement extends Model
         'content',
         'target_audience',
         'target_audiences',
+        'target_franchise_branches',
         'image_url',
         'image_path',
         'priority',
@@ -32,6 +34,7 @@ class Announcement extends Model
 
     protected $casts = [
         'target_audiences' => 'array',
+        'target_franchise_branches' => 'array',
         'metadata' => 'array',
         'date_sent' => 'datetime',
         'scheduled_at' => 'datetime',
@@ -59,23 +62,23 @@ class Announcement extends Model
         });
     }
 
-    public function scopeForAudience($query, string $audience)
+    public function scopeForAudience(Builder $query, string $audience): Builder
     {
         if ($audience === 'all') {
             return $query;
         }
 
-        return $query->where(function ($q) use ($audience) {
+        return $query->where(function (Builder $q) use ($audience) {
             $q->where('target_audience', 'all')
               ->orWhere('target_audience', $audience)
               ->orWhereJsonContains('target_audiences', $audience);
         });
     }
 
-    public function scopePublished($query)
+    public function scopePublished(Builder $query): Builder
     {
         return $query->where('status', 'published')
-                     ->where(function ($q) {
+                     ->where(function (Builder $q) {
                          $q->whereNull('date_sent')
                            ->orWhere('date_sent', '<=', now()->addMinutes(5));
                      });

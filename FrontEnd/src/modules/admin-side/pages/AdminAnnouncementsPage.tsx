@@ -44,6 +44,8 @@ import {
 import SearchInput from '../../../components/ui/SearchInput';
 import Select from '../../../components/ui/Select';
 import { announcementService } from '../../../services/announcementService';
+import { API_URL } from '../../../services/apiConfig';
+import { fetchWithAdminAuth } from '../../../services/adminAuthService';
 import type {
   Announcement,
   AnnouncementAudience,
@@ -54,7 +56,6 @@ import type {
   FacebookStatus,
 } from '../../../types/announcement.types';
 import { INPUT_LIMITS } from '../../../constants/inputLimits';
-import { LimitedInput, LimitedTextarea } from '../../../components/ui/LimitedInput';
 import { ValidatedForm } from '../../../components/ui/FormValidation';
 
 const LEGACY_AUDIENCE_META = {
@@ -64,6 +65,12 @@ const LEGACY_AUDIENCE_META = {
   icon: Megaphone,
   color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700',
 };
+const ANNOUNCEMENT_FIELD_LABEL = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]';
+
+interface FranchiseBranchOption {
+  id: string;
+  name: string;
+}
 
 const PRIORITY_BADGES: Record<AnnouncementPriority, { label: string; style: string }> = {
   normal: { label: 'General', style: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
@@ -137,6 +144,14 @@ const AdminAnnouncementsPage: React.FC = () => {
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [sendMode, setSendMode] = useState<'immediate' | 'schedule'>('immediate');
+  const [selectedRecipients, setSelectedRecipients] = useState({ customers: true, franchiseBranches: false });
+  const [branchMode, setBranchMode] = useState<'all' | 'selected'>('all');
+  const [franchiseBranches, setFranchiseBranches] = useState<FranchiseBranchOption[]>([]);
+  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
+  const [branchSearch, setBranchSearch] = useState('');
+  const [branchListLoading, setBranchListLoading] = useState(false);
+  const [branchListError, setBranchListError] = useState('');
+  const [recipientError, setRecipientError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Facebook Integration States
@@ -174,6 +189,33 @@ const AdminAnnouncementsPage: React.FC = () => {
       setFbStatus(status);
     });
   }, [loadAnnouncements, statusFilter, sortDirection]);
+
+  useEffect(() => {
+    if (!isFormOpen) return undefined;
+    let active = true;
+    setBranchListLoading(true);
+    setBranchListError('');
+    fetchWithAdminAuth(`${API_URL}/franchises/active`)
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.message || 'Franchise branches could not be loaded.');
+        const data = Array.isArray(payload.data) ? payload.data : [];
+        if (active) {
+          setFranchiseBranches(data
+            .filter((branch: { id?: string | number; name?: string; is_main?: boolean }) => branch.id && branch.name && !branch.is_main)
+            .map((branch: { id: string | number; name: string }) => ({ id: String(branch.id), name: branch.name })));
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) setBranchListError(error instanceof Error ? error.message : 'Franchise branches could not be loaded.');
+      })
+      .finally(() => {
+        if (active) setBranchListLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isFormOpen]);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -219,6 +261,11 @@ const AdminAnnouncementsPage: React.FC = () => {
       remove_image: false,
       publish_to_facebook: true,
     });
+    setSelectedRecipients({ customers: true, franchiseBranches: false });
+    setBranchMode('all');
+    setSelectedBranchIds([]);
+    setBranchSearch('');
+    setRecipientError('');
     setSendMode('immediate');
     setImagePreview(null);
     setIsFormOpen(true);
@@ -228,6 +275,14 @@ const AdminAnnouncementsPage: React.FC = () => {
     setEditingItem(item);
     const isScheduled = item.status === 'scheduled';
     setSendMode(isScheduled ? 'schedule' : 'immediate');
+    const audiences = item.target_audiences || [item.target_audience];
+    const hasCustomers = audiences.includes('customers') || audiences.includes('all');
+    const hasFranchiseBranches = audiences.includes('franchise_branches');
+    setSelectedRecipients({ customers: hasCustomers, franchiseBranches: hasFranchiseBranches });
+    setBranchMode(item.target_franchise_branches === null || item.target_franchise_branches === undefined ? 'all' : 'selected');
+    setSelectedBranchIds((item.target_franchise_branches || []).map(String));
+    setBranchSearch('');
+    setRecipientError('');
     setFormData({
       title: item.title,
       content: item.content,
@@ -248,8 +303,14 @@ const AdminAnnouncementsPage: React.FC = () => {
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+        showToast('Upload a PNG, JPG, or WebP image.', 'error');
+        e.target.value = '';
+        return;
+      }
       if (file.size > 10 * 1024 * 1024) {
         showToast('Image file must be under 10MB.', 'error');
+        e.target.value = '';
         return;
       }
       setFormData((prev) => ({
@@ -280,6 +341,15 @@ const AdminAnnouncementsPage: React.FC = () => {
 
   const handleSubmitForm = async (e: React.SyntheticEvent, statusOverride?: 'draft') => {
     e.preventDefault();
+    if (!selectedRecipients.customers && !selectedRecipients.franchiseBranches) {
+      setRecipientError('Choose Customers, Franchise branches, or both.');
+      return;
+    }
+    if (selectedRecipients.franchiseBranches && branchMode === 'selected' && selectedBranchIds.length === 0) {
+      setRecipientError('Choose at least one franchise branch.');
+      return;
+    }
+    setRecipientError('');
     if (!formData.title.trim()) {
       showToast('Announcement headline is required.', 'error');
       return;
@@ -308,7 +378,15 @@ const AdminAnnouncementsPage: React.FC = () => {
     try {
       const submissionData: AnnouncementFormData = {
         ...formData,
-        target_audience: 'customers',
+        target_audience: selectedRecipients.customers ? 'customers' : 'franchise_branches',
+        target_audiences: [
+          ...(selectedRecipients.customers ? ['customers' as const] : []),
+          ...(selectedRecipients.franchiseBranches ? ['franchise_branches' as const] : []),
+        ],
+        target_franchise_branches: selectedRecipients.franchiseBranches
+          ? branchMode === 'all' ? null : selectedBranchIds
+          : null,
+        publish_to_facebook: selectedRecipients.customers && !!formData.publish_to_facebook,
         status: submittedStatus,
         date_sent: submittedStatus === 'draft'
           ? formData.date_sent
@@ -316,7 +394,7 @@ const AdminAnnouncementsPage: React.FC = () => {
           ? (editingItem?.status === 'published'
             ? formData.date_sent || new Date().toISOString()
             : new Date().toISOString())
-          : (formData.scheduled_at || formData.date_sent || new Date().toISOString()),
+          : undefined,
         scheduled_at: submittedStatus === 'scheduled' ? formData.scheduled_at : undefined,
       };
 
@@ -369,8 +447,8 @@ const AdminAnnouncementsPage: React.FC = () => {
 
       setIsFormOpen(false);
       loadAnnouncements();
-    } catch {
-      showToast('Failed to save announcement. Please try again.', 'error');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to save announcement. Please try again.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -816,13 +894,13 @@ Oppa Dru Korean Fried Chicken
         {/* Modal: Create & Edit Announcement (Portaled directly to document.body for unobstructed viewport positioning) */}
         {isFormOpen && typeof document !== 'undefined' && createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-[#10241a]/65 p-3 backdrop-blur-sm sm:p-5"
+            className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-[#10241a]/65 p-0 backdrop-blur-sm sm:p-5"
             onClick={(e) => {
               if (e.target === e.currentTarget && !isSubmitting) setIsFormOpen(false);
             }}
           >
             <div
-              className="admin-card relative flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-full max-w-none min-h-0 flex-col overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-2xl animate-in fade-in zoom-in-95 duration-200 sm:h-[calc(100dvh-2.5rem)] sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-[720px]"
+              className="admin-card relative flex h-dvh max-h-dvh w-full max-w-none min-h-0 flex-col overflow-hidden rounded-none border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-2xl animate-in fade-in zoom-in-95 duration-200 sm:h-[calc(100dvh-2.5rem)] sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-[720px] sm:rounded-2xl"
               role="dialog"
               aria-modal="true"
               aria-labelledby="announcement-modal-title"
@@ -854,7 +932,7 @@ Oppa Dru Korean Fried Chicken
                     {editingItem ? 'Edit Announcement' : 'Create New Announcement'}
                   </h2>
                   <p className="text-xs text-[var(--oppa-text-muted)] mt-0.5">
-                    Share updates, promotional deals, and important notices with customers.
+                    Share updates, promotional deals, and important notices.
                   </p>
                 </div>
                 <button
@@ -877,53 +955,122 @@ Oppa Dru Korean Fried Chicken
                   className="min-h-0 space-y-5 overflow-y-auto px-5 py-5 sm:px-6"
                   style={{ flex: '1 1 0%' }}
                 >
-                  {/* 1. Target Audience */}
+                  {/* 1. Recipients */}
                   <div>
-                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
-                      Recipients
-                    </label>
-                    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-[var(--oppa-green)] bg-[#EAF5EE] p-3 dark:bg-[var(--oppa-green)]/15">
-                      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--oppa-green)] text-white">
-                        <FiShoppingBag size={16} aria-hidden="true" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="block text-xs font-bold text-[var(--oppa-green-dark)] dark:text-emerald-200">
-                          Customers Only
+                    <p className={ANNOUNCEMENT_FIELD_LABEL}>Recipients <span className="text-red-600">*</span></p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition focus-within:ring-2 focus-within:ring-[var(--oppa-green)] ${selectedRecipients.customers ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)]/60' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] hover:border-[var(--oppa-green)]'}`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedRecipients.customers}
+                          onChange={(event) => {
+                            setSelectedRecipients((current) => ({ ...current, customers: event.target.checked }));
+                            if (!event.target.checked) setFormData((current) => ({ ...current, publish_to_facebook: false }));
+                            setRecipientError('');
+                          }}
+                          className="mt-0.5 size-4 shrink-0 accent-[var(--oppa-green)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-[var(--oppa-text)]">Customers</span>
+                          <span className="mt-0.5 block text-xs leading-relaxed text-[var(--oppa-text-muted)]">Send to customer accounts.</span>
                         </span>
-                        <span className="mt-0.5 block text-[11px] text-[var(--oppa-text-muted)]">
-                          Announcements are sent to customer accounts.
+                      </label>
+                      <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition focus-within:ring-2 focus-within:ring-[var(--oppa-green)] ${selectedRecipients.franchiseBranches ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)]/60' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] hover:border-[var(--oppa-green)]'}`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedRecipients.franchiseBranches}
+                          onChange={(event) => {
+                            setSelectedRecipients((current) => ({ ...current, franchiseBranches: event.target.checked }));
+                            setRecipientError('');
+                          }}
+                          className="mt-0.5 size-4 shrink-0 accent-[var(--oppa-green)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)]"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-[var(--oppa-text)]">Franchise branches</span>
+                          <span className="mt-0.5 block text-xs leading-relaxed text-[var(--oppa-text-muted)]">Send to one or more branch teams.</span>
                         </span>
-                      </div>
+                      </label>
                     </div>
+                    {selectedRecipients.franchiseBranches && <div className="mt-3 space-y-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] p-3">
+                      <div role="radiogroup" aria-label="Franchise branch recipients" className="flex flex-col gap-2 sm:flex-row">
+                        <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${branchMode === 'all' ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)]/60 text-[var(--oppa-text)]' : 'border-[var(--oppa-border)] text-[var(--oppa-text-muted)]'}`}>
+                          <input type="radio" name="franchiseBranchMode" checked={branchMode === 'all'} onChange={() => { setBranchMode('all'); setRecipientError(''); }} className="accent-[var(--oppa-green)] focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]" />
+                          All franchise branches
+                        </label>
+                        <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${branchMode === 'selected' ? 'border-[var(--oppa-green)] bg-[var(--oppa-green-soft)]/60 text-[var(--oppa-text)]' : 'border-[var(--oppa-border)] text-[var(--oppa-text-muted)]'}`}>
+                          <input type="radio" name="franchiseBranchMode" checked={branchMode === 'selected'} onChange={() => { setBranchMode('selected'); setRecipientError(''); }} className="accent-[var(--oppa-green)] focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]" />
+                          Selected branches
+                        </label>
+                      </div>
+                      {branchMode === 'selected' && <>
+                        <label className="block">
+                          <span className="sr-only">Search franchise branches</span>
+                          <input type="search" value={branchSearch} onChange={(event) => setBranchSearch(event.target.value)} placeholder="Search branches..." className="admin-input h-10 w-full rounded-xl px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]" />
+                        </label>
+                        {selectedBranchIds.length > 0 && <div className="flex flex-wrap gap-2" aria-label="Selected franchise branches">
+                          {selectedBranchIds.map((id) => {
+                            const branch = franchiseBranches.find((item) => item.id === id);
+                            return branch ? <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 text-xs font-medium text-[var(--oppa-green-dark)]">
+                              {branch.name}
+                              <button type="button" aria-label={`Remove ${branch.name}`} onClick={() => { setSelectedBranchIds((current) => current.filter((branchId) => branchId !== id)); setRecipientError(''); }} className="rounded-full p-0.5 hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"><X size={12} /></button>
+                            </span> : null;
+                          })}
+                        </div>}
+                        <div className="max-h-40 overflow-y-auto rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-1" aria-label="Franchise branch list">
+                          {branchListLoading ? <p role="status" className="px-3 py-2 text-xs text-[var(--oppa-text-muted)]">Loading branches…</p>
+                            : franchiseBranches.filter((branch) => branch.name.toLowerCase().includes(branchSearch.trim().toLowerCase())).map((branch) => (
+                              <label key={branch.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm text-[var(--oppa-text)] hover:bg-[var(--oppa-green-soft)]/50">
+                                <input type="checkbox" checked={selectedBranchIds.includes(branch.id)} onChange={(event) => { setSelectedBranchIds((current) => event.target.checked ? [...current, branch.id] : current.filter((id) => id !== branch.id)); setRecipientError(''); }} className="size-4 accent-[var(--oppa-green)] focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]" />
+                                {branch.name}
+                              </label>
+                            ))}
+                          {!branchListLoading && franchiseBranches.filter((branch) => branch.name.toLowerCase().includes(branchSearch.trim().toLowerCase())).length === 0 && <p className="px-3 py-2 text-xs text-[var(--oppa-text-muted)]">{branchListError || 'No branches found.'}</p>}
+                        </div>
+                        {branchListError && <p role="alert" className="text-xs text-red-700">{branchListError}</p>}
+                      </>}
+                    </div>}
+                    <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">
+                      Will be sent to: {[
+                        selectedRecipients.customers ? 'Customers' : '',
+                        selectedRecipients.franchiseBranches
+                          ? branchMode === 'all'
+                            ? 'All franchise branches'
+                            : `${selectedBranchIds.length} franchise ${selectedBranchIds.length === 1 ? 'branch' : 'branches'}`
+                          : '',
+                      ].filter(Boolean).join(', ') || 'No recipients selected'}
+                    </p>
+                    {recipientError && <p role="alert" className="mt-1 text-xs font-medium text-red-700">{recipientError}</p>}
                   </div>
 
                   {/* 2. Headline & Priority */}
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="sm:col-span-2">
-                      <label htmlFor="announcement-title" className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1.8fr)_minmax(190px,1fr)]">
+                    <div>
+                      <label htmlFor="announcement-title" className={ANNOUNCEMENT_FIELD_LABEL}>
                         Headline / Title <span className="text-red-500">*</span>
                       </label>
-                      <LimitedInput
+                      <div className="relative">
+                      <input
                         id="announcement-title"
                         type="text"
                         data-required="true"
                         data-min-length={INPUT_LIMITS.announcementTitle.min}
                         maxLength={INPUT_LIMITS.announcementTitle.max}
-                        showCounter
                         placeholder="e.g. Weekend Special: 20% Off Korean Chicken!"
                         value={formData.title}
                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        className="admin-input h-11 w-full rounded-xl px-3 text-base sm:text-sm"
+                        className="admin-input h-11 w-full rounded-xl px-3 pr-16 text-base sm:text-sm"
                       />
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-[var(--oppa-text-muted)]" aria-live="polite">{formData.title.length}/{INPUT_LIMITS.announcementTitle.max}</span>
+                      </div>
                     </div>
 
                     <div>
-                      <label htmlFor="announcement-priority" className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
+                      <span className={ANNOUNCEMENT_FIELD_LABEL}>
                         Priority Tag
-                      </label>
+                      </span>
                       <div className="relative">
                         <Select
-                          label="Priority Tag"
+                          aria-label="Priority tag"
                           value={formData.priority}
                           onChange={(priority) => setFormData({ ...formData, priority: priority as AnnouncementPriority })}
                           options={[{ value: 'normal', label: 'Standard / General' }, { value: 'promo', label: 'Special Promo' }, { value: 'high', label: 'High Priority' }, { value: 'urgent', label: 'Urgent Alert' }]}
@@ -934,91 +1081,60 @@ Oppa Dru Korean Fried Chicken
 
                   {/* 3. Text Message Body */}
                   <div>
-                    <div className="mb-1 flex items-center justify-between">
-                      <label htmlFor="announcement-content" className="block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]">
-                        Message Content <span className="text-red-500">*</span>
-                      </label>
-                      <span className="text-[11px] text-[var(--oppa-text-muted)]">{formData.content.length}/{INPUT_LIMITS.announcementBody.max} characters</span>
-                    </div>
-                    <LimitedTextarea
+                    <label htmlFor="announcement-content" className={ANNOUNCEMENT_FIELD_LABEL}>
+                      Message Content <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                    <textarea
                       id="announcement-content"
                       data-required="true"
+                      data-max-length={INPUT_LIMITS.announcementBody.max}
                       rows={6}
                       maxLength={INPUT_LIMITS.announcementBody.max}
                       placeholder="Write detailed announcements, promotional details, schedule reminders, or operational instructions..."
                       value={formData.content}
                       onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                      className="admin-textarea min-h-40 w-full resize-y rounded-xl px-3.5 py-3 text-base leading-relaxed sm:text-sm"
+                      className="admin-textarea min-h-36 w-full resize-y rounded-xl px-3.5 py-3 pb-9 text-base leading-relaxed sm:text-sm"
                     />
+                    <span className="pointer-events-none absolute bottom-2.5 right-3 text-xs text-[var(--oppa-text-muted)]" aria-live="polite">{formData.content.length}/{INPUT_LIMITS.announcementBody.max} characters</span>
+                    </div>
                   </div>
 
                   {/* 4. Banner Image */}
                   <div>
-                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)]" id="announcement-image-label">
+                    <label className={ANNOUNCEMENT_FIELD_LABEL} id="announcement-image-label">
                       Banner Image (Optional)
                     </label>
 
                     {imagePreview ? (
                       <div className="relative overflow-hidden rounded-[14px] border border-[var(--oppa-border)]">
-                        <img src={imagePreview} alt="Announcement banner preview" className="h-40 w-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={handleRemoveImage}
-                          aria-label="Remove announcement image"
-                          className="absolute right-2.5 top-2.5 flex items-center gap-1 rounded-lg bg-black/75 px-2.5 py-1 text-xs font-semibold text-white shadow backdrop-blur hover:bg-black transition-colors"
-                        >
-                          <X size={13} /> Remove
-                        </button>
+                        <img src={imagePreview} alt="Announcement banner preview" className="h-24 w-full object-cover sm:h-28" />
+                        <div className="flex items-center justify-end gap-2 border-t border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-2">
+                          <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] px-3 py-1.5 text-xs font-semibold text-[var(--oppa-text)] hover:border-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]"><UploadCloud size={13} /> Replace</button>
+                          <button type="button" onClick={handleRemoveImage} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><X size={13} /> Remove</button>
+                        </div>
                       </div>
                     ) : (
-                      <div
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border-2 border-dashed border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] px-4 py-5 text-center transition-colors duration-150 hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]/30"
-                        aria-labelledby="announcement-image-label"
-                      >
-                        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] ring-4 ring-[var(--oppa-green-soft)]/40">
-                          <UploadCloud size={21} />
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-[var(--oppa-text)]">
-                            Click to upload an announcement image
-                          </p>
-                          <p className="text-[11px] text-[var(--oppa-text-muted)]">
-                            PNG, JPG, WebP up to 10MB
-                          </p>
-                        </div>
-                      </div>
+                      <button type="button" onClick={() => fileInputRef.current?.click()} aria-labelledby="announcement-image-label" className="flex w-full items-center gap-3 rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] px-3 py-3 text-left transition-colors hover:border-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]"><UploadCloud size={18} /></span>
+                        <span className="text-xs font-medium text-[var(--oppa-text)]">Upload image · PNG, JPG, WebP up to 10MB</span>
+                      </button>
                     )}
 
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/webp"
                       onChange={handleImageFileChange}
                       className="hidden"
                     />
 
-                    {/* Image URL fallback */}
-                    <div className="mt-3">
-                      <label htmlFor="announcement-image-url" className="mb-1.5 block text-xs font-medium text-[var(--oppa-text-muted)]">Or paste image URL</label>
-                      <input
-                        id="announcement-image-url"
-                        type="url"
-                        placeholder="https://..."
-                        value={formData.image_url || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFormData({ ...formData, image_url: val, imageFile: null });
-                          setImagePreview(val || null);
-                        }}
-                        className="admin-input h-11 w-full rounded-xl px-3 text-base sm:text-sm"
-                      />
-                    </div>
                   </div>
 
                   {/* 5. Date Sent & Scheduling */}
-                  <div className="space-y-3 rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface-raised)] p-3.5 sm:p-4">
-                    <div className="grid grid-cols-2 rounded-xl bg-[var(--oppa-cream)] p-1 dark:bg-black/15">
+                  <div className="space-y-3">
+                    <p className={ANNOUNCEMENT_FIELD_LABEL}>Delivery</p>
+                    <div role="group" aria-label="Delivery timing" className="grid grid-cols-2 rounded-xl bg-[var(--oppa-cream)] p-1 dark:bg-black/15">
                       <label className={`flex cursor-pointer items-center justify-center rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-colors ${sendMode === 'immediate' ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'}`}>
                         <input
                           type="radio"
@@ -1027,7 +1143,7 @@ Oppa Dru Korean Fried Chicken
                           onChange={() => setSendMode('immediate')}
                           className="sr-only"
                         />
-                        <span>Send Immediately</span>
+                        <span>Send immediately</span>
                       </label>
 
                       <label className={`flex cursor-pointer items-center justify-center rounded-lg px-2 py-2.5 text-center text-xs font-semibold transition-colors ${sendMode === 'schedule' ? 'bg-[var(--oppa-green)] text-white shadow-sm' : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'}`}>
@@ -1038,51 +1154,36 @@ Oppa Dru Korean Fried Chicken
                           onChange={() => setSendMode('schedule')}
                           className="sr-only"
                         />
-                        <span>Schedule Date & Time</span>
+                        <span>Schedule date &amp; time</span>
                       </label>
                     </div>
 
-                    <div className="min-w-0">
+                    {sendMode === 'schedule' && <div className="min-w-0">
                       <label
-                        htmlFor={sendMode === 'schedule' ? 'announcement-scheduled-at' : 'announcement-date-sent'}
-                        className="mb-1.5 block text-xs font-medium text-[var(--oppa-text-muted)]"
+                        htmlFor="announcement-scheduled-at"
+                        className={ANNOUNCEMENT_FIELD_LABEL}
                       >
-                        {sendMode === 'schedule' ? 'Scheduled Broadcast Time' : 'Date Sent Stamp'}
+                        Schedule date and time
                       </label>
                       <input
-                        id={sendMode === 'schedule' ? 'announcement-scheduled-at' : 'announcement-date-sent'}
+                        id="announcement-scheduled-at"
                         type="datetime-local"
-                        data-required={sendMode === 'schedule'}
-                        disabled={sendMode === 'immediate'}
-                        data-min={sendMode === 'schedule' ? getMinimumScheduleDateTime() : undefined}
-                        value={formatDateForInput(
-                          sendMode === 'schedule'
-                            ? formData.scheduled_at
-                            : formData.date_sent || new Date().toISOString()
-                        )}
+                        data-required="true"
+                        data-min={getMinimumScheduleDateTime()}
+                        value={formatDateForInput(formData.scheduled_at)}
                         onChange={(e) => {
                           const selectedTime = e.target.value
                             ? new Date(e.target.value).toISOString()
                             : '';
-                          setFormData((prev) => sendMode === 'schedule'
-                            ? { ...prev, scheduled_at: selectedTime, date_sent: selectedTime }
-                            : { ...prev, date_sent: selectedTime || new Date().toISOString() });
+                          setFormData((prev) => ({ ...prev, scheduled_at: selectedTime }));
                         }}
-                        className="admin-input box-border block h-11 w-full min-w-0 max-w-full rounded-xl px-3 text-base disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
+                        className="admin-input box-border block h-11 w-full min-w-0 max-w-full rounded-xl px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)] sm:text-sm"
                       />
-                      {sendMode === 'immediate' ? (
-                        <p className="mt-1.5 text-[11px] text-[var(--oppa-text-muted)]">
-                          Current time is auto-assigned upon publish.
-                        </p>
-                      ) : (
-                        <p className="mt-1.5 text-[11px] text-[var(--oppa-text-muted)]">
-                          Choose a future date and time for this announcement.
-                        </p>
-                      )}
-                    </div>
+                      <p className="mt-1.5 text-[11px] text-[var(--oppa-text-muted)]">Choose a future date and time for this announcement.</p>
+                    </div>}
                   </div>
 
-                  {(!editingItem || (
+                  {selectedRecipients.customers && (!editingItem || (
                     editingItem.status === 'draft' &&
                     !editingItem.metadata?.facebook_published_at
                   )) && (
@@ -1136,10 +1237,8 @@ Oppa Dru Korean Fried Chicken
                       {isSubmitting
                         ? 'Saving…'
                         : sendMode === 'schedule'
-                        ? 'Schedule Announcement'
-                        : editingItem
-                        ? 'Update & Publish'
-                        : 'Send Announcement'}
+                        ? 'Schedule announcement'
+                        : 'Send announcement'}
                     </span>
                   </button>
                 </div>

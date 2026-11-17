@@ -3,14 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\Announcement;
+use App\Models\Franchise;
+use App\Models\FranchiseUser;
 use App\Services\FacebookService;
 use App\Services\ProductImageUploadService;
 use App\Support\HttpCacheResponse;
 use App\Traits\AdminAuthTrait;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class AnnouncementController extends Controller
 {
@@ -125,7 +130,15 @@ class AnnouncementController extends Controller
                 'max:'.config('input_limits.announcement_title.max'),
             ],
             'content' => 'required|string|max:'.config('input_limits.announcement_body'),
-            'target_audience' => 'nullable|in:all,customers',
+            'target_audience' => 'nullable|in:all,customers,franchise_branches',
+            'target_audiences' => 'nullable|array|min:1',
+            'target_audiences.*' => 'in:customers,franchise_branches',
+            'franchise_branch_mode' => 'nullable|in:all,selected',
+            'target_franchise_branches' => $request->input('franchise_branch_mode') === 'selected' ? 'required|array|min:1' : 'nullable|array',
+            'target_franchise_branches.*' => [
+                'string',
+                Rule::exists('franchises', 'id'),
+            ],
             'image' => 'nullable|image|max:10240', // 10MB max
             'image_url' => 'nullable|string',
             'priority' => 'nullable|string|in:normal,high,urgent,promo',
@@ -135,6 +148,30 @@ class AnnouncementController extends Controller
             'author_name' => 'nullable|string|max:100',
             'publish_to_facebook' => 'nullable|boolean',
         ]);
+        $targetAudiences = array_values(array_unique($validated['target_audiences'] ?? [
+            ($validated['target_audience'] ?? 'customers') === 'franchise_branches'
+                ? 'franchise_branches'
+                : 'customers',
+        ]));
+        if ($targetAudiences === []) {
+            return response()->json(['message' => 'Choose at least one recipient.'], 422);
+        }
+        $targetFranchiseBranches = null;
+        if (in_array('franchise_branches', $targetAudiences, true)
+            && ($validated['franchise_branch_mode'] ?? 'all') === 'selected') {
+            $targetFranchiseBranches = $validated['target_franchise_branches'] ?? [];
+            $validBranchCount = Franchise::query()
+                ->whereIn('id', $targetFranchiseBranches)
+                ->where('status', 'active')
+                ->where('is_active', true)
+                ->where(function ($query) {
+                    $query->whereNull('is_main')->orWhere('is_main', false);
+                })
+                ->count();
+            if ($validBranchCount !== count(array_unique($targetFranchiseBranches))) {
+                return response()->json(['message' => 'Choose active franchise branches only.'], 422);
+            }
+        }
 
         $imageUrl = $validated['image_url'] ?? null;
         $imagePath = null;
@@ -160,13 +197,14 @@ class AnnouncementController extends Controller
             $scheduledAt = $dateSent;
         }
 
-        $targetAudience = in_array($validated['target_audience'] ?? '', ['all', 'customers']) ? $validated['target_audience'] : 'all';
+        $targetAudience = in_array('customers', $targetAudiences, true) ? 'customers' : 'franchise_branches';
 
         $announcement = Announcement::create([
             'title' => $validated['title'],
             'content' => $validated['content'],
             'target_audience' => $targetAudience,
-            'target_audiences' => [$targetAudience],
+            'target_audiences' => $targetAudiences,
+            'target_franchise_branches' => $targetFranchiseBranches,
             'image_url' => $imageUrl,
             'image_path' => $imagePath,
             'priority' => $validated['priority'] ?? 'normal',
@@ -207,7 +245,7 @@ class AnnouncementController extends Controller
     /**
      * Admin: Show announcement
      */
-    public function show(Request $request, $id)
+    public function show(Request $request, string $id)
     {
         if (!$this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
@@ -227,7 +265,7 @@ class AnnouncementController extends Controller
     /**
      * Admin: Update announcement
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         if (!$this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
@@ -261,7 +299,15 @@ class AnnouncementController extends Controller
         $validated = $request->validate([
             'title' => $titleRules,
             'content' => $contentRules,
-            'target_audience' => 'nullable|in:all,customers',
+            'target_audience' => 'nullable|in:all,customers,franchise_branches',
+            'target_audiences' => 'sometimes|array|min:1',
+            'target_audiences.*' => 'in:customers,franchise_branches',
+            'franchise_branch_mode' => 'sometimes|in:all,selected',
+            'target_franchise_branches' => $request->input('franchise_branch_mode') === 'selected' ? 'required|array|min:1' : 'nullable|array',
+            'target_franchise_branches.*' => [
+                'string',
+                Rule::exists('franchises', 'id'),
+            ],
             'image' => 'nullable|image|max:10240',
             'image_url' => 'nullable|string',
             'remove_image' => 'nullable|boolean',
@@ -271,6 +317,37 @@ class AnnouncementController extends Controller
             'scheduled_at' => 'nullable|date',
             'author_name' => 'nullable|string|max:100',
         ]);
+        if ($request->has('target_audiences') || $request->has('target_audience')) {
+            $targetAudiences = array_values(array_unique($validated['target_audiences'] ?? [
+                ($validated['target_audience'] ?? $announcement->target_audience) === 'franchise_branches'
+                    ? 'franchise_branches'
+                    : 'customers',
+            ]));
+            if ($targetAudiences === []) {
+                return response()->json(['message' => 'Choose at least one recipient.'], 422);
+            }
+            $targetFranchiseBranches = null;
+            if (in_array('franchise_branches', $targetAudiences, true)
+                && ($validated['franchise_branch_mode'] ?? 'all') === 'selected') {
+                $targetFranchiseBranches = $validated['target_franchise_branches'] ?? [];
+                $validBranchCount = Franchise::query()
+                    ->whereIn('id', $targetFranchiseBranches)
+                    ->where('status', 'active')
+                    ->where('is_active', true)
+                    ->where(function ($query) {
+                        $query->whereNull('is_main')->orWhere('is_main', false);
+                    })
+                    ->count();
+                if ($validBranchCount !== count(array_unique($targetFranchiseBranches))) {
+                    return response()->json(['message' => 'Choose active franchise branches only.'], 422);
+                }
+            }
+            $announcement->target_audiences = $targetAudiences;
+            $announcement->target_audience = in_array('customers', $targetAudiences, true)
+                ? 'customers'
+                : 'franchise_branches';
+            $announcement->target_franchise_branches = $targetFranchiseBranches;
+        }
         if ($titleUnchanged) {
             $validated['title'] = $announcement->getRawOriginal('title');
         }
@@ -309,16 +386,14 @@ class AnnouncementController extends Controller
         if ($request->has('content')) {
             $announcement->content = $validated['content'];
         }
-        if ($request->has('target_audience') && in_array($validated['target_audience'] ?? '', ['all', 'customers'])) {
-            $announcement->target_audience = $validated['target_audience'];
-            $announcement->target_audiences = [$validated['target_audience']];
-        }
         if ($request->has('priority')) {
             $announcement->priority = $validated['priority'];
         }
         if ($request->has('status')) {
             $announcement->status = $validated['status'];
-            if ($announcement->status === 'published' && !$announcement->date_sent) {
+            if ($announcement->status === 'scheduled') {
+                $announcement->date_sent = null;
+            } elseif ($announcement->status === 'published' && !$announcement->date_sent) {
                 $announcement->date_sent = now();
             }
         }
@@ -344,7 +419,7 @@ class AnnouncementController extends Controller
     /**
      * Admin: Delete announcement
      */
-    public function destroy(Request $request, $id)
+    public function destroy(Request $request, string $id)
     {
         if (!$this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
@@ -370,7 +445,7 @@ class AnnouncementController extends Controller
     /**
      * Admin: Toggle Status or quick publish
      */
-    public function toggleStatus(Request $request, $id)
+    public function toggleStatus(Request $request, string $id)
     {
         if (!$this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
@@ -429,9 +504,92 @@ class AnnouncementController extends Controller
     }
 
     /**
+     * Franchise: list announcements targeted to the authenticated branch.
+     */
+    public function franchiseList(Request $request)
+    {
+        $user = $request->user();
+        if (! $user instanceof FranchiseUser || ! $user->franchise_id) {
+            return response()->json(['message' => 'Franchise branch access required.'], 403);
+        }
+
+        $branchId = (string) $user->franchise_id;
+        $announcements = $this->franchiseVisibleAnnouncements($branchId)
+            ->orderByRaw("COALESCE(CASE WHEN status = 'scheduled' THEN scheduled_at ELSE date_sent END, created_at) DESC")
+            ->get();
+        $readIds = DB::table('announcement_reads')
+            ->where('franchise_id', $branchId)
+            ->whereIn('announcement_id', $announcements->pluck('id'))
+            ->pluck('announcement_id')
+            ->map(static fn ($id) => (string) $id)
+            ->all();
+        $readSet = array_fill_keys($readIds, true);
+
+        $announcements->each(function (Announcement $announcement) use ($readSet) {
+            $announcement->setAttribute('is_read', isset($readSet[(string) $announcement->id]));
+        });
+
+        return response()->json([
+            'announcements' => $announcements,
+            'unread_count' => $announcements->where('is_read', false)->count(),
+        ]);
+    }
+
+    /**
+     * Franchise: mark a targeted announcement as viewed by this branch.
+     */
+    public function markFranchiseRead(Request $request, string $id)
+    {
+        $user = $request->user();
+        if (! $user instanceof FranchiseUser || ! $user->franchise_id) {
+            return response()->json(['message' => 'Franchise branch access required.'], 403);
+        }
+
+        $branchId = (string) $user->franchise_id;
+        $announcement = $this->franchiseVisibleAnnouncements($branchId)
+            ->whereKey($id)
+            ->first();
+        if (! $announcement) {
+            return response()->json(['message' => 'Announcement not found.'], 404);
+        }
+
+        DB::table('announcement_reads')->updateOrInsert(
+            ['announcement_id' => $announcement->id, 'franchise_id' => $branchId],
+            ['viewed_at' => now(), 'updated_at' => now(), 'created_at' => now()],
+        );
+
+        return response()->json(['success' => true]);
+    }
+
+    private function franchiseVisibleAnnouncements(string $branchId): Builder
+    {
+        return Announcement::query()
+            ->where(function ($query) {
+                $query->where(function ($published) {
+                    $published->where('status', 'published')
+                        ->where(function ($sent) {
+                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now());
+                        });
+                })->orWhere(function ($scheduled) {
+                    $scheduled->where('status', 'scheduled')
+                        ->whereNotNull('scheduled_at')
+                        ->where('scheduled_at', '<=', now());
+                });
+            })
+            ->where(function ($query) {
+                $query->where('target_audience', 'franchise_branches')
+                    ->orWhereJsonContains('target_audiences', 'franchise_branches');
+            })
+            ->where(function ($query) use ($branchId) {
+                $query->whereNull('target_franchise_branches')
+                    ->orWhereJsonContains('target_franchise_branches', $branchId);
+            });
+    }
+
+    /**
      * Admin: Publish an existing announcement to Facebook Page
      */
-    public function publishToFacebook(Request $request, $id)
+    public function publishToFacebook(Request $request, string $id)
     {
         if (!$this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);

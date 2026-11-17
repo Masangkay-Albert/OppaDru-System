@@ -86,6 +86,8 @@ Route::prefix('franchise')->group(function () {
 
     Route::middleware(['franchise.access'])->group(function () {
         Route::get('/me', [FranchiseAuthController::class, 'me']);
+        Route::get('/announcements', [AnnouncementController::class, 'franchiseList']);
+        Route::post('/announcements/{id}/read', [AnnouncementController::class, 'markFranchiseRead']);
         Route::get('/management', [FranchiseController::class, 'managementInformation']);
         Route::get('/dashboard', [FranchiseController::class, 'dashboard']);
         Route::get('/summary', [FranchiseController::class, 'branchSummary']);
