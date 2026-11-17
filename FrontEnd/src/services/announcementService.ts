@@ -409,7 +409,10 @@ export const announcementService = {
   },
 
   async getFranchiseAnnouncements(): Promise<{ announcements: Array<Announcement & { is_read: boolean }>; unread_count: number }> {
-    const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/announcements`);
+    const response = await fetchWithFranchiseAuth(`${API_URL}/franchise/announcements`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.message || 'Could not load branch announcements.');
     return {

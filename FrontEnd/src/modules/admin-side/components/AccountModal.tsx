@@ -26,7 +26,7 @@ export interface ModalAccount {
 interface AccountModalProps {
   account: ModalAccount;
   onClose: () => void;
-  onResetPassword: (id: string, newPassword: string) => void | Promise<void>;
+  onResetPassword?: (id: string, newPassword: string) => void | Promise<void>;
   isReadOnly?: boolean;
 }
 
@@ -108,6 +108,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ account, onClose, onResetPa
       setMessage({ type: 'error', text: `Password must be ${INPUT_LIMITS.password.min}-${INPUT_LIMITS.password.max} characters.` });
       return;
     }
+    if (!onResetPassword) return;
 
     setIsSubmitting(true);
     setMessage(null);
@@ -168,7 +169,7 @@ const AccountModal: React.FC<AccountModalProps> = ({ account, onClose, onResetPa
             ))}
           </dl>
 
-          {!isReadOnly && (
+          {!isReadOnly && onResetPassword && (
             <section className="border-t border-[var(--oppa-border)] pt-4" aria-labelledby="reset-password-title">
               <h3 id="reset-password-title" className="text-sm font-semibold text-[var(--oppa-text)]">Reset password</h3>
               <p className="mt-1 text-xs text-[var(--oppa-text-muted)]">Enter a new password for this account.</p>

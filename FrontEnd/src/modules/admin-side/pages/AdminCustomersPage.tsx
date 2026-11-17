@@ -3,7 +3,7 @@ import { ShoppingBag, Users } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import AccountModal from '../components/AccountModal';
 import { AdminDate, Avatar, ConfirmDialog, DataTable, EmptyState, PageHeader, RowActionsMenu, Toast } from '../components/AdminUI';
-import { getAccountsByRole, resetAccountPassword, deleteAccount, fetchWithAdminAuth, type StoredAccount } from '../../../services/adminAuthService';
+import { getAccountsByRole, deleteAccount, fetchWithAdminAuth, type StoredAccount } from '../../../services/adminAuthService';
 import { getAllCustomers } from '../../../services/adminOrderService';
 import { API_URL } from '../../../services/apiConfig';
 import { formatCurrency } from '../../../utils/formatters';
@@ -31,7 +31,6 @@ const AdminCustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
   const [selected, setSelected] = useState<CustomerWithStats | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; fullName: string } | null>(null);
-  const [resetTarget, setResetTarget] = useState<StoredAccount | null>(null);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'spent' | 'orders' | 'registered'>('spent');
   const [page, setPage] = useState(1);
@@ -73,11 +72,6 @@ const AdminCustomersPage: React.FC = () => {
   const visibleCustomers = filtered.slice((page - 1) * pageSize, page * pageSize);
   const titleCase = (value: string) => value.toLocaleLowerCase().replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase());
 
-  const handleReset = async (id: string, newPassword: string) => {
-    resetAccountPassword(id, newPassword);
-    await refresh();
-  };
-
   const confirmDeleteCustomer = async () => {
     if (!deleteTarget) return;
     try {
@@ -99,7 +93,7 @@ const AdminCustomersPage: React.FC = () => {
 
   return (
     <AdminLayout>
-      <PageHeader title="Registered Customers" subtitle="View accounts and manage customer passwords." actions={<div className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2"><Users size={16} className="text-[var(--oppa-green)]" /><span className="text-sm font-semibold text-[var(--oppa-text)]">{customers.length} customers</span></div>} />
+      <PageHeader title="Registered Customers" subtitle="View customer accounts and order details." actions={<div className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 py-2"><Users size={16} className="text-[var(--oppa-green)]" /><span className="text-sm font-semibold text-[var(--oppa-text)]">{customers.length} customers</span></div>} />
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
         <SearchInput aria-label="Search customers by name or email" value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Search customers…" wrapperClassName="min-w-0 flex-1" />
         <div className="flex shrink-0 items-center gap-2 text-sm text-[var(--oppa-text-muted)]"><span>Sort by</span><Select aria-label="Sort customers" value={sortBy} onChange={(value) => { setSortBy(value as typeof sortBy); setPage(1); }} options={[{ value: 'spent', label: 'Total spent' }, { value: 'orders', label: 'Orders' }, { value: 'registered', label: 'Registered' }]} className="w-40" /></div>
@@ -120,12 +114,11 @@ const AdminCustomersPage: React.FC = () => {
           <td data-label="Orders" className="col-center"><span className="inline-flex items-center gap-1 rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--oppa-green-dark)]"><ShoppingBag size={12} />{customer.order_count || 0}</span></td>
           <td data-label="Total spent" className="col-right tabular-nums whitespace-nowrap font-semibold text-[var(--oppa-text)]">{formatCurrency(customer.total_spent || 0)}</td>
           <td data-label="Registered" className="col-left whitespace-nowrap text-[var(--oppa-text-muted)]"><AdminDate value={customer.date_registered || customer.created_at} /></td>
-          <td data-label="Actions" className="col-right"><div className="flex items-center justify-end gap-2 whitespace-nowrap"><button onClick={() => setSelected(customer)} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">View</button><RowActionsMenu label={customer.fullName} items={[{ label: 'Reset password', onSelect: () => setResetTarget(customer) }, { label: 'Delete customer', destructive: true, onSelect: () => setDeleteTarget({ id: customer.id, fullName: customer.fullName }) }]} /></div></td>
+          <td data-label="Actions" className="col-right"><div className="flex items-center justify-end gap-2 whitespace-nowrap"><button onClick={() => setSelected(customer)} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-semibold text-[var(--oppa-green-dark)] hover:bg-[var(--oppa-green-soft)]">View</button><RowActionsMenu label={customer.fullName} items={[{ label: 'Delete customer', destructive: true, onSelect: () => setDeleteTarget({ id: customer.id, fullName: customer.fullName }) }]} /></div></td>
         </tr>)}
       </DataTable>
       {deleteTarget && <ConfirmDialog title={`Delete ${deleteTarget.fullName}?`} description="This will remove the customer account from the system." confirmLabel="Delete" onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDeleteCustomer()} />}
-      {resetTarget && <ConfirmDialog title={`Reset ${resetTarget.fullName}’s password?`} description="Continue to the password reset form for this customer." confirmLabel="Continue" onCancel={() => setResetTarget(null)} onConfirm={() => { setSelected(resetTarget); setResetTarget(null); }} />}
-      {selected && <AccountModal account={selected} onClose={() => setSelected(null)} onResetPassword={handleReset} />}
+      {selected && <AccountModal account={selected} onClose={() => setSelected(null)} />}
     </AdminLayout>
   );
 };

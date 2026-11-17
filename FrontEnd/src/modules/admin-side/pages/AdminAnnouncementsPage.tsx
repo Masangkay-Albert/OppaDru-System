@@ -1038,13 +1038,8 @@ Oppa Dru Korean Fried Chicken
                       <span className={ANNOUNCEMENT_FIELD_LABEL}>
                         Priority Tag
                       </span>
-                      <div className="relative">
-                        <Select
-                          aria-label="Priority tag"
-                          value={formData.priority}
-                          onChange={(priority) => setFormData({ ...formData, priority: priority as AnnouncementPriority })}
-                          options={[{ value: 'normal', label: 'Standard / General' }, { value: 'promo', label: 'Special Promo' }, { value: 'high', label: 'High Priority' }, { value: 'urgent', label: 'Urgent Alert' }]}
-                        />
+                      <div className="flex h-11 items-center rounded-xl border border-[var(--oppa-border)] bg-white px-3 text-sm font-medium text-[var(--oppa-text)]">
+                        {formData.priority === 'normal' ? 'Standard / General' : PRIORITY_BADGES[formData.priority]?.label || 'Standard / General'}
                       </div>
                     </div>
                   </div>

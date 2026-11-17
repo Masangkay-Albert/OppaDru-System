@@ -159,7 +159,7 @@ class AnnouncementController extends Controller
         $targetFranchiseBranches = null;
         if (in_array('franchise_branches', $targetAudiences, true)
             && ($validated['franchise_branch_mode'] ?? 'all') === 'selected') {
-            $targetFranchiseBranches = $validated['target_franchise_branches'] ?? [];
+            $targetFranchiseBranches = array_values(array_map('strval', $validated['target_franchise_branches'] ?? []));
             $validBranchCount = Franchise::query()
                 ->whereIn('id', $targetFranchiseBranches)
                 ->where('status', 'active')
@@ -329,7 +329,7 @@ class AnnouncementController extends Controller
             $targetFranchiseBranches = null;
             if (in_array('franchise_branches', $targetAudiences, true)
                 && ($validated['franchise_branch_mode'] ?? 'all') === 'selected') {
-                $targetFranchiseBranches = $validated['target_franchise_branches'] ?? [];
+                $targetFranchiseBranches = array_values(array_map('strval', $validated['target_franchise_branches'] ?? []));
                 $validBranchCount = Franchise::query()
                     ->whereIn('id', $targetFranchiseBranches)
                     ->where('status', 'active')
@@ -532,7 +532,7 @@ class AnnouncementController extends Controller
         return response()->json([
             'announcements' => $announcements,
             'unread_count' => $announcements->where('is_read', false)->count(),
-        ]);
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     /**
@@ -577,12 +577,18 @@ class AnnouncementController extends Controller
                 });
             })
             ->where(function ($query) {
-                $query->where('target_audience', 'franchise_branches')
-                    ->orWhereJsonContains('target_audiences', 'franchise_branches');
+                $query->whereJsonContains('target_audiences', 'franchise_branches')
+                    ->orWhere(function ($selected) {
+                        $selected->where('target_audience', 'franchise_branches')
+                            ->whereNotNull('target_franchise_branches');
+                    });
             })
             ->where(function ($query) use ($branchId) {
                 $query->whereNull('target_franchise_branches')
                     ->orWhereJsonContains('target_franchise_branches', $branchId);
+                if (ctype_digit($branchId)) {
+                    $query->orWhereJsonContains('target_franchise_branches', (int) $branchId);
+                }
             });
     }
 

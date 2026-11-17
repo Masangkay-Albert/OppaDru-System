@@ -99,12 +99,17 @@ const FranchiseLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
       }
     };
     const refresh = () => { void loadUnreadAnnouncementCount(); };
+    const refreshWhenActive = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
     void loadUnreadAnnouncementCount();
     window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refreshWhenActive);
     window.addEventListener('franchise-announcements-updated', refresh);
     return () => {
       active = false;
       window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refreshWhenActive);
       window.removeEventListener('franchise-announcements-updated', refresh);
     };
   }, [location.pathname]);
