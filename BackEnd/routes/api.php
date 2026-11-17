@@ -266,8 +266,6 @@ Route::middleware('franchise.applicant.access')->group(function () {
 });
 
 Route::middleware(['admin.access'])->prefix('admin')->group(function () {
-    Route::get('/store-hours/simulation', [StoreHoursController::class, 'simulation']);
-    Route::put('/store-hours/simulation', [StoreHoursController::class, 'updateSimulation']);
     Route::get('/replacement-requests', [OrderReplacementController::class, 'indexAdmin']);
     Route::get('/replacement-requests/report', [OrderReplacementController::class, 'reportAdmin']);
     Route::patch('/replacement-requests/{id}', [OrderReplacementController::class, 'reviewAdmin']);

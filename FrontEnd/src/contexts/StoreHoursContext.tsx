@@ -15,7 +15,6 @@ export interface StoreHoursStatus {
     timezone: string;
   };
   order_closed_message: string;
-  simulation_enabled: boolean;
 }
 
 interface StoreHoursContextValue {
@@ -38,7 +37,6 @@ const isStoreHoursStatus = (value: unknown): value is StoreHoursStatus => {
     && typeof candidate.next_opening_at === 'string'
     && typeof candidate.next_opening_label === 'string'
     && typeof candidate.order_closed_message === 'string'
-    && typeof candidate.simulation_enabled === 'boolean'
     && typeof configuredHours.opening === 'string'
     && typeof configuredHours.last_order === 'string'
     && typeof configuredHours.closing === 'string'
