@@ -46,63 +46,92 @@ const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
   statusOptions,
   onStatusChange,
   statusCount,
-}) => (
-  <div className="admin-orders-filterbar">
-    <div className="admin-orders-search">
-      <SearchInput
-        aria-label="Search orders by ID, customer, email, or platform order number"
-        value={search}
-        onChange={onSearchChange}
-        placeholder="Search order ID, customer, email, or platform number..."
-        wrapperClassName="min-w-0 flex-1"
-      />
-    </div>
-    {statusOptions && onStatusChange && (
+}) => {
+  const dateInputRef = React.useRef<HTMLInputElement>(null);
+
+  const openDatePicker = () => {
+    const input = dateInputRef.current;
+    if (!input) return;
+
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+        return;
+      } catch (error) {
+        console.warn('Could not open the native order date picker.', error);
+      }
+    }
+
+    input.focus();
+    input.click();
+  };
+
+  return (
+    <div className="admin-orders-filterbar">
+      <div className="admin-orders-search">
+        <SearchInput
+          aria-label="Search orders by ID, customer, email, or platform order number"
+          value={search}
+          onChange={onSearchChange}
+          placeholder="Search order ID, customer, email, or platform number..."
+          wrapperClassName="min-w-0 flex-1"
+        />
+      </div>
+      {statusOptions && onStatusChange && (
+        <Select
+          aria-label="Filter by status"
+          value={status || 'all'}
+          onChange={onStatusChange}
+          options={statusOptions}
+          renderValue={(option) => `Status: ${option?.label ?? 'All'} (${statusCount ?? 0})`}
+          className="admin-orders-status-filter"
+        />
+      )}
       <Select
-        aria-label="Filter by status"
-        value={status || 'all'}
-        onChange={onStatusChange}
-        options={statusOptions}
-        renderValue={(option) => `Status: ${option?.label ?? 'All'} (${statusCount ?? 0})`}
-        className="admin-orders-status-filter"
+        aria-label="Filter by channel"
+        value={channel}
+        onChange={onChannelChange}
+        options={[
+          { value: 'all', label: 'All channels' },
+          { value: 'online', label: 'Online', icon: <Globe2 size={15} aria-hidden="true" className="text-[var(--oppa-text-muted)]" /> },
+          { value: 'onsite', label: 'Onsite', icon: <Store size={15} aria-hidden="true" className="text-[var(--oppa-text-muted)]" /> },
+          { value: 'foodpanda', label: 'Foodpanda', icon: <ShoppingBag size={15} aria-hidden="true" className="text-[var(--oppa-text-muted)]" /> },
+          { value: 'grabfood', label: 'GrabFood', icon: <ShoppingBag size={15} aria-hidden="true" className="text-[var(--oppa-text-muted)]" /> },
+        ]}
+        className="admin-orders-channel-filter"
       />
-    )}
-    <Select
-      aria-label="Filter by channel"
-      value={channel}
-      onChange={onChannelChange}
-      options={[
-        { value: 'all', label: 'All channels' },
-        { value: 'online', label: 'Online', icon: <Globe2 size={15} aria-hidden="true" className="text-[var(--oppa-text-muted)]" /> },
-        { value: 'onsite', label: 'Onsite', icon: <Store size={15} aria-hidden="true" className="text-[var(--oppa-text-muted)]" /> },
-        { value: 'foodpanda', label: 'Foodpanda', icon: <ShoppingBag size={15} aria-hidden="true" className="text-[var(--oppa-text-muted)]" /> },
-        { value: 'grabfood', label: 'GrabFood', icon: <ShoppingBag size={15} aria-hidden="true" className="text-[var(--oppa-text-muted)]" /> },
-      ]}
-      className="admin-orders-channel-filter"
-    />
-    <label className={`admin-orders-date-filter ${date ? 'has-date' : ''}`}>
-      <CalendarDays size={16} aria-hidden="true" />
-      <span className={`admin-orders-date-value ${date ? 'is-selected' : ''}`}>
-        {date
-          ? formatSelectedDate(date)
-          : 'Select date'}
-      </span>
-      <input
-        aria-label="Filter by exact date"
-        type="date"
-        value={date}
-        min={dateMin}
-        max={dateMax}
-        onChange={(event) => onDateChange(event.target.value)}
-      />
-      {date && <button type="button" aria-label="Clear selected date" title="Clear date" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDateChange(''); }}><X size={15} aria-hidden="true" /></button>}
-    </label>
-    {onClear && (
-      <button type="button" onClick={onClear} className="admin-orders-clear-filters">
-        Clear filters
-      </button>
-    )}
-  </div>
-);
+      <div className={`admin-orders-date-filter ${date ? 'has-date' : ''}`}>
+        <button
+          type="button"
+          onClick={openDatePicker}
+          aria-label={date ? `Filter orders by ${formatSelectedDate(date)}` : 'Select order date'}
+          className="admin-orders-date-trigger"
+        >
+          <CalendarDays size={16} aria-hidden="true" />
+          <span className={`admin-orders-date-value ${date ? 'is-selected' : ''}`}>
+            {date ? formatSelectedDate(date) : 'Select date'}
+          </span>
+        </button>
+        <input
+          ref={dateInputRef}
+          className="admin-orders-date-input"
+          aria-label="Filter by exact date"
+          type="date"
+          value={date}
+          min={dateMin}
+          max={dateMax}
+          tabIndex={-1}
+          onChange={(event) => onDateChange(event.target.value)}
+        />
+        {date && <button type="button" className="admin-orders-date-clear" aria-label="Clear selected date" title="Clear date" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDateChange(''); }}><X size={15} aria-hidden="true" /></button>}
+      </div>
+      {onClear && (
+        <button type="button" onClick={onClear} className="admin-orders-clear-filters">
+          Clear filters
+        </button>
+      )}
+    </div>
+  );
+};
 
 export default OrdersFilterBar;

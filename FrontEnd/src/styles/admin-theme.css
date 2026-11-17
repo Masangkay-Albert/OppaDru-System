@@ -425,15 +425,30 @@ body {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--oppa-green) 18%, transparent);
 }
 
-.admin-orders-date-filter input {
+.admin-orders-date-input {
   position: absolute;
-  z-index: 1;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  padding-right: 36px;
+  left: 10px;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
   border: 0;
   opacity: 0;
+  pointer-events: none;
+}
+
+.admin-orders-date-trigger {
+  display: inline-flex;
+  min-width: 0;
+  height: 100%;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--oppa-text-muted);
+  text-align: left;
   cursor: pointer;
 }
 
@@ -455,7 +470,7 @@ body {
   color: var(--oppa-text);
 }
 
-.admin-orders-date-filter > button {
+.admin-orders-date-filter > .admin-orders-date-clear {
   position: relative;
   z-index: 2;
   display: inline-flex;
