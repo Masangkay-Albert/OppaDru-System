@@ -337,6 +337,8 @@ Route::middleware(['admin.access'])->prefix('admin')->group(function () {
     Route::put('/target-profit-sales', [TargetProfitSaleController::class, 'update']);
     Route::delete('/target-profit-sales', [TargetProfitSaleController::class, 'destroy']);
 
+    Route::get('/company-branch-managers', [FranchiseController::class, 'availableCompanyBranchManagers']);
+    Route::post('/company-branches', [FranchiseController::class, 'storeCompanyBranch']);
     Route::get('/franchises', [FranchiseController::class, 'index']);
     Route::get('/franchises/stats', [FranchiseController::class, 'stats']);
     Route::get('/franchises/{id}', [FranchiseController::class, 'show']);

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { announcementService } from '../../../../services/announcementService';
 import { customerReplacementNotificationService } from '../../../../services/customerReplacementNotificationService';
+import { authService } from '../../../../services/authService';
 import type { CustomerReplacementNotification } from '../../../../services/customerReplacementNotificationService';
 import type { Announcement, AnnouncementPriority } from '../../../../types/announcement.types';
 import NotificationItem from './NotificationItem';
@@ -24,6 +25,18 @@ import type { UnifiedNotification } from './notificationTypes';
 
 const COMPLETED_STORAGE_KEY = 'oppadru_customer_completed_notifications';
 const DELETED_STORAGE_KEY = 'oppadru_customer_deleted_notifications';
+
+const getCustomerStorageScope = (): string => {
+  try {
+    return authService.getUserFromStorage()?.id || 'guest';
+  } catch {
+    return 'guest';
+  }
+};
+
+const getScopedStorageKey = (key: string, scope: string): string => (
+  scope === 'guest' ? key : `${key}:${scope}`
+);
 
 const PRIORITY_BADGES: Record<AnnouncementPriority, { label: string; style: string }> = {
   normal: { label: 'Update', style: 'border-green-200 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-950/60 dark:text-emerald-200' },
@@ -54,10 +67,13 @@ interface CustomerAnnouncementBellProps {
 }
 
 export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> = ({ className = '' }) => {
+  const storageScope = getCustomerStorageScope();
+  const completedStorageKey = getScopedStorageKey(COMPLETED_STORAGE_KEY, storageScope);
+  const deletedStorageKey = getScopedStorageKey(DELETED_STORAGE_KEY, storageScope);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [replacementNotifications, setReplacementNotifications] = useState<CustomerReplacementNotification[]>([]);
-  const [completedIds, setCompletedIds] = useState<string[]>(() => getStoredIds(COMPLETED_STORAGE_KEY));
-  const [deletedIds, setDeletedIds] = useState<string[]>(() => getStoredIds(DELETED_STORAGE_KEY));
+  const [completedIds, setCompletedIds] = useState<string[]>(() => getStoredIds(completedStorageKey));
+  const [deletedIds, setDeletedIds] = useState<string[]>(() => getStoredIds(deletedStorageKey));
 
   const [isOpenDropdown, setIsOpenDropdown] = useState(false);
   const [expandedModal, setExpandedModal] = useState(false);
@@ -70,6 +86,11 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const closeAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setCompletedIds(getStoredIds(completedStorageKey));
+    setDeletedIds(getStoredIds(deletedStorageKey));
+  }, [completedStorageKey, deletedStorageKey]);
 
   const closeDropdown = React.useCallback(() => {
     if (!isOpenDropdown) return;
@@ -87,9 +108,10 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
     closeAnimationTimeoutRef.current = null;
     setIsClosingDropdown(false);
     setIsOpenDropdown(true);
+    void fetchAllData();
   };
 
-  // Load public announcements, excluding promo announcements.
+  // Load customer announcements and replacement updates.
   const fetchAllData = async () => {
     const [announcementsResult, replacementNotificationsResult] = await Promise.allSettled([
       announcementService.getCustomerAnnouncements(),
@@ -97,7 +119,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
     ]);
 
     if (announcementsResult.status === 'fulfilled') {
-      setAnnouncements(announcementsResult.value.filter((item) => item.priority !== 'promo'));
+      setAnnouncements(announcementsResult.value);
     } else {
       console.error('Could not load customer announcements.', announcementsResult.reason);
     }
@@ -125,13 +147,13 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
     // 3. Storage event listener when another tab updates announcements.
     const handleStorageChange = (e: StorageEvent) => {
       if (
-        e.key === 'oppadru_announcements_cache_v2' ||
-        e.key === COMPLETED_STORAGE_KEY ||
-        e.key === DELETED_STORAGE_KEY
+        e.key === 'oppadru_announcements_cache_v3' ||
+        e.key === completedStorageKey ||
+        e.key === deletedStorageKey
       ) {
         fetchAllData();
-        setCompletedIds(getStoredIds(COMPLETED_STORAGE_KEY));
-        setDeletedIds(getStoredIds(DELETED_STORAGE_KEY));
+        setCompletedIds(getStoredIds(completedStorageKey));
+        setDeletedIds(getStoredIds(deletedStorageKey));
       }
     };
 
@@ -154,7 +176,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
       window.removeEventListener('storage', handleStorageChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [completedStorageKey, deletedStorageKey]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -216,7 +238,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
         content: a.content,
         image_url: a.image_url || null,
         priority: a.priority || 'normal',
-        date: a.date_sent || a.created_at || new Date().toISOString(),
+        date: a.date_sent || a.scheduled_at || a.created_at || new Date().toISOString(),
         isCompleted,
         rawAnnouncement: a,
       });
@@ -255,7 +277,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
     if (!completedIds.includes(id)) {
       const next = [...completedIds, id];
       setCompletedIds(next);
-      saveStoredIds(COMPLETED_STORAGE_KEY, next);
+      saveStoredIds(completedStorageKey, next);
     }
   };
 
@@ -263,7 +285,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
     const allIds = unifiedNotifications.map((item) => item.id);
     const combined = Array.from(new Set([...completedIds, ...allIds]));
     setCompletedIds(combined);
-    saveStoredIds(COMPLETED_STORAGE_KEY, combined);
+    saveStoredIds(completedStorageKey, combined);
   };
 
   const handleToggleRead = (item: UnifiedNotification) => {
@@ -271,14 +293,14 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
       ? completedIds.filter((id) => id !== item.id)
       : [...completedIds, item.id];
     setCompletedIds(next);
-    saveStoredIds(COMPLETED_STORAGE_KEY, next);
+    saveStoredIds(completedStorageKey, next);
   };
 
   const handleDeleteNotification = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const next = Array.from(new Set([...deletedIds, id]));
     setDeletedIds(next);
-    saveStoredIds(DELETED_STORAGE_KEY, next);
+    saveStoredIds(deletedStorageKey, next);
     setUndoDeletedItem(id);
 
     // If active modal was deleted, select next or close
@@ -298,14 +320,14 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
 
   const handleRestoreDeleted = () => {
     setDeletedIds([]);
-    saveStoredIds(DELETED_STORAGE_KEY, []);
+    saveStoredIds(deletedStorageKey, []);
     setUndoDeletedItem(null);
   };
 
   const handleUndoSingleDelete = (id: string) => {
     const next = deletedIds.filter((item) => item !== id);
     setDeletedIds(next);
-    saveStoredIds(DELETED_STORAGE_KEY, next);
+    saveStoredIds(deletedStorageKey, next);
     setUndoDeletedItem(null);
   };
 
@@ -454,7 +476,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
             )}
           </div>
           <footer className="customer-notification-footer sticky bottom-0 flex shrink-0 items-center justify-center border-t px-4 py-3">
-            <button type="button" onClick={() => { if (unifiedNotifications[0]) { setSelectedNotificationId(unifiedNotifications[0].id); setExpandedModal(true); closeDropdown(); } }} disabled={unifiedNotifications.length === 0} className="customer-notification-link text-xs font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 disabled:cursor-not-allowed disabled:opacity-50">View all notifications</button>
+            <button type="button" onClick={() => { if (unifiedNotifications[0]) handleSelectNotification(unifiedNotifications[0]); }} disabled={unifiedNotifications.length === 0} className="customer-notification-link text-xs font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30 disabled:cursor-not-allowed disabled:opacity-50">View all notifications</button>
           </footer>
         </section>
       )}

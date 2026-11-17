@@ -7,11 +7,9 @@ use App\Models\Franchise;
 use App\Models\FranchiseUser;
 use App\Services\FacebookService;
 use App\Services\ProductImageUploadService;
-use App\Support\HttpCacheResponse;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -20,7 +18,6 @@ use Illuminate\Validation\Rule;
 class AnnouncementController extends Controller
 {
     use AdminAuthTrait;
-    use HttpCacheResponse;
 
     public function __construct(
         private readonly ProductImageUploadService $imageUploadService,
@@ -193,8 +190,11 @@ class AnnouncementController extends Controller
 
         if ($status === 'published' && !$dateSent) {
             $dateSent = now();
-        } elseif ($status === 'scheduled' && !$scheduledAt && $dateSent) {
-            $scheduledAt = $dateSent;
+        } elseif ($status === 'scheduled') {
+            if (!$scheduledAt && $dateSent) {
+                $scheduledAt = $dateSent;
+            }
+            $dateSent = null;
         }
 
         $targetAudience = in_array('customers', $targetAudiences, true) ? 'customers' : 'franchise_branches';
@@ -403,6 +403,12 @@ class AnnouncementController extends Controller
         if ($request->has('scheduled_at')) {
             $announcement->scheduled_at = $validated['scheduled_at'];
         }
+        if ($announcement->status === 'scheduled') {
+            if ($request->has('date_sent') && !$request->has('scheduled_at')) {
+                $announcement->scheduled_at = $validated['date_sent'];
+            }
+            $announcement->date_sent = null;
+        }
         if ($request->has('author_name')) {
             $announcement->author_name = $validated['author_name'];
         }
@@ -476,31 +482,32 @@ class AnnouncementController extends Controller
     }
 
     /**
-     * Public / Client: Get published customer announcements.
+     * Public / Client: Get currently visible customer announcements.
      */
     public function publicList(Request $request)
     {
-        $data = Cache::remember('announcements_public_nonpromo_list_v1', 300, function () {
-            $announcements = Announcement::published()
-                ->where('priority', '!=', 'promo')
-                ->where(function ($q) {
-                    $q->where('target_audience', 'customers')
-                      ->orWhere('target_audience', 'all')
-                      ->orWhereJsonContains('target_audiences', 'customers')
-                      ->orWhereJsonContains('target_audiences', 'all');
-                })
-                ->orderBy('priority', 'desc')
-                ->orderBy('date_sent', 'desc')
-                ->limit(20)
-                ->get();
+        $announcements = Announcement::query()
+            ->where(function ($query) {
+                $query->where(function ($published) {
+                    $published->where('status', 'published')
+                        ->where(function ($sent) {
+                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now());
+                        });
+                })->orWhere(function ($scheduled) {
+                    $scheduled->where('status', 'scheduled')
+                        ->whereNotNull('scheduled_at')
+                        ->where('scheduled_at', '<=', now());
+                });
+            })
+            ->whereJsonContains('target_audiences', 'customers')
+            ->orderByRaw("COALESCE(CASE WHEN status = 'scheduled' THEN scheduled_at ELSE date_sent END, created_at) DESC")
+            ->limit(20)
+            ->get();
 
-            return [
-                'success' => true,
-                'announcements' => $announcements,
-            ];
-        });
-
-        return $this->cachedJsonResponse($request, $data, 180);
+        return response()->json([
+            'success' => true,
+            'announcements' => $announcements,
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     /**
@@ -576,13 +583,7 @@ class AnnouncementController extends Controller
                         ->where('scheduled_at', '<=', now());
                 });
             })
-            ->where(function ($query) {
-                $query->whereJsonContains('target_audiences', 'franchise_branches')
-                    ->orWhere(function ($selected) {
-                        $selected->where('target_audience', 'franchise_branches')
-                            ->whereNotNull('target_franchise_branches');
-                    });
-            })
+            ->whereJsonContains('target_audiences', 'franchise_branches')
             ->where(function ($query) use ($branchId) {
                 $query->whereNull('target_franchise_branches')
                     ->orWhereJsonContains('target_franchise_branches', $branchId);

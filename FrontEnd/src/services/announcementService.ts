@@ -138,172 +138,92 @@ export const announcementService = {
     const admin = getCurrentAdmin();
     const authorName = data.author_name || admin?.fullName || 'Admin';
 
-    // Try API via FormData
-    try {
-      const formData = new FormData();
-      formData.append('title', data.title);
-      formData.append('content', data.content);
-      formData.append('target_audience', data.target_audience || 'customers');
-      (data.target_audiences || [data.target_audience || 'customers']).forEach((audience) => {
-        formData.append('target_audiences[]', audience);
-      });
-      formData.append('franchise_branch_mode', data.target_franchise_branches === null ? 'all' : 'selected');
-      (data.target_franchise_branches || []).forEach((branchId) => {
-        formData.append('target_franchise_branches[]', branchId);
-      });
-      formData.append('priority', data.priority);
-      formData.append('status', data.status);
-      formData.append('author_name', authorName);
+    const formData = new FormData();
+    formData.append('title', data.title);
+    formData.append('content', data.content);
+    formData.append('target_audience', data.target_audience || 'customers');
+    (data.target_audiences || [data.target_audience || 'customers']).forEach((audience) => {
+      formData.append('target_audiences[]', audience);
+    });
+    formData.append('franchise_branch_mode', data.target_franchise_branches === null ? 'all' : 'selected');
+    (data.target_franchise_branches || []).forEach((branchId) => {
+      formData.append('target_franchise_branches[]', branchId);
+    });
+    formData.append('priority', data.priority);
+    formData.append('status', data.status);
+    formData.append('author_name', authorName);
 
-      if (data.date_sent) formData.append('date_sent', data.date_sent);
-      if (data.scheduled_at) formData.append('scheduled_at', data.scheduled_at);
-      if (data.image_url) formData.append('image_url', data.image_url);
-      if (data.imageFile) formData.append('image', data.imageFile);
-      if (data.publish_to_facebook) formData.append('publish_to_facebook', '1');
+    if (data.date_sent) formData.append('date_sent', data.date_sent);
+    if (data.scheduled_at) formData.append('scheduled_at', data.scheduled_at);
+    if (data.image_url) formData.append('image_url', data.image_url);
+    if (data.imageFile) formData.append('image', data.imageFile);
+    if (data.publish_to_facebook) formData.append('publish_to_facebook', '1');
 
-      const res = await fetchWithAdminAuth(`${API_URL}/admin/announcements`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const json = await res.json().catch(() => null);
-      if (res.ok) {
-        if (json.announcement) {
-          const list = getStoredAnnouncements();
-          saveStoredAnnouncements([json.announcement, ...list]);
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('oppadru_announcement_published', { detail: json.announcement }));
-          }
-          return {
-            announcement: json.announcement,
-            facebookPublish: json.facebook_publish ?? null,
-          };
-        }
-        if (data.target_audiences?.includes('franchise_branches')) {
-          throw new Error('The server did not return the saved announcement.');
-        }
-      }
-      if (data.publish_to_facebook || data.target_audiences?.includes('franchise_branches')) {
-        throw new Error(json?.message || 'The server could not create this announcement.');
-      }
-    } catch (error) {
-      if (data.publish_to_facebook || data.target_audiences?.includes('franchise_branches')) {
-        throw error;
-      }
-      // Fall through to local fallback
+    const response = await fetchWithAdminAuth(`${API_URL}/admin/announcements`, {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.message || 'The server could not create this announcement.');
+    }
+    if (!payload?.announcement) {
+      throw new Error('The server did not return the saved announcement.');
     }
 
-    // Local fallback creation
-    let imageUrl = data.image_url || null;
-    if (data.imageFile && !imageUrl) {
-      imageUrl = URL.createObjectURL(data.imageFile);
-    }
-
-    const newAnnouncement: Announcement = {
-      id: `ann-${Date.now().toString(36).toUpperCase()}`,
-      title: data.title,
-      content: data.content,
-      target_audience: data.target_audience || 'customers',
-      target_audiences: data.target_audiences || [data.target_audience || 'customers'],
-      target_franchise_branches: data.target_franchise_branches,
-      image_url: imageUrl,
-      priority: data.priority,
-      status: data.status,
-      date_sent: data.status === 'published' ? (data.date_sent || new Date().toISOString()) : data.date_sent,
-      scheduled_at: data.scheduled_at,
-      author_name: authorName,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    const current = getStoredAnnouncements();
-    saveStoredAnnouncements([newAnnouncement, ...current]);
+    const current = getStoredAnnouncements().filter((item) => item.id !== payload.announcement.id);
+    saveStoredAnnouncements([payload.announcement, ...current]);
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('oppadru_announcement_published', { detail: newAnnouncement }));
+      window.dispatchEvent(new CustomEvent('oppadru_announcement_published', { detail: payload.announcement }));
     }
-    return { announcement: newAnnouncement };
+    return {
+      announcement: payload.announcement,
+      facebookPublish: payload.facebook_publish ?? null,
+    };
   },
 
   /**
    * Update announcement
    */
   async updateAnnouncement(id: string, data: Partial<AnnouncementFormData>): Promise<Announcement> {
-    try {
-      const formData = new FormData();
-      if (data.title) formData.append('title', data.title);
-      if (data.content) formData.append('content', data.content);
-      if (data.target_audience) formData.append('target_audience', data.target_audience);
-      if (data.target_audiences) {
-        data.target_audiences.forEach((audience) => formData.append('target_audiences[]', audience));
-      }
-      if (data.target_franchise_branches !== undefined) {
-        formData.append('franchise_branch_mode', data.target_franchise_branches === null ? 'all' : 'selected');
-        data.target_franchise_branches?.forEach((branchId) => formData.append('target_franchise_branches[]', branchId));
-      }
-      if (data.priority) formData.append('priority', data.priority);
-      if (data.status) formData.append('status', data.status);
-      if (data.date_sent) formData.append('date_sent', data.date_sent);
-      if (data.scheduled_at) formData.append('scheduled_at', data.scheduled_at);
-      if (data.author_name) formData.append('author_name', data.author_name);
-      if (data.remove_image) formData.append('remove_image', '1');
-      if (data.image_url) formData.append('image_url', data.image_url);
-      if (data.imageFile) formData.append('image', data.imageFile);
+    const formData = new FormData();
+    if (data.title) formData.append('title', data.title);
+    if (data.content) formData.append('content', data.content);
+    if (data.target_audience) formData.append('target_audience', data.target_audience);
+    if (data.target_audiences) {
+      data.target_audiences.forEach((audience) => formData.append('target_audiences[]', audience));
+    }
+    if (data.target_franchise_branches !== undefined) {
+      formData.append('franchise_branch_mode', data.target_franchise_branches === null ? 'all' : 'selected');
+      data.target_franchise_branches?.forEach((branchId) => formData.append('target_franchise_branches[]', branchId));
+    }
+    if (data.priority) formData.append('priority', data.priority);
+    if (data.status) formData.append('status', data.status);
+    if (data.date_sent) formData.append('date_sent', data.date_sent);
+    if (data.scheduled_at) formData.append('scheduled_at', data.scheduled_at);
+    if (data.author_name) formData.append('author_name', data.author_name);
+    if (data.remove_image) formData.append('remove_image', '1');
+    if (data.image_url) formData.append('image_url', data.image_url);
+    if (data.imageFile) formData.append('image', data.imageFile);
 
-      const res = await fetchWithAdminAuth(`${API_URL}/admin/announcements/${id}`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        if (json.announcement) {
-          const list = getStoredAnnouncements().map((a) => (a.id === id ? json.announcement : a));
-          saveStoredAnnouncements(list);
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('oppadru_announcement_updated', { detail: json.announcement }));
-          }
-          return json.announcement;
-        }
-      }
-      if (data.target_audiences?.includes('franchise_branches')) {
-        const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.message || 'The server could not update this announcement.');
-      }
-    } catch (error) {
-      if (data.target_audiences?.includes('franchise_branches')) throw error;
+    const response = await fetchWithAdminAuth(`${API_URL}/admin/announcements/${id}`, {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.message || 'The server could not update this announcement.');
+    }
+    if (!payload?.announcement) {
+      throw new Error('The server did not return the updated announcement.');
     }
 
-    const list = getStoredAnnouncements();
-    const existing = list.find((a) => a.id === id);
-    if (!existing) throw new Error('Announcement not found.');
-
-    let imageUrl = existing.image_url;
-    if (data.remove_image) {
-      imageUrl = null;
-    } else if (data.imageFile) {
-      imageUrl = URL.createObjectURL(data.imageFile);
-    } else if (data.image_url !== undefined) {
-      imageUrl = data.image_url;
-    }
-
-    const updated: Announcement = {
-      ...existing,
-      title: data.title ?? existing.title,
-      content: data.content ?? existing.content,
-      target_audience: data.target_audience ?? existing.target_audience,
-      target_audiences: data.target_audiences ?? (data.target_audience ? [data.target_audience] : existing.target_audiences),
-      target_franchise_branches: data.target_franchise_branches !== undefined
-        ? data.target_franchise_branches
-        : existing.target_franchise_branches,
-      priority: data.priority ?? existing.priority,
-      status: data.status ?? existing.status,
-      date_sent: data.status === 'published' && !existing.date_sent ? new Date().toISOString() : (data.date_sent ?? existing.date_sent),
-      scheduled_at: data.scheduled_at ?? existing.scheduled_at,
-      image_url: imageUrl,
-      updated_at: new Date().toISOString(),
-    };
-
-    saveStoredAnnouncements(list.map((a) => (a.id === id ? updated : a)));
+    const existing = getStoredAnnouncements();
+    const updated = payload.announcement as Announcement;
+    const list = existing.some((item) => item.id === id)
+      ? existing.map((item) => item.id === id ? updated : item)
+      : [updated, ...existing];
+    saveStoredAnnouncements(list);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('oppadru_announcement_updated', { detail: updated }));
     }
@@ -381,31 +301,24 @@ export const announcementService = {
    * Public list for customer announcements.
    */
   async getPublicAnnouncements(): Promise<Announcement[]> {
-    try {
-      const res = await fetch(`${API_URL}/announcements?audience=customers`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.announcements && Array.isArray(data.announcements)) {
-          const valid = data.announcements.filter((a: Announcement) => !a.id.startsWith('ann-DEMO') && a.priority !== 'promo');
-          saveStoredAnnouncements(valid);
-          return valid;
-        }
-      }
-    } catch {
-      // Fallback
+    const response = await fetch(`${API_URL}/announcements?audience=customers`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.message || 'Could not load customer announcements.');
+    }
+    if (!Array.isArray(payload.announcements)) {
+      throw new Error('The customer announcements response was invalid.');
     }
 
-    const list = getStoredAnnouncements();
-    return list.filter(
-      (a) =>
-        !a.id.startsWith('ann-DEMO') &&
-        a.priority !== 'promo' &&
-        a.status === 'published' &&
-        (a.target_audience === 'customers' ||
-          a.target_audience === 'all' ||
-          a.target_audiences?.includes('customers') ||
-          a.target_audiences?.includes('all'))
-    );
+    const announcements = payload.announcements.filter((announcement: Announcement) => (
+      !announcement.id.startsWith('ann-DEMO') &&
+      Array.isArray(announcement.target_audiences) &&
+      announcement.target_audiences.includes('customers')
+    ));
+    return announcements;
   },
 
   async getFranchiseAnnouncements(): Promise<{ announcements: Array<Announcement & { is_read: boolean }>; unread_count: number }> {

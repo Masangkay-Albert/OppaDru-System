@@ -164,7 +164,42 @@ export interface FranchiseAdminActivity {
 export interface FranchiseAdminDashboard {
   accounts: FranchiseAccount[];
   main_branch?: FranchiseSummary | null;
+  company_branches?: Array<FranchiseSummary & { users_count?: number }>;
+  branch_counts?: {
+    total: number;
+    company_owned: number;
+    franchise: number;
+    active: number;
+    managers: number;
+    sales: number;
+  };
   recent_activity: FranchiseAdminActivity[];
+}
+
+export interface CompanyBranchManagerOption {
+  id: string;
+  franchise_id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  branch_name: string | null;
+}
+
+export interface CreateCompanyBranchPayload {
+  name: string;
+  address: string;
+  delivery_radius_km: number;
+  phone?: string;
+  email?: string;
+  status: 'active' | 'inactive';
+  latitude: number;
+  longitude: number;
+  location_status: 'manual' | 'geocoded';
+  manager_mode: 'none' | 'existing' | 'create';
+  manager_id?: string;
+  manager_name?: string;
+  manager_email?: string;
+  manager_password?: string;
 }
 
 export interface FranchiseAccountOverview {
@@ -306,6 +341,8 @@ export const getFranchiseAccounts = async (): Promise<FranchiseAdminDashboard> =
   return {
     accounts: Array.isArray(body?.data) ? body.data : [],
     main_branch: body?.main_branch || null,
+    company_branches: Array.isArray(body?.company_branches) ? body.company_branches : [],
+    branch_counts: body?.branch_counts || undefined,
     recent_activity: Array.isArray(body?.recent_activity) ? body.recent_activity : [],
   };
 };
@@ -408,6 +445,24 @@ const franchiseAdminRequest = async <T,>(url: string, init?: RequestInit): Promi
     throw new Error(body?.message || validationMessages[0] || 'Unable to complete the franchise request');
   }
   return body?.data as T;
+};
+
+export const getCompanyBranchManagers = () =>
+  franchiseAdminRequest<CompanyBranchManagerOption[]>(`${API_URL}/admin/company-branch-managers`);
+
+export const createCompanyBranch = async (data: CreateCompanyBranchPayload): Promise<FranchiseSummary> => {
+  const response = await fetchWithAdminAuth(`${API_URL}/admin/company-branches`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(body?.message || 'Unable to create the branch.');
+    Object.assign(error, { fieldErrors: body?.errors });
+    throw error;
+  }
+  return body?.data as FranchiseSummary;
 };
 
 export const approveFranchiseApplication = async (id: string | number) => {

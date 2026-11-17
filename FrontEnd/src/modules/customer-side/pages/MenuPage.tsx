@@ -39,6 +39,7 @@ const MenuPage: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const scrollPositionRef = useRef<number>(0);
   const mainContentRef = useRef<HTMLDivElement>(null);
+  const unavailableBranchNoticeRef = useRef<string | null>(null);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -53,24 +54,58 @@ const MenuPage: React.FC = () => {
   }, [activeBranchId, validateCartAgainstMenu]);
 
   useEffect(() => {
-    getActiveBranches()
-      .then((activeBranches) => {
+    let active = true;
+    let latestRequest = 0;
+    const loadBranches = async () => {
+      const requestId = ++latestRequest;
+      try {
+        const activeBranches = await getActiveBranches();
+        if (!active || requestId !== latestRequest) return;
         setBranches(activeBranches);
         const main = activeBranches.find((branch) => branch.is_main) || null;
         const savedBranchId = getSelectedBranchId();
-        const selectedId = savedBranchId && activeBranches.some((branch) => branch.id === savedBranchId)
+        const savedBranchIsAvailable = Boolean(savedBranchId && activeBranches.some((branch) => branch.id === savedBranchId));
+        const selectedId = savedBranchIsAvailable
           ? savedBranchId
-          : main?.id || null;
+          : main?.id || activeBranches[0]?.id || null;
         if (selectedId !== savedBranchId) {
           setSelectedBranchId(selectedId);
         }
         setActiveBranchId(selectedId);
+        setBranchError('');
+        if (savedBranchId && !savedBranchIsAvailable && unavailableBranchNoticeRef.current !== savedBranchId) {
+          unavailableBranchNoticeRef.current = savedBranchId;
+          const nextBranchName = activeBranches.find((branch) => branch.id === selectedId)?.name;
+          showToast(
+            nextBranchName
+              ? `Your selected branch is no longer active. We switched you to ${nextBranchName}.`
+              : 'Your selected branch is no longer active. No active branches are available right now.',
+            nextBranchName ? 'success' : 'error',
+          );
+        }
         setBranchesLoaded(true);
-      })
-      .catch((error: unknown) => {
-        setBranchError(error instanceof Error ? error.message : 'Unable to load branches.');
-      });
-  }, [setActiveBranchId]);
+      } catch (error: unknown) {
+        if (active && requestId === latestRequest) {
+          setBranchError(error instanceof Error ? error.message : 'Unable to load branches.');
+          setBranchesLoaded(true);
+        }
+      }
+    };
+    const refreshWhenActive = () => {
+      if (document.visibilityState === 'visible') void loadBranches();
+    };
+
+    void loadBranches();
+    window.addEventListener('focus', refreshWhenActive);
+    document.addEventListener('visibilitychange', refreshWhenActive);
+    const refreshInterval = window.setInterval(refreshWhenActive, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(refreshInterval);
+      window.removeEventListener('focus', refreshWhenActive);
+      document.removeEventListener('visibilitychange', refreshWhenActive);
+    };
+  }, [setActiveBranchId, showToast]);
 
   useEffect(() => {
     if (!branchesLoaded) return;

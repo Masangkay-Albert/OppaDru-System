@@ -40,6 +40,40 @@ class FranchiseAccountController extends Controller
         $mainBranch = Franchise::query()
             ->where('is_main', true)
             ->first();
+        $companyBranches = Franchise::query()
+            ->where('type', 'company')
+            ->whereNull('franchise_account_id')
+            ->where(function ($query) {
+                $query->whereNull('is_main')->orWhere('is_main', false);
+            })
+            ->withCount('users')
+            ->orderBy('name')
+            ->get();
+        $branchIds = Franchise::query()->pluck('id');
+        $companyBranchCount = Franchise::query()->where('type', 'company')->count();
+        $franchiseBranchCount = Franchise::query()
+            ->where(function ($query) {
+                $query->where('type', 'franchise')->orWhereNull('type');
+            })
+            ->count();
+        $activeBranchCount = Franchise::query()
+            ->where('status', 'active')
+            ->where('is_active', true)
+            ->where(function ($query) {
+                $query->whereNull('franchise_account_id')
+                    ->orWhereHas('franchiseAccount', fn ($account) => $account->where('status', 'active'));
+            })
+            ->count();
+        $managerCount = FranchiseUser::query()
+            ->whereIn('franchise_id', $branchIds)
+            ->count();
+        $totalBranchSales = Order::query()
+            ->where(function ($query) use ($branchIds) {
+                $query->whereIn('branch_id', $branchIds)
+                    ->orWhereIn('franchise_id', $branchIds);
+            })
+            ->countedAsRevenue()
+            ->sum('total');
 
         $locationIdsByAccount = $accounts->mapWithKeys(fn (FranchiseAccount $account) => [
             $account->id => $account->locations->pluck('id'),
@@ -85,6 +119,15 @@ class FranchiseAccountController extends Controller
         return response()->json([
             'data' => $accounts,
             'main_branch' => $mainBranch,
+            'company_branches' => $companyBranches,
+            'branch_counts' => [
+                'total' => Franchise::count(),
+                'company_owned' => $companyBranchCount,
+                'franchise' => $franchiseBranchCount,
+                'active' => $activeBranchCount,
+                'managers' => $managerCount,
+                'sales' => (float) $totalBranchSales,
+            ],
             'recent_activity' => $recentActivity,
         ]);
     }

@@ -28,6 +28,7 @@ export const getActiveBranches = (): Promise<FranchiseBranch[]> => {
     activeBranchesRequest = (async () => {
       const response = await fetch(`${API_URL}/franchises/active`, {
         headers: { Accept: 'application/json' },
+        cache: 'no-store',
       });
 
       if (!response.ok) {

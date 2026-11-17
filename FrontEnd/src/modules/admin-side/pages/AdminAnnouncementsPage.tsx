@@ -48,7 +48,6 @@ import { API_URL } from '../../../services/apiConfig';
 import { fetchWithAdminAuth } from '../../../services/adminAuthService';
 import type {
   Announcement,
-  AnnouncementAudience,
   AnnouncementFilters,
   AnnouncementFormData,
   AnnouncementPriority,
@@ -58,13 +57,6 @@ import type {
 import { INPUT_LIMITS } from '../../../constants/inputLimits';
 import { ValidatedForm } from '../../../components/ui/FormValidation';
 
-const LEGACY_AUDIENCE_META = {
-  label: 'Legacy audience',
-  shortLabel: 'Legacy',
-  description: 'Previously targeted announcement',
-  icon: Megaphone,
-  color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700',
-};
 const ANNOUNCEMENT_FIELD_LABEL = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[var(--oppa-text-muted)]';
 
 interface FranchiseBranchOption {
@@ -179,7 +171,6 @@ const AdminAnnouncementsPage: React.FC = () => {
   }, [loadAnnouncements, statusFilter, sortDirection]);
 
   useEffect(() => {
-    if (!isFormOpen) return undefined;
     let active = true;
     setBranchListLoading(true);
     setBranchListError('');
@@ -260,8 +251,10 @@ const AdminAnnouncementsPage: React.FC = () => {
 
   const handleOpenEdit = (item: Announcement) => {
     setEditingItem(item);
-    const audiences = item.target_audiences || [item.target_audience];
-    const hasCustomers = audiences.includes('customers') || audiences.includes('all');
+    const audiences = Array.isArray(item.target_audiences)
+      ? item.target_audiences.filter((audience) => audience === 'customers' || audience === 'franchise_branches')
+      : [];
+    const hasCustomers = audiences.includes('customers');
     const hasFranchiseBranches = audiences.includes('franchise_branches');
     setSelectedRecipients({ customers: hasCustomers, franchiseBranches: hasFranchiseBranches });
     setBranchMode(item.target_franchise_branches === null || item.target_franchise_branches === undefined ? 'all' : 'selected');
@@ -345,9 +338,11 @@ const AdminAnnouncementsPage: React.FC = () => {
     }
 
     const submittedStatus = statusOverride ?? (
-      editingItem || formData.status === 'published'
-        ? 'published'
-        : formData.status
+      formData.status === 'scheduled'
+        ? 'scheduled'
+        : editingItem || formData.status === 'published'
+          ? 'published'
+          : formData.status
     );
 
     setIsSubmitting(true);
@@ -364,12 +359,14 @@ const AdminAnnouncementsPage: React.FC = () => {
           : null,
         publish_to_facebook: selectedRecipients.customers && !!formData.publish_to_facebook,
         status: submittedStatus,
-        date_sent: submittedStatus === 'draft'
-          ? formData.date_sent
-          : (editingItem?.status === 'published'
-            ? formData.date_sent || new Date().toISOString()
-            : new Date().toISOString()),
-        scheduled_at: undefined,
+        date_sent: submittedStatus === 'scheduled'
+          ? undefined
+          : submittedStatus === 'draft'
+            ? formData.date_sent
+            : (editingItem?.status === 'published'
+              ? formData.date_sent || new Date().toISOString()
+              : new Date().toISOString()),
+        scheduled_at: submittedStatus === 'scheduled' ? formData.scheduled_at : undefined,
       };
 
       if (editingItem) {
@@ -394,6 +391,8 @@ const AdminAnnouncementsPage: React.FC = () => {
           }
         } else if (submissionData.status === 'draft') {
           showToast('Announcement saved as a draft.');
+        } else if (submissionData.status === 'scheduled') {
+          showToast('Announcement scheduled successfully.');
         } else {
           showToast('Announcement updated and published successfully!');
         }
@@ -410,6 +409,8 @@ const AdminAnnouncementsPage: React.FC = () => {
           }
         } else if (submissionData.status === 'draft') {
           showToast('Announcement saved as a draft.');
+        } else if (submissionData.status === 'scheduled') {
+          showToast('Announcement scheduled successfully.');
         } else {
           showToast('Announcement posted successfully!');
         }
@@ -524,17 +525,44 @@ Oppa Dru Korean Fried Chicken
     }
   };
 
-  const getAudienceMeta = (audience: AnnouncementAudience) => {
-    return audience === 'customers'
-      ? {
-          label: 'Customers Only',
-          shortLabel: 'Customers',
-          description: 'Food ordering menu & customer notifications',
-          icon: FiShoppingBag,
-          color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
-        }
-      : LEGACY_AUDIENCE_META;
+  const getAudienceMeta = (item: Announcement) => {
+    const audiences = Array.isArray(item.target_audiences)
+      ? Array.from(new Set(item.target_audiences.filter((audience) => (
+          audience === 'customers' || audience === 'franchise_branches'
+        ))))
+      : [];
+    const hasCustomers = audiences.includes('customers');
+    const hasFranchiseBranches = audiences.includes('franchise_branches');
+    let branchLabel = '';
+
+    if (hasFranchiseBranches && item.target_franchise_branches === null) {
+      branchLabel = 'All franchise branches';
+    } else if (hasFranchiseBranches && Array.isArray(item.target_franchise_branches) && item.target_franchise_branches.length > 0) {
+      const branchNames = item.target_franchise_branches.map((id) => (
+        franchiseBranches.find((branch) => branch.id === String(id))?.name
+      ));
+      branchLabel = item.target_franchise_branches.length === 1
+        ? branchNames[0] || '1 franchise branch'
+        : `${item.target_franchise_branches.length} branches`;
+    }
+
+    if (!hasCustomers && !branchLabel) {
+      return {
+        label: 'No recipients set',
+        icon: Megaphone,
+        color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700',
+      };
+    }
+
+    return {
+      label: hasCustomers && branchLabel
+        ? `Customers + ${branchLabel}`
+        : hasCustomers ? 'Customers' : branchLabel,
+      icon: hasCustomers && !hasFranchiseBranches ? FiShoppingBag : Megaphone,
+      color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+    };
   };
+  const previewAudienceMeta = previewItem ? getAudienceMeta(previewItem) : null;
 
   return (
     <AdminLayout>
@@ -674,7 +702,7 @@ Oppa Dru Korean Fried Chicken
         ) : (
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {announcements.map((item) => {
-              const audienceMeta = getAudienceMeta(item.target_audience);
+              const audienceMeta = getAudienceMeta(item);
               const AudienceIcon = audienceMeta.icon;
               const priorityBadge = PRIORITY_BADGES[item.priority] || PRIORITY_BADGES.normal;
               const displayDate = item.status === 'scheduled' ? item.scheduled_at : item.date_sent;
@@ -1147,7 +1175,7 @@ Oppa Dru Korean Fried Chicken
                   >
                     {isSubmitting ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Send size={15} aria-hidden="true" />}
                     <span>
-                      {isSubmitting ? 'Saving…' : 'Send announcement'}
+                      {isSubmitting ? 'Saving…' : formData.status === 'scheduled' ? 'Schedule announcement' : 'Send announcement'}
                     </span>
                   </button>
                 </div>
@@ -1316,9 +1344,10 @@ Oppa Dru Korean Fried Chicken
                         {previewItem.date_sent ? formatDisplayDate(previewItem.date_sent) : 'Immediate'}
                       </span>
                       <span className="ml-auto text-xs font-semibold text-[var(--oppa-text-muted)]">
-                        {previewItem.target_audience === 'all'
-                          ? <><Megaphone className="mr-1 inline-block" size={12} aria-hidden="true" />Legacy audience</>
-                          : <><FiShoppingBag className="mr-1 inline-block" aria-hidden="true" />Customers Only</>}
+                        {previewAudienceMeta?.icon === FiShoppingBag
+                          ? <FiShoppingBag className="mr-1 inline-block" aria-hidden="true" />
+                          : <Megaphone className="mr-1 inline-block" size={12} aria-hidden="true" />}
+                        {previewAudienceMeta?.label}
                       </span>
                     </div>
 

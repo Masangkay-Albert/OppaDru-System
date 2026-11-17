@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 trait FranchiseAdminActions
 {
@@ -433,6 +434,222 @@ trait FranchiseAdminActions
         app(FranchiseInventoryService::class)->initializeBranchMenu((string) $franchise->id);
 
         return response()->json(['data' => $franchise], 201);
+    }
+
+    public function availableCompanyBranchManagers(Request $request)
+    {
+        if (! $this->checkAdminAuth($request)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $managers = FranchiseUser::query()
+            ->with('franchise:id,name')
+            ->whereNull('franchise_account_id')
+            ->whereNotNull('franchise_id')
+            ->whereIn('role', ['owner', 'manager'])
+            ->where('is_active', true)
+            ->whereHas('franchise', fn ($query) => $query
+                ->where('type', 'company')
+                ->whereNull('franchise_account_id'))
+            ->orderBy('full_name')
+            ->get(['id', 'franchise_id', 'full_name', 'email', 'role'])
+            ->map(fn (FranchiseUser $manager) => [
+                'id' => $manager->id,
+                'franchise_id' => $manager->franchise_id,
+                'full_name' => $manager->full_name,
+                'email' => $manager->email,
+                'role' => $manager->role,
+                'branch_name' => $manager->franchise?->name,
+            ])
+            ->values();
+
+        return response()->json(['data' => $managers]);
+    }
+
+    public function storeCompanyBranch(Request $request, GeocodingService $geocoding)
+    {
+        if (! $this->checkAdminAuth($request)) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $request->merge([
+            'name' => trim((string) $request->input('name')),
+            'email' => strtolower(trim((string) $request->input('email'))),
+            'manager_mode' => $request->input('manager_mode', 'none'),
+            'manager_email' => strtolower(trim((string) $request->input('manager_email'))),
+        ]);
+        $validator = Validator::make($request->all(), [
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (Franchise::query()->whereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) $value))])->exists()) {
+                        $fail('A branch with this name already exists.');
+                    }
+                },
+            ],
+            'address' => 'required|string|max:2000',
+            'delivery_radius_km' => 'required|numeric|gt:0|max:100',
+            'phone' => 'nullable|string|max:50',
+            'email' => 'nullable|string|email|max:255',
+            'status' => 'required|string|in:active,inactive',
+            'latitude' => 'nullable|numeric|between:4,22',
+            'longitude' => 'nullable|numeric|between:116,127',
+            'location_status' => 'nullable|in:geocoded,manual',
+            'manager_mode' => 'required|in:none,existing,create',
+            'manager_id' => 'nullable|required_if:manager_mode,existing|string',
+            'manager_name' => [
+                'nullable',
+                'required_if:manager_mode,create',
+                'string',
+                'min:'.config('input_limits.person_name.min'),
+                'max:'.config('input_limits.person_name.max'),
+                'regex:'.config('input_limits.person_name.pattern'),
+            ],
+            'manager_email' => 'nullable|required_if:manager_mode,create|string|email|max:'.config('input_limits.email'),
+            'manager_password' => [
+                'nullable',
+                'required_if:manager_mode,create',
+                'string',
+                'min:'.config('input_limits.password.min'),
+                'max:'.config('input_limits.password.max'),
+            ],
+        ], [
+            'delivery_radius_km.gt' => 'Delivery radius must be greater than zero.',
+            'manager_id.required_if' => 'Choose an existing manager.',
+            'manager_name.required_if' => 'Enter the manager name.',
+            'manager_email.required_if' => 'Enter the manager email.',
+            'manager_password.required_if' => 'Enter the manager password.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Please correct the branch details.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        if ($request->input('manager_mode') === 'create') {
+            $managerEmail = (string) $request->input('manager_email');
+            if (FranchiseUser::query()->whereRaw('LOWER(email) = ?', [$managerEmail])->exists()
+                || $this->emailUsedByOtherStaff($managerEmail)) {
+                return response()->json([
+                    'message' => 'This email is already used by another account.',
+                    'errors' => ['manager_email' => ['Use an email address that is not already assigned to another account.']],
+                ], 422);
+            }
+        }
+
+        $hasLatitude = $request->filled('latitude');
+        $hasLongitude = $request->filled('longitude');
+        if ($hasLatitude !== $hasLongitude) {
+            return response()->json([
+                'message' => 'Latitude and longitude must be provided together.',
+                'errors' => ['address' => ['Pin the branch location on the map or leave both coordinates blank to find it from the address.']],
+            ], 422);
+        }
+
+        $latitude = $request->input('latitude');
+        $longitude = $request->input('longitude');
+        $locationStatus = $request->input('location_status', $hasLatitude ? 'manual' : 'geocoded');
+        if (! $hasLatitude) {
+            $geocoded = $geocoding->geocodeAddress((string) $request->input('address'));
+            if (! $geocoded || ($geocoded['isBroad'] ?? false)) {
+                return response()->json([
+                    'message' => 'The address needs an exact branch location.',
+                    'errors' => ['address' => ['Pin the exact branch location on the map or enter a more specific address.']],
+                ], 422);
+            }
+            $latitude = $geocoded['lat'];
+            $longitude = $geocoded['lng'];
+        }
+
+        if ($request->input('status') === 'active'
+            && ! app(BranchRoutingService::class)->validBranchCoordinatePair($latitude, $longitude)) {
+            return response()->json([
+                'message' => 'A valid map location is required for an active branch.',
+                'errors' => ['address' => ['Pin a valid location in the Philippines before creating an active branch.']],
+            ], 422);
+        }
+
+        $branch = DB::transaction(function () use ($request, $latitude, $longitude, $locationStatus): Franchise {
+            if (Franchise::query()
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) $request->input('name')))])
+                ->lockForUpdate()
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'name' => ['A branch with this name already exists.'],
+                ]);
+            }
+
+            $baseSlug = Str::slug((string) $request->input('name')) ?: 'branch';
+            $slug = $baseSlug;
+            while (Franchise::query()->where('slug', $slug)->exists()) {
+                $slug = $baseSlug.'-'.strtolower(Str::random(5));
+            }
+
+            $active = $request->input('status') === 'active';
+            $branch = Franchise::create([
+                'franchise_account_id' => null,
+                'name' => (string) $request->input('name'),
+                'slug' => $slug,
+                'email' => $request->input('email') ?: null,
+                'phone' => $request->input('phone') ?: null,
+                'address' => (string) $request->input('address'),
+                'status' => $active ? 'active' : 'inactive',
+                'type' => 'company',
+                'is_main' => false,
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'is_active' => $active,
+                'accepts_online_orders' => true,
+                'delivery_enabled' => true,
+                'delivery_radius_km' => (float) $request->input('delivery_radius_km'),
+                'location_status' => $locationStatus,
+                'location_error' => null,
+            ]);
+
+            if ($request->input('manager_mode') === 'existing') {
+                $manager = FranchiseUser::query()
+                    ->whereKey($request->input('manager_id'))
+                    ->whereNull('franchise_account_id')
+                    ->whereIn('role', ['owner', 'manager'])
+                    ->whereHas('franchise', fn ($query) => $query
+                        ->where('type', 'company')
+                        ->whereNull('franchise_account_id'))
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $manager) {
+                    throw ValidationException::withMessages([
+                        'manager_id' => ['That manager is no longer available. Choose another manager.'],
+                    ]);
+                }
+
+                $manager->franchise_id = $branch->id;
+                $manager->api_token = null;
+                $manager->api_token_expires_at = null;
+                $manager->save();
+            } elseif ($request->input('manager_mode') === 'create') {
+                FranchiseUser::create([
+                    'franchise_id' => $branch->id,
+                    'franchise_account_id' => null,
+                    'full_name' => trim((string) $request->input('manager_name')),
+                    'email' => (string) $request->input('manager_email'),
+                    'password' => Hash::make((string) $request->input('manager_password')),
+                    'role' => 'owner',
+                    'is_active' => true,
+                    'can_process_pos' => false,
+                ]);
+            }
+
+            app(FranchiseInventoryService::class)->initializeBranchMenu((string) $branch->id);
+
+            return $branch;
+        });
+
+        return response()->json(['data' => $branch, 'message' => 'Company-owned branch created.'], 201);
     }
 
     public function update(Request $request, string $id, GeocodingService $geocoding)
