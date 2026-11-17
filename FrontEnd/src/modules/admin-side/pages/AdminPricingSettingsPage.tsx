@@ -193,8 +193,8 @@ const AdminPricingSettingsPage: React.FC = () => {
                 </label>
                 <div className="flex flex-wrap gap-2" aria-label="Quick simulated time presets">
                   {[
-                    ['10:00 AM (Not yet open)', '10:00'],
-                    ['11:00 AM (Opening)', '11:00'],
+                    ['9:00 AM (Not yet open)', '09:00'],
+                    ['10:00 AM (Opening)', '10:00'],
                     ['2:00 PM (Open)', '14:00'],
                     ['10:30 PM (Last order)', '22:30'],
                     ['11:00 PM (Closed)', '23:00'],

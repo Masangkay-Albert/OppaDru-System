@@ -177,7 +177,7 @@ export const BrandFooter: React.FC<BrandFooterProps> = ({ variant = 'customer' }
             </a>
           </div>
           <h3>Business Hours</h3>
-          <p>Daily: 11:00 AM – 11:00 PM</p>
+          <p>Daily: 10:00 AM – 11:00 PM</p>
         </div>
       </div>
       <div className="brand-footer-bottom">

@@ -118,7 +118,7 @@ const getTrendBuckets = (orders: AdminOrder[], range: ReportRange, filters: Repo
   };
 
   if (range === 'daily') {
-    for (let hour = 11; hour <= 23; hour += 1) getBucket(`${hour % 12 || 12}:00 ${hour >= 12 ? 'PM' : 'AM'}`);
+    for (let hour = 10; hour <= 23; hour += 1) getBucket(`${hour % 12 || 12}:00 ${hour >= 12 ? 'PM' : 'AM'}`);
   } else if (range === 'weekly') {
     const weekRange = getWeekDateRange(filters);
     if (weekRange) {
@@ -139,7 +139,7 @@ const getTrendBuckets = (orders: AdminOrder[], range: ReportRange, filters: Repo
   orders.forEach((order) => {
     const date = getOrderDate(order);
     if (!date) return;
-    if (range === 'daily' && (date.getHours() < 11 || date.getHours() > 23)) return;
+    if (range === 'daily' && (date.getHours() < 10 || date.getHours() > 23)) return;
     const label = range === 'daily'
       ? `${date.getHours() % 12 || 12}:00 ${date.getHours() >= 12 ? 'PM' : 'AM'}`
       : range === 'weekly'
@@ -536,7 +536,7 @@ const AdminReportsPage: React.FC = () => {
         <SalesTimelineCard
           buckets={trendBuckets}
           orderCount={filteredOrders.length}
-          description={timelineRange === 'daily' ? 'Hourly activity from 11:00 AM to 11:00 PM.' : timelineRange === 'weekly' ? weekDateRange ? `Daily activity for ${formatDateRange(weekDateRange)}.` : 'Daily activity grouped by weekday.' : timelineRange === 'monthly' ? 'Daily activity grouped by calendar date.' : 'Monthly activity grouped from January to December.'}
+          description={timelineRange === 'daily' ? 'Hourly activity from 10:00 AM to 11:00 PM.' : timelineRange === 'weekly' ? weekDateRange ? `Daily activity for ${formatDateRange(weekDateRange)}.` : 'Daily activity grouped by weekday.' : timelineRange === 'monthly' ? 'Daily activity grouped by calendar date.' : 'Monthly activity grouped from January to December.'}
           style={timelineStyle}
           onStyleChange={setTimelineStyle}
         />
