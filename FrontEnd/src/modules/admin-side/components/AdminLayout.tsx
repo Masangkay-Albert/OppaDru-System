@@ -188,7 +188,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </nav>
         <div className="space-y-1 border-t border-white/15 px-3 py-4">
           <button title={collapsed ? 'Back to Landing' : undefined} onClick={() => navigate('/')} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white ${collapsed ? 'md:justify-center md:px-0' : ''}`}><Home size={18} /><span className={collapsed ? 'md:sr-only' : ''}>Back to Landing</span></button>
-          <button title={collapsed ? 'Exit' : undefined} onClick={handleExit} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/85 hover:bg-red-500/20 hover:text-white ${collapsed ? 'md:justify-center md:px-0' : ''}`}><LogOut size={18} /><span className={collapsed ? 'md:sr-only' : ''}>Exit</span></button>
+          <button title={collapsed ? 'Logout' : undefined} onClick={handleExit} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/85 hover:bg-red-500/20 hover:text-white ${collapsed ? 'md:justify-center md:px-0' : ''}`}><LogOut size={18} /><span className={collapsed ? 'md:sr-only' : ''}>Logout</span></button>
           <button aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setCollapsed(!collapsed)} className="hidden w-full items-center justify-center rounded-xl py-2 text-white/70 hover:bg-white/10 md:flex">
             {collapsed ? <ChevronsRight size={18} /> : <><ChevronsLeft size={18} /><span className="ml-2 text-xs">Collapse</span></>}
           </button>

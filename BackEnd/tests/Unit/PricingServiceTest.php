@@ -154,7 +154,7 @@ class PricingServiceTest extends TestCase
         $this->assertSame(297.0, $pricing['total']);
     }
 
-    public function test_fixed_price_beverages_reject_size_and_addon_selections(): void
+    public function test_fixed_price_beverages_allow_addons_but_reject_size_selections(): void
     {
         $product = Product::create([
             'name' => 'Fixed price drink options',
@@ -178,12 +178,14 @@ class PricingServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->expectException(\InvalidArgumentException::class);
-        app(PricingService::class)->calculate([[
+        $pricing = app(PricingService::class)->calculate([[
             'product_id' => $product->id,
             'quantity' => 1,
             'selected_addons' => [['id' => $addon->id]],
         ]], 'onsite');
+
+        $this->assertSame(219.0, $pricing['subtotal']);
+        $this->assertSame(219.0, $pricing['total']);
     }
 
     public function test_fixed_price_beverage_rejects_legacy_size_selection(): void

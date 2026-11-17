@@ -307,12 +307,13 @@ interface IngredientListProps {
   onToggleDetails: (ingredient: InventoryIngredient) => void;
   onAddStock: (ingredient: InventoryIngredient) => void;
   onUseStock: (ingredient: InventoryIngredient) => void;
-  onAdjustStock: (ingredient: InventoryIngredient) => void;
-  onCountStock: (ingredient: InventoryIngredient) => void;
+  onAdjustStock?: (ingredient: InventoryIngredient) => void;
+  onCountStock?: (ingredient: InventoryIngredient) => void;
   onEditIngredient: (ingredient: InventoryIngredient) => void;
   onArchiveIngredient: (ingredient: InventoryIngredient) => void;
   onViewHistory: (ingredient: InventoryIngredient) => void;
   canManage?: boolean;
+  showAdjustmentActions?: boolean;
 }
 
 interface GenericIngredientListProps<TIngredient extends InventoryIngredient> extends Omit<IngredientListProps, 'ingredients'
@@ -322,8 +323,8 @@ interface GenericIngredientListProps<TIngredient extends InventoryIngredient> ex
   onToggleDetails: (ingredient: TIngredient) => void;
   onAddStock: (ingredient: TIngredient) => void;
   onUseStock: (ingredient: TIngredient) => void;
-  onAdjustStock: (ingredient: TIngredient) => void;
-  onCountStock: (ingredient: TIngredient) => void;
+  onAdjustStock?: (ingredient: TIngredient) => void;
+  onCountStock?: (ingredient: TIngredient) => void;
   onEditIngredient: (ingredient: TIngredient) => void;
   onArchiveIngredient: (ingredient: TIngredient) => void;
   onViewHistory: (ingredient: TIngredient) => void;
@@ -350,6 +351,7 @@ export const IngredientList = <TIngredient extends InventoryIngredient,>({
   onArchiveIngredient,
   onViewHistory,
   canManage = true,
+  showAdjustmentActions = true,
 }: GenericIngredientListProps<TIngredient>) => {
   const details = (ingredient: TIngredient) => (
     <dl className="grid gap-x-6 gap-y-3 rounded-xl bg-[var(--oppa-cream)] p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -383,8 +385,10 @@ export const IngredientList = <TIngredient extends InventoryIngredient,>({
     <button type="button" aria-label={`Use stock from ${ingredient.name}`} onClick={() => onUseStock(ingredient)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-1 rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm font-semibold text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] sm:flex-none"><span aria-hidden="true">−</span>Use</button>
     <RowActionsMenu label={ingredient.name} items={[
       { label: 'Edit details', onSelect: () => onEditIngredient(ingredient) },
-      { label: 'Adjust stock', onSelect: () => onAdjustStock(ingredient) },
-      { label: 'Record stock count', onSelect: () => onCountStock(ingredient) },
+      ...(showAdjustmentActions ? [
+        ...(onAdjustStock ? [{ label: 'Adjust stock', onSelect: () => onAdjustStock(ingredient) }] : []),
+        ...(onCountStock ? [{ label: 'Record stock count', onSelect: () => onCountStock(ingredient) }] : []),
+      ] : []),
       { label: 'View stock history', onSelect: () => onViewHistory(ingredient) },
       { label: 'Archive', onSelect: () => onArchiveIngredient(ingredient), destructive: true },
     ]} />
@@ -487,14 +491,17 @@ export const IngredientList = <TIngredient extends InventoryIngredient,>({
 
 interface GenericRecentActivityProps<TMovement extends InventoryMovement> {
   movements: TMovement[];
+  excludeTypes?: string[];
   viewAllTo?: string;
 }
 
 export const RecentActivity = <TMovement extends InventoryMovement,>({
   movements,
+  excludeTypes = [],
   viewAllTo = '/admin/inventory/history',
 }: GenericRecentActivityProps<TMovement>) => {
   const [expanded, setExpanded] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches);
+  const visibleMovements = movements.filter((movement) => !excludeTypes.includes(movement.type));
   return (
     <section className="admin-card overflow-hidden">
       <header className="flex items-center justify-between gap-3 px-4 py-4 sm:px-5">
@@ -506,8 +513,8 @@ export const RecentActivity = <TMovement extends InventoryMovement,>({
         <Link to={viewAllTo} className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-[var(--oppa-green)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--oppa-green)]">View all <span aria-hidden="true">→</span></Link>
       </header>
       {expanded && <div id="inventory-recent-activity" className="border-t border-[var(--oppa-border)]">
-        {movements.length === 0 ? <p className="p-5 text-sm text-[var(--oppa-text-muted)]">No stock changes yet.</p> : <ul className="divide-y divide-[var(--oppa-border)]">
-          {movements.slice(0, 5).map((movement) => {
+        {visibleMovements.length === 0 ? <p className="p-5 text-sm text-[var(--oppa-text-muted)]">No stock changes yet.</p> : <ul className="divide-y divide-[var(--oppa-border)]">
+          {visibleMovements.slice(0, 5).map((movement) => {
             const amount = Number(movement.quantity_change);
             const ingredientName = movement.ingredient?.name || movement.ingredient_name;
             const action = movementCopy[movement.type];

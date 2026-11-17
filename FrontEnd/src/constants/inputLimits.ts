@@ -28,6 +28,8 @@ export const INPUT_PATTERNS = {
   ingredientName: /^[\p{L}\p{N} '&.,()/-]+$/u,
 } as const;
 
+export const containsRepeatedCharacterSpam = (value: string): boolean => /(.)\1{7,}/u.test(value);
+
 export type InputFilter =
   | 'personName'
   | 'businessName'

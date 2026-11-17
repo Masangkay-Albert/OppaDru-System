@@ -29,7 +29,7 @@ interface ApiCustomerRecord {
 
 const AdminCustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
-  const [selected, setSelected] = useState<StoredAccount | null>(null);
+  const [selected, setSelected] = useState<CustomerWithStats | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; fullName: string } | null>(null);
   const [resetTarget, setResetTarget] = useState<StoredAccount | null>(null);
   const [search, setSearch] = useState('');
@@ -48,14 +48,14 @@ const AdminCustomersPage: React.FC = () => {
         email: api.email,
         password: '********',
         role: 'customer',
-        order_count: api.order_count || 0,
-        total_spent: api.total_spent || 0,
+        order_count: api.order_count,
+        total_spent: api.total_spent,
         date_registered: api.date_registered || api.created_at,
       }));
-      setCustomers(merged.length > 0 ? merged : localCustomers.map((customer) => ({ ...customer, order_count: 0, total_spent: 0 })));
+      setCustomers(merged.length > 0 ? merged : localCustomers);
     } catch {
       const localCustomers = getAccountsByRole('customer');
-      setCustomers(localCustomers.map((customer) => ({ ...customer, order_count: 0, total_spent: 0 })));
+      setCustomers(localCustomers);
     } finally {
       setLoading(false);
     }
@@ -73,10 +73,9 @@ const AdminCustomersPage: React.FC = () => {
   const visibleCustomers = filtered.slice((page - 1) * pageSize, page * pageSize);
   const titleCase = (value: string) => value.toLocaleLowerCase().replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase());
 
-  const handleReset = (id: string, newPassword: string) => {
+  const handleReset = async (id: string, newPassword: string) => {
     resetAccountPassword(id, newPassword);
-    setNotice('Customer password reset.');
-    void refresh();
+    await refresh();
   };
 
   const confirmDeleteCustomer = async () => {

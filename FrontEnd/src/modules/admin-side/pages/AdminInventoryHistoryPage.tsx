@@ -15,8 +15,6 @@ const TYPES = [
   { value: 'stock_out', label: 'Stock out' },
   { value: 'order_usage', label: 'Order usage' },
   { value: 'waste', label: 'Waste / spoilage' },
-  { value: 'adjustment', label: 'Adjustment' },
-  { value: 'count_adjustment', label: 'Stock count variance' },
   { value: 'opening_stock', label: 'Opening stock' },
 ];
 

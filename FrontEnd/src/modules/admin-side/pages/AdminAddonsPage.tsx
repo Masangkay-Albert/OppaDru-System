@@ -7,7 +7,6 @@ import type { AddonGroup } from '../../../types/product.types';
 import { categories } from '../../../data/mockData';
 import { getAddonImage } from '../../../data/productImages';
 import { formatCurrency } from '../../../utils/formatters';
-import { isFixedPriceBeverage } from '../../../services/productOptionRules';
 import Select from '../../../components/ui/Select';
 import { INPUT_LIMITS } from '../../../constants/inputLimits';
 import { LimitedInput } from '../../../components/ui/LimitedInput';
@@ -72,7 +71,6 @@ const handlePriceInput = (
 };
 
 const editableCategories = categories.filter((category) => category.id !== 'all');
-const assignableCategories = editableCategories.filter((category) => !isFixedPriceBeverage(category.id));
 
 const AddonImage: React.FC<{ image?: string; name: string; preview?: string }> = ({ image, name, preview }) => {
   const [failed, setFailed] = useState(false);
@@ -283,8 +281,6 @@ const AdminAddonsPage: React.FC = () => {
     });
   };
 
-  const isCategoryAssignable = (category: string) => assignableCategories.some((item) => item.id === category);
-
   const cancelNewAddon = (groupId: number) => {
     setAddingAddonGroup(null);
     setNewAddon((current) => ({ ...current, [groupId]: createEmptyAddonDraft() }));
@@ -314,10 +310,9 @@ const AdminAddonsPage: React.FC = () => {
           <p className="mb-2 text-xs font-semibold text-[var(--oppa-text-muted)]">Apply to categories</p>
           <div className="flex flex-wrap gap-2">{editableCategories.map((category) => {
             const selected = newGroup.categories.includes(category.id);
-            const assignable = isCategoryAssignable(category.id);
-            return <button type="button" aria-pressed={selected} aria-label={assignable ? category.name : `${category.name}: add-ons are not available for this category`} title={assignable ? undefined : 'Add-ons are not available for this category'} disabled={!assignable} key={category.id} onClick={() => toggleCategory(category.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/40 focus-visible:ring-offset-1 ${selected ? 'border-green-700 bg-green-700 text-white' : assignable ? 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:border-green-700 hover:bg-green-50' : 'cursor-not-allowed border-[var(--oppa-border)] bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)] opacity-60'}`}>{selected && <Check size={13} aria-hidden="true" />}{category.name}</button>;
+            return <button type="button" aria-pressed={selected} key={category.id} onClick={() => toggleCategory(category.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/40 focus-visible:ring-offset-1 ${selected ? 'border-green-700 bg-green-700 text-white' : 'border-[var(--oppa-border)] bg-[var(--oppa-surface)] text-[var(--oppa-text)] hover:border-green-700 hover:bg-green-50'}`}>{selected && <Check size={13} aria-hidden="true" />}{category.name}</button>;
           })}</div>
-          <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">Select at least one category to create a group. Add-ons are not available for Fruity Soda or Non-Coffee.</p>
+          <p className="mt-2 text-xs text-[var(--oppa-text-muted)]">Select at least one category to create a group.</p>
         </div>
       </section>
 
@@ -363,8 +358,7 @@ const AdminAddonsPage: React.FC = () => {
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">{editableCategories.map((category) => {
                         const selected = draftGroup.categories.includes(category.id);
-                        const assignable = isCategoryAssignable(category.id);
-                        return <button type="button" aria-pressed={selected} aria-label={assignable ? category.name : `${category.name}: add-ons are not available for this category`} title={assignable ? undefined : 'Add-ons are not available for this category'} disabled={!assignable} key={category.id} onClick={() => toggleGroupCategory(group.id, category.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/40 focus-visible:ring-offset-1 ${selected ? 'border-green-700 bg-green-700 text-white' : assignable ? 'border-[var(--oppa-border)] bg-white text-[var(--oppa-text)] hover:border-green-700' : 'cursor-not-allowed border-[var(--oppa-border)] bg-[var(--oppa-cream)] text-[var(--oppa-text-muted)] opacity-60'}`}>{selected && <Check size={12} aria-hidden="true" />}{category.name}</button>;
+                        return <button type="button" aria-pressed={selected} key={category.id} onClick={() => toggleGroupCategory(group.id, category.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/40 focus-visible:ring-offset-1 ${selected ? 'border-green-700 bg-green-700 text-white' : 'border-[var(--oppa-border)] bg-white text-[var(--oppa-text)] hover:border-green-700'}`}>{selected && <Check size={12} aria-hidden="true" />}{category.name}</button>;
                       })}</div>
                     </div>}
 

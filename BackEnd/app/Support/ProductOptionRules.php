@@ -25,12 +25,8 @@ final class ProductOptionRules
         }
 
         $selectedSize = $item['selected_size'] ?? null;
-        $selectedAddons = $item['selected_addons'] ?? $item['selectedAddons'] ?? [];
         if ($selectedSize !== null && $selectedSize !== '') {
             throw new \InvalidArgumentException('Size options are not available for this item.');
-        }
-        if ($selectedAddons !== null && $selectedAddons !== '' && $selectedAddons !== []) {
-            throw new \InvalidArgumentException('Add-ons are not available for this item.');
         }
     }
 }

@@ -25,7 +25,7 @@ export const normalizeFixedPriceBeverageCartItem = (
 
   const currentPrice = Number(product.price);
   const previousPrice = Number(item.price);
-  const removedOptions = Boolean(item.selectedSize || item.selectedAddons?.length);
+  const removedOptions = Boolean(item.selectedSize);
   const priceChanged = previousPrice !== currentPrice;
   if (!removedOptions && !priceChanged) {
     return item.cartIssue
@@ -37,7 +37,6 @@ export const normalizeFixedPriceBeverageCartItem = (
     ...item,
     price: currentPrice,
     selectedSize: undefined,
-    selectedAddons: undefined,
     cartIssue: undefined,
     currentBranchPrice: undefined,
     priceUpdateNotice: {

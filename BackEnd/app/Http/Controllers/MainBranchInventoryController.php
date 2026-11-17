@@ -86,6 +86,7 @@ class MainBranchInventoryController extends Controller
                 'recent_movements' => MainBranchStockMovement::query()
                     ->with(['ingredient:id,name,unit', 'supplier:id,name'])
                     ->whereNull('branch_id')
+                    ->whereNotIn('type', ['adjustment', 'count_adjustment'])
                     ->latest()
                     ->limit(5)
                     ->get(),
@@ -364,6 +365,7 @@ class MainBranchInventoryController extends Controller
 
         $query = MainBranchStockMovement::query()
             ->with(['ingredient:id,name,unit', 'supplier:id,name'])
+            ->whereNotIn('type', ['adjustment', 'count_adjustment'])
             ->when($validated['ingredient_id'] ?? null, fn ($builder, $id) => $builder->where('ingredient_id', $id))
             ->when($validated['type'] ?? null, fn ($builder, $type) => $builder->where('type', $type))
             ->when($validated['from'] ?? null, fn ($builder, $date) => $builder->whereDate('occurred_at', '>=', $date))
@@ -377,7 +379,12 @@ class MainBranchInventoryController extends Controller
     public function ingredientMovements(MainBranchIngredient $ingredient)
     {
         return response()->json([
-            'data' => $ingredient->movements()->with('supplier:id,name')->latest('occurred_at')->limit(10)->get(),
+            'data' => $ingredient->movements()
+                ->with('supplier:id,name')
+                ->whereNotIn('type', ['adjustment', 'count_adjustment'])
+                ->latest('occurred_at')
+                ->limit(10)
+                ->get(),
         ]);
     }
 
@@ -961,7 +968,7 @@ class MainBranchInventoryController extends Controller
         }
     }
 
-    private function calculateSummary($ingredients): array
+    private function calculateSummary(Collection $ingredients): array
     {
         $total = $ingredients->count();
         $outOfStock = $ingredients->filter(fn ($item) => (float) ($item->usable_quantity ?? $item->quantity) <= 0)->count();

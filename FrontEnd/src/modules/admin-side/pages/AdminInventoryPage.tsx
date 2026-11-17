@@ -7,7 +7,6 @@ import { useToast } from '../../customer-side/components/ToastProvider';
 import {
   archiveIngredient,
   adjustIngredientStock,
-  countIngredientStock,
   createIngredient,
   getMainBranchInventory,
   receiveIngredientStock,
@@ -20,7 +19,7 @@ import type {
   MainBranchStockMovement,
   StockMovementType,
 } from '../../../services/mainBranchInventoryService';
-import { AdjustStockModal, CountStockModal, IngredientFormModal, QuickStockActionModal, ReceiveStockModal } from '../components/MainBranchInventoryModals';
+import { IngredientFormModal, QuickStockActionModal, ReceiveStockModal } from '../components/MainBranchInventoryModals';
 import { RecipeManager, SupplierManager } from '../components/InventorySetupPanels';
 import { RestockRequestsManager } from '../components/RestockRequestsManager';
 import { IngredientList, InventoryMoreMenu, InventorySummaryCards, InventoryToolbar, RecentActivity } from '../../shared/components/InventoryDashboardComponents';
@@ -51,11 +50,8 @@ const AdminInventoryPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<MainBranchIngredient | null>(null);
-  const [adjusting, setAdjusting] = useState<MainBranchIngredient | null>(null);
-  const [adjustingType, setAdjustingType] = useState<'stock_out' | 'adjustment'>('stock_out');
   const [quickAction, setQuickAction] = useState<{ ingredient: MainBranchIngredient; type: 'stock_in' | 'stock_out' } | null>(null);
   const [receiving, setReceiving] = useState<MainBranchIngredient | null>(null);
-  const [counting, setCounting] = useState<MainBranchIngredient | null>(null);
   const [saving, setSaving] = useState(false);
   const [expandedDetails, setExpandedDetails] = useState<number | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<MainBranchIngredient | null>(null);
@@ -151,22 +147,6 @@ const AdminInventoryPage: React.FC = () => {
     }
   };
 
-  const saveAdjustment = async (values: { type: StockMovementType; quantity: number; reason: string }) => {
-    if (!adjusting) return;
-    setSaving(true);
-    try {
-      await adjustIngredientStock(adjusting.id, values);
-      showToast('Stock updated and movement recorded.', 'success');
-      setAdjusting(null);
-      refresh();
-    } catch (adjustError) {
-      showToast(adjustError instanceof Error ? adjustError.message : 'Could not adjust stock.', 'error');
-      throw adjustError;
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const saveQuickStock = async (values: { type: StockMovementType; quantity: number; reason: string }) => {
     if (!quickAction) return;
     setSaving(true);
@@ -194,22 +174,6 @@ const AdminInventoryPage: React.FC = () => {
     } catch (receiveError) {
       showToast(receiveError instanceof Error ? receiveError.message : 'Could not receive stock.', 'error');
       throw receiveError;
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveCount = async (values: { quantity: number; reason: string }) => {
-    if (!counting) return;
-    setSaving(true);
-    try {
-      await countIngredientStock(counting.id, values);
-      setCounting(null);
-      showToast('Physical stock count applied and recorded.', 'success');
-      refresh();
-    } catch (countError) {
-      showToast(countError instanceof Error ? countError.message : 'Could not apply stock count.', 'error');
-      throw countError;
     } finally {
       setSaving(false);
     }
@@ -296,20 +260,17 @@ const AdminInventoryPage: React.FC = () => {
           onToggleDetails={(ingredient) => setExpandedDetails((current) => current === ingredient.id ? null : ingredient.id)}
           onAddStock={(ingredient) => setReceiving(ingredient as MainBranchIngredient)}
           onUseStock={(ingredient) => setQuickAction({ ingredient: ingredient as MainBranchIngredient, type: 'stock_out' })}
-          onAdjustStock={(ingredient) => { setAdjustingType('adjustment'); setAdjusting(ingredient as MainBranchIngredient); }}
-          onCountStock={(ingredient) => setCounting(ingredient as MainBranchIngredient)}
           onEditIngredient={(ingredient) => setEditing(ingredient as MainBranchIngredient)}
           onArchiveIngredient={(ingredient) => setArchiveTarget(ingredient as MainBranchIngredient)}
           onViewHistory={(ingredient) => navigate(`/admin/inventory/history?ingredient_id=${ingredient.id}`)}
+          showAdjustmentActions={false}
         />
-        <RecentActivity movements={recentMovements} />
+        <RecentActivity movements={recentMovements} excludeTypes={['adjustment', 'count_adjustment']} />
       </div>
 
       {(creating || editing) && <IngredientFormModal key={editing?.id ?? 'new-ingredient'} ingredient={editing || undefined} categories={categories} suppliers={suppliers} busy={saving} onClose={() => { setCreating(false); setEditing(null); }} onSave={saveIngredient} />}
       {quickAction && <QuickStockActionModal ingredient={quickAction.ingredient} type={quickAction.type} busy={saving} onClose={() => setQuickAction(null)} onSave={saveQuickStock} />}
-      {adjusting && <AdjustStockModal ingredient={adjusting} initialType={adjustingType} busy={saving} onClose={() => setAdjusting(null)} onSave={saveAdjustment} />}
       {receiving && <ReceiveStockModal ingredient={receiving} busy={saving} onClose={() => setReceiving(null)} onSave={saveReceiving} />}
-      {counting && <CountStockModal ingredient={counting} busy={saving} onClose={() => setCounting(null)} onSave={saveCount} />}
       {managingSuppliers && <SupplierManager suppliers={suppliers} onClose={() => setManagingSuppliers(false)} onChanged={refresh} />}
       {managingRecipes && <RecipeManager onClose={() => setManagingRecipes(false)} onChanged={refresh} />}
       {managingRestockRequests && <RestockRequestsManager onClose={() => setManagingRestockRequests(false)} onChanged={refresh} />}

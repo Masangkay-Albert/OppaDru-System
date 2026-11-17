@@ -4,6 +4,8 @@ import AdminLayout from '../components/AdminLayout';
 import { AvailabilitySwitch, ConfirmDialog, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
 import { API_URL } from '../../../services/apiConfig';
 import { fetchWithAdminAuth } from '../../../services/adminAuthService';
+import { containsRepeatedCharacterSpam, INPUT_LIMITS } from '../../../constants/inputLimits';
+import { LimitedInput } from '../../../components/ui/LimitedInput';
 import Select from '../../../components/ui/Select';
 import SearchInput from '../../../components/ui/SearchInput';
 import { ValidatedForm } from '../../../components/ui/FormValidation';
@@ -17,7 +19,45 @@ export interface DeliveryPartner {
   isActive: boolean;
 }
 
+type DeliveryPartnerForm = { name: string; email: string; password: string; phone: string; vehicleType: string };
+type DeliveryPartnerField = keyof DeliveryPartnerForm;
+
 const displayName = (name: string) => name.trim().toLocaleLowerCase().replace(/\b\p{L}/gu, (character) => character.toLocaleUpperCase());
+const getDeliveryPartnerFieldErrors = (values: DeliveryPartnerForm): Partial<Record<DeliveryPartnerField, string>> => {
+  const errors: Partial<Record<DeliveryPartnerField, string>> = {};
+  const name = values.name.trim();
+  const email = values.email.trim();
+
+  if (name.length < INPUT_LIMITS.personName.min || name.length > INPUT_LIMITS.personName.max) {
+    errors.name = `Name must be ${INPUT_LIMITS.personName.min}-${INPUT_LIMITS.personName.max} characters.`;
+  } else if (containsRepeatedCharacterSpam(name)) {
+    errors.name = 'Avoid repeating the same character many times.';
+  }
+
+  if (!email) {
+    errors.email = 'Email address is required.';
+  } else if (email.length > INPUT_LIMITS.email.max) {
+    errors.email = `Email must be ${INPUT_LIMITS.email.max} characters or fewer.`;
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = 'Enter a valid email address.';
+  } else if (containsRepeatedCharacterSpam(email)) {
+    errors.email = 'Avoid repeating the same character many times.';
+  }
+
+  if (!values.password) {
+    errors.password = 'Password is required.';
+  } else if (values.password.length < INPUT_LIMITS.password.min || values.password.length > INPUT_LIMITS.password.max) {
+    errors.password = `Password must be ${INPUT_LIMITS.password.min}-${INPUT_LIMITS.password.max} characters.`;
+  }
+
+  if (!/^(09\d{9}|\+639\d{9})$/.test(values.phone)) {
+    errors.phone = 'Use 09XXXXXXXXX or +639XXXXXXXXX.';
+  }
+  if (!values.vehicleType) errors.vehicleType = 'Choose a vehicle type.';
+
+  return errors;
+};
+
 const avatarColor = (name: string) => {
   const colors = ['bg-emerald-700', 'bg-sky-700', 'bg-violet-700', 'bg-amber-700', 'bg-rose-700'];
   const hash = [...name].reduce((sum, character) => sum + character.charCodeAt(0), 0);
@@ -31,7 +71,8 @@ export default function AdminDelivery() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [loadingPartners, setLoadingPartners] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', vehicleType: '' });
+  const [form, setForm] = useState<DeliveryPartnerForm>({ name: '', email: '', password: '', phone: '', vehicleType: '' });
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<DeliveryPartnerField, string>>>({});
   const [formError, setFormError] = useState('');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -66,19 +107,31 @@ export default function AdminDelivery() {
   const activeCount = partners.filter((partner) => partner.isActive).length;
   const inactiveCount = partners.length - activeCount;
 
+  const updateFormField = (field: DeliveryPartnerField, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => ({ ...current, [field]: undefined }));
+  };
+
+  const validateFormField = (field: DeliveryPartnerField) => {
+    const errors = getDeliveryPartnerFieldErrors(form);
+    setFieldErrors((current) => ({ ...current, [field]: errors[field] }));
+  };
+
+  const openForm = () => {
+    setShowForm(true);
+    setFormError('');
+    setFieldErrors({});
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const cleanedName = form.name.trim();
-    if (cleanedName.length < 2) {
-      setFormError('Enter the partner’s full name.');
-      return;
-    }
-    if (!/^(09\d{9}|\+639\d{9})$/.test(form.phone)) {
-      setFormError('Use a valid PH mobile number: 09XXXXXXXXX or +639XXXXXXXXX.');
-      return;
-    }
-    setIsLoading(true);
+    const validationErrors = getDeliveryPartnerFieldErrors(form);
+    setFieldErrors(validationErrors);
     setFormError('');
+    if (Object.keys(validationErrors).length > 0) return;
+
+    setIsLoading(true);
     try {
       const res = await fetchWithAdminAuth(`${API_URL}/drivers`, {
         method: 'POST',
@@ -86,8 +139,21 @@ export default function AdminDelivery() {
         body: JSON.stringify({ ...form, name: cleanedName, phone: form.phone.replace(/^\+63/, '0'), isActive: true }),
       });
       if (!res.ok) {
-        const errorData = await res.json();
-        setFormError(errorData.message || 'Failed to add partner. Please check the details and retry.');
+        const errorData: {
+          message?: string;
+          errors?: Partial<Record<DeliveryPartnerField, string | string[]>>;
+        } = await res.json();
+        const firstMessage = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
+        const serverErrors: Partial<Record<DeliveryPartnerField, string>> = {
+          name: firstMessage(errorData.errors?.name),
+          email: firstMessage(errorData.errors?.email),
+          password: firstMessage(errorData.errors?.password),
+          phone: firstMessage(errorData.errors?.phone),
+          vehicleType: firstMessage(errorData.errors?.vehicleType),
+        };
+        const hasFieldErrors = Object.values(serverErrors).some(Boolean);
+        setFieldErrors(serverErrors);
+        setFormError(hasFieldErrors ? '' : errorData.message || 'Failed to add partner. Please check the details and retry.');
         return;
       }
       const createdPartner: DeliveryPartner = await res.json();
@@ -96,6 +162,7 @@ export default function AdminDelivery() {
         ...current.filter((partner) => partner.id !== createdPartner.id),
       ]);
       setForm({ name: '', email: '', password: '', phone: '', vehicleType: '' });
+      setFieldErrors({});
       setShowForm(false);
       setFeedback(`${displayName(cleanedName)} added as a delivery partner.`);
       void refresh();
@@ -182,7 +249,7 @@ export default function AdminDelivery() {
 
   return (
     <AdminLayout>
-      <PageHeader title="Delivery Partners" subtitle="Manage your delivery fleet and riders." actions={<button onClick={() => { setShowForm(true); setFormError(''); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><Plus size={17} />Add Partner</button>} />
+      <PageHeader title="Delivery Partners" subtitle="Manage your delivery fleet and riders." actions={<button onClick={openForm} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--oppa-green-dark)]"><Plus size={17} />Add Partner</button>} />
 
       <section aria-label="Partner summary" className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {[['Total riders', partners.length, 'text-[var(--oppa-text)]'], ['Active', activeCount, 'text-emerald-700'], ['Inactive', inactiveCount, 'text-[var(--oppa-text-muted)]']].map(([label, value, color]) => <div key={String(label)} className="admin-card flex items-center justify-between p-4"><span className="text-sm font-medium text-[var(--oppa-text-muted)]">{label}</span><strong className={`tabular-nums text-2xl ${color}`}>{value}</strong></div>)}
@@ -195,7 +262,7 @@ export default function AdminDelivery() {
       {feedback && <Toast message={feedback} onDismiss={() => setFeedback('')} />}
 
       {loadingPartners ? <div role="status" aria-busy="true" aria-label="Loading partners" className="min-h-48" /> :
-        partners.length === 0 ? <div className="admin-card"><EmptyState title="No delivery partners yet" description="Add your first rider to start managing deliveries." action={<button onClick={() => setShowForm(true)} className="mt-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">Add Partner</button>} /></div> :
+        partners.length === 0 ? <div className="admin-card"><EmptyState title="No delivery partners yet" description="Add your first rider to start managing deliveries." action={<button onClick={openForm} className="mt-2 rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white">Add Partner</button>} /></div> :
           filteredPartners.length === 0 ? <div className="admin-card"><EmptyState title="No partners match these filters" description="Try another search or show all statuses." action={<button onClick={() => { setQuery(''); setStatusFilter('all'); }} className="mt-2 rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)]">Clear filters</button>} /></div> :
             <section className="overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] shadow-[var(--shadow-card)]">
               <div className="hidden grid-cols-[minmax(220px,1.2fr)_minmax(250px,1.5fr)_minmax(130px,.7fr)_minmax(150px,.7fr)] items-center gap-4 border-b border-[var(--oppa-border)] bg-[var(--oppa-green-soft)]/60 px-5 py-3 text-xs font-bold uppercase tracking-wider text-[var(--oppa-text-muted)] md:grid"><span>Partner</span><span>Contact</span><span>Status</span><span className="text-right">Actions</span></div>
@@ -208,11 +275,23 @@ export default function AdminDelivery() {
         <ValidatedForm role="dialog" aria-modal="true" onKeyDown={(event) => { if (event.key === 'Escape' && !isLoading) setShowForm(false); }} onSubmit={(event) => void handleSubmit(event)} aria-labelledby="partner-form-title" className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-6 shadow-2xl sm:p-8">
           <div className="mb-6 flex items-start justify-between"><div><h2 id="partner-form-title" className="font-serif text-2xl font-bold text-[var(--oppa-text)]">Add delivery partner</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Enter the rider’s contact and vehicle details.</p></div><button type="button" aria-label="Close form" onClick={() => setShowForm(false)} className="rounded-lg p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]"><X size={18} /></button></div>
           <div className="space-y-4">
-            <label className="block text-sm font-medium text-[var(--oppa-text)]">Full name<input type="text" autoComplete="name" data-required="true" data-min-length={2} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" /></label>
-            <label className="block text-sm font-medium text-[var(--oppa-text)]">Email<input type="email" autoComplete="email" data-required="true" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" /></label>
-            <label className="block text-sm font-medium text-[var(--oppa-text)]">Password<input type="password" autoComplete="new-password" data-min-length={6} data-required="true" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" /><span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">Use at least 6 characters.</span></label>
-            <label className="block text-sm font-medium text-[var(--oppa-text)]">Phone number<input type="tel" inputMode="tel" autoComplete="tel" placeholder="09XXXXXXXXX" maxLength={13} data-required="true" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value.replace(/[^\d+]/g, '').slice(0, 13) })} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" /><span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">Philippine mobile format: 09XXXXXXXXX or +639XXXXXXXXX.</span></label>
-            <Select label="Vehicle type" data-required="true" value={form.vehicleType} onChange={(vehicleType) => setForm({ ...form, vehicleType })} placeholder="Select vehicle" options={[{ value: 'bike', label: 'Bike' }, { value: 'motorcycle', label: 'Motorcycle' }]} />
+            <label className="block text-sm font-medium text-[var(--oppa-text)]">Full name
+              <LimitedInput id="partner-name" type="text" autoComplete="name" data-required="true" data-min-length={INPUT_LIMITS.personName.min} inputFilter="personName" maxLength={INPUT_LIMITS.personName.max} value={form.name} onChange={(event) => updateFormField('name', event.target.value)} onBlur={() => validateFormField('name')} aria-invalid={Boolean(fieldErrors.name)} aria-describedby={fieldErrors.name ? 'partner-name-error' : undefined} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" />
+              {fieldErrors.name && <span id="partner-name-error" role="alert" className="mt-1.5 block text-xs font-medium text-red-700">{fieldErrors.name}</span>}
+            </label>
+            <label className="block text-sm font-medium text-[var(--oppa-text)]">Email
+              <LimitedInput id="partner-email" type="email" autoComplete="email" data-required="true" maxLength={INPUT_LIMITS.email.max} value={form.email} onChange={(event) => updateFormField('email', event.target.value)} onBlur={() => validateFormField('email')} onInvalid={() => validateFormField('email')} aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'partner-email-error' : undefined} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" />
+              {fieldErrors.email && <span id="partner-email-error" role="alert" className="mt-1.5 block text-xs font-medium text-red-700">{fieldErrors.email}</span>}
+            </label>
+            <label className="block text-sm font-medium text-[var(--oppa-text)]">Password
+              <LimitedInput id="partner-password" type="password" autoComplete="new-password" data-required="true" data-min-length={INPUT_LIMITS.password.min} minLength={INPUT_LIMITS.password.min} maxLength={INPUT_LIMITS.password.max} value={form.password} onChange={(event) => updateFormField('password', event.target.value)} onBlur={() => validateFormField('password')} aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? 'partner-password-error' : 'partner-password-helper'} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" />
+              {fieldErrors.password ? <span id="partner-password-error" role="alert" className="mt-1.5 block text-xs font-medium text-red-700">{fieldErrors.password}</span> : <span id="partner-password-helper" className="mt-1 block text-xs text-[var(--oppa-text-muted)]">Use at least {INPUT_LIMITS.password.min} characters.</span>}
+            </label>
+            <label className="block text-sm font-medium text-[var(--oppa-text)]">Phone number
+              <LimitedInput id="partner-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="09XXXXXXXXX" data-required="true" maxLength={13} inputFilter="phone" value={form.phone} onChange={(event) => updateFormField('phone', event.target.value)} onBlur={() => validateFormField('phone')} aria-invalid={Boolean(fieldErrors.phone)} aria-describedby={fieldErrors.phone ? 'partner-phone-error' : 'partner-phone-helper'} className="mt-1.5 h-11 w-full rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3 text-sm text-[var(--oppa-text)]" />
+              {fieldErrors.phone ? <span id="partner-phone-error" role="alert" className="mt-1.5 block text-xs font-medium text-red-700">{fieldErrors.phone}</span> : <span id="partner-phone-helper" className="mt-1 block text-xs text-[var(--oppa-text-muted)]">Philippine mobile format: 09XXXXXXXXX or +639XXXXXXXXX.</span>}
+            </label>
+            <Select label="Vehicle type" data-required="true" error={fieldErrors.vehicleType} value={form.vehicleType} onChange={(vehicleType) => updateFormField('vehicleType', vehicleType)} placeholder="Select vehicle" options={[{ value: 'bike', label: 'Bike' }, { value: 'motorcycle', label: 'Motorcycle' }]} />
             {formError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{formError}</p>}
             <div className="flex justify-end gap-2 pt-2"><button type="button" disabled={isLoading} onClick={() => setShowForm(false)} className="rounded-lg border border-[var(--oppa-border)] px-4 py-2.5 text-sm font-medium text-[var(--oppa-text)]">Cancel</button><button type="submit" disabled={isLoading} className="rounded-lg bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] disabled:opacity-60">{isLoading ? 'Saving…' : 'Create Partner'}</button></div>
           </div>

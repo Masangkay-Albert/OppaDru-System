@@ -137,22 +137,14 @@ const AdminEmployeesPage: React.FC = () => {
   };
 
   const handleReset = async (id: string, newPassword: string) => {
-    try {
-      const response = await fetchWithAdminAuth(`${API_URL}/employees/${id}/reset-password`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ password: newPassword }),
-      });
-      if (response.ok) {
-        showToast('Password updated successfully.', 'success');
-        setSelected(null);
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        showToast(errorData.message || 'Failed to reset password.', 'error');
-      }
-    } catch (error) {
-      console.error('Reset password error:', error);
-      showToast('Failed to reset password. Please try again.', 'error');
+    const response = await fetchWithAdminAuth(`${API_URL}/employees/${id}/reset-password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ password: newPassword }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to reset password. Please try again.');
     }
   };
 
@@ -197,7 +189,16 @@ const AdminEmployeesPage: React.FC = () => {
         isSubmitting={isLoading}
         submitError={submitError}
       />
-      {selected && <AccountModal account={selected} onClose={() => setSelected(null)} onResetPassword={handleReset} />}
+      {selected && <AccountModal
+        account={{
+          ...selected,
+          location: selected.franchise?.name,
+          status: selected.is_active === undefined ? undefined : selected.is_active ? 'Active' : 'Inactive',
+        }}
+        isReadOnly={selected.franchise_id !== mainLocationId}
+        onClose={() => setSelected(null)}
+        onResetPassword={handleReset}
+      />}
     </AdminLayout>
   );
 };

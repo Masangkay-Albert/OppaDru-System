@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BriefcaseBusiness, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, User, X } from 'lucide-react';
 import Select from '../../../components/ui/Select';
 import type { AdminRole } from '../../../services/adminAuthService';
-import { INPUT_LIMITS, normalizePhilippinePhone } from '../../../constants/inputLimits';
+import { containsRepeatedCharacterSpam, INPUT_LIMITS, normalizePhilippinePhone } from '../../../constants/inputLimits';
 import { LimitedInput } from '../../../components/ui/LimitedInput';
 import { ValidatedForm } from '../../../components/ui/FormValidation';
 
@@ -52,6 +52,8 @@ const getValidationErrors = (values: AccountCreationValues, mode: AccountCreatio
 
   if (values.fullName.trim().length < INPUT_LIMITS.personName.min || values.fullName.trim().length > INPUT_LIMITS.personName.max) {
     errors.fullName = `Full name must be ${INPUT_LIMITS.personName.min}-${INPUT_LIMITS.personName.max} characters.`;
+  } else if (containsRepeatedCharacterSpam(values.fullName.trim())) {
+    errors.fullName = 'Avoid repeating the same character many times.';
   }
 
   if (!values.email.trim()) {
@@ -60,6 +62,8 @@ const getValidationErrors = (values: AccountCreationValues, mode: AccountCreatio
     errors.email = `Email must be ${INPUT_LIMITS.email.max} characters or fewer.`;
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
     errors.email = 'Please enter a valid email address.';
+  } else if (containsRepeatedCharacterSpam(values.email)) {
+    errors.email = 'Avoid repeating the same character many times.';
   }
 
   if (!values.password) {
@@ -121,6 +125,11 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
   const updateField = (field: keyof AccountCreationValues, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
+
+  const validateField = (field: keyof AccountCreationValues) => {
+    const validationErrors = getValidationErrors(form, mode);
+    setErrors((current) => ({ ...current, [field]: validationErrors[field] }));
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -228,12 +237,14 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                 showCounter
                 value={form.fullName}
                 onChange={(event) => updateField('fullName', event.target.value)}
+                onBlur={() => validateField('fullName')}
                 placeholder="Enter full name"
                 className={fieldClass}
                 aria-invalid={Boolean(errors.fullName)}
+                aria-describedby={errors.fullName ? 'account-full-name-error' : undefined}
               />
             </div>
-            {errors.fullName && <p className={errorClass}>{errors.fullName}</p>}
+            {errors.fullName && <p id="account-full-name-error" role="alert" className={errorClass}>{errors.fullName}</p>}
           </div>
 
           <div>
@@ -249,12 +260,14 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                 maxLength={INPUT_LIMITS.email.max}
                 value={form.email}
                 onChange={(event) => updateField('email', event.target.value)}
+                onBlur={() => validateField('email')}
                 placeholder="Enter email address"
                 className={fieldClass}
                 aria-invalid={Boolean(errors.email)}
+                aria-describedby={errors.email ? 'account-email-error' : undefined}
               />
             </div>
-            {errors.email && <p className={errorClass}>{errors.email}</p>}
+            {errors.email && <p id="account-email-error" role="alert" className={errorClass}>{errors.email}</p>}
             {emailServerError && <p className={errorClass}>{emailServerError}</p>}
           </div>
 
@@ -315,9 +328,11 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                 maxLength={INPUT_LIMITS.password.max}
                 value={form.password}
                 onChange={(event) => updateField('password', event.target.value)}
+                onBlur={() => validateField('password')}
                 placeholder="Enter password"
                 className={`${fieldClass} pr-10`}
                 aria-invalid={Boolean(errors.password)}
+                aria-describedby={errors.password ? 'account-password-error' : undefined}
               />
               <button
                 type="button"
@@ -328,7 +343,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            {errors.password && <p className={errorClass}>{errors.password}</p>}
+            {errors.password && <p id="account-password-error" role="alert" className={errorClass}>{errors.password}</p>}
           </div>
 
           <div>
@@ -344,9 +359,11 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                 maxLength={INPUT_LIMITS.password.max}
                 value={form.confirmPassword}
                 onChange={(event) => updateField('confirmPassword', event.target.value)}
+                onBlur={() => validateField('confirmPassword')}
                 placeholder="Confirm password"
                 className={`${fieldClass} pr-10`}
                 aria-invalid={Boolean(errors.confirmPassword)}
+                aria-describedby={errors.confirmPassword ? 'account-confirm-password-error' : undefined}
               />
               <button
                 type="button"
@@ -357,7 +374,7 @@ const AccountCreationModal: React.FC<AccountCreationModalProps> = ({
                 {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            {errors.confirmPassword && <p className={errorClass}>{errors.confirmPassword}</p>}
+            {errors.confirmPassword && <p id="account-confirm-password-error" role="alert" className={errorClass}>{errors.confirmPassword}</p>}
           </div>
 
           <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">

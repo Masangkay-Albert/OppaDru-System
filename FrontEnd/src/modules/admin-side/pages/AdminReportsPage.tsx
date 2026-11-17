@@ -292,7 +292,7 @@ const SalesTargetPanel = ({
               disabled={(goalSet && !editing) || saving}
               placeholder="Set target"
               aria-label="Sales target amount"
-              className="min-w-0 flex-1 appearance-none border-0 bg-transparent text-sm font-semibold text-[var(--oppa-text)] shadow-none outline-none ring-0 focus:border-0 focus:ring-0 focus-visible:ring-0 disabled:cursor-default"
+              className="min-w-0 flex-1 appearance-none !border-0 !rounded-none !bg-transparent !shadow-none text-sm font-semibold text-[var(--oppa-text)] outline-none ring-0 focus:!border-0 focus:!shadow-none focus:ring-0 focus-visible:ring-0 disabled:cursor-default"
             />
           </span>
         </label>
