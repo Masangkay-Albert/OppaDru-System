@@ -265,7 +265,7 @@ export const IngredientFormModal: React.FC<{
               inputMode={quantityMode}
               inputFilter="inventoryQuantity"
               onKeyDown={preventDecimalEntry}
-              defaultValue={ingredient?.reorder_level ?? '5'}
+              defaultValue={Number(ingredient?.reorder_level ?? 5).toFixed(2)}
               className={fieldClass}
             />
           </label>
@@ -290,7 +290,7 @@ export const IngredientFormModal: React.FC<{
               inputMode="numeric"
               inputFilter="digits"
               onKeyDown={preventDecimalEntry}
-              defaultValue={ingredient?.conversion_factor ?? '1'}
+              defaultValue={Number(ingredient?.conversion_factor ?? 1).toFixed(2)}
               className={fieldClass}
             />
           </label>
@@ -302,7 +302,7 @@ export const IngredientFormModal: React.FC<{
           />
         </div>
         {editing && <div className="-mt-2 rounded-xl bg-[var(--oppa-cream)] px-3 py-2 text-sm text-[var(--oppa-text-muted)]">
-          <p>Average price: {ingredient?.average_unit_cost ?? ingredient?.unit_cost ? `₱${Number(ingredient.average_unit_cost ?? ingredient.unit_cost).toLocaleString('en-PH', { maximumFractionDigits: 4 })} each` : 'Not set'}</p>
+          <p>Average price: {ingredient?.average_unit_cost ?? ingredient?.unit_cost ? `₱${Number(ingredient.average_unit_cost ?? ingredient.unit_cost).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} each` : 'Not set'}</p>
           {Number(ingredient?.quantity || 0) === 0 && <p className="mt-1 text-xs">Add stock with a price instead.</p>}
         </div>}
         <label className={labelClass}>Supplier <span className="font-normal text-[var(--oppa-text-muted)]">(optional)</span>
