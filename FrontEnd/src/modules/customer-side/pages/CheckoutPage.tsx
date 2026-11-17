@@ -4,6 +4,7 @@ import { FiArrowLeft, FiShoppingCart } from 'react-icons/fi';
 import LocationPicker from '../components/common/LocationPicker';
 import { useCart } from '../../../contexts/CartContext';
 import { useOrder } from '../../../contexts/OrderContext';
+import { useStoreHours } from '../../../contexts/StoreHoursContext';
 import { useToast } from '../components/ToastProvider';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import CheckoutForm from '../components/checkout/CheckoutForm';
@@ -35,6 +36,7 @@ const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cartItems, clearCart, activeBranchId, setActiveBranchId, validateCartAgainstMenu, useCutlery } = useCart();
   const { placeOrder } = useOrder();
+  const { status: storeHours } = useStoreHours();
   const { showToast } = useToast();
   const { getActiveDiscount } = useSettings();
   const activeDiscount = getActiveDiscount();
@@ -72,6 +74,13 @@ const CheckoutPage: React.FC = () => {
   const selectedAddressCoordinatesRef = useRef<Coordinates | null>(null);
   const cartBranchIds = [...new Set(cartItems.map((item) => item.franchise_id).filter((id): id is string => Boolean(id)))];
   const hasMixedCartBranches = cartBranchIds.length > 1;
+  const orderingClosed = storeHours?.state === 'last_order_passed';
+
+  const requireStoreOpen = () => {
+    if (storeHours?.state === 'open') return true;
+    showToast(storeHours?.order_closed_message || 'Store availability is temporarily unavailable.', 'error');
+    return false;
+  };
 
   useEffect(() => {
     void getActiveBranches().then(setActiveBranches).catch((error: unknown) => {
@@ -293,6 +302,7 @@ const CheckoutPage: React.FC = () => {
   };
 
   const placeOrderDirect = async (paymentReference?: string) => {
+    if (!requireStoreOpen()) return;
     if (orderRequestRef.current) return;
 
     const request = (async () => {
@@ -417,6 +427,7 @@ const CheckoutPage: React.FC = () => {
   };
 
   const handlePlaceOrder = () => {
+    if (!requireStoreOpen()) return;
     if (isPlacingOrder) return;
 
     if (!address.street) {
@@ -556,7 +567,7 @@ const CheckoutPage: React.FC = () => {
             onBlockedOrderClick={scrollToAddressList}
             canPickLocation={Boolean(address.street.trim()) || Boolean(branchError)}
             isPlacingOrder={isPlacingOrder}
-            canPlaceOrder={Boolean(menuValidationReady && !menuValidationError && !cartItems.some((item) => item.cartIssue) && branchResolution && deliveryCoordinates && !branchError && !hasMixedCartBranches && branchResolution.branch.id === activeBranchId)}
+            canPlaceOrder={Boolean(storeHours?.state === 'open' && menuValidationReady && !menuValidationError && !cartItems.some((item) => item.cartIssue) && branchResolution && deliveryCoordinates && !branchError && !hasMixedCartBranches && branchResolution.branch.id === activeBranchId)}
             />
           </div>
         </div>
@@ -596,7 +607,7 @@ const CheckoutPage: React.FC = () => {
       />}
 
       <GCashPaymentModal
-        isOpen={showGCashModal}
+        isOpen={showGCashModal && !orderingClosed}
         onClose={() => setShowGCashModal(false)}
         amount={total}
         items={cartItems}
@@ -610,7 +621,7 @@ const CheckoutPage: React.FC = () => {
       />
 
       <CreditCardPaymentModal
-        isOpen={showCardModal}
+        isOpen={showCardModal && !orderingClosed}
         onClose={() => setShowCardModal(false)}
         amount={total}
         items={cartItems}

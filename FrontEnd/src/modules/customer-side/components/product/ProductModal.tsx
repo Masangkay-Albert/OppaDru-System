@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Product, CartItem, Addon, AddonGroup } from '../../../../types/product.types';
 import { useCart } from '../../../../contexts/CartContext';
 import { useFavorites } from '../../../../contexts/FavoritesContext';
+import { useStoreHours } from '../../../../contexts/StoreHoursContext';
 import QuantitySelector from './QuantitySelector';
 import AddonsSection from '../common/AddonsSection';
 import { FiX } from 'react-icons/fi';
@@ -32,6 +33,9 @@ const ProductModal: React.FC<ProductModalProps> = ({
 }) => {
   const { addToCart, editCartItem } = useCart();
   const { addOrder } = useFavorites();
+  const { status: storeHours } = useStoreHours();
+  const canOrder = storeHours?.state === 'open';
+  const orderingClosed = storeHours?.state === 'last_order_passed';
   const [quantity, setQuantity] = useState(1);
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
   const [specialInstructions, setSpecialInstructions] = useState('');
@@ -157,7 +161,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
   };
 
   const handleSubmit = () => {
-    if (!product.isAvailable) return;
+    if (!product.isAvailable || !canOrder) return;
 
     const cartItemData: Omit<CartItem, 'cartItemId'> = {
       ...product,
@@ -278,14 +282,14 @@ const ProductModal: React.FC<ProductModalProps> = ({
             </div>
             <button
               onClick={handleSubmit}
-              disabled={!product.isAvailable}
+              disabled={!product.isAvailable || !canOrder}
               className={`min-h-12 w-full rounded-xl px-4 py-3 font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#276343] focus-visible:ring-offset-2 ${
-                product.isAvailable
+                product.isAvailable && canOrder
                   ? 'bg-[#276343] text-white shadow-sm hover:bg-[#1f5338] hover:shadow-md active:scale-[0.99]'
                   : 'bg-gray-300 text-gray-600 cursor-not-allowed'
               }`}
             >
-              {product.isAvailable ? (editMode ? 'Update Cart' : 'Add to Cart') : 'Not Available'}
+              {orderingClosed ? 'Ordering is closed for today.' : product.isAvailable ? (editMode ? 'Update Cart' : 'Add to Cart') : 'Not Available'}
             </button>
           </div>
         </div>

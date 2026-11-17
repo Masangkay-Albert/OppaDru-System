@@ -4,6 +4,7 @@ import { FiArrowLeft, FiPackage } from 'react-icons/fi';
 import { FaClipboardList, FaStore } from 'react-icons/fa';
 import { useOrder } from '../../../contexts/OrderContext';
 import { useCart } from '../../../contexts/CartContext';
+import { useStoreHours } from '../../../contexts/StoreHoursContext';
 import type { Order } from '../../../contexts/OrderContext';
 import NavbarCustomer from '../components/navigation/NavbarCustomer';
 import { ORDER_STATUS } from '../../../utils/constants';
@@ -33,6 +34,8 @@ const MyOrdersPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { orders, refreshOrders, isLoading } = useOrder();
   const { addToCart, setActiveBranchId } = useCart();
+  const { status: storeHours } = useStoreHours();
+  const orderingClosed = storeHours?.state === 'last_order_passed';
   const { showToast, confirmDialog, dismissDialog } = useToast();
   const requestedTab = searchParams.get('tab');
   const filterStatus = requestedTab === 'active' || requestedTab === 'delivered' || requestedTab === 'cancelled'
@@ -175,6 +178,11 @@ const MyOrdersPage: React.FC = () => {
   };
 
   const handleReorder = (order: Order) => {
+    if (orderingClosed) {
+      showToast(storeHours?.order_closed_message || 'Store availability is temporarily unavailable.', 'warning');
+      return;
+    }
+
     const branchId = order.branchId ? String(order.branchId) : '';
     if (!branchId) {
       showToast('This order is missing its branch information, so it cannot be reordered.', 'error');
@@ -417,6 +425,7 @@ const MyOrdersPage: React.FC = () => {
                         onCancel={handleCancelOrder}
                         onEdit={openEditOrder}
                         onReorder={handleReorder}
+                        orderingClosed={orderingClosed}
                       />
                     ))}
                   </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../../../contexts/CartContext';
+import { useStoreHours } from '../../../../contexts/StoreHoursContext';
 import CartItemComponent from './CartItem';
 import CartSummary from './CartSummary';
 import ProductModal from '../product/ProductModal';
@@ -16,14 +17,16 @@ interface CartSidebarProps {
 const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
   const navigate = useNavigate();
   const { cartItems, removeFromCart, updateQuantity, updateCartItemPrice, clearCart, useCutlery, setUseCutlery } = useCart();
+  const { status: storeHours } = useStoreHours();
   const { showToast, confirmDialog } = useToast();
   const [editingItem, setEditingItem] = useState<CartItem | null>(null);
 
   const subtotal = calculateSubtotal(cartItems);
   const hasItems = cartItems.length > 0;
+  const orderingClosed = storeHours?.state === 'last_order_passed';
 
   const handleCheckout = () => {
-    if (!hasItems) return;
+    if (!hasItems || orderingClosed) return;
     if (cartItems.some((item) => item.cartIssue)) {
       showToast('Resolve unavailable items or price changes before checkout.', 'warning');
       return;
@@ -105,9 +108,10 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
         {hasItems ? (
           <button
             onClick={handleCheckout}
-            className="min-h-12 w-full rounded-xl bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] py-3 font-bold text-white shadow-sm transition hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d6a4f] focus-visible:ring-offset-2"
+            disabled={orderingClosed}
+            className="min-h-12 w-full rounded-xl bg-gradient-to-r from-[#2d6a4f] to-[#1b4d3e] py-3 font-bold text-white shadow-sm transition hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d6a4f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Checkout
+            {orderingClosed ? 'Ordering is closed for today.' : 'Checkout'}
           </button>
         ) : (
           <button

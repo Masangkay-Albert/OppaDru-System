@@ -8,7 +8,9 @@ import { CartProvider } from "./contexts/CartContext";
 import { FavoritesProvider } from "./contexts/FavoritesContext";
 import { OrderProvider } from "./contexts/OrderContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
+import { StoreHoursProvider } from "./contexts/StoreHoursContext";
 import ToastProvider from "./modules/customer-side/components/ToastProvider";
+import StoreHoursGate from "./modules/customer-side/components/StoreHoursGate";
 import "./styles/thermal-receipt.css";
 
 // ============ ADMIN PAGES ============
@@ -110,16 +112,12 @@ function App() {
                   <FranchiseApplicantAuthProvider>
                   <BrowserRouter>
                     <ToastProvider>
+                    <StoreHoursProvider>
                     <Suspense fallback={<div role="status" aria-live="polite" aria-busy="true" className="min-h-screen bg-[var(--oppa-cream)]">
                       <span className="sr-only">Loading page</span>
                     </div>}>
                     <Routes>
                       {/* ===== PUBLIC ROUTES ===== */}
-                      <Route path="/" element={<LandingPage />} />
-                      <Route path="/login" element={<LoginPage />} />
-                      <Route path="/register" element={<RegistrationPage />} />
-                      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                      <Route path="/reset-password" element={<ResetPasswordPage />} />
                       <Route path="/franchise-opportunities" element={<FranchiseOpportunitiesPage />} />
                       <Route path="/franchise/applicant-access" element={<Navigate to="/franchise/applicant-login?returnTo=%2Ffranchise%2Fapply" replace />} />
                       <Route path="/franchise/applicant-login" element={<FranchiseApplicantLoginPage />} />
@@ -130,14 +128,21 @@ function App() {
                       <Route path="/franchise/login" element={<FranchiseLoginPage />} />
 
                       {/* ===== CUSTOMER ROUTES ===== */}
-                      <Route path="/customer" element={<ProtectedRoute><MenuPage /></ProtectedRoute>} />
-                      <Route path="/customer/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
-                      <Route path="/customer/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
-                      <Route path="/customer/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-                      <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
-                      <Route path="/tracking" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
-                      <Route path="/orders/:id/track" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
-                      <Route path="/payment/confirm/:reference" element={<PaymentConfirmPage />} />
+                      <Route element={<StoreHoursGate />}>
+                        <Route path="/" element={<LandingPage />} />
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/register" element={<RegistrationPage />} />
+                        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                        <Route path="/reset-password" element={<ResetPasswordPage />} />
+                        <Route path="/customer" element={<ProtectedRoute><MenuPage /></ProtectedRoute>} />
+                        <Route path="/customer/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
+                        <Route path="/customer/orders" element={<ProtectedRoute><MyOrdersPage /></ProtectedRoute>} />
+                        <Route path="/customer/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                        <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+                        <Route path="/tracking" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
+                        <Route path="/orders/:id/track" element={<ProtectedRoute><OrderTrackingPage /></ProtectedRoute>} />
+                        <Route path="/payment/confirm/:reference" element={<PaymentConfirmPage />} />
+                      </Route>
 
                       {/* ===== ADMIN ROUTES ===== */}
                       <Route path="/admin/login" element={<AdminLoginPage />} />
@@ -219,6 +224,7 @@ function App() {
 
                     </Routes>
                     </Suspense>
+                    </StoreHoursProvider>
                     </ToastProvider>
                   </BrowserRouter>
                   </FranchiseApplicantAuthProvider>

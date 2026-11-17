@@ -12,6 +12,7 @@ use App\Services\PricingService;
 use App\Services\PromoRedemptionException;
 use App\Services\PromoRedemptionService;
 use App\Support\DatabaseImage;
+use App\Support\StoreHours;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -100,6 +101,11 @@ trait OrderPlacementActions
 
     public function store(Request $request)
     {
+        $storeHours = StoreHours::status();
+        if ($storeHours['state'] !== 'open') {
+            return response()->json(['message' => $storeHours['order_closed_message']], 422);
+        }
+
         if (! $request->hasFile('proof_image') && $request->hasFile('discount_proof_image')) {
             $request->files->set('proof_image', $request->file('discount_proof_image'));
         }

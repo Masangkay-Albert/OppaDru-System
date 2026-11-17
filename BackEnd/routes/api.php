@@ -35,6 +35,7 @@ use App\Http\Controllers\BranchRoutingController;
 use App\Http\Controllers\GeocodingController;
 use App\Http\Controllers\PromoController;
 use App\Http\Controllers\PopularMealsController;
+use App\Http\Controllers\StoreHoursController;
 use Illuminate\Http\Request;
 
 
@@ -45,6 +46,8 @@ Route::get('/test', function () {
 Route::get('/health', function () {
     return response()->json(['status' => 'ok']);
 });
+
+Route::get('/store-hours', [StoreHoursController::class, 'show']);
 
 Route::get('/storage/{path}', function (string $path) {
     $filePath = storage_path('app/public/' . $path);
@@ -196,6 +199,7 @@ Route::middleware(['employee.access:kitchen_staff'])->group(function () {
 });
 
 //drivers
+Route::get('/driver/orders/counts', [DriverOrderController::class, 'counts']);
 Route::get('/driver/orders', [DriverOrderController::class, 'index']);
 Route::patch('/driver/orders/{id}/status', [DriverOrderController::class, 'updateStatus']);
 Route::post('/driver/orders/{id}/delivery-proof', [DeliveryProofController::class, 'store']);

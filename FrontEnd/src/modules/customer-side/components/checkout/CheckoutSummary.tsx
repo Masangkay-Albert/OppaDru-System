@@ -9,6 +9,7 @@ import { useCartCalculations } from '../../../../hooks/useCartCalculations';
 import { formatCurrency } from '../../../../utils/formatters';
 import { calculateItemTotal } from '../../../../services/cartService';
 import { useSettings } from '../../../../contexts/SettingsContext';
+import { useStoreHours } from '../../../../contexts/StoreHoursContext';
 
 interface CheckoutSummaryProps {
   cartItems: CartItem[];
@@ -64,7 +65,9 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   const navigate = useNavigate();
   const deliveryAlertRef = useRef<HTMLDivElement>(null);
   const { getActiveDiscount } = useSettings();
+  const { status: storeHours } = useStoreHours();
   const activeDiscount = getActiveDiscount();
+  const orderingClosed = storeHours?.state === 'last_order_passed';
   const hasMixedCartError = hasMixedCartBranches || deliveryError?.code === 'CART_BRANCH_MISMATCH';
 
   const { subtotal, deliveryFee, serviceFee, priorityFee, discountAmount, vat, total, hasItems } = useCartCalculations({
@@ -268,6 +271,11 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
       </div>
 
       <div className="checkout-summary-footer shrink-0">
+        {orderingClosed && (
+          <p role="alert" aria-live="assertive" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+            {storeHours.order_closed_message}
+          </p>
+        )}
         <div className="checkout-total">
           <div className="flex justify-between font-bold text-lg">
             <span>Total</span>
@@ -278,6 +286,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
         <button
           type="button"
           onClick={() => {
+            if (orderingClosed) return;
             if (!canPlaceOrder) {
               if (deliveryAlertRef.current) {
                 deliveryAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -290,8 +299,8 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
             }
             onPlaceOrder();
           }}
-          disabled={isPlacingOrder}
-          aria-disabled={!canPlaceOrder}
+          disabled={isPlacingOrder || orderingClosed}
+          aria-disabled={!canPlaceOrder || orderingClosed}
           className="checkout-place-order w-full rounded-xl font-semibold transition"
         >
           {isPlacingOrder ? (
@@ -302,6 +311,8 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
               </svg>
               Placing order...
             </span>
+          ) : orderingClosed ? (
+            'Ordering is closed for today.'
           ) : !canPlaceOrder ? (
             deliveryError?.code === 'OUT_OF_RANGE'
               ? 'Address out of delivery range'

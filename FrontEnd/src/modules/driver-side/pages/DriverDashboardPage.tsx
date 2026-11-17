@@ -90,6 +90,7 @@ const DriverDashboardPage: React.FC = () => {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<DriverOrder[]>([]);
+  const [orderCounts, setOrderCounts] = useState({ available: 0, active: 0, history: 0 });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabView>('available');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -101,6 +102,7 @@ const DriverDashboardPage: React.FC = () => {
   const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
   const [proofSubmitting, setProofSubmitting] = useState(false);
   const ordersFetchInFlightRef = useRef(false);
+  const countsFetchInFlightRef = useRef(false);
 
   useEffect(() => () => {
     if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl);
@@ -181,10 +183,39 @@ const DriverDashboardPage: React.FC = () => {
     }
   };
 
+  const fetchOrderCounts = async () => {
+    if (countsFetchInFlightRef.current) return;
+    countsFetchInFlightRef.current = true;
+    try {
+      const token = localStorage.getItem('driver_token');
+      const response = await fetch(`${API_URL}/driver/orders/counts`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch delivery order counts');
+
+      const counts = await response.json();
+      setOrderCounts({
+        available: Number(counts.available_count),
+        active: Number(counts.active_count),
+        history: Number(counts.history_count),
+      });
+    } catch (error) {
+      console.error('Error fetching delivery order counts:', error);
+    } finally {
+      countsFetchInFlightRef.current = false;
+    }
+  };
+
   useEffect(() => {
     void fetchOrders();
+    void fetchOrderCounts();
     const interval = window.setInterval(() => {
       void fetchOrders(false);
+      void fetchOrderCounts();
     }, 5000);
 
     return () => window.clearInterval(interval);
@@ -296,9 +327,9 @@ const DriverDashboardPage: React.FC = () => {
         {/* Tabs */}
         <EmployeeDashboardTabs<TabView>
           tabs={[
-            { id: 'available', label: 'Available Orders' },
-            { id: 'active', label: 'My Active Deliveries' },
-            { id: 'history', label: 'History' },
+            { id: 'available', label: 'Available Orders', count: orderCounts.available },
+            { id: 'active', label: 'My Active Deliveries', count: orderCounts.active },
+            { id: 'history', label: 'History', count: orderCounts.history },
           ]}
           activeTab={activeTab}
           onChange={setActiveTab}

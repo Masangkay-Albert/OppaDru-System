@@ -22,6 +22,45 @@ class DriverOrderController extends Controller
         return Driver::where('api_token', hash('sha256', $token))->first();
     }
 
+    public function counts(Request $request)
+    {
+        $driver = $this->getAuthenticatedDriver($request);
+        if (!$driver) {
+            return response()->json(['message' => 'Unauthenticated driver.'], 401);
+        }
+        if (!$driver->isActive || ($driver->franchise_id && (!$driver->franchise || !$driver->franchise->isOperationallyActive()))) {
+            return response()->json(['message' => 'Driver account or branch is inactive.'], 403);
+        }
+
+        $baseQuery = Order::query();
+        DriverOrderScope::applyBranch($baseQuery, DriverOrderScope::branchId($driver));
+        DriverOrderScope::applyDeliveryEligibility($baseQuery);
+
+        $availableQuery = clone $baseQuery;
+        $availableCount = $availableQuery
+            ->where('status', OrderStatus::PREPARED)
+            ->whereNull('driver_id')
+            ->count();
+
+        $activeQuery = clone $baseQuery;
+        $activeCount = $activeQuery
+            ->where('driver_id', $driver->id)
+            ->whereIn('status', [OrderStatus::ON_THE_WAY, OrderStatus::ARRIVED])
+            ->count();
+
+        $historyQuery = clone $baseQuery;
+        $historyCount = $historyQuery
+            ->where('driver_id', $driver->id)
+            ->whereIn('status', [OrderStatus::DELIVERED, OrderStatus::CANCELLED])
+            ->count();
+
+        return response()->json([
+            'available_count' => $availableCount,
+            'active_count' => $activeCount,
+            'history_count' => $historyCount,
+        ]);
+    }
+
     public function index(Request $request)
     {
         $driver = $this->getAuthenticatedDriver($request);

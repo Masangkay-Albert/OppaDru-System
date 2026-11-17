@@ -30,6 +30,7 @@ interface OrderCardProps {
   onCancel: (order: Order) => void;
   onEdit: (order: Order) => void;
   onReorder: (order: Order) => void;
+  orderingClosed: boolean;
 }
 
 export const OrderCard: React.FC<OrderCardProps> = ({
@@ -39,6 +40,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   onTrack,
   onCancel,
   onReorder,
+  orderingClosed,
 }) => {
   const scheduleDetails = getScheduledOrderDetails(order);
   const statusGroup = getCustomerOrderGroup(order);
@@ -118,8 +120,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               </button>
             )}
             {isDelivered && (
-              <button type="button" onClick={() => onReorder(order)} className="order-reorder-button">
-                Reorder
+              <button type="button" onClick={() => onReorder(order)} disabled={orderingClosed} className="order-reorder-button disabled:cursor-not-allowed disabled:opacity-60">
+                {orderingClosed ? 'Ordering is closed for today.' : 'Reorder'}
               </button>
             )}
             <button type="button" onClick={() => onToggleDetails(order.id)} className="order-details-button">
