@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ChangeEvent, FormEvent, ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import AdminLayout from '../components/AdminLayout';
 import { promoService, PromoRequestError, type Promo } from '../../../services/promoService';
 import { fetchWithAdminAuth } from '../../../services/adminAuthService';
@@ -33,7 +33,6 @@ import {
   LuClipboard,
   LuClipboardCheck,
   LuFilter,
-  LuImage,
   LuLoaderCircle,
   LuBanknote,
   LuPencil,
@@ -328,13 +327,10 @@ export default function AdminPromosPage() {
   const [isActive, setIsActive] = useState(true);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [startDateError, setStartDateError] = useState('');
   const [endDateError, setEndDateError] = useState('');
   const [dateTimeMin, setDateTimeMin] = useState(getPromoDateTimeMin);
   const [deleteTarget, setDeleteTarget] = useState<Promo | null>(null);
-  const [imageInputKey, setImageInputKey] = useState(0);
   const [initialStartDate, setInitialStartDate] = useState('');
   const [initialEndDate, setInitialEndDate] = useState('');
   const searchRef = useRef(search);
@@ -377,10 +373,6 @@ export default function AdminPromosPage() {
     void Promise.resolve().then(loadPromos);
   }, [loadPromos]);
 
-  useEffect(() => () => {
-    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
-  }, [imagePreview]);
-
   const resetDateErrors = () => {
     setStartDateError('');
     setEndDateError('');
@@ -406,9 +398,6 @@ export default function AdminPromosPage() {
     setIsActive(true);
     setSelectedCategories([]);
     setSelectedProducts([]);
-    setImageFile(null);
-    setImagePreview(null);
-    setImageInputKey((key) => key + 1);
     setFormError(null);
     setCodeError('');
     resetDateErrors();
@@ -437,26 +426,10 @@ export default function AdminPromosPage() {
     setIsActive(promo.is_active);
     setSelectedCategories(promo.applicable_categories || []);
     setSelectedProducts(promo.applicable_products || []);
-    setImageFile(null);
-    setImagePreview(promo.image_url || null);
-    setImageInputKey((key) => key + 1);
     setFormError(null);
     setCodeError('');
     resetDateErrors();
     setIsModalOpen(true);
-  };
-
-  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
-  };
-
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
-    setImageInputKey((key) => key + 1);
   };
 
   const toggleCategory = (categoryId: string) => {
@@ -578,8 +551,6 @@ export default function AdminPromosPage() {
       formData.append('is_active', isActive ? '1' : '0');
       formData.append('applicable_categories', JSON.stringify(selectedCategories));
       formData.append('applicable_products', JSON.stringify(selectedProducts));
-      if (imageFile) formData.append('image', imageFile);
-
       if (editingPromo) {
         await promoService.updatePromo(editingPromo.id, formData);
       } else {
@@ -1031,43 +1002,6 @@ export default function AdminPromosPage() {
                 })}
               </div>
               <p className="mt-1.5 text-xs text-[var(--oppa-text-muted)]">Leave empty to apply to all.</p>
-            </div>
-
-            <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--oppa-text-muted)]">Optional promo banner image</p>
-              <div className="flex flex-col gap-3 rounded-xl border border-dashed border-[var(--oppa-border)] bg-[var(--oppa-cream)]/50 p-3 sm:flex-row sm:items-center">
-                {imagePreview ? (
-                  <div className="relative">
-                    <PromoImage src={imagePreview} className="size-16 rounded-xl border border-[var(--oppa-border)]" />
-                    <button
-                      type="button"
-                      aria-label="Remove banner image"
-                      title="Remove image"
-                      onClick={removeImage}
-                      className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white transition-colors hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                    >
-                      <LuX size={14} aria-hidden="true" />
-                    </button>
-                  </div>
-                ) : (
-                  <span className="grid size-16 shrink-0 place-items-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]">
-                    <LuImage size={22} aria-hidden="true" />
-                  </span>
-                )}
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-                  <input key={imageInputKey} id="promo-image" type="file" accept="image/*" onChange={handleImageChange} className="sr-only" />
-                  <label
-                    htmlFor="promo-image"
-                    className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] px-3.5 text-sm font-semibold text-[var(--oppa-text)] transition-colors hover:bg-[var(--oppa-cream)] focus-within:ring-2 focus-within:ring-[var(--oppa-green)]/50"
-                  >
-                    <LuImage size={16} aria-hidden="true" />
-                    Choose file
-                  </label>
-                  <span className="min-w-0 truncate text-xs text-[var(--oppa-text-muted)]">
-                    {imageFile?.name || (imagePreview ? 'Current banner image' : 'No file chosen')}
-                  </span>
-                </div>
-              </div>
             </div>
 
             <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/60 p-3.5">
