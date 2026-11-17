@@ -34,6 +34,8 @@ class AnnouncementDeliveryTest extends TestCase
             'announcement-laguna',
             ['customers'],
             [$laguna->id],
+            'published',
+            ['date_sent' => now()->addHours(8)],
         );
 
         $this->actingAs($customer, 'api')
@@ -67,6 +69,8 @@ class AnnouncementDeliveryTest extends TestCase
             'franchise-laguna',
             ['franchise_branches'],
             [$laguna->id],
+            'published',
+            ['date_sent' => now()->addHours(8)],
         );
         $this->makeAnnouncement('customers-only', ['customers'], null);
 
@@ -120,13 +124,14 @@ class AnnouncementDeliveryTest extends TestCase
                 'franchise_branch_mode' => 'selected',
                 'target_franchise_branches' => [$branch->id],
                 'status' => 'published',
-                'date_sent' => now()->toIso8601String(),
+                'date_sent' => now()->addHours(8)->toIso8601String(),
             ])
             ->assertOk();
 
         $this->assertSame(1, Announcement::query()->count());
         $this->assertSame(['customers', 'franchise_branches'], Announcement::findOrFail($created['id'])->target_audiences);
         $this->assertSame([$branch->id], Announcement::findOrFail($created['id'])->target_franchise_branches);
+        $this->assertLessThanOrEqual(now()->timestamp, Announcement::findOrFail($created['id'])->date_sent->timestamp);
     }
 
     public function test_scheduled_announcements_appear_only_after_the_scheduled_time_and_read_state_is_persisted(): void

@@ -89,16 +89,12 @@ class AnnouncementController extends Controller
         $stats = [
             'total' => Announcement::query()->count(),
             'published' => Announcement::query()->where(function ($query) use ($now) {
-                $query->where(function ($published) use ($now) {
-                    $published->where('status', 'published')
-                        ->where(function ($sent) use ($now) {
-                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', $now);
-                        });
-                })->orWhere(function ($scheduled) use ($now) {
+                $query->where('status', 'published')
+                    ->orWhere(function ($scheduled) use ($now) {
                     $scheduled->where('status', 'scheduled')
                         ->whereNotNull('scheduled_at')
                         ->where('scheduled_at', '<=', $now);
-                });
+                    });
             })->count(),
             'scheduled' => Announcement::query()->where('status', 'scheduled')
                 ->where(function ($query) use ($now) {
@@ -200,7 +196,7 @@ class AnnouncementController extends Controller
         $dateSent = $validated['date_sent'] ?? null;
         $scheduledAt = $validated['scheduled_at'] ?? null;
 
-        if ($status === 'published' && !$dateSent) {
+        if ($status === 'published') {
             $dateSent = now();
         } elseif ($status === 'scheduled') {
             if (!$scheduledAt && $dateSent) {
@@ -412,12 +408,11 @@ class AnnouncementController extends Controller
         if ($request->has('priority')) {
             $announcement->priority = $validated['priority'];
         }
+        $wasPublished = $announcement->status === 'published';
         if ($request->has('status')) {
             $announcement->status = $validated['status'];
             if ($announcement->status === 'scheduled') {
                 $announcement->date_sent = null;
-            } elseif ($announcement->status === 'published' && !$announcement->date_sent) {
-                $announcement->date_sent = now();
             }
         }
         if ($request->has('date_sent')) {
@@ -431,6 +426,8 @@ class AnnouncementController extends Controller
                 $announcement->scheduled_at = $validated['date_sent'];
             }
             $announcement->date_sent = null;
+        } elseif ($announcement->status === 'published' && !$wasPublished) {
+            $announcement->date_sent = now();
         }
         if ($request->has('author_name')) {
             $announcement->author_name = $validated['author_name'];
@@ -490,8 +487,9 @@ class AnnouncementController extends Controller
             $newStatus = $announcement->status === 'published' ? 'draft' : 'published';
         }
 
+        $wasPublished = $announcement->status === 'published';
         $announcement->status = $newStatus;
-        if ($newStatus === 'published' && !$announcement->date_sent) {
+        if ($newStatus === 'published' && !$wasPublished) {
             $announcement->date_sent = now();
         }
 
@@ -622,16 +620,12 @@ class AnnouncementController extends Controller
     {
         return Announcement::query()
             ->where(function ($query) {
-                $query->where(function ($published) {
-                    $published->where('status', 'published')
-                        ->where(function ($sent) {
-                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now());
-                        });
-                })->orWhere(function ($scheduled) {
+                $query->where('status', 'published')
+                    ->orWhere(function ($scheduled) {
                     $scheduled->where('status', 'scheduled')
                         ->whereNotNull('scheduled_at')
                         ->where('scheduled_at', '<=', now());
-                });
+                    });
             })
             ->whereJsonContains('target_audiences', 'customers')
             ->where('priority', '!=', 'promo')
@@ -708,16 +702,12 @@ class AnnouncementController extends Controller
     {
         return Announcement::query()
             ->where(function ($query) {
-                $query->where(function ($published) {
-                    $published->where('status', 'published')
-                        ->where(function ($sent) {
-                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now());
-                        });
-                })->orWhere(function ($scheduled) {
+                $query->where('status', 'published')
+                    ->orWhere(function ($scheduled) {
                     $scheduled->where('status', 'scheduled')
                         ->whereNotNull('scheduled_at')
                         ->where('scheduled_at', '<=', now());
-                });
+                    });
             })
             ->whereJsonContains('target_audiences', 'franchise_branches')
             ->where(function ($query) use ($branchId) {

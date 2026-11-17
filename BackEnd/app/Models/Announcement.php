@@ -77,10 +77,6 @@ class Announcement extends Model
 
     public function scopePublished(Builder $query): Builder
     {
-        return $query->where('status', 'published')
-                     ->where(function (Builder $q) {
-                         $q->whereNull('date_sent')
-                           ->orWhere('date_sent', '<=', now());
-                     });
+        return $query->where('status', 'published');
     }
 }
