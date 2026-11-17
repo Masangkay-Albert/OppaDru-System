@@ -556,11 +556,11 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
               triggerClassName="h-11 rounded-xl"
             />
             {hasScopeControls && <Select
-              aria-label="Filter products by branch"
+              aria-label="Filter products by scope"
               value={branchFilter}
               onChange={(value) => { setBranchFilter(value); setSelectedIds([]); setPage(1); }}
               options={[
-                { value: 'all', label: 'All branches' },
+                { value: 'all', label: 'All Products' },
                 { value: 'global', label: 'Global products' },
                 ...branchOptions.map((branch) => ({ value: branch.id, label: branch.name })),
               ]}
@@ -786,10 +786,10 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
             role="dialog"
             aria-modal="true"
             aria-labelledby="product-form-title"
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--oppa-border)] bg-white p-5 shadow-2xl sm:p-6"
+            className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--oppa-border)] px-5 py-4 sm:px-6">
               <div>
                 <h2 id="product-form-title" className="font-serif text-xl font-semibold text-[var(--oppa-text)]">
                   {modalMode === 'add' ? 'Add Product' : 'Edit Product'}
@@ -798,56 +798,59 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                   {modalMode === 'add' ? 'Create a new menu item for the shop.' : 'Update the selected product details.'}
                 </p>
               </div>
-              <button type="button" data-dialog-initial-focus aria-label="Close product form" onClick={closeModal} className="rounded-lg p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]">
+              <button type="button" data-dialog-initial-focus aria-label="Close product form" onClick={closeModal} className="rounded-lg p-2 text-[var(--oppa-text-muted)] transition hover:bg-[var(--oppa-cream)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/40">
                 <X size={18} />
               </button>
             </div>
 
-            <ValidatedForm onSubmit={handleSubmit} className="space-y-4">
-              {saveError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{saveError}</p>}
+            <ValidatedForm onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+              <div className="admin-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
+                {saveError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{saveError}</p>}
 
-              <div>
-                <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Product Name</label>
-                <LimitedInput
-                  data-required="true"
-                  data-min-length={INPUT_LIMITS.productName.min}
-                  maxLength={INPUT_LIMITS.productName.max}
-                  inputFilter="businessName"
-                  showCounter
-                  value={form.name}
-                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                  className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Description</label>
-                <LimitedTextarea
-                  maxLength={INPUT_LIMITS.shortDescription.max}
-                  showCounter
-                  value={form.description}
-                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-                  className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
-                  rows={3}
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Price (₱)</label>
+                  <label htmlFor="product-name" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">Product name</label>
                   <LimitedInput
-                    type="text"
-                    inputMode="decimal"
-                    inputFilter="amount"
+                    id="product-name"
                     data-required="true"
-                    maxLength={9}
-                    data-max={INPUT_LIMITS.amount.max}
-                    value={form.price}
-                    onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
-                    className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]"
+                    data-min-length={INPUT_LIMITS.productName.min}
+                    maxLength={INPUT_LIMITS.productName.max}
+                    inputFilter="businessName"
+                    showCounter
+                    value={form.name}
+                    onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                    className="h-11 w-full rounded-xl border border-[var(--oppa-border)] px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/30"
                   />
                 </div>
+
                 <div>
+                  <label htmlFor="product-description" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">Description</label>
+                  <LimitedTextarea
+                    id="product-description"
+                    maxLength={INPUT_LIMITS.shortDescription.max}
+                    showCounter
+                    value={form.description}
+                    onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+                    className="w-full rounded-xl border border-[var(--oppa-border)] px-3 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/30"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="product-price" className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">Price (₱)</label>
+                    <LimitedInput
+                      id="product-price"
+                      type="text"
+                      inputMode="decimal"
+                      inputFilter="amount"
+                      data-required="true"
+                      maxLength={9}
+                      data-max={INPUT_LIMITS.amount.max}
+                      value={form.price}
+                      onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
+                      className="h-11 w-full rounded-xl border border-[var(--oppa-border)] px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/30"
+                    />
+                  </div>
                   <Select
                     label="Category"
                     value={form.category}
@@ -857,46 +860,65 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                       ...(modalMode === 'add' && isFixedPriceBeverage(category) ? { price: '99' } : {}),
                     }))}
                     options={categoryOptions.filter((option) => option.value !== 'all')}
+                    triggerClassName="h-11 rounded-xl"
                   />
                 </div>
+                {hasScopeControls && <Select
+                  label="Scope"
+                  aria-label="Product scope"
+                  value={form.franchiseId}
+                  onChange={(value) => setForm((prev) => ({ ...prev, franchiseId: value }))}
+                  options={[
+                    { value: GLOBAL_PRODUCT_SCOPE, label: 'All branches (global)' },
+                    ...branchOptions.map((branch) => ({ value: branch.id, label: branch.name })),
+                  ]}
+                  disabled={branchOptionsLoading || Boolean(branchOptionsError)}
+                  triggerClassName="h-11 rounded-xl"
+                />}
+
+                <div>
+                  <p className="mb-1.5 block text-sm font-medium text-[var(--oppa-text)]">Food image</p>
+                  <div className="flex flex-col gap-3 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-cream)]/50 p-3 sm:flex-row sm:items-center">
+                    <div className="grid h-24 w-full shrink-0 place-items-center overflow-hidden rounded-lg border border-[var(--oppa-border)] bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)] sm:w-40">
+                      {(imagePreview || (form.image && form.image !== '/oppadrulogo.jpg'))
+                        ? <img src={imagePreview || form.image} alt="Product preview" className="h-full w-full object-cover" />
+                        : <ImageIcon size={30} aria-hidden="true" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p id="product-image-description" className="text-sm font-medium text-[var(--oppa-text)]">Add a clear photo of this product.</p>
+                      <input id="product-image" type="file" accept="image/*" aria-describedby="product-image-description" onChange={handleImageChange} className="peer sr-only" />
+                      <label htmlFor="product-image" className="mt-2 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-[var(--oppa-border)] bg-white px-3 text-sm font-semibold text-[var(--oppa-green)] transition hover:bg-[var(--oppa-green-soft)] peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--oppa-green)]/40 peer-focus-visible:ring-offset-2">
+                        <ImagePlus size={16} aria-hidden="true" />Choose image
+                      </label>
+                      <p aria-live="polite" className="mt-1 max-w-full truncate text-xs text-[var(--oppa-text-muted)]" title={selectedFile?.name || undefined}>
+                        {selectedFile?.name || (form.image && form.image !== '/oppadrulogo.jpg' ? 'Current image' : 'No image selected')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <label htmlFor="product-available" className="flex w-fit cursor-pointer items-center gap-2 text-sm font-medium text-[var(--oppa-text)]">
+                  <input
+                    id="product-available"
+                    type="checkbox"
+                    checked={form.isAvailable}
+                    onChange={(event) => setForm((prev) => ({ ...prev, isAvailable: event.target.checked }))}
+                    className="size-4 rounded accent-[var(--oppa-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/40 focus-visible:ring-offset-2"
+                  />
+                  Available for ordering
+                </label>
               </div>
-              {hasScopeControls && <Select
-                label="Scope"
-                aria-label="Product scope"
-                value={form.franchiseId}
-                onChange={(value) => setForm((prev) => ({ ...prev, franchiseId: value }))}
-                options={[
-                  { value: GLOBAL_PRODUCT_SCOPE, label: 'All branches (global)' },
-                  ...branchOptions.map((branch) => ({ value: branch.id, label: branch.name })),
-                ]}
-                disabled={branchOptionsLoading || Boolean(branchOptionsError)}
-              />}
 
-              <div>
-                <label className="mb-1 block text-sm text-[var(--oppa-text-muted)]">Food Image</label>
-                <input type="file" accept="image/*" onChange={handleImageChange} className="w-full rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-sm" />
-                  {(imagePreview || (form.image && form.image !== '/oppadrulogo.jpg')) ? <img src={imagePreview || form.image} alt="Product preview" className="mt-3 h-28 w-full rounded-xl object-cover" /> : <div className="mt-3 flex h-28 items-center justify-center rounded-xl bg-[var(--oppa-green-soft)] text-[var(--oppa-green-dark)]"><ImageIcon size={32} aria-hidden="true" /></div>}
-              </div>
-
-              <label className="flex items-center gap-2 text-sm text-[var(--oppa-text-muted)]">
-                <input
-                  type="checkbox"
-                  checked={form.isAvailable}
-                  onChange={(event) => setForm((prev) => ({ ...prev, isAvailable: event.target.checked }))}
-                />
-                Available for ordering
-              </label>
-
-              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+              <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[var(--oppa-border)] bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
                 <button
                   type="button"
                   onClick={closeModal}
                   disabled={isSaving}
-                  className="rounded-lg border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] hover:bg-[var(--oppa-cream)]"
+                  className="min-h-10 rounded-xl border border-[var(--oppa-border)] px-4 py-2 text-sm font-medium text-[var(--oppa-text)] transition hover:bg-[var(--oppa-cream)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/40 disabled:opacity-60"
                 >
                   Cancel
                 </button>
-                <button type="submit" disabled={isSaving || (hasScopeControls && (branchOptionsLoading || Boolean(branchOptionsError)))} className="bg-oppa-gradient rounded-lg px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-wait disabled:opacity-60">
+                <button type="submit" disabled={isSaving || (hasScopeControls && (branchOptionsLoading || Boolean(branchOptionsError)))} className="bg-oppa-gradient min-h-10 rounded-xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oppa-green)]/40 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
                   {isSaving ? 'Saving…' : modalMode === 'add' ? 'Save Product' : 'Save Changes'}
                 </button>
               </div>

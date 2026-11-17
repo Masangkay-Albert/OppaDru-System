@@ -40,11 +40,18 @@ class DiscountApplication extends Model
         'proof_image_data',
     ];
 
-    public function getProofImageUrlAttribute($value): ?string
+    public function getProofImageUrlAttribute(?string $value): ?string
     {
-        return $value || !empty($this->attributes['proof_image_data'])
-            ? url('/api/discount-applications/'.$this->id.'/proof-image')
-            : null;
+        if (! $value && empty($this->attributes['proof_image_data'])) {
+            return null;
+        }
+
+        $imageData = $this->attributes['proof_image_data'] ?? null;
+        $version = is_string($imageData) && $imageData !== ''
+            ? sha1($imageData)
+            : ($this->submitted_at?->format('U.u') ?? 'current');
+
+        return url('/api/discount-applications/'.$this->id.'/proof-image').'?v='.rawurlencode($version);
     }
 
     protected static function boot()

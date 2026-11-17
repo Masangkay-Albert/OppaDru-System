@@ -388,8 +388,8 @@ export default function AdminPromosPage() {
     setDiscountValue('10');
     setMinOrderAmount('0');
     setMaxDiscountAmount('');
-    setUsageLimit('');
-    setPerCustomerLimit('');
+    setUsageLimit('1');
+    setPerCustomerLimit('1');
     setStartDate('');
     setEndDate('');
     setInitialStartDate('');
@@ -524,7 +524,12 @@ export default function AdminPromosPage() {
       return;
     }
     const optionalLimits = [usageLimit, perCustomerLimit].filter((value) => value !== '');
-    if (optionalLimits.some((value) => !/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 999999)) {
+    const requiredNewLimitMissing = !editingPromo && optionalLimits.length !== 2;
+    const savedLimitCleared = Boolean(editingPromo && (
+      (editingPromo.usage_limit != null && usageLimit === '')
+      || (editingPromo.per_customer_limit != null && perCustomerLimit === '')
+    ));
+    if (requiredNewLimitMissing || savedLimitCleared || optionalLimits.some((value) => !/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 999999)) {
       setFormError('Usage limits must be whole numbers from 1 to 999,999.');
       return;
     }
@@ -932,11 +937,11 @@ export default function AdminPromosPage() {
               </div>
               <div>
                 <FieldLabel htmlFor="promo-usage-limit">Total usage limit</FieldLabel>
-                <LimitedInput id="promo-usage-limit" type="text" inputMode="numeric" inputFilter="digits" maxLength={6} placeholder="Unlimited" value={usageLimit} onChange={(event) => setUsageLimit(event.target.value)} className={inputClass()} />
+                <LimitedInput id="promo-usage-limit" type="number" min={1} max={999999} step={1} inputMode="numeric" inputFilter="digits" placeholder="1 or more" value={usageLimit} onChange={(event) => setUsageLimit(event.target.value)} className={inputClass()} />
               </div>
               <div>
                 <FieldLabel htmlFor="promo-per-customer-limit">Uses per customer</FieldLabel>
-                <LimitedInput id="promo-per-customer-limit" type="text" inputMode="numeric" inputFilter="digits" maxLength={6} placeholder="Unlimited" value={perCustomerLimit} onChange={(event) => setPerCustomerLimit(event.target.value)} className={inputClass()} />
+                <LimitedInput id="promo-per-customer-limit" type="number" min={1} max={999999} step={1} inputMode="numeric" inputFilter="digits" placeholder="1 or more" value={perCustomerLimit} onChange={(event) => setPerCustomerLimit(event.target.value)} className={inputClass()} />
               </div>
             </div>
 

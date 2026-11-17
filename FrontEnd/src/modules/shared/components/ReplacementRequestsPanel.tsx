@@ -17,12 +17,19 @@ import type { ReplacementRequestListItem, ReplacementStats } from '../../../serv
 import { INPUT_LIMITS } from '../../../constants/inputLimits';
 import { formatCurrency } from '../../../utils/formatters';
 
-type RequestTab = 'pending' | 'done' | 'all';
+type RequestTab = 'pending' | 'in_progress' | 'replaced' | 'rejected' | 'done' | 'all';
 type ActionKind = 'approve' | 'reject';
 type ActionError = { message: string; detail?: string };
 type ReplacementResponse = {
   data?: ReplacementRequestListItem[];
   waiting_count?: number;
+  status_counts?: {
+    needs_review?: number;
+    in_progress?: number;
+    replaced?: number;
+    not_approved?: number;
+    all?: number;
+  };
   monthly_replacements?: ReplacementStats;
 };
 type ApiPayload = {
@@ -36,6 +43,7 @@ interface ReplacementRequestsPanelProps {
   fetcher: (input: string, init?: RequestInit) => Promise<Response>;
   onHandled: () => void;
   onOpenOrder: (orderId: string) => void;
+  detailedStatuses?: boolean;
 }
 
 const issueLabels: Record<string, string> = {
@@ -119,12 +127,14 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
   fetcher,
   onHandled,
   onOpenOrder,
+  detailedStatuses = false,
 }) => {
   const [tab, setTab] = useState<RequestTab>('pending');
   const [issueFilter, setIssueFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [requests, setRequests] = useState<ReplacementRequestListItem[]>([]);
   const [waitingCount, setWaitingCount] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({ in_progress: 0, replaced: 0, not_approved: 0, all: 0 });
   const [monthlyStats, setMonthlyStats] = useState<ReplacementStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -156,6 +166,12 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
       const data = payload as ReplacementResponse;
       setRequests(Array.isArray(data.data) ? data.data : []);
       setWaitingCount(Number(data.waiting_count || 0));
+      setStatusCounts({
+        in_progress: Number(data.status_counts?.in_progress || 0),
+        replaced: Number(data.status_counts?.replaced || 0),
+        not_approved: Number(data.status_counts?.not_approved || 0),
+        all: Number(data.status_counts?.all || 0),
+      });
       setMonthlyStats(data.monthly_replacements || null);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Could not load replacement requests.');
@@ -185,7 +201,13 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
     }
     if (loading || focusRequestId.current === null) return;
     const request = requests.find((item) => item.id === focusRequestId.current);
-    if (tab === 'done' && request?.status === 'pending') return;
+    if (request && (
+      (tab === 'pending' && request.status !== 'pending')
+      || (tab === 'in_progress' && !['approved', 'replacement_sent'].includes(request.status))
+      || (tab === 'replaced' && request.status !== 'replaced')
+      || (tab === 'rejected' && request.status !== 'rejected')
+      || (tab === 'done' && request.status === 'pending')
+    )) return;
     const target = document.querySelector<HTMLElement>(`[data-replacement-request-id="${focusRequestId.current}"]`);
     target?.focus();
     if (target) focusRequestId.current = null;
@@ -256,7 +278,7 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
       setConfirmSend(false);
       setRejectMode(false);
       setReason('');
-      setTab('done');
+      setTab(detailedStatuses ? (action === 'approve' ? 'in_progress' : 'rejected') : 'done');
       window.dispatchEvent(new Event('replacement-requests-updated'));
       onHandled();
     } catch (error) {
@@ -275,16 +297,30 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
     if (action) void performAction(action.request, action.action, action.reason);
   };
 
-  const tabLabels: Array<{ value: RequestTab; label: string }> = [
+  const tabLabels: Array<{ value: RequestTab; label: string }> = detailedStatuses ? [
+    { value: 'pending', label: 'Needs review' },
+    { value: 'in_progress', label: 'In progress' },
+    { value: 'replaced', label: 'Replaced' },
+    { value: 'rejected', label: 'Not approved' },
+    { value: 'all', label: 'All' },
+  ] : [
     { value: 'pending', label: 'Waiting' },
     { value: 'done', label: 'Done' },
     { value: 'all', label: 'All' },
   ];
+  const tabCounts: Record<RequestTab, number> = {
+    pending: waitingCount,
+    in_progress: statusCounts.in_progress,
+    replaced: statusCounts.replaced,
+    rejected: statusCounts.not_approved,
+    done: statusCounts.in_progress + statusCounts.not_approved,
+    all: statusCounts.all,
+  };
 
   return (
     <section className="replacement-request-ui space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatCard label="Waiting" value={String(waitingCount)} helper="Needs review" />
+        <StatCard label={detailedStatuses ? 'Needs review' : 'Waiting'} value={String(waitingCount)} helper={detailedStatuses ? 'Waiting for admin review' : 'Needs review'} />
         <StatCard label="Replaced this month" value={String(monthlyStats?.count || 0)} helper="Replacement orders sent" />
         <StatCard
           label="Cost this month"
@@ -313,7 +349,9 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
                 className={`min-h-10 shrink-0 rounded-lg px-3 text-sm font-semibold transition ${tab === value ? 'bg-[var(--oppa-surface)] text-[var(--oppa-text)] shadow-sm' : 'text-[var(--oppa-text-muted)] hover:text-[var(--oppa-text)]'}`}
               >
                 {label}
-                {value === 'pending' && waitingCount > 0 && <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-900">{waitingCount > 99 ? '99+' : waitingCount}</span>}
+                {detailedStatuses
+                  ? <span className={`ml-2 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-bold ${tab === value ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-green)]' : 'bg-white/70 text-[var(--oppa-text-muted)]'}`}>{tabCounts[value] > 99 ? '99+' : tabCounts[value]}</span>
+                  : value === 'pending' && waitingCount > 0 && <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-900">{waitingCount > 99 ? '99+' : waitingCount}</span>}
               </button>
             ))}
           </div>

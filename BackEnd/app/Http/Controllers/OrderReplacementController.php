@@ -186,11 +186,7 @@ class OrderReplacementController extends Controller
             'replacementOrder:id,order_number,status,created_at',
         ]);
         $status = (string) $request->query('status', 'all');
-        if ($status === 'pending') {
-            $query->where('status', 'pending');
-        } elseif ($status === 'done') {
-            $query->whereIn('status', ['approved', 'rejected', 'replacement_sent']);
-        }
+        $this->applyRequestFilter($query, $status);
 
         $requests = $query->orderBy('created_at', $status === 'pending' ? 'asc' : 'desc')->get();
         $monthlyRequests = OrderReplacementRequest::query()
@@ -202,6 +198,7 @@ class OrderReplacementController extends Controller
         return response()->json([
             'data' => $requests->map(fn (OrderReplacementRequest $item) => $this->formatRequest($item, true)),
             'waiting_count' => OrderReplacementRequest::query()->where('status', 'pending')->count(),
+            'status_counts' => $this->requestStatusCounts(OrderReplacementRequest::query()),
             'replacements' => $this->replacementStats(OrderReplacementRequest::query()->with('replacementOrder:id,status')->get()),
             'monthly_replacements' => $this->replacementStats($monthlyRequests),
         ]);
@@ -230,6 +227,7 @@ class OrderReplacementController extends Controller
         return response()->json([
             'data' => $requests->map(fn (OrderReplacementRequest $item) => $this->formatRequest($item, true, (string) $user->franchise_id)),
             'waiting_count' => $this->branchRequests((string) $user->franchise_id)->where('status', 'pending')->count(),
+            'status_counts' => $this->requestStatusCounts($this->branchRequests((string) $user->franchise_id)),
             'replacements' => $this->replacementStats(
                 $this->branchRequests((string) $user->franchise_id)->with('replacementOrder:id,status')->get(),
             ),
@@ -481,9 +479,26 @@ class OrderReplacementController extends Controller
     {
         if ($status === 'pending') {
             $query->where('status', 'pending');
+        } elseif ($status === 'in_progress') {
+            $query->whereIn('status', ['approved', 'replacement_sent']);
+        } elseif ($status === 'replaced') {
+            $query->where('status', 'replaced');
+        } elseif ($status === 'rejected') {
+            $query->where('status', 'rejected');
         } elseif ($status === 'done') {
             $query->whereIn('status', ['approved', 'rejected', 'replacement_sent']);
         }
+    }
+
+    private function requestStatusCounts(Builder $query): array
+    {
+        return [
+            'needs_review' => (clone $query)->where('status', 'pending')->count(),
+            'in_progress' => (clone $query)->whereIn('status', ['approved', 'replacement_sent'])->count(),
+            'replaced' => (clone $query)->where('status', 'replaced')->count(),
+            'not_approved' => (clone $query)->where('status', 'rejected')->count(),
+            'all' => (clone $query)->count(),
+        ];
     }
 
     /**

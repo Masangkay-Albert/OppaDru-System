@@ -325,12 +325,12 @@ const AdminAddonsPage: React.FC = () => {
             const draftGroup = editingGroups[group.id];
             return <section key={group.id} className="admin-card overflow-visible p-0">
               <div className="flex min-w-0 flex-wrap items-center gap-3 p-4 sm:p-5">
-                <button type="button" aria-expanded={isExpanded} onClick={() => setExpandedGroups((current) => ({ ...current, [group.id]: !isExpanded }))} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                <button type="button" aria-expanded={isExpanded} title={getCategoryLabels(group) ? `Categories: ${getCategoryLabels(group)}` : undefined} onClick={() => setExpandedGroups((current) => ({ ...current, [group.id]: !isExpanded }))} className="flex min-w-0 flex-1 items-center gap-3 text-left">
                   <ChevronDown aria-hidden="true" size={18} className={`shrink-0 text-green-700 transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-semibold text-[var(--oppa-text)]">{group.name}</span>
-                      {getCategoryLabels(group) && <span title={getCategoryLabels(group)} className="max-w-48 truncate rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-medium text-stone-600">{getCategoryLabels(group)}</span>}
+                      {getCategoryLabels(group) && <span title={`Categories: ${getCategoryLabels(group)}`} className="max-w-48 truncate rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-medium text-stone-600">{getCategoryLabels(group)}</span>}
                     </span>
                     <span className="mt-1 block text-xs text-[var(--oppa-text-muted)]">{group.selection_type === 'single' ? 'Single selection' : 'Multiple selection'} · {group.addons.length} {group.addons.length === 1 ? 'item' : 'items'}{group.supports_quantity ? ' · Quantity enabled' : ''}</span>
                   </span>
@@ -363,19 +363,39 @@ const AdminAddonsPage: React.FC = () => {
                         const available = addon.is_active !== false;
                         return <div key={addon.id} className={`min-w-0 rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-3 transition-opacity ${available ? '' : 'opacity-60'}`}>
                           {draft
-                            ? <div className="grid grid-cols-[40px_minmax(0,1fr)_90px] items-center gap-3">
-                              <AddonImage name={draft.name || addon.name} image={draft.image} preview={draft.preview} />
-                              <LimitedInput aria-label={`Edit ${addon.name}`} data-min-length={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" showCounter value={draft.name} onChange={(event) => setEditingAddon((current) => ({ ...current, [addonId]: { ...draft, name: event.target.value } }))} className="h-10 min-w-0 rounded-lg border border-[var(--oppa-border)] px-2 text-sm" />
-                              <LimitedInput aria-label={`Price for ${addon.name}`} type="text" inputMode="decimal" inputFilter="amount" maxLength={9} data-max={INPUT_LIMITS.amount.max} value={draft.price} onChange={(event) => handlePriceInput(event.target.value, (price) => setEditingAddon((current) => ({ ...current, [addonId]: { ...draft, price } })), setPriceError)} className="h-10 w-full rounded-lg border border-[var(--oppa-border)] px-2 text-right text-sm tabular-nums" />
-                              <div className="col-span-3 flex items-center justify-between">
-                                <label title="Upload add-on photo" className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-green-700 hover:bg-green-50"><ImagePlus size={17} /><input type="file" accept="image/*" className="hidden" onChange={(event) => {
-                                  const file = event.target.files?.[0];
-                                  if (!file) return;
-                                  const reader = new FileReader();
-                                  reader.onload = () => setEditingAddon((current) => ({ ...current, [addonId]: { ...draft, imageFile: file, preview: typeof reader.result === 'string' ? reader.result : draft.preview } }));
-                                  reader.readAsDataURL(file);
-                                }} /></label>
-                                <div className="flex gap-2"><button type="button" onClick={() => setEditingAddon((current) => { const next = { ...current }; delete next[addonId]; return next; })} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs">Cancel</button><button type="button" disabled={!draft.name.trim() || Number(draft.price) <= 0} onClick={() => void saveAddon(addonId)} className="rounded-lg bg-green-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Save</button></div>
+                            ? <div className="space-y-3">
+                              <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(150px,190px)]">
+                                <div className="flex items-center gap-2">
+                                  <AddonImage name={draft.name || addon.name} image={draft.image} preview={draft.preview} />
+                                  <label className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-2.5 text-xs font-medium text-green-800 hover:bg-green-50 focus-within:outline-none focus-within:ring-2 focus-within:ring-green-700/40">
+                                    <ImagePlus size={15} aria-hidden="true" />Change image
+                                    <input type="file" accept="image/*" aria-label={`Change image for ${addon.name}`} className="sr-only" onChange={(event) => {
+                                      const file = event.target.files?.[0];
+                                      if (!file) return;
+                                      const reader = new FileReader();
+                                      reader.onload = () => setEditingAddon((current) => ({ ...current, [addonId]: { ...draft, imageFile: file, preview: typeof reader.result === 'string' ? reader.result : draft.preview } }));
+                                      reader.readAsDataURL(file);
+                                    }} />
+                                  </label>
+                                </div>
+                                <label htmlFor={`addon-name-${addonId}`} className="block min-w-0 text-xs font-semibold text-[var(--oppa-text-muted)]">
+                                  Name
+                                  <span className="relative mt-1 block">
+                                    <LimitedInput id={`addon-name-${addonId}`} data-min-length={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" value={draft.name} onChange={(event) => setEditingAddon((current) => ({ ...current, [addonId]: { ...draft, name: event.target.value } }))} className="h-10 w-full min-w-0 rounded-lg border border-[var(--oppa-border)] bg-white px-3 pr-14 text-sm font-normal text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30" />
+                                    <span aria-live="polite" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-normal text-[var(--oppa-text-muted)]">{draft.name.length}/{INPUT_LIMITS.categoryOrSupplierName.max}</span>
+                                  </span>
+                                </label>
+                                <label htmlFor={`addon-price-${addonId}`} className="block text-xs font-semibold text-[var(--oppa-text-muted)]">
+                                  Price
+                                  <span className="relative mt-1 block">
+                                    <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-normal text-[var(--oppa-text-muted)]">₱</span>
+                                    <input id={`addon-price-${addonId}`} type="number" min="0.01" step="0.01" max={INPUT_LIMITS.amount.max} value={draft.price} onChange={(event) => handlePriceInput(event.target.value, (price) => setEditingAddon((current) => ({ ...current, [addonId]: { ...draft, price } })), setPriceError)} className="h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-white pl-7 pr-3 text-right text-sm font-normal tabular-nums text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30" />
+                                  </span>
+                                </label>
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <button type="button" onClick={() => setEditingAddon((current) => { const next = { ...current }; delete next[addonId]; return next; })} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/40">Cancel</button>
+                                <button type="button" disabled={!draft.name.trim() || Number(draft.price) <= 0} onClick={() => void saveAddon(addonId)} className="rounded-lg bg-green-700 px-3 py-2 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/40 disabled:opacity-50">Save</button>
                               </div>
                             </div>
                             : <div className="grid grid-cols-[40px_minmax(0,1fr)_90px_auto_36px] items-center gap-4">
@@ -389,16 +409,34 @@ const AdminAddonsPage: React.FC = () => {
                       })}</div>}
 
                     {addingAddonGroup === group.id && <div className="mt-3 rounded-xl border border-green-200 bg-green-50/50 p-4">
-                      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px_auto]">
-                        <LimitedInput aria-label="New add-on name" data-min-length={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" showCounter value={newAddon[group.id]?.name || ''} onChange={(event) => setNewAddon((current) => ({ ...current, [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), name: event.target.value } }))} placeholder="Add-on name" className="h-10 min-w-0 rounded-lg border border-[var(--oppa-border)] px-3 text-sm" />
-                        <LimitedInput aria-label="New add-on price" type="text" inputMode="decimal" inputFilter="amount" maxLength={9} data-max={INPUT_LIMITS.amount.max} value={newAddon[group.id]?.price || ''} onChange={(event) => handlePriceInput(event.target.value, (price) => setNewAddon((current) => ({ ...current, [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), price } })), setPriceError)} placeholder="Price (₱)" className="h-10 rounded-lg border border-[var(--oppa-border)] px-3 text-sm tabular-nums" />
-                        <label title="Upload optional add-on photo" className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--oppa-border)] bg-white px-3 text-xs font-medium text-green-800 hover:bg-green-50"><ImagePlus size={16} />{newAddon[group.id]?.imageFile ? 'Photo selected' : 'Optional photo'}<input type="file" accept="image/*" className="hidden" onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = () => setNewAddon((current) => ({ ...current, [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), imageFile: file, preview: typeof reader.result === 'string' ? reader.result : '' } }));
-                          reader.readAsDataURL(file);
-                        }} /></label>
+                      <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(150px,190px)]">
+                        <div className="flex items-center gap-2">
+                          <AddonImage name={newAddon[group.id]?.name || 'Add-on'} preview={newAddon[group.id]?.preview} />
+                          <label className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--oppa-border)] bg-white px-2.5 text-xs font-medium text-green-800 hover:bg-green-50 focus-within:outline-none focus-within:ring-2 focus-within:ring-green-700/40">
+                            <ImagePlus size={15} aria-hidden="true" />Upload image
+                            <input type="file" accept="image/*" aria-label="Upload add-on image" className="sr-only" onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = () => setNewAddon((current) => ({ ...current, [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), imageFile: file, preview: typeof reader.result === 'string' ? reader.result : '' } }));
+                              reader.readAsDataURL(file);
+                            }} />
+                          </label>
+                        </div>
+                        <label htmlFor={`new-addon-name-${group.id}`} className="block min-w-0 text-xs font-semibold text-[var(--oppa-text-muted)]">
+                          Name
+                          <span className="relative mt-1 block">
+                            <LimitedInput id={`new-addon-name-${group.id}`} data-min-length={INPUT_LIMITS.categoryOrSupplierName.min} maxLength={INPUT_LIMITS.categoryOrSupplierName.max} inputFilter="businessName" value={newAddon[group.id]?.name || ''} onChange={(event) => setNewAddon((current) => ({ ...current, [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), name: event.target.value } }))} className="h-10 w-full min-w-0 rounded-lg border border-[var(--oppa-border)] bg-white px-3 pr-14 text-sm font-normal text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30" />
+                            <span aria-live="polite" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-normal text-[var(--oppa-text-muted)]">{(newAddon[group.id]?.name || '').length}/{INPUT_LIMITS.categoryOrSupplierName.max}</span>
+                          </span>
+                        </label>
+                        <label htmlFor={`new-addon-price-${group.id}`} className="block text-xs font-semibold text-[var(--oppa-text-muted)]">
+                          Price
+                          <span className="relative mt-1 block">
+                            <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-normal text-[var(--oppa-text-muted)]">₱</span>
+                            <input id={`new-addon-price-${group.id}`} type="number" min="0.01" step="0.01" max={INPUT_LIMITS.amount.max} value={newAddon[group.id]?.price || ''} onChange={(event) => handlePriceInput(event.target.value, (price) => setNewAddon((current) => ({ ...current, [group.id]: { ...(current[group.id] || createEmptyAddonDraft()), price } })), setPriceError)} className="h-10 w-full rounded-lg border border-[var(--oppa-border)] bg-white pl-7 pr-3 text-right text-sm tabular-nums text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700/30" />
+                          </span>
+                        </label>
                       </div>
                       <div className="mt-3 flex justify-end gap-2">
                         <button type="button" onClick={() => cancelNewAddon(group.id)} className="rounded-lg border border-[var(--oppa-border)] px-3 py-2 text-xs font-medium">Cancel</button>

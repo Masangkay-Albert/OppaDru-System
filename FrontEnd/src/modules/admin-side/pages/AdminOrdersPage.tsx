@@ -394,6 +394,7 @@ const AdminOrdersPage: React.FC = () => {
       {activeOrdersTab === 'replacements' ? <ReplacementRequestsPanel
         endpoint={`${API_URL}/admin/replacement-requests`}
         fetcher={replacementFetcher}
+        detailedStatuses
         onHandled={() => { void loadOrders(true, false); void loadReplacementWaitingCount(); }}
         onOpenOrder={(orderId) => {
           setActiveOrdersTab('orders');

@@ -117,7 +117,9 @@ class DiscountApplicationController extends Controller
                     'email' => $application->user->email,
                 ] : null,
             ];
-        })]);
+        })])->header('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
     }
 
     public function updateStatus(Request $request, string $id)
