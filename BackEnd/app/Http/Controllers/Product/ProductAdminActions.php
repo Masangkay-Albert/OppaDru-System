@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Product;
 
 use App\Models\Product;
+use App\Services\FranchiseInventoryService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,13 +23,29 @@ trait ProductAdminActions
         return response()->json(['count' => Product::count()]);
     }
 
-    public function getAllForAdmin(Request $request)
+    public function getAllForAdmin(Request $request, FranchiseInventoryService $inventoryService)
     {
         if (! $this->checkAdminAuth($request)) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        return response()->json(['data' => $this->productQuery()->get()]);
+        $products = $this->productQuery()->get();
+        $unavailableIds = array_fill_keys(
+            $inventoryService->globalProductsUnavailableInAnyBranch(
+                $products->whereNull('franchise_id')->pluck('id')->all()
+            ),
+            true
+        );
+        $products->each(static function (Product $product) use ($unavailableIds): void {
+            if ($product->franchise_id === null) {
+                $product->setAttribute(
+                    'global_visible_to_all_branches',
+                    ! isset($unavailableIds[(string) $product->id])
+                );
+            }
+        });
+
+        return response()->json(['data' => $products]);
     }
 
     public function getArchivedForAdmin(Request $request)

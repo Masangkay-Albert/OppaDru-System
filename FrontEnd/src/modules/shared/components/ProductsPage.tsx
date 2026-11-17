@@ -42,7 +42,6 @@ export interface ProductsPageConfig {
     bulkDelete: boolean;
     forProduct: (product: Product, permission: ProductPermission) => boolean;
   };
-  migrateLegacyArchives?: boolean;
 }
 
 const categoryOptions: Array<{ value: ProductCategory | 'all'; label: string }> = [
@@ -153,30 +152,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
 
   const refresh = useCallback(async () => {
     try {
-      let [activeProducts, archivedProducts] = await Promise.all([config.adapter.list(), config.adapter.listArchived()]);
-      if (config.migrateLegacyArchives) {
-        const activeIds = new Set(activeProducts.map((product) => product.id));
-        const archivedIds = new Set(archivedProducts.map((product) => product.id));
-        let legacyIds: string[] = [];
-        try {
-          const saved = JSON.parse(localStorage.getItem('adminArchivedProducts') || '[]');
-          if (Array.isArray(saved)) legacyIds = saved.filter((id): id is string => typeof id === 'string');
-        } catch (error) {
-          console.warn('Could not read locally saved archived products.', error);
-        }
-        const legacyToArchive = legacyIds.filter((id) => activeIds.has(id) && !archivedIds.has(id));
-        const archiveResults = await Promise.allSettled(legacyToArchive.map((id) => config.adapter.archive(id)));
-        const failedLegacyIds = legacyToArchive.filter((_, index) => archiveResults[index].status === 'rejected');
-        if (failedLegacyIds.length) {
-          setActionError('Some previously archived products could not be synchronized. Try archiving them again.');
-        }
-        const legacyIdsToKeep = legacyIds.filter((id) => failedLegacyIds.includes(id) || (!activeIds.has(id) && !archivedIds.has(id)));
-        if (legacyIdsToKeep.length) localStorage.setItem('adminArchivedProducts', JSON.stringify(legacyIdsToKeep));
-        else localStorage.removeItem('adminArchivedProducts');
-        if (archiveResults.some((result) => result.status === 'fulfilled')) {
-          [activeProducts, archivedProducts] = await Promise.all([config.adapter.list(), config.adapter.listArchived()]);
-        }
-      }
+      const [activeProducts, archivedProducts] = await Promise.all([config.adapter.list(), config.adapter.listArchived()]);
       setProducts([...activeProducts, ...archivedProducts]);
       setActionError('');
     } catch (error) {
@@ -187,7 +163,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [config.adapter, config.migrateLegacyArchives]);
+  }, [config.adapter]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => { void refresh().catch(() => undefined); }, 0);
@@ -197,14 +173,37 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
   const getCategoryLabel = (category: string) => {
     return categories.find((item) => item.id === category)?.name || category.replace('-', ' ');
   };
-  const getBranchLabel = (branchId: string | null | undefined) => (
-    branchId ? branchOptions.find((branch) => branch.id === String(branchId))?.name || 'Branch' : 'All branches'
+  const getBranchLabel = (product: Product) => (
+    product.franchise_id
+      ? branchOptions.find((branch) => branch.id === String(product.franchise_id))?.name || 'Branch'
+      : product.global_visible_to_all_branches === false ? 'Not in all branches' : 'All branches'
   );
+  const getDetailsBranchNames = (product: Product) => {
+    if (product.franchise_id) {
+      const branchName = branchOptions.find((branch) => branch.id === String(product.franchise_id))?.name;
+      return branchName ? [branchName] : [];
+    }
+
+    return product.global_visible_to_all_branches === true ? ['All branches'] : [];
+  };
+  const getProductOptionNames = (product: Product) => [...new Set([
+    ...(product.addons || []).map((addon) => addon.name),
+    ...(product.addonGroups || []).flatMap((group) => group.addons.map((addon) => addon.name)),
+  ].map((name) => name.trim()).filter(Boolean))];
+  const formatUpdatedDate = (value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? ''
+      : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const branchScopedProducts = products.filter((product) => (
     branchFilter === 'all'
-    || (branchFilter === 'global' ? !product.franchise_id : String(product.franchise_id || '') === branchFilter)
+    || (branchFilter === 'global'
+      ? !product.franchise_id && product.global_visible_to_all_branches !== false
+      : String(product.franchise_id || '') === branchFilter)
   ));
   const categoryFilterOptions = categoryOptions.map((option) => {
     const count = branchScopedProducts.filter((product) => (
@@ -342,26 +341,6 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
     } finally {
       setProductToDelete(null);
       setConfirmBulkDelete(false);
-    }
-  };
-
-  const duplicateProduct = async (product: Product) => {
-    try {
-      await config.adapter.create({
-        name: `${product.name} (copy)`,
-        description: product.description,
-        price: product.price,
-        category: product.category as ProductCategory,
-        image: product.image,
-        is_available: isAvailable(product),
-        isAvailable: isAvailable(product),
-        ...(hasScopeControls ? { franchise_id: product.franchise_id ?? null } : {}),
-      });
-      await refresh();
-      setToastMessage('Product duplicated');
-    } catch (error) {
-      console.error('Failed to duplicate product:', error);
-      setActionError('Could not duplicate this product.');
     }
   };
 
@@ -619,21 +598,57 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
         onConfirm={() => void confirmDeleteProduct()}
       />}
       {detailsProduct && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailsProduct(null); }}>
-        <section ref={(element) => { dialogRef.current = element; }} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="product-details-title" className="w-full max-w-lg rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-2xl sm:p-6">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div><h2 id="product-details-title" className="font-serif text-xl font-semibold text-[var(--oppa-text)]">Product details</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Menu item information</p></div>
-            <button type="button" data-dialog-initial-focus aria-label="Close product details" onClick={() => setDetailsProduct(null)} className="rounded-lg p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)]"><X size={18} /></button>
+        <section ref={(element) => { dialogRef.current = element; }} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="product-details-title" className="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-2xl sm:p-6">
+          <div className="shrink-0">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div><h2 id="product-details-title" className="font-serif text-xl font-semibold text-[var(--oppa-text)]">Product details</h2><p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Menu item information</p></div>
+              <button type="button" data-dialog-initial-focus aria-label="Close product details" onClick={() => setDetailsProduct(null)} className="rounded-lg p-2 text-[var(--oppa-text-muted)] hover:bg-[var(--oppa-cream)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2"><X size={18} /></button>
+            </div>
+            <div className="flex items-center gap-4">
+              <ProductImage src={detailsProduct.image} name={detailsProduct.name} className="size-16 rounded-2xl" />
+              <div className="min-w-0"><h3 className="truncate font-semibold text-[var(--oppa-text)]">{detailsProduct.name}</h3><p className="text-sm text-[var(--oppa-text-muted)]">{getCategoryLabel(detailsProduct.category)}</p></div>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <ProductImage src={detailsProduct.image} name={detailsProduct.name} className="size-16 rounded-2xl" />
-            <div className="min-w-0"><h3 className="truncate font-semibold text-[var(--oppa-text)]">{detailsProduct.name}</h3><p className="text-sm text-[var(--oppa-text-muted)]">{getCategoryLabel(detailsProduct.category)}</p></div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-[var(--oppa-cream)] p-4 text-sm">
+              <div><dt className="text-xs text-[var(--oppa-text-muted)]">Price</dt><dd className="mt-1 font-semibold text-[var(--oppa-text)]">{formatCurrency(detailsProduct.price)}</dd></div>
+              <div>
+                <dt className="text-xs text-[var(--oppa-text-muted)]">Availability</dt>
+                <dd className="mt-1">
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${isAvailable(detailsProduct) ? 'bg-[var(--oppa-green-soft)] text-[var(--oppa-available-text)]' : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-200'}`}>
+                    {isAvailable(detailsProduct) ? 'Available' : 'Unavailable'}
+                  </span>
+                </dd>
+              </div>
+            </dl>
+            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4 rounded-xl bg-[var(--oppa-cream)] p-4 text-sm">
+              {detailsProduct.description?.trim() && <div className="col-span-2 min-w-0">
+                <dt className="text-xs text-[var(--oppa-text-muted)]">Description</dt>
+                <dd className="mt-1 whitespace-pre-wrap break-words leading-6 text-[var(--oppa-text)]">{detailsProduct.description}</dd>
+              </div>}
+              {getDetailsBranchNames(detailsProduct).length > 0 && <div className="col-span-2 min-w-0">
+                <dt className="text-xs text-[var(--oppa-text-muted)]">Branch availability</dt>
+                <dd className="mt-2 flex flex-wrap gap-2">
+                  {getDetailsBranchNames(detailsProduct).map((branchName) => <span key={branchName} className="rounded-full bg-[var(--oppa-green-soft)] px-2.5 py-1 text-xs font-medium text-[var(--oppa-text)]">{branchName}</span>)}
+                </dd>
+              </div>}
+              {getProductOptionNames(detailsProduct).length > 0 && <div className="col-span-2 min-w-0">
+                <dt className="text-xs text-[var(--oppa-text-muted)]">Add-ons / options</dt>
+                <dd className="mt-2 flex flex-wrap gap-2">
+                  {getProductOptionNames(detailsProduct).map((optionName) => <span key={optionName} className="rounded-full bg-white/70 px-2.5 py-1 text-xs font-medium text-[var(--oppa-text)]">{optionName}</span>)}
+                </dd>
+              </div>}
+              {detailsProduct.id.trim() && <div className="min-w-0">
+                <dt className="text-xs text-[var(--oppa-text-muted)]">Product ID</dt>
+                <dd className="mt-1 break-all font-mono text-xs text-[var(--oppa-text)]">{detailsProduct.id}</dd>
+              </div>}
+              {formatUpdatedDate(detailsProduct.updated_at) && <div className="min-w-0">
+                <dt className="text-xs text-[var(--oppa-text-muted)]">Last updated</dt>
+                <dd className="mt-1 font-medium text-[var(--oppa-text)]">{formatUpdatedDate(detailsProduct.updated_at)}</dd>
+              </div>}
+            </dl>
           </div>
-          <p className="mt-4 text-sm leading-6 text-[var(--oppa-text-muted)]">{detailsProduct.description || 'No description provided.'}</p>
-          <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-[var(--oppa-cream)] p-4 text-sm">
-            <div><dt className="text-xs text-[var(--oppa-text-muted)]">Price</dt><dd className="mt-1 font-semibold text-[var(--oppa-text)]">{formatCurrency(detailsProduct.price)}</dd></div>
-            <div><dt className="text-xs text-[var(--oppa-text-muted)]">Availability</dt><dd className="mt-1 font-semibold text-[var(--oppa-text)]">{isAvailable(detailsProduct) ? 'Available' : 'Unavailable'}</dd></div>
-          </dl>
-          {allowed(detailsProduct, 'edit') && <div className="mt-5 flex justify-end"><button type="button" onClick={() => { setDetailsProduct(null); openEditModal(detailsProduct); }} className="rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]">Edit product</button></div>}
+          {allowed(detailsProduct, 'edit') && <div className="mt-5 flex shrink-0 justify-end pt-1"><button type="button" onClick={() => { setDetailsProduct(null); openEditModal(detailsProduct); }} className="rounded-lg bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">Edit product</button></div>}
         </section>
       </div>}
       {toastMessage && <Toast key={toastMessage} message={toastMessage} onDismiss={() => setToastMessage('')} />}
@@ -665,7 +680,7 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                   <p className="mt-0.5 line-clamp-2 text-xs text-[var(--oppa-text-muted)]">{product.description}</p>
                   <div className="mt-2 flex items-center gap-2 text-xs text-[var(--oppa-text-muted)]">
                     <span className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${categoryBadgeStyles[product.category] || 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]'}`}>{getCategoryLabel(product.category)}</span>
-                    {hasScopeControls && <span className="rounded-full bg-[var(--oppa-cream)] px-2 py-1">{getBranchLabel(product.franchise_id)}</span>}
+                    {hasScopeControls && <span className="rounded-full bg-[var(--oppa-cream)] px-2 py-1">{getBranchLabel(product)}</span>}
                     <span>•</span>
                     <span className="tabular-nums ml-auto text-right font-semibold text-[var(--oppa-text)]">{formatCurrency(product.price)}</span>
                   </div>
@@ -677,7 +692,6 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                 <div className="flex items-center gap-1">
                   {!isArchived(product) && <>
                     {allowed(product, 'edit') && <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">Edit</button>}
-                    {allowed(product, 'duplicate') && <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">Duplicate</button>}
                   </>}
                   {actionItems(product).length > 0 && <RowActionsMenu label={product.name} items={actionItems(product)} />}
                 </div>
@@ -726,11 +740,10 @@ const ProductsPage: React.FC<{ config: ProductsPageConfig }> = ({ config }) => {
                   {activeCategory === 'all' && <td data-label="Category" className="col-left"><span title={getCategoryLabel(product.category)} className={`inline-block max-w-full truncate rounded-full px-3 py-1 align-middle text-xs font-medium capitalize ${categoryBadgeStyles[product.category] || 'bg-[var(--oppa-green-soft)] text-[var(--oppa-text)]'}`}>{getCategoryLabel(product.category)}</span></td>}
                   <td data-label="Price" className="col-right tabular-nums font-semibold text-[var(--oppa-text)]">{formatCurrency(product.price)}</td>
                   <td data-label="Availability" className="col-left"><div className="inline-flex items-center gap-2 whitespace-nowrap text-xs">{canToggleAvailability(product) && <AvailabilitySwitch checked={isAvailable(product)} label={`Change availability for ${product.name}`} activeText="Available" inactiveText="Unavailable" disabled={pendingAvailability.includes(product.id)} onChange={() => void handleToggle(product.id)} />}<span className={isAvailable(product) ? 'font-medium text-[var(--oppa-available-text)]' : 'text-[var(--oppa-text-muted)]'}>{isAvailable(product) ? 'Available' : 'Unavailable'}</span></div></td>
-                  {hasScopeControls && <td data-label="Branch" className="col-left"><span className="inline-block max-w-full truncate rounded-full bg-[var(--oppa-cream)] px-2.5 py-1 text-xs">{getBranchLabel(product.franchise_id)}</span></td>}
+                  {hasScopeControls && <td data-label="Branch" className="col-left"><span className="inline-block max-w-full truncate rounded-full bg-[var(--oppa-cream)] px-2.5 py-1 text-xs">{getBranchLabel(product)}</span></td>}
                   <td data-label="Actions" className="col-right"><div className="flex items-center justify-end gap-1">
                     {!isArchived(product) && <>
                       {allowed(product, 'edit') && <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEditModal(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">Edit</button>}
-                      {allowed(product, 'duplicate') && <button type="button" aria-label={`Duplicate ${product.name}`} onClick={() => void duplicateProduct(product)} className="rounded-md px-2 py-1.5 text-xs font-medium text-[var(--oppa-text-muted)] transition-colors hover:bg-[var(--oppa-green-soft)] hover:text-[var(--oppa-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500/40 focus-visible:ring-offset-2">Duplicate</button>}
                     </>}
                     {actionItems(product).length > 0 && <RowActionsMenu label={product.name} items={actionItems(product)} />}
                   </div></td>

@@ -82,7 +82,21 @@ class Product extends Model
         \Illuminate\Support\Facades\Cache::forget('catalog_products_global');
         \Illuminate\Support\Facades\Cache::forget('catalog_products_available');
         // Clear category caches
-        $categories = ['chicken', 'rice-meals', 'burgers', 'drinks', 'sides', 'noodles', 'combos'];
+        $categories = [
+            'chicken',
+            'rice-meals',
+            'sulit-meals',
+            'burgers',
+            'beverages',
+            'snacks',
+            'side-dishes',
+            'fruity-soda-milk',
+            'noodles',
+            'fresh-lemonade',
+            'drinks',
+            'sides',
+            'combos',
+        ];
         foreach ($categories as $cat) {
             \Illuminate\Support\Facades\Cache::forget("catalog_products_cat_{$cat}");
         }

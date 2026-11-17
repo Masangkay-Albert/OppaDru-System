@@ -26,8 +26,10 @@ trait ProductCatalogActions
                     ->header('Cache-Control', 'private, no-store, no-cache, max-age=0');
             }
 
-            $products = Cache::remember('catalog_products_global', 600, function () {
-                return $this->productQuery()->whereNull('franchise_id')->get();
+            $products = Cache::remember('catalog_products_global', 600, function () use ($inventoryService) {
+                return $inventoryService->filterGlobalCatalog(
+                    $this->productQuery()->whereNull('franchise_id')->get()
+                );
             });
 
             return $this->cachedJsonResponse($request, $products, 300);
@@ -56,6 +58,14 @@ trait ProductCatalogActions
             }
 
             $product = $loadProduct();
+            if ($franchiseId === null
+                && in_array(
+                    (string) $product->id,
+                    $inventoryService->globalProductsUnavailableInAnyBranch([(string) $product->id]),
+                    true
+                )) {
+                return response()->json(['message' => 'Product not found'], 404);
+            }
             if ($franchiseId !== null) {
                 $branchProduct = $inventoryService->catalog((string) $franchiseId)
                     ->firstWhere('id', $id);
@@ -97,8 +107,10 @@ trait ProductCatalogActions
                 ->header('Cache-Control', 'private, no-store, no-cache, max-age=0');
         }
 
-        $availableProducts = Cache::remember('catalog_products_available', 600, function () {
-            return $this->productQuery()->whereNull('franchise_id')->where('is_available', true)->get();
+        $availableProducts = Cache::remember('catalog_products_available', 600, function () use ($inventoryService) {
+            return $inventoryService->filterGlobalCatalog(
+                $this->productQuery()->whereNull('franchise_id')->where('is_available', true)->get()
+            );
         });
 
         return $this->cachedJsonResponse($request, $availableProducts, 300);
@@ -122,11 +134,13 @@ trait ProductCatalogActions
                     ->header('Cache-Control', 'private, no-store, no-cache, max-age=0');
             }
 
-            $products = Cache::remember("catalog_products_cat_{$categoryClean}", 600, function () use ($categoryClean) {
-                return $this->productQuery()
-                    ->whereNull('franchise_id')
-                    ->where('category', $categoryClean)
-                    ->get();
+            $products = Cache::remember("catalog_products_cat_{$categoryClean}", 600, function () use ($categoryClean, $inventoryService) {
+                return $inventoryService->filterGlobalCatalog(
+                    $this->productQuery()
+                        ->whereNull('franchise_id')
+                        ->where('category', $categoryClean)
+                        ->get()
+                );
             });
 
             return $this->cachedJsonResponse($request, $products, 300);

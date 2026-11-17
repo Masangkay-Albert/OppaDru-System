@@ -31,7 +31,6 @@ const adminProductsPageConfig: ProductsPageConfig = {
     id: String(branch.id),
     name: branch.name,
   })),
-  migrateLegacyArchives: true,
   permissions: {
     add: true,
     bulkAvailability: true,

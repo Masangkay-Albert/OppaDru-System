@@ -331,6 +331,7 @@ trait ProductFranchiseActions
                 'branch_category' => null,
                 'branch_image' => null,
             ])->save();
+            Product::clearCatalogCache();
 
             return response()->json(['message' => 'Product removed from this branch.']);
         }

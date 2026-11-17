@@ -23,6 +23,33 @@ class FranchiseInventoryService
             ->all();
     }
 
+    public function globalProductsUnavailableInAnyBranch(array $productIds): array
+    {
+        if ($productIds === []) {
+            return [];
+        }
+
+        return FranchiseInventory::query()
+            ->whereIn('product_id', $productIds)
+            ->where(fn ($query) => $query->where('is_archived', true)->orWhere('is_hidden', true))
+            ->distinct()
+            ->pluck('product_id')
+            ->map(fn ($productId) => (string) $productId)
+            ->all();
+    }
+
+    public function filterGlobalCatalog(Collection $products): Collection
+    {
+        $unavailableIds = array_fill_keys(
+            $this->globalProductsUnavailableInAnyBranch($products->pluck('id')->all()),
+            true
+        );
+
+        return $products
+            ->reject(fn (Product $product) => isset($unavailableIds[(string) $product->id]))
+            ->values();
+    }
+
     public function initializeBranchMenu(string $franchiseId): void
     {
         $products = Product::where(function ($query) use ($franchiseId) {
@@ -102,6 +129,11 @@ class FranchiseInventoryService
         ]);
         $inventory->fill($values);
         $inventory->save();
+
+        if ($product->franchise_id === null
+            && (array_key_exists('is_archived', $values) || array_key_exists('is_hidden', $values))) {
+            Product::clearCatalogCache();
+        }
 
         return $inventory;
     }

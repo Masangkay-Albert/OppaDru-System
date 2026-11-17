@@ -48,6 +48,7 @@ export interface Product {
   updated_at?: string;
   deleted_at?: string | null;
   branch_archived?: boolean;
+  global_visible_to_all_branches?: boolean;
 }
 
 export interface Category {

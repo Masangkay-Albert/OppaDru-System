@@ -1,6 +1,6 @@
 import type { Product } from '../types/product.types';
 
-export type ProductPermission = 'edit' | 'duplicate' | 'availability' | 'archive' | 'restore' | 'delete' | 'bulk-select' | 'bulk-category' | 'details';
+export type ProductPermission = 'edit' | 'availability' | 'archive' | 'restore' | 'delete' | 'bulk-select' | 'bulk-category' | 'details';
 
 export const canManageBranchProduct = (
   product: Product,
@@ -16,7 +16,6 @@ export const canManageBranchProduct = (
     case 'details':
       return true;
     case 'edit':
-    case 'duplicate':
     case 'archive':
     case 'restore':
     case 'delete':
