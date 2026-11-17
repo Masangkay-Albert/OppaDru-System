@@ -143,12 +143,12 @@ const AdminPricingSettingsPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Pricing settings</h1>
+      <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
 
       <section aria-labelledby="ordering-hours-simulation-title" className="bg-white rounded-xl shadow p-6 space-y-4">
         <div>
-          <h2 id="ordering-hours-simulation-title" className="text-lg font-semibold text-gray-800">Ordering hours simulation</h2>
-          <p className="mt-1 text-sm text-gray-500">Test Menu ordering hours with a server-saved clock. Changes apply to all visitors after saving.</p>
+          <h2 id="ordering-hours-simulation-title" className="text-lg font-semibold text-gray-800">Store ordering hours simulation</h2>
+          <p className="mt-1 text-sm text-gray-500">Set a simulated date and time below to preview when ordering is open or closed. Saved changes apply to all visitors; turn simulation off to use the real store time.</p>
         </div>
 
         {isLoadingSimulation ? (
@@ -167,7 +167,7 @@ const AdminPricingSettingsPage: React.FC = () => {
 
             <div className="rounded-lg border border-gray-200 px-4 py-3">
               <p className="text-sm text-gray-600">
-                After changing this computer's clock, use it as the simulated Asia/Manila time for all visitors.
+                You can set the simulated date and time directly, or use this computer's current time.
               </p>
               <button
                 type="button"

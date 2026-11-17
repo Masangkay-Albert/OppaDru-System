@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   BadgeCheck, Boxes, Briefcase, Car, ChevronDown, ChevronsLeft, ChevronsRight,
-  FileBarChart, Home, LayoutDashboard, LogOut, Megaphone, Menu, Moon, Package,
+  FileBarChart, Home, LayoutDashboard, LogOut, Megaphone, Menu, Moon, Package, Settings,
   SlidersHorizontal, ShoppingBag, Store, Sun, Tag, Users, X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -45,6 +45,7 @@ const navGroups: Array<{ title: string; items: AdminNavItem[] }> = [
   { title: 'Communication', items: [{ to: '/admin/announcements', label: 'Announcements', icon: Megaphone }] },
   { title: 'People', items: [{ to: '/admin/customers', label: 'Customers', icon: Users }, { to: '/admin/admins', label: 'Admins', icon: Users }, { to: '/admin/employees', label: 'Employees', icon: Briefcase }] },
   { title: 'Operations', items: [{ to: '/admin/inventory', label: 'Inventory', icon: Boxes, badge: 'inventory' }, { to: '/admin/franchises', label: 'Franchises', icon: Store }, { to: '/admin/franchise-applications', label: 'Franchise Apps', icon: BadgeCheck }, { to: '/admin/delivery', label: 'Delivery', icon: Car }] },
+  { title: 'Configuration', items: [{ to: '/admin/settings/pricing', label: 'Settings', icon: Settings }] },
 ];
 
 let adminSidebarScrollTop = 0;
