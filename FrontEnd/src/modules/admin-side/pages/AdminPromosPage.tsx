@@ -533,6 +533,10 @@ export default function AdminPromosPage() {
       setFormError('Usage limits must be whole numbers from 1 to 999,999.');
       return;
     }
+    if (usageLimit !== '' && perCustomerLimit !== '' && Number(perCustomerLimit) > Number(usageLimit)) {
+      setFormError('Uses per customer cannot exceed the total usage limit.');
+      return;
+    }
     if (!validateDates()) return;
 
     setIsSubmitting(true);

@@ -110,6 +110,7 @@ class PromoController extends Controller
             'per_customer_limit' => 'nullable|integer|min:1|max:999999',
         ]);
         $validator->after(fn (LaravelValidator $validator) => $this->validatePromoDateYears($validator, $request));
+        $validator->after(fn (LaravelValidator $validator) => $this->validatePromoUsageLimits($validator, $request));
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -252,6 +253,7 @@ class PromoController extends Controller
             'per_customer_limit' => $usageRules($perCustomerLimitUnchanged),
         ]);
         $validator->after(fn (LaravelValidator $validator) => $this->validatePromoDateYears($validator, $request));
+        $validator->after(fn (LaravelValidator $validator) => $this->validatePromoUsageLimits($validator, $request, $promo));
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -462,6 +464,31 @@ class PromoController extends Controller
             if (Carbon::parse($request->input($field), 'Asia/Manila')->year > $currentYear) {
                 $validator->errors()->add($field, "Promo dates cannot be later than {$currentYear}.");
             }
+        }
+    }
+
+    private function validatePromoUsageLimits(
+        LaravelValidator $validator,
+        Request $request,
+        ?Promo $promo = null,
+    ): void {
+        if ($validator->errors()->has('usage_limit') || $validator->errors()->has('per_customer_limit')) {
+            return;
+        }
+
+        $usageLimit = $request->exists('usage_limit')
+            ? $request->input('usage_limit')
+            : $promo?->usage_limit;
+        $perCustomerLimit = $request->exists('per_customer_limit')
+            ? $request->input('per_customer_limit')
+            : $promo?->per_customer_limit;
+
+        if ($usageLimit !== null && $perCustomerLimit !== null
+            && (int) $perCustomerLimit > (int) $usageLimit) {
+            $validator->errors()->add(
+                'per_customer_limit',
+                'Uses per customer cannot exceed the total usage limit.',
+            );
         }
     }
 
