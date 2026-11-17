@@ -19,10 +19,13 @@ export interface ReportPdfData {
   metrics: {
     totalSales: number;
     totalOrders: number;
-    onlineOrders: AdminOrder[];
-    onsiteOrders: AdminOrder[];
-    onlineSales: number;
-    onsiteSales: number;
+    channels: Array<{
+      key: 'online' | 'onsite' | 'foodpanda' | 'grabfood';
+      label: string;
+      orders: number;
+      sales: number;
+      percent: number;
+    }>;
   };
   payments: Array<{ method: string; orders: number; amount: number }>;
   goal: number;
@@ -32,8 +35,11 @@ export interface ReportPdfData {
   activeFilterSummary: string;
   filters?: ReportFilterDetails;
   topProducts: {
+    all: [string, number][];
     online: [string, number][];
     onsite: [string, number][];
+    foodpanda: [string, number][];
+    grabfood: [string, number][];
   };
   generatedBy?: {
     name?: string;
@@ -260,9 +266,13 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
   const filters = data.filters;
   const channelDisplay = !filters || filters.channel === 'all'
     ? 'All Channels'
-    : filters.channel === 'online'
-      ? 'Online Only'
-      : 'Onsite Only';
+    : filters.channel === 'foodpanda'
+      ? 'Foodpanda Only'
+      : filters.channel === 'grabfood'
+        ? 'GrabFood Only'
+        : filters.channel === 'online'
+          ? 'Online Only'
+          : 'Onsite Only';
 
   const yearDisplay = !filters || filters.year === 'all' ? 'All Years' : filters.year;
   const monthDisplay = !filters || filters.month === 'all'
@@ -349,19 +359,12 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
   doc.setTextColor(...darkSlateText);
   doc.text(data.activeFilterSummary || 'All Data', col4X + 10, paramY + 12);
 
-  // 4. KPI Performance Metric Cards (4 Balanced Cards)
+  // 4. KPI Performance Metric Cards
   const kpiY = paramY + paramHeight + 3;
-  const numCards = 4;
+  const numCards = 2 + data.metrics.channels.length;
   const cardGap = 3;
-  const cardWidth = (contentWidth - (numCards - 1) * cardGap) / numCards; // ~43.25mm
+  const cardWidth = (contentWidth - (numCards - 1) * cardGap) / numCards;
   const cardHeight = 17;
-
-  const onlinePct = data.metrics.totalSales > 0
-    ? Math.round((data.metrics.onlineSales / data.metrics.totalSales) * 100)
-    : 0;
-  const onsitePct = data.metrics.totalSales > 0
-    ? Math.round((data.metrics.onsiteSales / data.metrics.totalSales) * 100)
-    : 0;
 
   const avgOrderValue = data.metrics.totalOrders > 0
     ? data.metrics.totalSales / data.metrics.totalOrders
@@ -380,18 +383,12 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
       subtitle: data.metrics.totalOrders > 0 ? 'Per customer order' : 'No sales recorded',
       isPrimary: false,
     },
-    {
-      title: 'ONLINE SALES',
-      value: formatCurrencyForPdf(data.metrics.onlineSales),
-      subtitle: `${data.metrics.onlineOrders.length} orders (${onlinePct}%)`,
+    ...data.metrics.channels.map((channel) => ({
+      title: channel.label.toUpperCase(),
+      value: formatCurrencyForPdf(channel.sales),
+      subtitle: `${channel.orders} orders (${channel.percent}%)`,
       isPrimary: false,
-    },
-    {
-      title: 'ONSITE SALES',
-      value: formatCurrencyForPdf(data.metrics.onsiteSales),
-      subtitle: `${data.metrics.onsiteOrders.length} orders (${onsitePct}%)`,
-      isPrimary: false,
-    },
+    })),
   ];
 
   kpis.forEach((card, index) => {
@@ -444,7 +441,7 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
 
   // 5. Secondary Section: Target Progress & Top Performing Items (With Multi-Line Full Word Wrapping)
   const secY = kpiY + cardHeight + 3;
-  const secCardHeight = 32;
+  const secCardHeight = 42;
   const leftBoxWidth = 72;
   const rightBoxWidth = contentWidth - leftBoxWidth - 3.5; // 106.5mm
   const rightBoxX = margin + leftBoxWidth + 3.5;
@@ -519,72 +516,55 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
   doc.setTextColor(...brandDarkGreen);
   doc.text('TOP PERFORMING MENU ITEMS (BY UNITS SOLD)', rightBoxX + 3.5, secY + 4.8);
 
-  const subColWidth = (rightBoxWidth - 7 - 4) / 2; // ~47.75mm
+  const subColWidth = (rightBoxWidth - 7 - 4) / 2;
   const onsiteColX = rightBoxX + 3.5 + subColWidth + 4;
-  const maxItemNameWidth = subColWidth - 14;
+  const leftColumnX = rightBoxX + 3.5;
+  const maxItemNameWidth = subColWidth - 13;
 
-  // Online Sub-column
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.8);
-  doc.setTextColor(...brandForestGreen);
-  doc.text('Online Channel (Top 3)', rightBoxX + 3.5, secY + 10);
-
-  if (data.topProducts.online.length === 0) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.2);
-    doc.setTextColor(...mutedText);
-    doc.text('No online sales recorded', rightBoxX + 3.5, secY + 16);
-  } else {
-    data.topProducts.online.slice(0, 3).forEach((item, idx) => {
-      const rowY = secY + 14.5 + idx * 5.2;
-      const fullItemName = `${idx + 1}. ${item[0] || 'Unnamed item'}`;
-      const qtyStr = `${item[1]} sold`;
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6);
-      doc.setTextColor(...darkSlateText);
-      const lines = doc.splitTextToSize(fullItemName, maxItemNameWidth);
-      doc.text(lines, rightBoxX + 3.5, rowY);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...mutedText);
-      doc.text(qtyStr, rightBoxX + 3.5 + subColWidth, rowY, { align: 'right' });
-    });
-  }
-
-  // Vertical Separator between online and onsite top products
   doc.setDrawColor(...borderLineColor);
   doc.setLineWidth(0.2);
   doc.line(onsiteColX - 2, secY + 7, onsiteColX - 2, secY + secCardHeight - 2.5);
+  doc.line(leftColumnX, secY + 24, rightBoxX + rightBoxWidth - 3.5, secY + 24);
 
-  // Onsite Sub-column
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.8);
-  doc.setTextColor(...brandForestGreen);
-  doc.text('Onsite Channel (Top 3)', onsiteColX, secY + 10);
-
-  if (data.topProducts.onsite.length === 0) {
-    doc.setFont('helvetica', 'normal');
+  const renderChannelProducts = (
+    channel: 'online' | 'onsite' | 'foodpanda' | 'grabfood',
+    label: string,
+    x: number,
+    y: number,
+  ) => {
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.2);
-    doc.setTextColor(...mutedText);
-    doc.text('No onsite sales recorded', onsiteColX, secY + 16);
-  } else {
-    data.topProducts.onsite.slice(0, 3).forEach((item, idx) => {
-      const rowY = secY + 14.5 + idx * 5.2;
-      const fullItemName = `${idx + 1}. ${item[0] || 'Unnamed item'}`;
-      const qtyStr = `${item[1]} sold`;
+    doc.setTextColor(...brandForestGreen);
+    doc.text(`${label} (Top 2)`, x, y);
 
+    const items = data.topProducts[channel].slice(0, 2);
+    if (items.length === 0) {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6);
+      doc.setFontSize(5.8);
+      doc.setTextColor(...mutedText);
+      doc.text('No sales recorded', x, y + 4);
+      return;
+    }
+
+    let rowY = y + 3.8;
+    items.forEach((item, index) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.4);
       doc.setTextColor(...darkSlateText);
-      const lines = doc.splitTextToSize(fullItemName, maxItemNameWidth);
-      doc.text(lines, onsiteColX, rowY);
+      const lines = doc.splitTextToSize(`${index + 1}. ${item[0] || 'Unnamed item'}`, maxItemNameWidth);
+      doc.text(lines, x, rowY);
 
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...mutedText);
-      doc.text(qtyStr, onsiteColX + subColWidth, rowY, { align: 'right' });
+      doc.text(`${item[1]} sold`, x + subColWidth, rowY, { align: 'right' });
+      rowY += Math.max(lines.length * 2.5, 3.2) + 0.3;
     });
-  }
+  };
+
+  renderChannelProducts('online', 'Online', leftColumnX, secY + 9.5);
+  renderChannelProducts('foodpanda', 'Foodpanda', leftColumnX, secY + 26);
+  renderChannelProducts('onsite', 'Onsite', onsiteColX, secY + 9.5);
+  renderChannelProducts('grabfood', 'GrabFood', onsiteColX, secY + 26);
 
   // 6. Detailed Orders Breakdown Table (autoTable with Full Text Wrapping)
   const tableStartY = secY + secCardHeight + 3.5;
@@ -602,7 +582,7 @@ export const generateSalesReportPdf = async (data: ReportPdfData): Promise<void>
   const tableRows = data.orders.map((order, idx) => {
     const orderNo = order.order_number || String(order.id || '');
     const customer = order.customerName || order.customer_name || order.email || 'Walk-in Customer';
-    const channel = (order.channel || 'online').toUpperCase();
+    const channel = (order.third_party_platform || order.channel || 'online').toUpperCase();
     const dateStr = getOrderDisplayDate(order);
     const status = String(order.status || 'PENDING').toUpperCase();
     const amount = formatCurrencyForPdf(order.total);
