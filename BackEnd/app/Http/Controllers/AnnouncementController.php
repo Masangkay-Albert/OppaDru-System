@@ -491,7 +491,7 @@ class AnnouncementController extends Controller
                 $query->where(function ($published) {
                     $published->where('status', 'published')
                         ->where(function ($sent) {
-                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now());
+                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now()->addMinutes(5));
                         });
                 })->orWhere(function ($scheduled) {
                     $scheduled->where('status', 'scheduled')
@@ -499,7 +499,7 @@ class AnnouncementController extends Controller
                         ->where('scheduled_at', '<=', now());
                 });
             })
-            ->whereJsonContains('target_audiences', 'customers')
+            ->whereJsonContains('target_audiences', ['customers'])
             ->orderByRaw("COALESCE(CASE WHEN status = 'scheduled' THEN scheduled_at ELSE date_sent END, created_at) DESC")
             ->limit(20)
             ->get();
@@ -575,7 +575,7 @@ class AnnouncementController extends Controller
                 $query->where(function ($published) {
                     $published->where('status', 'published')
                         ->where(function ($sent) {
-                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now());
+                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now()->addMinutes(5));
                         });
                 })->orWhere(function ($scheduled) {
                     $scheduled->where('status', 'scheduled')
@@ -583,12 +583,12 @@ class AnnouncementController extends Controller
                         ->where('scheduled_at', '<=', now());
                 });
             })
-            ->whereJsonContains('target_audiences', 'franchise_branches')
+            ->whereJsonContains('target_audiences', ['franchise_branches'])
             ->where(function ($query) use ($branchId) {
                 $query->whereNull('target_franchise_branches')
-                    ->orWhereJsonContains('target_franchise_branches', $branchId);
+                    ->orWhereJsonContains('target_franchise_branches', [$branchId]);
                 if (ctype_digit($branchId)) {
-                    $query->orWhereJsonContains('target_franchise_branches', (int) $branchId);
+                    $query->orWhereJsonContains('target_franchise_branches', [(int) $branchId]);
                 }
             });
     }

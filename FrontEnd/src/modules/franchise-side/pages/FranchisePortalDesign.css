@@ -61,6 +61,7 @@
 .franchise-timeline li:last-child::before { display: none; }
 .franchise-timeline-point { position: absolute; top: .2rem; left: 0; width: .9rem; height: .9rem; border: 3px solid #dcece0; border-radius: 50%; background: #28794b; }
 .franchise-admin { --admin-card-shadow: 0 12px 28px rgb(29 48 38 / 6%); }
+.franchise-admin ::selection { color: HighlightText; background: Highlight; }
 .franchise-admin .franchise-admin-card { border-radius: var(--franchise-radius-card); box-shadow: var(--admin-card-shadow); }
 .franchise-admin .franchise-admin-table-head { position: sticky; top: 0; z-index: 2; }
 .franchise-admin .franchise-admin-row:hover { background: #f6faf6; }
