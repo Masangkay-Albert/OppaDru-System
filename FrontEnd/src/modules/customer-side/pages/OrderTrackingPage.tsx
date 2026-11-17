@@ -52,6 +52,7 @@ const OrderTrackingPageContent: React.FC = () => {
   const [simulatedProgress, setSimulatedProgress] = useState(0);
   const [dismissedDeliveredNoticeId, setDismissedDeliveredNoticeId] = useState<string | null>(null);
   const [isConfirmingCancellation, setIsConfirmingCancellation] = useState(false);
+  const [isProceedingOrder, setIsProceedingOrder] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setTick(Date.now()), 1000);
@@ -159,7 +160,7 @@ const OrderTrackingPageContent: React.FC = () => {
   }, [status, routePoints.length, onTheWayEntry?.createdAt]);
 
   const handleCancelOrder = async () => {
-    if (!order || !canCancel) {
+    if (!order || !canCancel || isProceedingOrder) {
       showToast('Cancellation period has ended.', 'warning');
       return;
     }
@@ -202,6 +203,33 @@ const OrderTrackingPageContent: React.FC = () => {
     } finally {
       window.clearTimeout(expiryTimer);
       setIsConfirmingCancellation(false);
+    }
+  };
+
+  const handleProceedOrder = async () => {
+    if (!order || status !== ORDER_STATUS.PENDING || cancelSeconds <= 0 || isConfirmingCancellation || isProceedingOrder) {
+      return;
+    }
+
+    setIsProceedingOrder(true);
+    setCancelError('');
+    try {
+      await orderService.updateOrderStatus(order.id, ORDER_STATUS.PREPARING);
+      showToast('Order is now being prepared.', 'success');
+      try {
+        await refreshOrderById(order.id);
+      } catch (refreshError) {
+        const detail = refreshError instanceof Error ? ` ${refreshError.message}` : '';
+        const message = `Your order is being prepared, but its latest status could not be refreshed.${detail}`;
+        setCancelError(message);
+        showToast(message, 'error');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to proceed with this order.';
+      setCancelError(message);
+      showToast(message, 'error');
+    } finally {
+      setIsProceedingOrder(false);
     }
   };
 
@@ -272,7 +300,27 @@ const OrderTrackingPageContent: React.FC = () => {
         {status === ORDER_STATUS.PENDING && (
           <div className="mb-3 flex flex-col gap-2 rounded-xl border border-red-100 bg-white px-4 py-3 text-sm text-gray-600 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <span>{canCancel ? `Cancel within ${Math.ceil(cancelSeconds)} seconds.` : 'Cancellation period has ended.'}</span>
-            {canCancel && <button disabled={isConfirmingCancellation} onClick={handleCancelOrder} className="min-h-10 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 active:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50">Cancel Order ({Math.ceil(cancelSeconds)}s)</button>}
+            {canCancel && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  aria-label="Proceed with order and start preparation now"
+                  disabled={isConfirmingCancellation || isProceedingOrder}
+                  onClick={() => void handleProceedOrder()}
+                  className="min-h-10 rounded-lg bg-[#2d6a4f] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#24563f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d6a4f] active:bg-[#1b4d3e] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isProceedingOrder ? 'Proceeding…' : 'Proceed'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isConfirmingCancellation || isProceedingOrder}
+                  onClick={() => void handleCancelOrder()}
+                  className="min-h-10 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 active:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel Order ({Math.ceil(cancelSeconds)}s)
+                </button>
+              </div>
+            )}
             {canCancel && (
               <div className="h-1 w-full overflow-hidden rounded-full bg-red-100 sm:max-w-40" aria-hidden="true">
                 <div className="h-full rounded-full bg-red-400 transition-[width] duration-300" style={{ width: `${Math.min(100, (cancelSeconds / ORDER_CANCELLATION_WINDOW_SECONDS) * 100)}%` }} />

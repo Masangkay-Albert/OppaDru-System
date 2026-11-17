@@ -1,7 +1,7 @@
 import type { Announcement, AnnouncementPriority } from '../../../../types/announcement.types';
 import type { Promo } from '../../../../services/promoService';
 
-export type NotificationType = 'announcement' | 'promo';
+export type NotificationType = 'announcement' | 'promo' | 'replacement';
 
 export interface UnifiedNotification {
   id: string;

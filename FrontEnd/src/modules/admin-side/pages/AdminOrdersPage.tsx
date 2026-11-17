@@ -30,6 +30,33 @@ const validStatusFilters = new Set(statusOptionsBase.map(({ value }) => value));
 const readInitialFilter = (key: string, fallback = '') => new URLSearchParams(window.location.search).get(key) || fallback;
 type ChannelFilter = 'all' | 'online' | 'onsite' | ThirdPartyPlatform;
 
+const getManilaDateYMD = (date: Date): string => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || '';
+  return `${value('year')}-${value('month')}-${value('day')}`;
+};
+
+const getCurrentManilaDate = () => getManilaDateYMD(new Date());
+const getCurrentYearDateFilter = (date: string) => {
+  const year = getCurrentManilaDate().slice(0, 4);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) && date.startsWith(`${year}-`) ? date : '';
+};
+
+const getOrderDateYMD = (order: Pick<AdminOrder, 'created_at' | 'timestamp' | 'order_number'>): string => {
+  const raw = order.created_at || order.timestamp;
+  if (raw) {
+    const date = new Date(raw);
+    if (!Number.isNaN(date.getTime())) return getManilaDateYMD(date);
+  }
+  const match = order.order_number?.match(/(\d{4})(\d{2})(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
+};
+
 const readInitialChannel = (): ChannelFilter => {
   const channel = readInitialFilter('channel', 'all');
   return channel === 'online' || channel === 'onsite' || channel === 'foodpanda' || channel === 'grabfood' ? channel : 'all';
@@ -58,7 +85,7 @@ const AdminOrdersPage: React.FC = () => {
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>(readInitialChannel);
   const [statusFilter, setStatusFilter] = useState<string>(readInitialStatus);
   const [searchTerm, setSearchTerm] = useState(() => readInitialFilter('search'));
-  const [dateFilter, setDateFilter] = useState<string>(() => readInitialFilter('date'));
+  const [dateFilter, setDateFilter] = useState<string>(() => getCurrentYearDateFilter(readInitialFilter('date')));
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -141,7 +168,7 @@ const AdminOrdersPage: React.FC = () => {
       setStatusFilter(validStatusFilters.has(nextStatus as typeof statusOptionsBase[number]['value']) ? nextStatus : 'all');
       setChannelFilter(nextChannel === 'online' || nextChannel === 'onsite' || nextChannel === 'foodpanda' || nextChannel === 'grabfood' ? nextChannel : 'all');
       setSearchTerm(params.get('search') || '');
-      setDateFilter(params.get('date') || '');
+      setDateFilter(getCurrentYearDateFilter(params.get('date') || ''));
       setCurrentPage(1);
     };
     window.addEventListener('popstate', syncFiltersFromUrl);
@@ -180,24 +207,6 @@ const AdminOrdersPage: React.FC = () => {
     return 0;
   };
 
-  const getOrderDateYMD = (order: AdminOrder): string => {
-    const raw = order.created_at || order.timestamp;
-    if (raw) {
-      const d = new Date(raw);
-      if (!isNaN(d.getTime())) {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      }
-    }
-    const match = order.order_number?.match(/(\d{4})(\d{2})(\d{2})/);
-    if (match) {
-      return `${match[1]}-${match[2]}-${match[3]}`;
-    }
-    return '';
-  };
-
   const isScheduledOrder = (order: AdminOrder) => {
     if (!order) return false;
     const status = String(order.status || '').toLowerCase();
@@ -207,8 +216,14 @@ const AdminOrdersPage: React.FC = () => {
     return !!order.scheduled_at || !!order.scheduled_date || !!order.scheduled_time || !!order.schedule_display;
   };
 
+  const currentManilaDate = getCurrentManilaDate();
+  const currentYear = currentManilaDate.slice(0, 4);
+  const currentYearOrders = useMemo(
+    () => orders.filter((order) => getOrderDateYMD(order).startsWith(`${currentYear}-`)),
+    [orders, currentYear],
+  );
   const filteredOrders = useMemo(() => {
-    const filtered = orders.filter((order) => {
+    const filtered = currentYearOrders.filter((order) => {
       const orderQuery = `${order.order_number || ''} ${order.id || ''} ${order.customerName || ''} ${order.email || ''} ${order.external_order_ref || ''}`.toLowerCase();
       if (!orderQuery.includes(searchTerm.trim().toLowerCase())) return false;
       if (channelFilter !== 'all' && (channelFilter === 'online' || channelFilter === 'onsite'
@@ -236,13 +251,13 @@ const AdminOrdersPage: React.FC = () => {
       const valueB = sortBy === 'total' ? Number(b.total || 0) : getOrderTimestamp(b);
       return sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
     });
-  }, [orders, channelFilter, statusFilter, dateFilter, sortOrder, searchTerm, sortBy]);
+  }, [currentYearOrders, channelFilter, statusFilter, dateFilter, sortOrder, searchTerm, sortBy]);
   const replacementOrderIds = useMemo(
     () => new Set(orders.map((order) => order.replacement_of_order_id).filter((orderId): orderId is string => Boolean(orderId))),
     [orders],
   );
 
-  const statusCounts = (status: string) => orders.filter((order) => status === 'all' || String(order.status).toLowerCase() === status).length;
+  const statusCounts = (status: string) => currentYearOrders.filter((order) => status === 'all' || String(order.status).toLowerCase() === status).length;
   const statusOptions: SelectOption<string>[] = statusOptionsBase.map((option) => ({
     value: option.value,
     label: option.label,
@@ -395,13 +410,15 @@ const AdminOrdersPage: React.FC = () => {
           onChannelChange={(value) => { setChannelFilter(value); updateFilter('channel', value, 'all'); }}
           date={dateFilter}
           onDateChange={(value) => { setDateFilter(value); updateFilter('date', value, ''); }}
+          dateMin={`${currentYear}-01-01`}
+          dateMax={currentManilaDate}
           onClear={hasActiveFilters ? clearFilters : undefined}
           status={statusFilter}
           statusOptions={statusOptions}
           onStatusChange={(value) => { setStatusFilter(value); updateFilter('status', value, 'all'); }}
           statusCount={statusCounts(statusFilter)}
         />
-        <span className="admin-orders-result-count">Showing <strong>{filteredOrders.length}</strong> of <strong>{orders.length}</strong> orders</span>
+        <span className="admin-orders-result-count">Showing <strong>{filteredOrders.length}</strong> of <strong>{currentYearOrders.length}</strong> orders</span>
       </section>
 
       {loading ? (

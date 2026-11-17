@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertCircle,
   ArrowLeft,
@@ -386,10 +387,13 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
         )}
       </section>
 
-      {toast && <div role="status" aria-live="polite" className="fixed bottom-5 left-1/2 z-[140] -translate-x-1/2 rounded-xl bg-[var(--oppa-green-dark)] px-4 py-3 text-sm font-semibold text-white shadow-xl">{toast}</div>}
+      {toast && typeof document !== 'undefined' && createPortal(
+        <div role="status" aria-live="polite" className="fixed bottom-5 left-1/2 z-[1030] -translate-x-1/2 rounded-xl bg-[var(--oppa-green-dark)] px-4 py-3 text-sm font-semibold text-white shadow-xl">{toast}</div>,
+        document.body,
+      )}
 
-      {selected && (
-        <div className="fixed inset-0 z-[100] flex justify-end bg-black/50" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDrawer(); }}>
+      {selected && typeof document !== 'undefined' && createPortal(
+        <div className="replacement-request-ui fixed inset-0 z-[1000] flex justify-end bg-black/50" onMouseDown={(event) => { if (event.target === event.currentTarget) closeDrawer(); }}>
           <aside
             ref={drawerRef}
             role="dialog"
@@ -518,11 +522,12 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
               ) : <button type="button" onClick={closeDrawer} className="min-h-11 w-full rounded-xl border border-[var(--oppa-border)] px-3 text-sm font-semibold">Close</button>}
             </footer>
           </aside>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {confirmSend && selected && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirmSend(false); }}>
+      {confirmSend && selected && typeof document !== 'undefined' && createPortal(
+        <div className="replacement-request-ui fixed inset-0 z-[1010] flex items-center justify-center bg-black/55 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirmSend(false); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="replacement-confirm-title" className="w-full max-w-md rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 text-[var(--oppa-text)] shadow-2xl">
             <h3 id="replacement-confirm-title" className="text-lg font-bold">Send a free replacement?</h3>
             <p className="mt-2 text-sm leading-6 text-[var(--oppa-text-muted)]">Send a free replacement to {selected.customer_name}? It will create a new ₱0 order for: {selected.affected_items.map((item) => `${item.quantity}x ${item.name}`).join(', ')} and go to the kitchen.</p>
@@ -533,13 +538,14 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
               </button>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {lightboxIndex !== null && selected && selected.photos[lightboxIndex] && (
+      {lightboxIndex !== null && selected && selected.photos[lightboxIndex] && typeof document !== 'undefined' && createPortal(
         <div
           ref={lightboxRef}
-          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/90 p-3 sm:p-8"
+          className="fixed inset-0 z-[1020] flex items-center justify-center bg-black/90 p-3 sm:p-8"
           role="dialog"
           aria-modal="true"
           aria-label={`Customer photo ${lightboxIndex + 1} of ${selected.photos.length}`}
@@ -565,7 +571,8 @@ const ReplacementRequestsPanel: React.FC<ReplacementRequestsPanelProps> = ({
           <ReplacementLightboxPhoto key={`${selected.id}-${lightboxIndex}`} photo={selected.photos[lightboxIndex]} index={lightboxIndex} zoomed={zoomed} onToggleZoom={() => setZoomed((value) => !value)} />
           <button type="button" onClick={() => setZoomed((value) => !value)} className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-900">{zoomed ? 'Zoom out' : 'Zoom in'}</button>
           {selected.photos.length > 1 && <button type="button" onClick={() => setLightboxIndex((index) => index === null ? 0 : (index + 1) % selected.photos.length)} aria-label="Next photo" className="absolute right-3 top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-gray-900 sm:right-6"><ArrowRight size={20} /></button>}
-        </div>
+        </div>,
+        document.body,
       )}
     </section>
   );

@@ -9,12 +9,15 @@ import {
   Copy,
   Flame,
   Megaphone,
+  PackageCheck,
   RotateCcw,
   Sparkles,
   Tag,
   X,
 } from 'lucide-react';
 import { announcementService } from '../../../../services/announcementService';
+import { customerReplacementNotificationService } from '../../../../services/customerReplacementNotificationService';
+import type { CustomerReplacementNotification } from '../../../../services/customerReplacementNotificationService';
 import type { Announcement, AnnouncementPriority } from '../../../../types/announcement.types';
 import NotificationItem from './NotificationItem';
 import type { UnifiedNotification } from './notificationTypes';
@@ -52,6 +55,7 @@ interface CustomerAnnouncementBellProps {
 
 export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> = ({ className = '' }) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [replacementNotifications, setReplacementNotifications] = useState<CustomerReplacementNotification[]>([]);
   const [completedIds, setCompletedIds] = useState<string[]>(() => getStoredIds(COMPLETED_STORAGE_KEY));
   const [deletedIds, setDeletedIds] = useState<string[]>(() => getStoredIds(DELETED_STORAGE_KEY));
 
@@ -87,14 +91,24 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
 
   // Load public announcements, excluding promo announcements.
   const fetchAllData = async () => {
-    try {
-      const annList = await announcementService.getCustomerAnnouncements().catch(() => []);
-      setAnnouncements(annList.filter((item) => item.priority !== 'promo'));
-    } catch {
-      // Fallback
-    } finally {
-      setIsLoading(false);
+    const [announcementsResult, replacementNotificationsResult] = await Promise.allSettled([
+      announcementService.getCustomerAnnouncements(),
+      customerReplacementNotificationService.getReplacementNotifications(),
+    ]);
+
+    if (announcementsResult.status === 'fulfilled') {
+      setAnnouncements(announcementsResult.value.filter((item) => item.priority !== 'promo'));
+    } else {
+      console.error('Could not load customer announcements.', announcementsResult.reason);
     }
+
+    if (replacementNotificationsResult.status === 'fulfilled') {
+      setReplacementNotifications(replacementNotificationsResult.value);
+    } else {
+      console.error('Could not load customer replacement notifications.', replacementNotificationsResult.reason);
+    }
+
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -208,6 +222,20 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
       });
     });
 
+    replacementNotifications.forEach((notification) => {
+      const id = `replacement:${notification.id}`;
+      items.push({
+        id,
+        type: 'replacement',
+        title: notification.title,
+        content: notification.content,
+        image_url: null,
+        priority: 'high',
+        date: notification.date,
+        isCompleted: completedIds.includes(id) || Boolean(notification.read_at),
+      });
+    });
+
     // Filter out deleted items
     const nonDeleted = items.filter((item) => !deletedIds.includes(item.id));
 
@@ -216,7 +244,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
       const dateB = Date.parse(b.date);
       return (Number.isFinite(dateB) ? dateB : 0) - (Number.isFinite(dateA) ? dateA : 0);
     });
-  }, [announcements, completedIds, deletedIds]);
+  }, [announcements, completedIds, deletedIds, replacementNotifications]);
 
   // Unread / Incomplete counter
   const unreadCount = unifiedNotifications.filter((item) => !item.isCompleted).length;
@@ -366,7 +394,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="customer-notification-icon flex size-8 shrink-0 items-center justify-center rounded-xl" aria-hidden="true"><Megaphone size={16} /></span>
-                <h3 className="truncate font-serif text-base font-semibold text-gray-900 dark:text-gray-50">Notifications</h3>
+                <h3 style={{ color: 'var(--notification-text)' }} className="truncate font-serif text-base font-semibold">Notifications</h3>
                 <span className="customer-notification-count shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold">{unreadCount} new</span>
               </div>
               <div className="flex shrink-0 items-center gap-3">
@@ -404,8 +432,8 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
             ) : visibleNotifications.length === 0 ? (
               <div className="px-6 py-10 text-center">
                 <div className="customer-notification-icon mx-auto mb-3 flex size-12 items-center justify-center rounded-full"><Bell size={22} /></div>
-                <p className="font-serif text-sm font-semibold text-gray-900 dark:text-gray-50">You're all caught up</p>
-                <p className="mx-auto mt-1 max-w-[250px] text-xs leading-5 text-gray-600 dark:text-gray-300">New announcements will show up here.</p>
+                <p style={{ color: 'var(--notification-text)' }} className="font-serif text-sm font-semibold">You're all caught up</p>
+                <p style={{ color: 'var(--notification-body)' }} className="mx-auto mt-1 max-w-[250px] text-xs leading-5">New notifications will show up here.</p>
                 {deletedIds.length > 0 && <button type="button" onClick={handleRestoreDeleted} className="customer-notification-link mt-3 inline-flex items-center gap-1 text-xs font-semibold hover:underline"><RotateCcw size={12} />Restore dismissed notifications</button>}
               </div>
             ) : (
@@ -458,11 +486,15 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                     'bg-[var(--oppa-green)] text-white'
                   }`}
                 >
-                  {activeNotification.type === 'promo' ? <Sparkles size={20} /> : <Megaphone size={20} />}
+                  {activeNotification.type === 'promo' ? <Sparkles size={20} /> : activeNotification.type === 'replacement' ? <PackageCheck size={20} /> : <Megaphone size={20} />}
                 </div>
                 <div>
                   <h2 className="font-serif text-base sm:text-xl font-bold text-slate-900 dark:text-white leading-tight">
-                    {activeNotification.type === 'promo' ? 'Oppa Dru Promo Offer' : 'Official Oppa Dru Announcement'}
+                    {activeNotification.type === 'promo'
+                      ? 'Oppa Dru Promo Offer'
+                      : activeNotification.type === 'replacement'
+                        ? 'Replacement update'
+                        : 'Official Oppa Dru Announcement'}
                   </h2>
                   <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
                     Notification {activeIndex + 1} of {unifiedNotifications.length}
@@ -535,7 +567,11 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                   ) : (
                     <div className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed border-slate-200 dark:border-[#354b3c] bg-[var(--oppa-cream)]/50 dark:bg-white/5 text-center">
                       <div className="size-16 rounded-full bg-[var(--oppa-green)]/15 text-[var(--oppa-green)] dark:bg-emerald-500/20 dark:text-emerald-300 flex items-center justify-center mb-3">
-                        {activeNotification.type === 'promo' ? <Sparkles size={30} /> : <Megaphone size={30} />}
+                        {activeNotification.type === 'promo'
+                          ? <Sparkles size={30} />
+                          : activeNotification.type === 'replacement'
+                            ? <PackageCheck size={30} />
+                            : <Megaphone size={30} />}
                       </div>
                       <span className="font-serif font-bold text-sm text-slate-900 dark:text-slate-100">Oppa Dru Bulletin</span>
                       <span className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">Fresh & Authentic Korean Fried Chicken</span>
@@ -556,6 +592,11 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                         <>
                           <Sparkles size={12} className="inline mr-1" />
                           PROMO OFFER
+                        </>
+                      ) : activeNotification.type === 'replacement' ? (
+                        <>
+                          <PackageCheck size={12} className="inline mr-1" />
+                          REPLACEMENT UPDATE
                         </>
                       ) : (
                         PRIORITY_BADGES[activeNotification.priority]?.label || 'Notice'

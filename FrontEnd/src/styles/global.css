@@ -56,6 +56,8 @@ body {
   --notification-muted: #66766b;
   --notification-status: #e8efe7;
   --notification-status-text: #355a40;
+  --notification-text: #1e2b22;
+  --notification-body: #48594d;
   --notification-scrollbar: #91a495;
   top: calc(100% + 0.75rem);
   max-height: 70vh;
@@ -82,6 +84,8 @@ body {
   --notification-muted: #bbc8bd;
   --notification-status: #3a4d3e;
   --notification-status-text: #d0dfd1;
+  --notification-text: #edf3ee;
+  --notification-body: #cbd7cd;
   --notification-scrollbar: #718777;
 }
 

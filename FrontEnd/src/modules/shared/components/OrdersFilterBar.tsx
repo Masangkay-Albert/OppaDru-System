@@ -13,12 +13,24 @@ interface OrdersFilterBarProps {
   date: string;
   onDateChange: (value: string) => void;
   onClear?: () => void;
+  dateMin?: string;
   dateMax?: string;
   status?: string;
   statusOptions?: SelectOption<string>[];
   onStatusChange?: (value: string) => void;
   statusCount?: number;
 }
+
+const formatSelectedDate = (date: string): string => {
+  const [year, month, day] = date.split('-').map(Number);
+  if (!year || !month || !day) return date;
+  return new Date(Date.UTC(year, month - 1, day, 12)).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'Asia/Manila',
+  });
+};
 
 const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
   search,
@@ -28,6 +40,7 @@ const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
   date,
   onDateChange,
   onClear,
+  dateMin,
   dateMax,
   status,
   statusOptions,
@@ -71,14 +84,15 @@ const OrdersFilterBar: React.FC<OrdersFilterBarProps> = ({
       <CalendarDays size={16} aria-hidden="true" />
       <span className={`admin-orders-date-value ${date ? 'is-selected' : ''}`}>
         {date
-          ? new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+          ? formatSelectedDate(date)
           : 'Select date'}
       </span>
       <input
         aria-label="Filter by exact date"
         type="date"
         value={date}
-        data-max={dateMax}
+        min={dateMin}
+        max={dateMax}
         onChange={(event) => onDateChange(event.target.value)}
       />
       {date && <button type="button" aria-label="Clear selected date" title="Clear date" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDateChange(''); }}><X size={15} aria-hidden="true" /></button>}

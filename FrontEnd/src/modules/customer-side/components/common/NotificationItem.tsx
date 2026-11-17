@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { Check, CheckCheck, Copy, Megaphone, MoreHorizontal, Sparkles, Trash2 } from 'lucide-react';
+import { Check, CheckCheck, Copy, Megaphone, MoreHorizontal, PackageCheck, Sparkles, Trash2 } from 'lucide-react';
 import type { UnifiedNotification } from './notificationTypes';
 
 interface NotificationItemProps {
@@ -36,6 +36,7 @@ const NotificationItem = ({
   const [showMobileActions, setShowMobileActions] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const isPromo = item.type === 'promo';
+  const isReplacement = item.type === 'replacement';
   const discountText = item.discountValue
     ? item.discountType === 'percent'
       ? `${item.discountValue}% OFF`
@@ -107,23 +108,23 @@ const NotificationItem = ({
             />
           ) : (
             <span className="customer-notification-icon flex size-12 items-center justify-center rounded-xl" aria-hidden="true">
-              {isPromo ? <Sparkles size={20} /> : <Megaphone size={20} />}
+              {isPromo ? <Sparkles size={20} /> : isReplacement ? <PackageCheck size={20} /> : <Megaphone size={20} />}
             </span>
           )}
           <span className="min-w-0">
             <span className="flex min-w-0 items-center gap-2">
-              <span className={`min-w-0 flex-1 truncate text-sm ${item.isCompleted ? 'font-medium text-gray-800 dark:text-gray-100' : 'font-semibold text-gray-900 dark:text-gray-50'}`}>
+              <span style={{ color: 'var(--notification-text)' }} className={`min-w-0 flex-1 truncate text-sm ${item.isCompleted ? 'font-medium' : 'font-semibold'}`}>
                 {item.title}
               </span>
               <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{relativeTime(item.date)}</span>
             </span>
-            <span className={`mt-0.5 block line-clamp-2 text-[13px] leading-5 ${item.isCompleted ? 'text-gray-600 dark:text-gray-300' : 'text-gray-700 dark:text-gray-200'}`}>
+            <span style={{ color: 'var(--notification-body)' }} className="mt-0.5 block line-clamp-2 text-[13px] leading-5">
               {item.content}
             </span>
             <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <span className="customer-notification-badge inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold">
-                {isPromo ? <Sparkles size={11} /> : <Megaphone size={11} />}
-                {isPromo ? 'Special Promo' : 'Announcement'}
+                {isPromo ? <Sparkles size={11} /> : isReplacement ? <PackageCheck size={11} /> : <Megaphone size={11} />}
+                {isPromo ? 'Special Promo' : isReplacement ? 'Replacement update' : 'Announcement'}
               </span>
             </span>
           </span>

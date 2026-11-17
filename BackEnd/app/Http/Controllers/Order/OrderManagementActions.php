@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Order;
 use App\Models\Order;
 use App\Models\Promo;
 use App\Services\PricingService;
+use App\Support\OrderStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -107,7 +108,7 @@ trait OrderManagementActions
     public function updateStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'status' => 'required|string|in:cancelled',
+            'status' => 'required|string|in:cancelled,preparing',
         ]);
 
         if ($validator->fails()) {
@@ -130,21 +131,30 @@ trait OrderManagementActions
             $cancellationWindow = (int) config('orders.customer_cancellation_window_seconds', 30);
             if ($order->status !== 'pending') {
                 return response()->json([
-                    'message' => 'This order has already started and can no longer be cancelled.',
+                    'message' => 'This order is no longer pending.',
                 ], 422);
             }
 
-            if (
-                ! $createdAt
-                || $elapsedMilliseconds < 0
-                || $elapsedMilliseconds >= $cancellationWindow * 1000
-            ) {
+            if (! $createdAt || $elapsedMilliseconds < 0 || $elapsedMilliseconds >= $cancellationWindow * 1000) {
                 return response()->json([
-                    'message' => 'Cancellation period has ended.',
+                    'message' => $request->status === OrderStatus::PREPARING
+                        ? 'Proceed window has ended.'
+                        : 'Cancellation period has ended.',
                 ], 422);
             }
 
-            $order->status = 'cancelled';
+            if ($request->status === OrderStatus::PREPARING) {
+                $order->status = OrderStatus::PREPARING;
+                $order->save();
+
+                return response()->json([
+                    'success' => true,
+                    'order' => $order,
+                    'message' => 'Order is now being prepared.',
+                ]);
+            }
+
+            $order->status = OrderStatus::CANCELLED;
             $order->save();
             app(\App\Services\InventoryService::class)->reverseOrder($order, $request->user());
 
