@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Bell,
@@ -18,6 +18,7 @@ import {
 import { announcementService } from '../../../../services/announcementService';
 import { customerReplacementNotificationService } from '../../../../services/customerReplacementNotificationService';
 import { authService } from '../../../../services/authService';
+import { useCart } from '../../../../contexts/CartContext';
 import type { CustomerReplacementNotification } from '../../../../services/customerReplacementNotificationService';
 import type { Announcement, AnnouncementPriority } from '../../../../types/announcement.types';
 import NotificationItem from './NotificationItem';
@@ -67,6 +68,7 @@ interface CustomerAnnouncementBellProps {
 }
 
 export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> = ({ className = '' }) => {
+  const { activeBranchId } = useCart();
   const storageScope = getCustomerStorageScope();
   const completedStorageKey = getScopedStorageKey(COMPLETED_STORAGE_KEY, storageScope);
   const deletedStorageKey = getScopedStorageKey(DELETED_STORAGE_KEY, storageScope);
@@ -83,9 +85,11 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
   const [notificationFilter, setNotificationFilter] = useState<'all' | 'unread'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isClosingDropdown, setIsClosingDropdown] = useState(false);
+  const [announcementError, setAnnouncementError] = useState<string | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const closeAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchRequestIdRef = useRef(0);
 
   useEffect(() => {
     setCompletedIds(getStoredIds(completedStorageKey));
@@ -112,16 +116,20 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
   };
 
   // Load customer announcements and replacement updates.
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
+    const requestId = ++fetchRequestIdRef.current;
     const [announcementsResult, replacementNotificationsResult] = await Promise.allSettled([
-      announcementService.getCustomerAnnouncements(),
+      announcementService.getCustomerAnnouncements(activeBranchId),
       customerReplacementNotificationService.getReplacementNotifications(),
     ]);
+    if (requestId !== fetchRequestIdRef.current) return;
 
     if (announcementsResult.status === 'fulfilled') {
-      setAnnouncements(announcementsResult.value);
+      setAnnouncements(announcementsResult.value.announcements);
+      setAnnouncementError(null);
     } else {
       console.error('Could not load customer announcements.', announcementsResult.reason);
+      setAnnouncementError('Could not load announcements. Please try again.');
     }
 
     if (replacementNotificationsResult.status === 'fulfilled') {
@@ -131,7 +139,13 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
     }
 
     setIsLoading(false);
-  };
+  }, [activeBranchId]);
+
+  useEffect(() => {
+    setAnnouncements([]);
+    setAnnouncementError(null);
+    setIsLoading(true);
+  }, [activeBranchId]);
 
   useEffect(() => {
     void Promise.resolve().then(fetchAllData);
@@ -163,10 +177,12 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
         fetchAllData();
       }
     };
+    const handleWindowFocus = () => fetchAllData();
 
     window.addEventListener('oppadru_announcement_published', handleAnnouncementPublished);
     window.addEventListener('oppadru_announcement_updated', handleAnnouncementPublished);
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('focus', handleWindowFocus);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
@@ -174,9 +190,10 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
       window.removeEventListener('oppadru_announcement_published', handleAnnouncementPublished);
       window.removeEventListener('oppadru_announcement_updated', handleAnnouncementPublished);
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleWindowFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [completedStorageKey, deletedStorageKey]);
+  }, [completedStorageKey, deletedStorageKey, fetchAllData]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -230,7 +247,7 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
 
     // Map announcements
     announcements.forEach((a) => {
-      const isCompleted = completedIds.includes(a.id);
+      const isCompleted = a.is_read ?? false;
       items.push({
         id: a.id,
         type: 'announcement',
@@ -274,6 +291,23 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
   // Action Handler: Once marked as read, it stays read and CANNOT be marked as unread
   const handleMarkAsRead = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    const item = unifiedNotifications.find((notification) => notification.id === id);
+    if (item?.type === 'announcement') {
+      setAnnouncements((current) => current.map((announcement) => (
+        announcement.id === id ? { ...announcement, is_read: true } : announcement
+      )));
+      void announcementService.setCustomerAnnouncementRead(id, activeBranchId, true)
+        .then(() => setAnnouncementError(null))
+        .catch((error: unknown) => {
+          console.error('Could not mark customer announcement as read.', error);
+          setAnnouncements((current) => current.map((announcement) => (
+            announcement.id === id ? { ...announcement, is_read: false } : announcement
+          )));
+          setAnnouncementError('Could not update announcement read status. Please try again.');
+        });
+      return;
+    }
+
     if (!completedIds.includes(id)) {
       const next = [...completedIds, id];
       setCompletedIds(next);
@@ -282,13 +316,40 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
   };
 
   const handleMarkAllComplete = () => {
-    const allIds = unifiedNotifications.map((item) => item.id);
-    const combined = Array.from(new Set([...completedIds, ...allIds]));
+    const replacementIds = unifiedNotifications
+      .filter((item) => item.type === 'replacement')
+      .map((item) => item.id);
+    const combined = Array.from(new Set([...completedIds, ...replacementIds]));
     setCompletedIds(combined);
     saveStoredIds(completedStorageKey, combined);
+    setAnnouncements((current) => current.map((announcement) => ({ ...announcement, is_read: true })));
+    void announcementService.markAllCustomerAnnouncementsRead(activeBranchId)
+      .then(() => setAnnouncementError(null))
+      .catch((error: unknown) => {
+        console.error('Could not mark customer announcements as read.', error);
+        setAnnouncementError('Could not update announcement read status. Please try again.');
+        void fetchAllData();
+      });
   };
 
   const handleToggleRead = (item: UnifiedNotification) => {
+    if (item.type === 'announcement') {
+      const nextRead = !item.isCompleted;
+      setAnnouncements((current) => current.map((announcement) => (
+        announcement.id === item.id ? { ...announcement, is_read: nextRead } : announcement
+      )));
+      void announcementService.setCustomerAnnouncementRead(item.id, activeBranchId, nextRead)
+        .then(() => setAnnouncementError(null))
+        .catch((error: unknown) => {
+          console.error('Could not update customer announcement read status.', error);
+          setAnnouncements((current) => current.map((announcement) => (
+            announcement.id === item.id ? { ...announcement, is_read: !nextRead } : announcement
+          )));
+          setAnnouncementError('Could not update announcement read status. Please try again.');
+        });
+      return;
+    }
+
     const next = item.isCompleted
       ? completedIds.filter((id) => id !== item.id)
       : [...completedIds, item.id];
@@ -442,6 +503,13 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
           )}
 
           <div className="customer-notification-scroll min-h-0 flex-1 overflow-y-auto" aria-live="polite">
+            {announcementError && (
+              <div className="customer-notification-status px-4 py-2 text-xs" role="alert">
+                {announcementError}
+                <button type="button" onClick={() => void fetchAllData()} className="customer-notification-link ml-2 font-semibold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/60">Try again</button>
+              </div>
+            )}
+
             {isLoading ? (
               <div className="space-y-0" role="status" aria-busy="true" aria-label="Loading notifications">
                 {Array.from({ length: 3 }, (_, index) => (
@@ -450,6 +518,11 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
                     <span className="min-w-0 flex-1 space-y-2"><span className="block h-3 w-2/3 rounded bg-gray-200 dark:bg-white/10" /><span className="block h-3 w-full rounded bg-gray-100 dark:bg-white/5" /><span className="block h-3 w-1/2 rounded bg-gray-100 dark:bg-white/5" /></span>
                   </div>
                 ))}
+              </div>
+            ) : visibleNotifications.length === 0 && announcementError ? (
+              <div className="px-6 py-10 text-center">
+                <p style={{ color: 'var(--notification-text)' }} className="font-serif text-sm font-semibold">Notifications could not be loaded</p>
+                <p style={{ color: 'var(--notification-body)' }} className="mx-auto mt-1 max-w-[250px] text-xs leading-5">Please try again in a moment.</p>
               </div>
             ) : visibleNotifications.length === 0 ? (
               <div className="px-6 py-10 text-center">

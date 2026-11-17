@@ -1,5 +1,6 @@
 import { API_URL } from './apiConfig';
 import { fetchWithAdminAuth, getCurrentAdmin } from './adminAuthService';
+import { authService } from './authService';
 import { fetchWithFranchiseAuth } from './franchiseAuthService';
 import type {
   Announcement,
@@ -293,17 +294,24 @@ export const announcementService = {
    * Customer-specific: Get published announcements visible to customers.
    * Used by the CustomerAnnouncementBell component.
    */
-  async getCustomerAnnouncements(): Promise<Announcement[]> {
-    return this.getPublicAnnouncements();
-  },
+  async getCustomerAnnouncements(branchId: string | null): Promise<{
+    announcements: Array<Announcement & { is_read: boolean }>;
+    unread_count: number;
+  }> {
+    const token = authService.getToken();
+    if (!token) throw new Error('Sign in to load customer announcements.');
 
-  /**
-   * Public list for customer announcements.
-   */
-  async getPublicAnnouncements(): Promise<Announcement[]> {
-    const response = await fetch(`${API_URL}/announcements?audience=customers`, {
+    const params = new URLSearchParams();
+    if (branchId) params.set('branch_id', branchId);
+    const query = params.toString();
+    const response = await fetch(`${API_URL}/customer/announcements${query ? `?${query}` : ''}`, {
       cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -313,12 +321,50 @@ export const announcementService = {
       throw new Error('The customer announcements response was invalid.');
     }
 
-    const announcements = payload.announcements.filter((announcement: Announcement) => (
-      !announcement.id.startsWith('ann-DEMO') &&
-      Array.isArray(announcement.target_audiences) &&
-      announcement.target_audiences.includes('customers')
-    ));
-    return announcements;
+    return {
+      announcements: payload.announcements.filter((announcement: Announcement) => (
+        !announcement.id.startsWith('ann-DEMO') &&
+        Array.isArray(announcement.target_audiences) &&
+        announcement.target_audiences.includes('customers')
+      )),
+      unread_count: Number(payload.unread_count || 0),
+    };
+  },
+
+  async setCustomerAnnouncementRead(id: string, branchId: string | null, read: boolean): Promise<void> {
+    const token = authService.getToken();
+    if (!token) throw new Error('Sign in to update announcement read status.');
+    const response = await fetch(`${API_URL}/customer/announcements/${encodeURIComponent(id)}/read`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ branch_id: branchId, read }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.message || 'Could not update announcement read status.');
+    }
+  },
+
+  async markAllCustomerAnnouncementsRead(branchId: string | null): Promise<void> {
+    const token = authService.getToken();
+    if (!token) throw new Error('Sign in to update announcement read status.');
+    const response = await fetch(`${API_URL}/customer/announcements/read-all`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ branch_id: branchId }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.message || 'Could not mark announcements as read.');
+    }
   },
 
   async getFranchiseAnnouncements(): Promise<{ announcements: Array<Announcement & { is_read: boolean }>; unread_count: number }> {

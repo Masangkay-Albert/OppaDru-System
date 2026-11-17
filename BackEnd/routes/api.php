@@ -63,7 +63,6 @@ Route::get('/settings/pricing', [SettingController::class, 'index']);
 Route::post('/promos/validate', [PromoController::class, 'validatePromo'])
     ->middleware(['auth:api', 'throttle:30,1,promo-validation']);
 Route::get('/reports/popular-meals', [PopularMealsController::class, 'getMostPopularThisMonth']);
-Route::get('/announcements', [AnnouncementController::class, 'publicList']);
 Route::get('/franchise-opportunities', [FranchiseApplicationController::class, 'opportunities']);
 Route::get('/geo/provinces', [FranchiseApplicationController::class, 'provinces']);
 Route::get('/geo/cities', [FranchiseApplicationController::class, 'cities']);
@@ -219,6 +218,9 @@ Route::get('/payment/status/{reference}', [PaymentController::class, 'getPayment
 Route::post('/payment/gcash/create', [PaymentController::class, 'createGCashPayment'])->middleware('throttle:10,1');
 
 Route::middleware(['auth:api', 'verified-user'])->group(function () {
+    Route::get('/customer/announcements', [AnnouncementController::class, 'customerList']);
+    Route::post('/customer/announcements/read-all', [AnnouncementController::class, 'markCustomerAnnouncementsRead']);
+    Route::post('/customer/announcements/{id}/read', [AnnouncementController::class, 'setCustomerAnnouncementRead']);
     Route::get('/customer/replacement-notifications', [CustomerNotificationController::class, 'replacementUpdates']);
     Route::get('/orders/user', [OrderController::class, 'getUserOrders']);
     Route::get('/orders/user/{id}', [OrderController::class, 'getUserOrder']);

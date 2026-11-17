@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Building2, CheckCircle2, DollarSign, Loader2, MapPin, Phone, Plus, Trash2, Users } from 'lucide-react';
+import { Building2, CheckCircle2, Loader2, MapPin, Phone, Plus, Trash2, Users } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { ConfirmDialog } from '../components/AdminUI';
@@ -12,6 +12,16 @@ import { formatCurrency } from '../../../utils/formatters';
 import { useToast } from '../../customer-side/components/ToastProvider';
 import { ValidatedForm } from '../../../components/ui/FormValidation';
 import CreateCompanyBranchModal from '../components/CreateCompanyBranchModal';
+
+const PesoSign: React.FC<{ size?: number }> = ({ size = 18 }) => (
+  <span
+    aria-hidden="true"
+    className="inline-flex items-center justify-center font-sans font-bold leading-none"
+    style={{ width: size, height: size, fontSize: size }}
+  >
+    ₱
+  </span>
+);
 
 const AdminFranchisesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -200,7 +210,6 @@ const AdminFranchisesPage: React.FC = () => {
           <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">Manage franchise accounts, company-owned branches, locations, managers, and performance.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--oppa-green-dark)]"><Plus size={16} /> Add Franchise</button>
           <button type="button" onClick={() => setShowAddBranch(true)} className="inline-flex items-center gap-2 rounded-xl border border-[var(--oppa-green)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--oppa-green)] hover:bg-[var(--oppa-green-soft)]"><Plus size={16} /> Add Branch</button>
         </div>
       </div>
@@ -209,7 +218,7 @@ const AdminFranchisesPage: React.FC = () => {
         <MetricCard label="Total branches" value={totalBranchCount} hint={`${companyBranchCount} company-owned · ${franchiseBranchCount} franchise`} icon={Building2} />
         <MetricCard label="Active branches" value={activeCount} icon={CheckCircle2} tone="success" />
         <MetricCard label="Locations" value={locationCount} icon={MapPin} />
-        <MetricCard label="Branch sales" value={formatCurrency(salesTotal)} icon={DollarSign} tone="success" />
+        <MetricCard label="Branch sales" value={formatCurrency(salesTotal)} icon={PesoSign} tone="success" />
         <MetricCard label="Managers" value={managerCount} icon={Users} tone="warning" />
       </div>
 

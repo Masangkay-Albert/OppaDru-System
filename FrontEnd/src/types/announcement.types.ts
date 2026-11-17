@@ -16,6 +16,7 @@ export interface Announcement {
   image_path?: string | null;
   priority: AnnouncementPriority;
   status: AnnouncementStatus;
+  is_read?: boolean;
   date_sent?: string | null;
   scheduled_at?: string | null;
   author_name?: string | null;

@@ -118,12 +118,14 @@ class PromoRedemptionTest extends TestCase
         return ['Authorization' => 'Bearer '.$token];
     }
 
-    public function test_public_announcement_responses_exclude_promo_announcements(): void
+    public function test_customer_announcement_responses_exclude_promo_announcements(): void
     {
         Announcement::create([
             'title' => 'Private promo',
             'content' => 'Hidden promo code OPPA123',
             'target_audience' => 'customers',
+            'target_audiences' => ['customers'],
+            'target_franchise_branches' => null,
             'priority' => 'promo',
             'status' => 'published',
         ]);
@@ -131,11 +133,13 @@ class PromoRedemptionTest extends TestCase
             'title' => 'Restaurant update',
             'content' => 'Updated opening hours.',
             'target_audience' => 'customers',
+            'target_audiences' => ['customers'],
+            'target_franchise_branches' => null,
             'priority' => 'normal',
             'status' => 'published',
         ]);
 
-        $this->getJson('/api/announcements?audience=customers')
+        $this->getJson('/api/customer/announcements', $this->customerHeaders())
             ->assertOk()
             ->assertJsonFragment(['title' => 'Restaurant update'])
             ->assertJsonMissing(['title' => 'Private promo'])

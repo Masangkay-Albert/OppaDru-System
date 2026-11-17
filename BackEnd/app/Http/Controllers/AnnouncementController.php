@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Announcement;
 use App\Models\Franchise;
 use App\Models\FranchiseUser;
+use App\Models\User;
 use App\Services\FacebookService;
 use App\Services\ProductImageUploadService;
 use App\Traits\AdminAuthTrait;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -21,6 +23,7 @@ class AnnouncementController extends Controller
 
     public function __construct(
         private readonly ProductImageUploadService $imageUploadService,
+        private readonly FacebookService $facebookService,
     ) {}
 
     /**
@@ -82,24 +85,33 @@ class AnnouncementController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // Summary statistics via single aggregate query to avoid pulling the entire table
-        $rawStats = Announcement::query()->selectRaw("
-            COUNT(*) as total,
-            COUNT(CASE WHEN status = 'published' THEN 1 END) as published,
-            COUNT(CASE WHEN status = 'scheduled' THEN 1 END) as scheduled,
-            COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft,
-            COUNT(CASE WHEN target_audience = 'all' OR target_audiences::text LIKE '%\"all\"%' THEN 1 END) as audience_all,
-            COUNT(CASE WHEN target_audience = 'customers' OR target_audiences::text LIKE '%\"customers\"%' THEN 1 END) as audience_customers
-        ")->first();
-
+        $now = now();
         $stats = [
-            'total' => (int) ($rawStats->total ?? 0),
-            'published' => (int) ($rawStats->published ?? 0),
-            'scheduled' => (int) ($rawStats->scheduled ?? 0),
-            'draft' => (int) ($rawStats->draft ?? 0),
+            'total' => Announcement::query()->count(),
+            'published' => Announcement::query()->where(function ($query) use ($now) {
+                $query->where(function ($published) use ($now) {
+                    $published->where('status', 'published')
+                        ->where(function ($sent) use ($now) {
+                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', $now);
+                        });
+                })->orWhere(function ($scheduled) use ($now) {
+                    $scheduled->where('status', 'scheduled')
+                        ->whereNotNull('scheduled_at')
+                        ->where('scheduled_at', '<=', $now);
+                });
+            })->count(),
+            'scheduled' => Announcement::query()->where('status', 'scheduled')
+                ->where(function ($query) use ($now) {
+                    $query->whereNull('scheduled_at')->orWhere('scheduled_at', '>', $now);
+                })->count(),
+            'draft' => Announcement::query()->where('status', 'draft')->count(),
             'audiences' => [
-                'all' => (int) ($rawStats->audience_all ?? 0),
-                'customers' => (int) ($rawStats->audience_customers ?? 0),
+                'all' => Announcement::query()->where(function ($query) {
+                    $query->where('target_audience', 'all')->orWhereJsonContains('target_audiences', 'all');
+                })->count(),
+                'customers' => Announcement::query()->where(function ($query) {
+                    $query->where('target_audience', 'customers')->orWhereJsonContains('target_audiences', 'customers');
+                })->count(),
             ],
         ];
 
@@ -216,11 +228,22 @@ class AnnouncementController extends Controller
 
         $facebookPublish = null;
         if ($request->boolean('publish_to_facebook') && $announcement->status === 'published') {
-            $facebookPublish = (new FacebookService())->publish(
-                trim($announcement->title . "\n\n" . $announcement->content),
-                $announcement->image_path,
-                $announcement->image_url,
-            );
+            try {
+                $facebookPublish = $this->facebookService->publish(
+                    trim($announcement->title . "\n\n" . $announcement->content),
+                    $announcement->image_path,
+                    $announcement->image_url,
+                );
+            } catch (\Throwable $error) {
+                Log::warning('Facebook publishing failed after saving an announcement.', [
+                    'announcement_id' => $announcement->id,
+                    'exception' => $error,
+                ]);
+                $facebookPublish = [
+                    'success' => false,
+                    'message' => 'Facebook publishing failed. The in-app announcement was saved.',
+                ];
+            }
 
             if ($facebookPublish['success']) {
                 $metadata = (array) ($announcement->metadata ?? []);
@@ -484,14 +507,125 @@ class AnnouncementController extends Controller
     /**
      * Public / Client: Get currently visible customer announcements.
      */
-    public function publicList(Request $request)
+    public function customerList(Request $request)
     {
-        $announcements = Announcement::query()
+        $user = $request->user();
+        if (! $user instanceof User || $user->role !== 'customer') {
+            return response()->json(['message' => 'Customer access required.'], 403);
+        }
+
+        $branchId = $this->validatedCustomerBranchId($request);
+        $announcements = $this->customerVisibleAnnouncements($branchId)
+            ->orderByRaw("COALESCE(CASE WHEN status = 'scheduled' THEN scheduled_at ELSE date_sent END, created_at) DESC")
+            ->get();
+        $readIds = DB::table('customer_announcement_reads')
+            ->where('user_id', $user->id)
+            ->whereIn('announcement_id', $announcements->pluck('id'))
+            ->pluck('announcement_id')
+            ->map(static fn ($id) => (string) $id)
+            ->all();
+        $readSet = array_fill_keys($readIds, true);
+
+        $announcements->each(function (Announcement $announcement) use ($readSet) {
+            $announcement->setAttribute('is_read', isset($readSet[(string) $announcement->id]));
+        });
+
+        return response()->json([
+            'success' => true,
+            'announcements' => $announcements,
+            'unread_count' => $announcements->where('is_read', false)->count(),
+        ])->header('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * Customer: mark one visible announcement read or unread.
+     */
+    public function setCustomerAnnouncementRead(Request $request, string $id)
+    {
+        $user = $request->user();
+        if (! $user instanceof User || $user->role !== 'customer') {
+            return response()->json(['message' => 'Customer access required.'], 403);
+        }
+
+        $request->validate(['read' => 'sometimes|boolean']);
+        $branchId = $this->validatedCustomerBranchId($request);
+        $announcement = $this->customerVisibleAnnouncements($branchId)->whereKey($id)->first();
+        if (! $announcement) {
+            return response()->json(['message' => 'Announcement not found.'], 404);
+        }
+
+        $now = now();
+        if ($request->boolean('read', true)) {
+            DB::table('customer_announcement_reads')->updateOrInsert(
+                ['announcement_id' => $announcement->id, 'user_id' => $user->id],
+                ['read_at' => $now, 'updated_at' => $now, 'created_at' => $now],
+            );
+        } else {
+            DB::table('customer_announcement_reads')
+                ->where('announcement_id', $announcement->id)
+                ->where('user_id', $user->id)
+                ->delete();
+        }
+
+        return response()->json(['success' => true, 'is_read' => $request->boolean('read', true)]);
+    }
+
+    /**
+     * Customer: mark all currently visible announcements read.
+     */
+    public function markCustomerAnnouncementsRead(Request $request)
+    {
+        $user = $request->user();
+        if (! $user instanceof User || $user->role !== 'customer') {
+            return response()->json(['message' => 'Customer access required.'], 403);
+        }
+
+        $branchId = $this->validatedCustomerBranchId($request);
+        $now = now();
+        $rows = $this->customerVisibleAnnouncements($branchId)
+            ->pluck('id')
+            ->map(static fn ($announcementId) => [
+                'announcement_id' => $announcementId,
+                'user_id' => $user->id,
+                'read_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])
+            ->all();
+        if ($rows !== []) {
+            DB::table('customer_announcement_reads')->upsert(
+                $rows,
+                ['user_id', 'announcement_id'],
+                ['read_at', 'updated_at'],
+            );
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    private function validatedCustomerBranchId(Request $request): ?string
+    {
+        $validated = $request->validate([
+            'branch_id' => [
+                'nullable',
+                'string',
+                Rule::exists('franchises', 'id')->where(fn ($query) => $query
+                    ->where('status', 'active')
+                    ->where('is_active', true)),
+            ],
+        ]);
+
+        return isset($validated['branch_id']) ? (string) $validated['branch_id'] : null;
+    }
+
+    private function customerVisibleAnnouncements(?string $branchId): Builder
+    {
+        return Announcement::query()
             ->where(function ($query) {
                 $query->where(function ($published) {
                     $published->where('status', 'published')
                         ->where(function ($sent) {
-                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now()->addMinutes(5));
+                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now());
                         });
                 })->orWhere(function ($scheduled) {
                     $scheduled->where('status', 'scheduled')
@@ -499,15 +633,17 @@ class AnnouncementController extends Controller
                         ->where('scheduled_at', '<=', now());
                 });
             })
-            ->whereJsonContains('target_audiences', ['customers'])
-            ->orderByRaw("COALESCE(CASE WHEN status = 'scheduled' THEN scheduled_at ELSE date_sent END, created_at) DESC")
-            ->limit(20)
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'announcements' => $announcements,
-        ])->header('Cache-Control', 'no-store, private');
+            ->whereJsonContains('target_audiences', 'customers')
+            ->where('priority', '!=', 'promo')
+            ->where(function ($query) use ($branchId) {
+                $query->whereNull('target_franchise_branches');
+                if ($branchId !== null) {
+                    $query->orWhereJsonContains('target_franchise_branches', $branchId);
+                    if (ctype_digit($branchId)) {
+                        $query->orWhereJsonContains('target_franchise_branches', (int) $branchId);
+                    }
+                }
+            });
     }
 
     /**
@@ -575,7 +711,7 @@ class AnnouncementController extends Controller
                 $query->where(function ($published) {
                     $published->where('status', 'published')
                         ->where(function ($sent) {
-                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now()->addMinutes(5));
+                            $sent->whereNull('date_sent')->orWhere('date_sent', '<=', now());
                         });
                 })->orWhere(function ($scheduled) {
                     $scheduled->where('status', 'scheduled')
@@ -583,12 +719,12 @@ class AnnouncementController extends Controller
                         ->where('scheduled_at', '<=', now());
                 });
             })
-            ->whereJsonContains('target_audiences', ['franchise_branches'])
+            ->whereJsonContains('target_audiences', 'franchise_branches')
             ->where(function ($query) use ($branchId) {
                 $query->whereNull('target_franchise_branches')
-                    ->orWhereJsonContains('target_franchise_branches', [$branchId]);
+                    ->orWhereJsonContains('target_franchise_branches', $branchId);
                 if (ctype_digit($branchId)) {
-                    $query->orWhereJsonContains('target_franchise_branches', [(int) $branchId]);
+                    $query->orWhereJsonContains('target_franchise_branches', (int) $branchId);
                 }
             });
     }
@@ -607,8 +743,7 @@ class AnnouncementController extends Controller
             return response()->json(['success' => false, 'message' => 'Announcement not found.'], 404);
         }
 
-        $fbService = new FacebookService();
-        if (!$fbService->isConfigured()) {
+        if (!$this->facebookService->isConfigured()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Facebook is not configured. Set the Page Access Token in the backend environment.',
@@ -624,7 +759,19 @@ class AnnouncementController extends Controller
         }
 
         $message = trim($announcement->title . "\n\n" . $announcement->content);
-        $res = $fbService->publish($message, $announcement->image_path, $announcement->image_url);
+        try {
+            $res = $this->facebookService->publish($message, $announcement->image_path, $announcement->image_url);
+        } catch (\Throwable $error) {
+            Log::warning('Facebook publishing failed for a saved announcement.', [
+                'announcement_id' => $announcement->id,
+                'exception' => $error,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Facebook publishing failed. The in-app announcement remains available.',
+            ], 502);
+        }
 
         if (!empty($res['success'])) {
             $metadata = (array) ($announcement->metadata ?? []);
@@ -658,10 +805,9 @@ class AnnouncementController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $fbService = new FacebookService();
         return response()->json([
             'success' => true,
-            'status' => $fbService->getStatus(),
+            'status' => $this->facebookService->getStatus(),
         ]);
     }
 }

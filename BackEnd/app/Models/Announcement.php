@@ -80,7 +80,7 @@ class Announcement extends Model
         return $query->where('status', 'published')
                      ->where(function (Builder $q) {
                          $q->whereNull('date_sent')
-                           ->orWhere('date_sent', '<=', now()->addMinutes(5));
+                           ->orWhere('date_sent', '<=', now());
                      });
     }
 }
