@@ -41,6 +41,11 @@ const stateLabels: Record<SimulationState, string> = {
   closed: 'Closed',
 };
 
+const toDateTimeLocalValue = (date: Date): string => {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 const AdminPricingSettingsPage: React.FC = () => {
   const [pricing, setPricing] = useState<Pricing>(defaultPricing);
   const [message, setMessage] = useState('');
@@ -91,15 +96,14 @@ const AdminPricingSettingsPage: React.FC = () => {
     setMessage(response.ok ? 'Pricing settings saved.' : data.message || 'Unable to save pricing settings.');
   };
 
-  const saveSimulation = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const persistSimulation = async (enabled: boolean, selectedTime: string) => {
     setIsSavingSimulation(true);
     setSimulationMessage('');
     try {
       const response = await fetchWithAdminAuth(`${API_URL}/admin/store-hours/simulation`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ enabled: simulationEnabled, simulated_at: simulatedAt || null }),
+        body: JSON.stringify({ enabled, simulated_at: selectedTime || null }),
       });
       const data = await response.json() as { message?: string };
       if (!response.ok) throw new Error(data.message || 'Unable to save ordering-hours simulation settings.');
@@ -110,6 +114,18 @@ const AdminPricingSettingsPage: React.FC = () => {
     } finally {
       setIsSavingSimulation(false);
     }
+  };
+
+  const saveSimulation = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await persistSimulation(simulationEnabled, simulatedAt);
+  };
+
+  const useLaptopTimeAndSave = async () => {
+    const selectedTime = toDateTimeLocalValue(new Date());
+    setSimulationEnabled(true);
+    setSimulatedAt(selectedTime);
+    await persistSimulation(true, selectedTime);
   };
 
   const setPresetTime = (time: string) => {
@@ -148,6 +164,20 @@ const AdminPricingSettingsPage: React.FC = () => {
               />
               Use simulated time
             </label>
+
+            <div className="rounded-lg border border-gray-200 px-4 py-3">
+              <p className="text-sm text-gray-600">
+                After changing this computer's clock, use it as the simulated Asia/Manila time for all visitors.
+              </p>
+              <button
+                type="button"
+                onClick={() => void useLaptopTimeAndSave()}
+                disabled={isSavingSimulation}
+                className="mt-3 rounded-lg border border-[#2d6a4f] px-4 py-2 text-sm font-semibold text-[#2d6a4f] hover:bg-[#2d6a4f]/5 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/40"
+              >
+                {isSavingSimulation ? 'Saving…' : "Use and save this laptop's current time"}
+              </button>
+            </div>
 
             {simulationEnabled && (
               <div className="space-y-3">
