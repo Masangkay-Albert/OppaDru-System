@@ -960,7 +960,7 @@ const AdminReportsPage: React.FC = () => {
       <SalesTimelinePanel
         buckets={trendBuckets}
         orderCount={salesOrders.length}
-        description={timelineRange === 'daily' ? 'Hourly activity from 10:00 AM to 11:00 PM.' : timelineRange === 'weekly' ? weekDateRange ? `Daily activity for ${formatDateRange(weekDateRange)}.` : 'Daily activity grouped by weekday.' : timelineRange === 'monthly' ? 'Daily activity grouped by calendar date.' : 'Monthly activity grouped from January to December.'}
+        description={timelineRange === 'daily' ? 'Hourly activity from 11:00 AM to 11:00 PM.' : timelineRange === 'weekly' ? weekDateRange ? `Daily activity for ${formatDateRange(weekDateRange)}.` : 'Daily activity grouped by weekday.' : timelineRange === 'monthly' ? 'Daily activity grouped by calendar date.' : 'Monthly activity grouped from January to December.'}
         style={timelineStyle}
         onStyleChange={setTimelineStyle}
       />

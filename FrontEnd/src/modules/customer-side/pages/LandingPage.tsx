@@ -125,7 +125,7 @@ const LandingPage: React.FC = () => {
         <div className="oppa-landing-container oppa-trust-strip">
           <div><CookingPot size={17} /><span>Cooked fresh daily</span></div>
           <div><Utensils size={17} /><span>Authentic Korean recipes</span></div>
-          <div><Clock3 size={17} /><span>Open daily 10:00 AM – 11:00 PM</span></div>
+          <div><Clock3 size={17} /><span>Open daily 11:00 AM – 11:00 PM</span></div>
           <div><Truck size={17} /><span>Delivery available</span></div>
         </div>
       </section>
@@ -187,7 +187,7 @@ const LandingPage: React.FC = () => {
           <div className="oppa-visit-card">
             <div className="oppa-visit-details">
               <div><span><MapPin size={18} /></span><p><strong>Address</strong>37 Malihan St. Barangay Zone 1,<br />Dasmariñas, Cavite, Philippines</p></div>
-              <div><span><Clock3 size={18} /></span><p><strong>Business hours</strong>Daily: 10:00 AM – 11:00 PM</p></div>
+              <div><span><Clock3 size={18} /></span><p><strong>Business hours</strong>Daily: 11:00 AM – 11:00 PM</p></div>
               <div><span><Phone size={18} /></span><p><strong>Call us</strong><a href="tel:09473065526">0947 306 5526</a></p></div>
               <a href="https://maps.google.com/?q=37+Malihan+St+Barangay+Zone+1+Dasmarinas+Cavite+Philippines" target="_blank" rel="noreferrer" className="oppa-button oppa-button-green">Get Directions <ArrowRight size={16} /></a>
             </div>
