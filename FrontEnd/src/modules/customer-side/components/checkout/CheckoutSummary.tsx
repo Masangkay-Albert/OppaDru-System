@@ -67,7 +67,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
   const { getActiveDiscount } = useSettings();
   const { status: storeHours } = useStoreHours();
   const activeDiscount = getActiveDiscount();
-  const orderingClosed = storeHours?.state !== 'open';
+  const orderingClosed = storeHours?.state === 'closed' || storeHours?.state === 'last_order_passed';
   const hasMixedCartError = hasMixedCartBranches || deliveryError?.code === 'CART_BRANCH_MISMATCH';
 
   const { subtotal, deliveryFee, serviceFee, priorityFee, discountAmount, vat, total, hasItems } = useCartCalculations({

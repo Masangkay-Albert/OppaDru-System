@@ -35,7 +35,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
   const { addOrder } = useFavorites();
   const { status: storeHours } = useStoreHours();
   const canOrder = storeHours?.state === 'open';
-  const orderingClosed = storeHours?.state !== 'open';
+  const orderingClosed = storeHours?.state === 'closed' || storeHours?.state === 'last_order_passed';
   const [quantity, setQuantity] = useState(1);
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
   const [specialInstructions, setSpecialInstructions] = useState('');

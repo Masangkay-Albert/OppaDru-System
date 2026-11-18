@@ -36,7 +36,7 @@ const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cartItems, clearCart, activeBranchId, setActiveBranchId, validateCartAgainstMenu, useCutlery } = useCart();
   const { placeOrder } = useOrder();
-  const { status: storeHours } = useStoreHours();
+  const { status: storeHours, refreshStatus } = useStoreHours();
   const { showToast } = useToast();
   const { getActiveDiscount } = useSettings();
   const activeDiscount = getActiveDiscount();
@@ -74,11 +74,16 @@ const CheckoutPage: React.FC = () => {
   const selectedAddressCoordinatesRef = useRef<Coordinates | null>(null);
   const cartBranchIds = [...new Set(cartItems.map((item) => item.franchise_id).filter((id): id is string => Boolean(id)))];
   const hasMixedCartBranches = cartBranchIds.length > 1;
-  const orderingClosed = storeHours?.state !== 'open';
+  const orderingClosed = storeHours?.state === 'closed' || storeHours?.state === 'last_order_passed';
 
-  const requireStoreOpen = () => {
-    if (storeHours?.state === 'open') return true;
-    showToast(storeHours?.order_closed_message || 'Ordering status is unavailable. Please try again shortly.', 'error');
+  const requireStoreOpen = async () => {
+    const latestStatus = await refreshStatus();
+    if (latestStatus?.state === 'open') return true;
+    showToast(
+      latestStatus?.order_closed_message
+        || 'Ordering status is unavailable. Please check your connection and try again.',
+      'error',
+    );
     return false;
   };
 
@@ -302,7 +307,7 @@ const CheckoutPage: React.FC = () => {
   };
 
   const placeOrderDirect = async (paymentReference?: string) => {
-    if (!requireStoreOpen()) return;
+    if (!await requireStoreOpen()) return;
     if (orderRequestRef.current) return;
 
     const request = (async () => {
@@ -426,8 +431,8 @@ const CheckoutPage: React.FC = () => {
     }
   };
 
-  const handlePlaceOrder = () => {
-    if (!requireStoreOpen()) return;
+  const handlePlaceOrder = async () => {
+    if (!await requireStoreOpen()) return;
     if (isPlacingOrder) return;
 
     if (!address.street) {

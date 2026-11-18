@@ -21,7 +21,7 @@ export interface StoreHoursStatus {
 interface StoreHoursContextValue {
   status: StoreHoursStatus | null;
   isLoading: boolean;
-  refreshStatus: () => Promise<void>;
+  refreshStatus: () => Promise<StoreHoursStatus | null>;
 }
 
 const StoreHoursContext = createContext<StoreHoursContextValue | undefined>(undefined);
@@ -48,9 +48,10 @@ export const StoreHoursProvider: React.FC<React.PropsWithChildren> = ({ children
   const [status, setStatus] = useState<StoreHoursStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const requestInFlightRef = useRef(false);
+  const statusRef = useRef<StoreHoursStatus | null>(null);
 
   const refreshStatus = useCallback(async () => {
-    if (requestInFlightRef.current) return;
+    if (requestInFlightRef.current) return statusRef.current;
     requestInFlightRef.current = true;
 
     try {
@@ -63,13 +64,16 @@ export const StoreHoursProvider: React.FC<React.PropsWithChildren> = ({ children
       const payload: unknown = await response.json();
       if (!isStoreHoursStatus(payload)) throw new Error('Store hours response was invalid.');
 
-      setStatus({
+      const nextStatus = {
         ...payload,
         ...getDeviceStoreHoursStatus(payload.configured_hours),
-      });
+      };
+      statusRef.current = nextStatus;
+      setStatus(nextStatus);
+      return nextStatus;
     } catch (error) {
       console.error('Failed to check store hours:', error);
-      setStatus(null);
+      return statusRef.current;
     } finally {
       requestInFlightRef.current = false;
       setIsLoading(false);

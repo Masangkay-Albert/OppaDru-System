@@ -23,7 +23,7 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ onClose }) => {
 
   const subtotal = calculateSubtotal(cartItems);
   const hasItems = cartItems.length > 0;
-  const orderingClosed = storeHours?.state !== 'open';
+  const orderingClosed = storeHours?.state === 'closed' || storeHours?.state === 'last_order_passed';
 
   const handleCheckout = () => {
     if (!hasItems || orderingClosed) return;
