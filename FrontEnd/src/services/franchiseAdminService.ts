@@ -229,6 +229,7 @@ export interface FranchiseAccountOverview {
     total_orders: number;
     total_sales: number;
     average_order_value: number;
+    top_product: { name: string; units_sold: number } | null;
     locations: Array<{
       franchise_id: string;
       location_name: string;
@@ -375,6 +376,12 @@ export const getFranchiseAccountOverview = async (id: string): Promise<Franchise
       total_orders: Number(performance.total_orders) || 0,
       total_sales: Number(performance.total_sales) || 0,
       average_order_value: Number(performance.average_order_value) || 0,
+      top_product: performance.top_product && typeof performance.top_product === 'object'
+        ? {
+          name: String(performance.top_product.name || ''),
+          units_sold: Number(performance.top_product.units_sold) || 0,
+        }
+        : null,
       locations: Array.isArray(performance.locations) ? performance.locations : [],
     },
   } as FranchiseAccountOverview;

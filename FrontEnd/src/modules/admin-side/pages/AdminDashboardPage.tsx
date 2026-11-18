@@ -4,7 +4,7 @@ import { ShoppingBag, Users, Package, AlertTriangle, ArrowRight, Copy } from 'lu
 import AdminLayout from '../components/AdminLayout';
 import StatCard from '../components/StatCard';
 import { Avatar, DataTable, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
-import { getAllOrders, isRevenueOrder, type AdminOrder, getAllCustomers } from '../../../services/adminOrderService';
+import { getAllOrders, getCurrentYearAdminOrders, isRevenueOrder, type AdminOrder, getAllCustomers } from '../../../services/adminOrderService';
 import { apiGetAdminCount } from '../../../services/adminAuthService';
 import { getAllProducts } from '../../../services/adminProductService';
 import { formatCurrency } from '../../../utils/formatters';
@@ -167,7 +167,7 @@ const AdminDashboardPage: React.FC = () => {
     };
 
     await Promise.all([
-      loadSection('orders', getAllOrders, (result) => setOrders(result)),
+      loadSection('orders', () => getAllOrders(true), (result) => setOrders(result)),
       loadSection('customers', getAllCustomers, (result) => setTotalUsers(result.length)),
       loadSection('products', getAllProducts, (result) => {
         setTotalProducts(result.length);
@@ -182,7 +182,40 @@ const AdminDashboardPage: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [loadDashboard]);
 
-  const recentOrders = Array.isArray(orders) ? orders.slice(0, 6) : [];
+  useEffect(() => {
+    let active = true;
+    let refreshing = false;
+    const refreshOrders = async () => {
+      if (refreshing || document.visibilityState !== 'visible') return;
+      refreshing = true;
+      try {
+        const latestOrders = await getAllOrders(true);
+        if (active) {
+          setOrders(latestOrders);
+          setSectionErrors((current) => ({ ...current, orders: undefined }));
+        }
+      } catch (error) {
+        console.error('Failed to refresh dashboard orders.', error);
+        if (active) setSectionErrors((current) => ({ ...current, orders: 'Unable to load this section.' }));
+      } finally {
+        refreshing = false;
+      }
+    };
+    const refreshWhenActive = () => {
+      if (document.visibilityState === 'visible') void refreshOrders();
+    };
+    const interval = window.setInterval(refreshWhenActive, 1000);
+    window.addEventListener('focus', refreshWhenActive);
+    document.addEventListener('visibilitychange', refreshWhenActive);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenActive);
+      document.removeEventListener('visibilitychange', refreshWhenActive);
+    };
+  }, []);
+
+  const recentOrders = useMemo(() => getCurrentYearAdminOrders(orders).slice(0, 6), [orders]);
   const ordersTrend = useMemo(() => {
     const today = startOfDay(new Date());
     const current = Array(7).fill(0) as number[];

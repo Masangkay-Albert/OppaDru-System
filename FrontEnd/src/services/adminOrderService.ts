@@ -109,6 +109,48 @@ export type AdminOrder = Omit<Order, 'timestamp' | 'items'> & {
   schedule_display?: string | null;
 };
 
+type AdminOrderDateFields = Pick<AdminOrder, 'created_at' | 'timestamp' | 'order_number'>;
+
+export const getAdminManilaDateYMD = (date: Date): string => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || '';
+  return `${value('year')}-${value('month')}-${value('day')}`;
+};
+
+export const getAdminOrderTimestamp = (order: AdminOrderDateFields): number => {
+  const raw = order.created_at || order.timestamp;
+  if (raw) {
+    const time = new Date(raw).getTime();
+    if (!Number.isNaN(time)) return time;
+  }
+  const match = order.order_number?.match(/(\d{4})(\d{2})(\d{2})/);
+  if (!match) return 0;
+  const time = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00+08:00`).getTime();
+  return Number.isNaN(time) ? 0 : time;
+};
+
+export const getAdminOrderDateYMD = (order: AdminOrderDateFields): string => {
+  const raw = order.created_at || order.timestamp;
+  if (raw) {
+    const date = new Date(raw);
+    if (!Number.isNaN(date.getTime())) return getAdminManilaDateYMD(date);
+  }
+  const match = order.order_number?.match(/(\d{4})(\d{2})(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
+};
+
+export const getCurrentYearAdminOrders = (orders: AdminOrder[]): AdminOrder[] => {
+  const currentYear = getAdminManilaDateYMD(new Date()).slice(0, 4);
+  return orders
+    .filter((order) => getAdminOrderDateYMD(order).startsWith(`${currentYear}-`))
+    .sort((first, second) => getAdminOrderTimestamp(second) - getAdminOrderTimestamp(first));
+};
+
 const getOrderChannel = (order: any): OrderChannel => {
   const channel = String(order?.channel || '').trim().toLowerCase();
   if (channel === 'onsite' || channel === 'online') return channel;
@@ -228,25 +270,11 @@ export const getAllOrders = async (forceRefresh = false): Promise<AdminOrder[]> 
       };
     });
 
-    const getSortTimestamp = (order: { created_at?: string | null; timestamp?: string | null }) => {
-      const value = order.created_at || order.timestamp || '1970-01-01T00:00:00.000Z';
-      return new Date(value).getTime();
-    };
-
-    return onlineOrders.sort(
-      (a, b) => getSortTimestamp(b) - getSortTimestamp(a)
-    );
+    return onlineOrders.sort((a, b) => getAdminOrderTimestamp(b) - getAdminOrderTimestamp(a));
     } catch {
-    const getSortTimestamp = (order: { created_at?: string | null; timestamp?: string | null }) => {
-      const value = order.created_at || order.timestamp || '1970-01-01T00:00:00.000Z';
-      return new Date(value).getTime();
-    };
-
     const deduplicatedOrders = new Map<string, AdminOrder>();
     [...getOnlineOrders(), ...getOnsiteOrders()].forEach((order) => deduplicatedOrders.set(order.id, order));
-    return [...deduplicatedOrders.values()].sort(
-      (a, b) => getSortTimestamp(b) - getSortTimestamp(a)
-    );
+    return [...deduplicatedOrders.values()].sort((a, b) => getAdminOrderTimestamp(b) - getAdminOrderTimestamp(a));
    }
   })();
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart3, ClipboardList, IndianRupee, Package, Store, TrendingUp, Users, X } from 'lucide-react';
+import { BarChart3, ClipboardList, IndianRupee, Loader2, Package, Store, TrendingUp, Users, X } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getFranchiseAccountDetailedReport } from '../../../services/franchiseAdminService';
@@ -285,7 +285,10 @@ const FranchiseAccountReportView: React.FC<{
       <div className="flex flex-wrap justify-between gap-2 text-xs text-[var(--oppa-text-muted)]"><span>{error ? <span role="alert" className="text-red-700">{error} <button type="button" onClick={retry} className="underline">Retry</button></span> : `${range.from} – ${range.to}`}</span><span>Last updated: {report?.last_updated ? dateTime(report.last_updated) : '—'}</span></div>
       {pdfError && <p role="alert" className="text-sm text-red-700">{pdfError}</p>}
 
-      {loading ? <div role="status" aria-label="Loading franchise report" aria-busy="true" className="grid gap-4 md:grid-cols-2">{Array.from({ length: 6 }, (_, index) => <div key={index} className="franchise-report-card h-36 animate-pulse bg-[var(--oppa-cream)]" />)}</div>
+      {loading ? <div role="status" aria-label="Loading franchise report" aria-busy="true" className="franchise-report-card flex min-h-28 items-center justify-center gap-3 text-sm text-[var(--oppa-text-muted)]">
+        <Loader2 size={18} className="animate-spin text-[var(--oppa-green)]" aria-hidden="true" />
+        <span>Loading report...</span>
+      </div>
         : error && !report ? <Card title="Report unavailable"><Empty text="We couldn't load this report." /><button type="button" className="franchise-action-button mt-3" onClick={retry}>Retry</button></Card>
           : report && summary ? <>
             <div className="franchise-kpi-grid franchise-report-kpis">

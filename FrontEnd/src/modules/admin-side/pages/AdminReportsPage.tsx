@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, Globe2, Loader2, Shield, ShoppingBag, Store, TrendingUp } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
-import { getAllOrders, isRevenueOrder, type AdminOrder } from '../../../services/adminOrderService';
+import { getAdminManilaDateYMD, getAllOrders, isRevenueOrder, type AdminOrder } from '../../../services/adminOrderService';
 import { useAdminAuth } from '../../../contexts/AdminAuthContext';
 import { getCurrentAdmin } from '../../../services/adminAuthService';
 import { deleteTargetProfitSale, getTargetProfitSale, updateTargetProfitSale } from '../../../services/targetProfitSaleService';
@@ -36,7 +36,25 @@ const salesChannelLabel = (channel: string): string =>
 const ALL_YEARS = 'all';
 const ALL_FILTER = 'all';
 const ALL_CHANNELS = 'all';
-const MIN_REPORT_YEAR = new Date().getFullYear();
+const DAY_MS = 24 * 60 * 60 * 1000;
+const manilaHourFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Manila',
+  hour: '2-digit',
+  hourCycle: 'h23',
+});
+const getManilaDateParts = (date: Date) => {
+  const [year, month, day] = getAdminManilaDateYMD(date).split('-').map(Number);
+  return {
+    year,
+    month: month - 1,
+    day,
+    weekday: new Date(Date.UTC(year, month - 1, day)).getUTCDay(),
+    hour: Number(manilaHourFormatter.format(date)),
+  };
+};
+const getManilaDateStart = (date: Date): Date =>
+  new Date(`${getAdminManilaDateYMD(date)}T00:00:00+08:00`);
+const MIN_REPORT_YEAR = Number(getAdminManilaDateYMD(new Date()).slice(0, 4));
 const getOrderDate = (order: AdminOrder): Date | null => {
   const value = order.created_at || order.timestamp;
   if (!value) return null;
@@ -57,12 +75,13 @@ interface ReportFilters {
 const isWithinRange = (order: AdminOrder, filters: ReportFilters): boolean => {
   const date = getOrderDate(order);
   if (!date) return false;
+  const parts = getManilaDateParts(date);
 
-  if (filters.year !== ALL_YEARS && date.getFullYear() !== Number(filters.year)) return false;
-  if (filters.month !== ALL_FILTER && date.getMonth() !== Number(filters.month)) return false;
-  if (filters.day !== ALL_FILTER && date.getDay() !== Number(filters.day)) return false;
-  if (filters.week !== ALL_FILTER && Math.ceil(date.getDate() / 7) !== Number(filters.week)) return false;
-  if (filters.date !== '' && `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` !== filters.date) return false;
+  if (filters.year !== ALL_YEARS && parts.year !== Number(filters.year)) return false;
+  if (filters.month !== ALL_FILTER && parts.month !== Number(filters.month)) return false;
+  if (filters.day !== ALL_FILTER && parts.weekday !== Number(filters.day)) return false;
+  if (filters.week !== ALL_FILTER && Math.ceil(parts.day / 7) !== Number(filters.week)) return false;
+  if (filters.date !== '' && getAdminManilaDateYMD(date) !== filters.date) return false;
   if (filters.channel !== ALL_CHANNELS && !matchesSalesChannel(order, filters.channel)) return false;
   return true;
 };
@@ -87,13 +106,15 @@ const getWeekDateRange = (filters: ReportFilters): [Date, Date] | null => {
 
   const month = Number(filters.month);
   const week = Number(filters.week);
-  const start = new Date(Number(filters.year), month, (week - 1) * 7 + 1);
-  const end = new Date(Number(filters.year), month, Math.min(week * 7, new Date(Number(filters.year), month + 1, 0).getDate()));
+  const year = Number(filters.year);
+  const start = new Date(Date.UTC(year, month, (week - 1) * 7 + 1, 12));
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const end = new Date(Date.UTC(year, month, Math.min(week * 7, lastDay), 12));
   return [start, end];
 };
 
 const formatDateRange = (range: [Date, Date]): string => {
-  const formatDate = (date: Date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const formatDate = (date: Date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
   return `${formatDate(range[0])} - ${formatDate(range[1])}`;
 };
 
@@ -131,8 +152,9 @@ const getTrendBuckets = (orders: AdminOrder[], range: ReportRange, filters: Repo
     const weekRange = getWeekDateRange(filters);
     if (weekRange) {
       const [start, end] = weekRange;
-      for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
-        getBucket(`${date.toLocaleDateString('en-US', { weekday: 'short' })}\n${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`);
+      for (let time = start.getTime(); time <= end.getTime(); time += DAY_MS) {
+        const date = new Date(time);
+        getBucket(`${date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })}\n${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`);
       }
     } else {
       ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach((day) => getBucket(day));
@@ -147,16 +169,17 @@ const getTrendBuckets = (orders: AdminOrder[], range: ReportRange, filters: Repo
   orders.forEach((order) => {
     const date = getOrderDate(order);
     if (!date) return;
-    if (range === 'daily' && (date.getHours() < 10 || date.getHours() > 23)) return;
+    const parts = getManilaDateParts(date);
+    if (range === 'daily' && (parts.hour < 10 || parts.hour > 23)) return;
     const label = range === 'daily'
-      ? `${date.getHours() % 12 || 12}:00 ${date.getHours() >= 12 ? 'PM' : 'AM'}`
+      ? `${parts.hour % 12 || 12}:00 ${parts.hour >= 12 ? 'PM' : 'AM'}`
       : range === 'weekly'
         ? getWeekDateRange(filters)
-          ? `${date.toLocaleDateString('en-US', { weekday: 'short' })}\n${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-          : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]
+          ? `${date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Manila' })}\n${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })}`
+          : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][parts.weekday]
         : range === 'monthly'
-          ? String(date.getDate())
-          : date.toLocaleString('en-US', { month: 'short' });
+          ? String(parts.day)
+          : date.toLocaleString('en-US', { month: 'short', timeZone: 'Asia/Manila' });
     const bucket = getBucket(label);
     bucket.sales += Number(order.total || 0);
     bucket.orders += 1;
@@ -560,12 +583,12 @@ const AdminReportsPage: React.FC = () => {
 
   const filteredOrders = useMemo(() => {
     const now = new Date();
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    if (quickRange === '7days') start.setDate(start.getDate() - 6);
-    else if (quickRange === '30days') start.setDate(start.getDate() - 29);
-    else if (quickRange === 'month') start.setDate(1);
-    else if (quickRange === 'year') start.setMonth(0, 1);
+    const manilaToday = getManilaDateParts(now);
+    let start = getManilaDateStart(now);
+    if (quickRange === '7days') start = new Date(start.getTime() - 6 * DAY_MS);
+    else if (quickRange === '30days') start = new Date(start.getTime() - 29 * DAY_MS);
+    else if (quickRange === 'month') start = new Date(`${manilaToday.year}-${String(manilaToday.month + 1).padStart(2, '0')}-01T00:00:00+08:00`);
+    else if (quickRange === 'year') start = new Date(`${manilaToday.year}-01-01T00:00:00+08:00`);
     return orders.filter((order) => {
       if (!isWithinRange(order, filters)) return false;
       if (quickRange === 'custom') return true;
@@ -601,7 +624,10 @@ const AdminReportsPage: React.FC = () => {
         ? 'monthly'
         : 'yearly';
 
-  const years = useMemo(() => [...new Set(orders.map((order) => getOrderDate(order)?.getFullYear()).filter(Boolean))].sort((a, b) => Number(b) - Number(a)), [orders]);
+  const years = useMemo(() => [...new Set(orders.map((order) => {
+    const date = getOrderDate(order);
+    return date ? getManilaDateParts(date).year : null;
+  }).filter(Boolean))].sort((a, b) => Number(b) - Number(a)), [orders]);
 
   const metrics = useMemo(() => {
     const channelOrders = SALES_CHANNELS.map((channel) => ({
@@ -691,13 +717,14 @@ const AdminReportsPage: React.FC = () => {
     setFilters((current) => {
     if (key === 'date' && value !== '') {
       const selectedDate = new Date(`${value}T00:00:00+08:00`);
-      if (selectedDate.getFullYear() < MIN_REPORT_YEAR) return current;
+      const parts = getManilaDateParts(selectedDate);
+      if (parts.year < MIN_REPORT_YEAR) return current;
       return {
         ...current,
-        year: String(selectedDate.getFullYear()),
-        month: String(selectedDate.getMonth()),
-        week: String(Math.ceil(selectedDate.getDate() / 7)),
-        day: String(selectedDate.getDay()),
+        year: String(parts.year),
+        month: String(parts.month),
+        week: String(Math.ceil(parts.day / 7)),
+        day: String(parts.weekday),
         date: value,
       };
     }
@@ -731,7 +758,7 @@ const AdminReportsPage: React.FC = () => {
     year: 'This year',
   };
   const customDateSummary = filters.date
-    ? new Date(`${filters.date}T00:00:00+08:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    ? new Date(`${filters.date}T00:00:00+08:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' })
     : [
       filters.year !== ALL_YEARS ? filters.year : 'All years',
       filters.month !== ALL_FILTER ? ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][Number(filters.month)] : null,

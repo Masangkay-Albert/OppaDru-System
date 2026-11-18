@@ -2,9 +2,10 @@
 import L from 'leaflet';
 import oppaDeliveryIcon from '../../../../assets/oppa-dru-delivery.png';
 import oppaLogo from '../../../../assets/oppadrulogo.jpg';
+import './MapIcons.css';
 
 // Fix Leaflet icon issue
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+Reflect.deleteProperty(L.Icon.Default.prototype, '_getIconUrl');
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
@@ -13,9 +14,10 @@ L.Icon.Default.mergeOptions({
 
 export const driverIcon = new L.Icon({
   iconUrl: oppaDeliveryIcon,
-  iconSize: [40, 40],
-  iconAnchor: [20, 40],
-  popupAnchor: [0, -40],
+  iconSize: [48, 48],
+  iconAnchor: [24, 24],
+  popupAnchor: [0, -26],
+  className: 'tracking-driver-marker',
 });
 
 export const storeIcon = new L.Icon({

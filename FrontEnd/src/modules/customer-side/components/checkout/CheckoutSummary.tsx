@@ -109,7 +109,7 @@ const CheckoutSummary: React.FC<CheckoutSummaryProps> = ({
           <div
             ref={deliveryAlertRef}
             role="alert"
-            aria-live="polite"
+            aria-live="assertive"
             className="checkout-delivery-status checkout-delivery-error"
           >
             <FiAlertCircle className="checkout-delivery-status-icon" aria-hidden="true" />

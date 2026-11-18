@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle, X, Eye, Package, Copy, Globe2, ShoppingBag, Store, RotateCcw } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import { AdminDate, Avatar, EmptyState, PageHeader, StatusBadge, Toast } from '../components/AdminUI';
-import { getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
+import { getAdminManilaDateYMD, getAdminOrderDateYMD, getAdminOrderTimestamp, getAllOrders, type AdminOrder } from '../../../services/adminOrderService';
 import { fetchWithAdminAuth } from '../../../services/adminAuthService';
 import { API_URL } from '../../../services/apiConfig';
 import { formatCurrency } from '../../../utils/formatters';
@@ -30,31 +30,10 @@ const validStatusFilters = new Set(statusOptionsBase.map(({ value }) => value));
 const readInitialFilter = (key: string, fallback = '') => new URLSearchParams(window.location.search).get(key) || fallback;
 type ChannelFilter = 'all' | 'online' | 'onsite' | ThirdPartyPlatform;
 
-const getManilaDateYMD = (date: Date): string => {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || '';
-  return `${value('year')}-${value('month')}-${value('day')}`;
-};
-
-const getCurrentManilaDate = () => getManilaDateYMD(new Date());
+const getCurrentManilaDate = () => getAdminManilaDateYMD(new Date());
 const getCurrentYearDateFilter = (date: string) => {
   const year = getCurrentManilaDate().slice(0, 4);
   return /^\d{4}-\d{2}-\d{2}$/.test(date) && date.startsWith(`${year}-`) ? date : '';
-};
-
-const getOrderDateYMD = (order: Pick<AdminOrder, 'created_at' | 'timestamp' | 'order_number'>): string => {
-  const raw = order.created_at || order.timestamp;
-  if (raw) {
-    const date = new Date(raw);
-    if (!Number.isNaN(date.getTime())) return getManilaDateYMD(date);
-  }
-  const match = order.order_number?.match(/(\d{4})(\d{2})(\d{2})/);
-  return match ? `${match[1]}-${match[2]}-${match[3]}` : '';
 };
 
 const readInitialChannel = (): ChannelFilter => {
@@ -193,20 +172,6 @@ const AdminOrdersPage: React.FC = () => {
     };
   }, [loadOrders]);
 
-  const getOrderTimestamp = (order: AdminOrder): number => {
-    const raw = order.created_at || order.timestamp;
-    if (raw) {
-      const time = new Date(raw).getTime();
-      if (!isNaN(time)) return time;
-    }
-    const match = order.order_number?.match(/(\d{4})(\d{2})(\d{2})/);
-    if (match) {
-      const time = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00+08:00`).getTime();
-      if (!isNaN(time)) return time;
-    }
-    return 0;
-  };
-
   const isScheduledOrder = (order: AdminOrder) => {
     if (!order) return false;
     const status = String(order.status || '').toLowerCase();
@@ -219,7 +184,7 @@ const AdminOrdersPage: React.FC = () => {
   const currentManilaDate = getCurrentManilaDate();
   const currentYear = currentManilaDate.slice(0, 4);
   const currentYearOrders = useMemo(
-    () => orders.filter((order) => getOrderDateYMD(order).startsWith(`${currentYear}-`)),
+    () => orders.filter((order) => getAdminOrderDateYMD(order).startsWith(`${currentYear}-`)),
     [orders, currentYear],
   );
   const filteredOrders = useMemo(() => {
@@ -237,7 +202,7 @@ const AdminOrdersPage: React.FC = () => {
       }
 
       if (dateFilter !== '') {
-        const orderDateYMD = getOrderDateYMD(order);
+        const orderDateYMD = getAdminOrderDateYMD(order);
         if (orderDateYMD !== dateFilter) {
           return false;
         }
@@ -247,8 +212,8 @@ const AdminOrdersPage: React.FC = () => {
     });
 
     return filtered.sort((a, b) => {
-      const valueA = sortBy === 'total' ? Number(a.total || 0) : getOrderTimestamp(a);
-      const valueB = sortBy === 'total' ? Number(b.total || 0) : getOrderTimestamp(b);
+      const valueA = sortBy === 'total' ? Number(a.total || 0) : getAdminOrderTimestamp(a);
+      const valueB = sortBy === 'total' ? Number(b.total || 0) : getAdminOrderTimestamp(b);
       return sortOrder === 'asc' ? valueA - valueB : valueB - valueA;
     });
   }, [currentYearOrders, channelFilter, statusFilter, dateFilter, sortOrder, searchTerm, sortBy]);

@@ -216,6 +216,14 @@ class FranchiseAccountController extends Controller
         $orders = $forAccountLocations(Order::query())
             ->whereBetween('created_at', [$monthStart, $monthEnd]);
         $revenueOrders = (clone $orders)->countedAsRevenue();
+        $topProduct = $forAccountLocations(Order::query())
+            ->countedAsRevenue()
+            ->join('order_items', 'orders.id', '=', 'order_items.order_id')
+            ->whereBetween('orders.created_at', [$monthStart, $monthEnd])
+            ->selectRaw('order_items.product_name as name, SUM(order_items.quantity) as units_sold')
+            ->groupBy('order_items.product_name')
+            ->orderByDesc('units_sold')
+            ->first();
         $locationPerformance = $account->locations->map(function (Franchise $location) use ($forAccountLocations, $monthStart, $monthEnd) {
             $locationOrders = $forAccountLocations(Order::query())
                 ->whereBetween('created_at', [$monthStart, $monthEnd])
@@ -265,6 +273,10 @@ class FranchiseAccountController extends Controller
                     'total_orders' => $orders->count(),
                     'total_sales' => (float) $revenueOrders->sum('total'),
                     'average_order_value' => (float) $revenueOrders->avg('total'),
+                    'top_product' => $topProduct ? [
+                        'name' => $topProduct->name,
+                        'units_sold' => (int) $topProduct->units_sold,
+                    ] : null,
                     'locations' => $locationPerformance,
                 ],
             ],

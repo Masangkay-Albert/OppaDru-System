@@ -1,0 +1,8 @@
+.tracking-driver-marker {
+  box-sizing: border-box;
+  padding: 3px;
+  border: 3px solid #fff;
+  border-radius: 9999px;
+  background: #267a43;
+  filter: drop-shadow(0 2px 4px rgba(17, 26, 20, .45));
+}

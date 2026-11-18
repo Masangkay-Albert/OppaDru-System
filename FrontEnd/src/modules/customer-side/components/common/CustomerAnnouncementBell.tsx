@@ -791,12 +791,11 @@ export const CustomerAnnouncementBell: React.FC<CustomerAnnouncementBellProps> =
             </div>
 
             {/* Modal Sticky Footer */}
-            <div className="customer-bell-modal__footer flex items-center justify-between border-t px-6 py-3.5 text-xs text-[var(--notification-body)] font-medium shrink-0">
-              <span className="hidden sm:inline">Use arrow keys (← / →) to browse, Esc to close</span>
+            <div className="customer-bell-modal__footer flex items-center justify-end border-t px-6 py-3.5 text-xs text-[var(--notification-body)] font-medium shrink-0">
               <button
                 type="button"
                 onClick={() => setExpandedModal(false)}
-                className="customer-bell-modal-control ml-auto px-4 py-1.5 rounded-xl border text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--notification-green)]"
+                className="customer-bell-modal-control px-4 py-1.5 rounded-xl border text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--notification-green)]"
               >
                 Close
               </button>

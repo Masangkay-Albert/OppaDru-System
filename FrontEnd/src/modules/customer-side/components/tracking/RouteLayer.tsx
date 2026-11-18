@@ -54,6 +54,7 @@ const RouteLayer: React.FC<RouteLayerProps> = ({ start, end, progress, onRouteLo
         ];
         setFullRoute(fallbackPoints);
         onRouteLoadedRef.current?.(fallbackPoints);
+        map.fitBounds(L.latLngBounds(fallbackPoints), { padding: [36, 36], maxZoom: 13 });
         setUsingFallback(true);
       }
       setLoading(false);
@@ -96,8 +97,8 @@ const RouteLayer: React.FC<RouteLayerProps> = ({ start, end, progress, onRouteLo
   return (
     <>
       {usingFallback && (
-        <div className="absolute top-2 left-2 z-[1000] bg-yellow-100 p-2 rounded shadow text-xs text-yellow-700">
-          Using straight-line route
+        <div role="status" className="absolute left-2 right-2 top-2 z-[1000] rounded-xl border border-amber-200 bg-[var(--oppa-surface)]/95 px-3 py-2 text-xs text-[var(--oppa-text)] shadow-sm sm:right-auto">
+          A detailed route is unavailable. Showing a direct route preview.
         </div>
       )}
       {remainingRoute.length > 1 && (

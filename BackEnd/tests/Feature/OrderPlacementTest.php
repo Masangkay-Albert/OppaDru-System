@@ -131,6 +131,81 @@ class OrderPlacementTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_customer_can_skip_cancellation_window_without_starting_preparation(): void
+    {
+        $customer = User::create([
+            'full_name' => 'Proceed Customer',
+            'email' => 'proceed@example.com',
+            'phone' => '09171234571',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $order = Order::create([
+            'id' => 'CUSTOMER-PROCEED-PENDING',
+            'email' => $customer->email,
+            'user_id' => $customer->id,
+            'total' => 100,
+            'status' => 'pending',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Test delivery address',
+            'phone' => $customer->phone,
+            'items' => [],
+            'delivery_type' => 'standard',
+        ]);
+
+        Carbon::setTestNow($order->created_at->copy()->addSeconds(5));
+        $this->actingAs($customer, 'api')
+            ->patchJson('/api/orders/'.$order->id.'/status', ['status' => 'proceed'])
+            ->assertOk()
+            ->assertJsonPath('order.status', 'pending');
+
+        $order->refresh();
+        $this->assertNotNull($order->customer_proceeded_at);
+        $this->assertSame('pending', $order->status);
+
+        $this->getJson('/api/orders/user/'.$order->id)
+            ->assertOk()
+            ->assertJsonPath('cancellation_remaining_seconds', 0);
+
+        $this->patchJson('/api/orders/'.$order->id.'/status', ['status' => 'cancelled'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Cancellation period has ended.');
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'pending']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_customer_cannot_set_an_order_to_preparing(): void
+    {
+        $customer = User::create([
+            'full_name' => 'Status Guard Customer',
+            'email' => 'status-guard@example.com',
+            'phone' => '09171234572',
+            'password' => Hash::make('password123'),
+            'role' => 'customer',
+            'email_verified_at' => now(),
+        ]);
+        $order = Order::create([
+            'id' => 'CUSTOMER-CANNOT-START-PREPARING',
+            'email' => $customer->email,
+            'user_id' => $customer->id,
+            'total' => 100,
+            'status' => 'pending',
+            'payment_method' => 'cash_on_delivery',
+            'delivery_address' => 'Test delivery address',
+            'phone' => $customer->phone,
+            'items' => [],
+            'delivery_type' => 'standard',
+        ]);
+
+        $this->actingAs($customer, 'api')
+            ->patchJson('/api/orders/'.$order->id.'/status', ['status' => 'preparing'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'pending']);
+    }
+
     public function test_customer_cannot_cancel_after_order_status_has_advanced(): void
     {
         $customer = User::create([

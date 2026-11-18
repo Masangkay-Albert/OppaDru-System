@@ -378,9 +378,15 @@ const AdminFranchiseAccountDetailPage: React.FC = () => {
                   <aside className="franchise-account-card">
                     <h2 className="text-lg font-semibold">Top product</h2>
                     <div className="mt-4 rounded-xl bg-[var(--oppa-cream)] p-4">
-                      <p className="text-xs uppercase tracking-wide text-[var(--oppa-text-muted)]">Best seller</p>
-                      <p className="mt-2 text-xl font-semibold">Laguna Apple</p>
-                      <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">5 sold</p>
+                      {data.performance.top_product ? (
+                        <>
+                          <p className="text-xs uppercase tracking-wide text-[var(--oppa-text-muted)]">Best seller this month</p>
+                          <p className="mt-2 text-xl font-semibold">{data.performance.top_product.name}</p>
+                          <p className="mt-1 text-sm text-[var(--oppa-text-muted)]">{data.performance.top_product.units_sold.toLocaleString()} sold</p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-[var(--oppa-text-muted)]">No product sales recorded this month.</p>
+                      )}
                     </div>
                   </aside>
                 </div>

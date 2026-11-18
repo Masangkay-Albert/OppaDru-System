@@ -699,12 +699,20 @@
 
 .checkout-delivery-error {
   color: #752b2b;
-  background: #fff1f0;
+  background: #fff8f7;
   border: 1px solid #efc3c0;
+  border-left: 4px solid #b8322b;
 }
 
 .checkout-delivery-error .checkout-delivery-status-icon {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+  margin: 0;
+  padding: 7px;
   color: #b8322b;
+  background: #ffe2df;
+  border-radius: 50%;
 }
 
 .checkout-delivery-status-title {
@@ -720,6 +728,7 @@
   font-size: 13px;
   font-weight: 400;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .checkout-delivery-actions {
@@ -760,6 +769,17 @@
 
 .checkout-delivery-action-secondary:hover {
   background: #ffe4e1;
+}
+
+.checkout-delivery-action-primary:focus-visible,
+.checkout-delivery-action-secondary:focus-visible {
+  outline: 3px solid rgba(184, 50, 43, 0.35);
+  outline-offset: 2px;
+}
+
+.checkout-delivery-actions > button {
+  flex: 1 1 160px;
+  min-width: 0;
 }
 
 .checkout-delivery-alert-pulse {
@@ -1220,6 +1240,10 @@
 .dark .checkout-delivery-status-title,
 .dark .checkout-delivery-status-message {
   color: #ffd0cc;
+}
+
+.dark .checkout-delivery-error .checkout-delivery-status-icon {
+  background: #56302d;
 }
 
 .dark .checkout-delivery-action-secondary {

@@ -343,6 +343,10 @@ class OrderService {
         const result = await response.json();
         return result.order;
     }
+
+    async proceedOrder(id: string): Promise<Order> {
+        return this.updateOrderStatus(id, 'proceed');
+    }
 }
 
 export const orderService = new OrderService();

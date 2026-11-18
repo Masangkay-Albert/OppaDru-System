@@ -108,7 +108,7 @@ trait OrderManagementActions
     public function updateStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'status' => 'required|string|in:cancelled,preparing',
+            'status' => 'required|string|in:cancelled,proceed',
         ]);
 
         if ($validator->fails()) {
@@ -135,23 +135,35 @@ trait OrderManagementActions
                 ], 422);
             }
 
-            if (! $createdAt || $elapsedMilliseconds < 0 || $elapsedMilliseconds >= $cancellationWindow * 1000) {
-                return response()->json([
-                    'message' => $request->status === OrderStatus::PREPARING
-                        ? 'Proceed window has ended.'
-                        : 'Cancellation period has ended.',
-                ], 422);
-            }
+            if ($request->status === 'proceed') {
+                if ($order->customer_proceeded_at) {
+                    return response()->json([
+                        'success' => true,
+                        'order' => $order,
+                        'message' => 'The cancellation window has already been skipped.',
+                    ]);
+                }
 
-            if ($request->status === OrderStatus::PREPARING) {
-                $order->status = OrderStatus::PREPARING;
+                if (! $createdAt || $elapsedMilliseconds < 0 || $elapsedMilliseconds >= $cancellationWindow * 1000) {
+                    return response()->json([
+                        'message' => 'Proceed window has ended.',
+                    ], 422);
+                }
+
+                $order->customer_proceeded_at = $now;
                 $order->save();
 
                 return response()->json([
                     'success' => true,
                     'order' => $order,
-                    'message' => 'Order is now being prepared.',
+                    'message' => 'Cancellation window skipped. The order remains pending.',
                 ]);
+            }
+
+            if ($order->customer_proceeded_at || ! $createdAt || $elapsedMilliseconds < 0 || $elapsedMilliseconds >= $cancellationWindow * 1000) {
+                return response()->json([
+                    'message' => 'Cancellation period has ended.',
+                ], 422);
             }
 
             $order->status = OrderStatus::CANCELLED;

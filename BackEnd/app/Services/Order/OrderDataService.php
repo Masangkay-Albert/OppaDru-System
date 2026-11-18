@@ -38,7 +38,7 @@ class OrderDataService
             ? (($now->getTimestamp() * 1000) + (int) $now->format('v'))
                 - (($order->created_at->getTimestamp() * 1000) + (int) $order->created_at->format('v'))
             : ($cancellationWindow * 1000);
-        $cancellationRemaining = strtolower((string) $order->status) === 'pending'
+        $cancellationRemaining = strtolower((string) $order->status) === 'pending' && ! $order->customer_proceeded_at
             ? max(0, (($cancellationWindow * 1000) - max(0, $cancellationElapsedMilliseconds)) / 1000)
             : 0;
 
