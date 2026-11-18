@@ -3,6 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Announcement;
+use App\Models\Addon;
+use App\Models\AddonGroup;
+use App\Models\Employee;
+use App\Models\Franchise;
 use App\Models\Product;
 use App\Models\Promo;
 use App\Models\User;
@@ -75,6 +79,72 @@ class PromoRedemptionTest extends TestCase
             ->assertOk()
             ->assertJsonPath('isValid', false)
             ->assertJsonPath('error_code', 'PROMO_INVALID');
+    }
+
+    public function test_cashier_validation_accepts_numeric_addon_ids_from_pos_cart(): void
+    {
+        $branch = Franchise::create([
+            'name' => 'Promo Validation Branch',
+            'email' => 'promo.validation@example.test',
+            'status' => 'active',
+            'is_active' => true,
+        ]);
+        $cashier = Employee::create([
+            'franchise_id' => $branch->id,
+            'fullName' => 'Promo Validation Cashier',
+            'email' => 'promo.cashier@example.test',
+            'password' => Hash::make('Cashier@123'),
+            'position' => 'cashier',
+            'is_active' => true,
+        ]);
+        $product = Product::create([
+            'name' => 'BBQ chicken',
+            'description' => 'Chicken meal',
+            'price' => 100,
+            'category' => 'chicken',
+            'image' => '',
+            'is_available' => true,
+        ]);
+        $addonGroup = AddonGroup::create([
+            'name' => 'Sides',
+            'selection_type' => 'multiple',
+            'supports_quantity' => true,
+            'applicable_categories' => ['chicken'],
+            'is_active' => true,
+        ]);
+        $product->addonGroups()->attach($addonGroup->id);
+        $addon = Addon::create([
+            'addon_group_id' => $addonGroup->id,
+            'name' => 'Chicken burger',
+            'price' => 10,
+            'is_active' => true,
+        ]);
+        Promo::create([
+            'code' => 'CASHIERADDON',
+            'title' => 'Cashier addon promo',
+            'channel' => 'cashier',
+            'discount_type' => 'percent',
+            'discount_value' => 10,
+            'is_active' => true,
+        ]);
+        $login = $this->postJson('/api/employee/login', [
+            'email' => $cashier->email,
+            'password' => 'Cashier@123',
+        ])->assertOk();
+
+        $this->postJson('/api/employee/pos/promos/validate', [
+            'code' => 'CASHIERADDON',
+            'franchise_id' => $branch->id,
+            'items' => [[
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'selected_addons' => [['id' => $addon->id, 'quantity' => 1]],
+            ]],
+        ], ['Authorization' => 'Bearer '.$login->json('token')])
+            ->assertOk()
+            ->assertJsonPath('isValid', true)
+            ->assertJsonPath('discount', 11)
+            ->assertJsonPath('code', 'CASHIERADDON');
     }
 
     public function test_invalid_promo_attempts_are_rate_limited(): void

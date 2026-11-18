@@ -74,6 +74,12 @@ const statusLabel = (promo: Promo): string => (
   promo.is_expired ? 'expired' : promo.is_active ? 'active' : 'inactive'
 );
 
+const getPromoChannelLabel = (channel?: Promo['channel']): string => {
+  if (channel === 'online') return 'Customer';
+  if (channel === 'onsite' || channel === 'cashier') return 'Cashier POS';
+  return 'All channels';
+};
+
 const daysUntil = (value: string): number => Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
 
 interface PromoDetailsProps {
@@ -110,6 +116,12 @@ function PromoDetails({ promo }: PromoDetailsProps) {
               {copied ? <LuClipboardCheck size={12} aria-hidden="true" /> : <LuClipboard size={12} aria-hidden="true" className="opacity-0 transition-opacity group-hover/code:opacity-100 group-focus-visible/code:opacity-100" />}
             </button>
           )}
+          <span
+            title={`Available in ${getPromoChannelLabel(promo.channel)}`}
+            className="inline-flex items-center rounded-full border border-[var(--oppa-green)]/15 bg-[var(--oppa-green-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--oppa-green-dark)]"
+          >
+            {getPromoChannelLabel(promo.channel)}
+          </span>
         </div>
         {promo.description && (
           <p className="mt-0.5 line-clamp-1 text-xs text-[var(--oppa-text-muted)]">{promo.description}</p>
@@ -411,7 +423,7 @@ export default function AdminPromosPage() {
     setTitle(promo.title);
     setCode(promo.code || '');
     setDescription(promo.description || '');
-    setChannel(promo.channel || 'all');
+    setChannel(promo.channel === 'cashier' ? 'onsite' : promo.channel || 'all');
     setDiscountType(promo.discount_type);
     setDiscountValue(String(promo.discount_value));
     setMinOrderAmount(String(promo.min_order_amount ?? 0));

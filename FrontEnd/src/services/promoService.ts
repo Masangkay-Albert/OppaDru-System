@@ -7,7 +7,7 @@ export interface Promo {
   code?: string;
   title: string;
   description?: string;
-  channel?: 'all' | 'online' | 'onsite';
+  channel?: 'all' | 'online' | 'onsite' | 'cashier';
   discount_type: 'percent' | 'fixed';
   discount_value: number;
   start_date?: string | null;

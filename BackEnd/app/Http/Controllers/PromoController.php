@@ -350,7 +350,7 @@ class PromoController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'items.*.selected_addons' => 'nullable|array',
-            'items.*.selected_addons.*.id' => 'required|string',
+            'items.*.selected_addons.*.id' => 'required|integer|min:1',
             'franchise_id' => 'nullable|string|exists:franchises,id',
             'items.*.selected_addons.*.quantity' => 'nullable|integer|min:1',
         ]);
