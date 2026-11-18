@@ -432,6 +432,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
 
       const data: CreateOrderData = {
+        store_time: new Date().toISOString(),
         email: activeUser.email,
         franchise_id: franchiseId || undefined,
         items: orderItems,

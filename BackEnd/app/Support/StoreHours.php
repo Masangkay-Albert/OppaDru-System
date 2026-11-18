@@ -6,19 +6,23 @@ use Carbon\CarbonImmutable;
 
 final class StoreHours
 {
-    public static function getCurrentStoreTime(): CarbonImmutable
+    public static function getCurrentStoreTime(?string $clientTime = null): CarbonImmutable
     {
         $timezone = (string) config('store_hours.timezone');
+        if (config('store_hours.allow_client_clock') && $clientTime !== null) {
+            return CarbonImmutable::parse($clientTime)->setTimezone($timezone);
+        }
+
         return CarbonImmutable::now('UTC')->setTimezone($timezone);
     }
 
-    public static function status(): array
+    public static function status(?string $clientTime = null): array
     {
         $timezone = (string) config('store_hours.timezone');
         $openingTime = (string) config('store_hours.opening');
         $lastOrderTime = (string) config('store_hours.last_order');
         $closingTime = (string) config('store_hours.closing');
-        $currentTime = self::getCurrentStoreTime();
+        $currentTime = self::getCurrentStoreTime($clientTime);
 
         [$openingHour, $openingMinute] = array_map('intval', explode(':', $openingTime));
         [$lastOrderHour, $lastOrderMinute] = array_map('intval', explode(':', $lastOrderTime));

@@ -101,7 +101,10 @@ trait OrderPlacementActions
 
     public function store(Request $request)
     {
-        $storeHours = StoreHours::status();
+        $request->validate([
+            'store_time' => ['nullable', 'date'],
+        ]);
+        $storeHours = StoreHours::status($request->input('store_time'));
         if ($storeHours['state'] !== 'open') {
             return response()->json(['message' => $storeHours['order_closed_message']], 422);
         }
