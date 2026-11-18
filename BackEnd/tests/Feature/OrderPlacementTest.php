@@ -18,6 +18,7 @@ use App\Models\Driver;
 use App\Models\User;
 use App\Notifications\DiscountApplicationDecisionNotification;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -31,6 +32,7 @@ class OrderPlacementTest extends TestCase
     protected function tearDown(): void
     {
         Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
         parent::tearDown();
     }
 
@@ -584,6 +586,7 @@ class OrderPlacementTest extends TestCase
 
     public function test_successful_online_payment_is_saved_as_paid_at_the_rounded_order_total(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-11-18 15:30:00', 'UTC'));
         $branch = $this->createOnlineDeliveryBranch('Online Payment Branch');
         $user = User::create([
             'full_name' => 'GCash Customer',
@@ -638,6 +641,53 @@ class OrderPlacementTest extends TestCase
             ->assertJsonPath('order.payment_status', 'paid');
         $this->assertSame(263.0, (float) Order::countedAsRevenue()->sum('total'));
         $this->assertSame($response->json('order.id'), $payment->fresh()->order_id);
+
+        $cardPayment = Payment::create([
+            'reference' => 'CARD-PAID-TEST',
+            'provider' => 'test',
+            'amount' => 263,
+            'status' => 'paid',
+            'paid_at' => now(),
+            'metadata' => ['franchise_id' => $branch->id],
+        ]);
+        $cardResponse = $this
+            ->withHeader('Authorization', 'Bearer ' . $loginResponse->json('token'))
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'total' => 263,
+                'delivery_address' => 'Online payment delivery address',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
+                'payment_method' => 'credit_card',
+                'payment_reference' => $cardPayment->reference,
+                'phone' => $user->phone,
+            ]);
+
+        $cardResponse->assertCreated()->assertJsonPath('order.payment_status', 'paid');
+        $this->assertSame($cardResponse->json('order.id'), $cardPayment->fresh()->order_id);
+
+        $this->withHeader('Authorization', 'Bearer ' . $loginResponse->json('token'))
+            ->postJson('/api/orders', [
+                'email' => $user->email,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_price' => 199,
+                    'quantity' => 1,
+                ]],
+                'total' => 263,
+                'delivery_address' => 'Online payment delivery address',
+                'delivery_coordinates' => ['lat' => 14.3194, 'lng' => 120.9943],
+                'payment_method' => 'cash_on_delivery',
+                'phone' => $user->phone,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', "Sorry, we're not accepting orders right now. Ordering is open from 11:00 AM to 10:30 PM.");
     }
 
     public function test_gcash_and_card_amount_validation_rejects_drink_sizes_and_addons(): void

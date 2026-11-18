@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Services\FranchiseInventoryService;
 use App\Services\PromoRedemptionException;
 use App\Services\PromoRedemptionService;
+use App\Support\StoreHours;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -29,6 +30,7 @@ trait PaymentCheckoutActions
             'items.*.selected_size' => 'nullable|string|in:Small,Medium,Large',
             'delivery_type' => 'nullable|string|in:standard,priority,scheduled,onsite',
             'fulfillment_type' => 'nullable|string|in:pickup,delivery,onsite',
+            'store_time' => 'nullable|date',
             'delivery_coordinates' => 'nullable|array|required_unless:fulfillment_type,pickup,onsite',
             'delivery_coordinates.lat' => 'required_unless:fulfillment_type,pickup,onsite|numeric|between:-90,90',
             'delivery_coordinates.lng' => 'required_unless:fulfillment_type,pickup,onsite|numeric|between:-180,180',
@@ -118,6 +120,11 @@ trait PaymentCheckoutActions
                 'message' => $validated['message'],
                 'error_code' => $validated['error_code'] ?? null,
             ], $validated['status'] ?? 422);
+        }
+
+        $storeHours = StoreHours::status($request->input('store_time'));
+        if ($storeHours['state'] !== 'open') {
+            return response()->json(['success' => false, 'message' => $storeHours['order_closed_message']], 422);
         }
 
         $amount = $validated['amount'];
@@ -237,6 +244,7 @@ trait PaymentCheckoutActions
             'delivery_coordinates' => 'nullable|array',
             'delivery_coordinates.lat' => 'required_with:delivery_coordinates|numeric|between:-90,90',
             'delivery_coordinates.lng' => 'required_with:delivery_coordinates|numeric|between:-180,180',
+            'store_time' => 'nullable|date',
         ]);
 
         if ($validator->fails()) {
@@ -258,6 +266,11 @@ trait PaymentCheckoutActions
                 'message' => $pricing['message'],
                 'error_code' => $pricing['error_code'] ?? null,
             ], $pricing['status'] ?? 422);
+        }
+
+        $storeHours = StoreHours::status($request->input('store_time'));
+        if ($storeHours['state'] !== 'open') {
+            return response()->json(['success' => false, 'message' => $storeHours['order_closed_message']], 422);
         }
 
         $secretKey = config('services.paymongo.secret_key');

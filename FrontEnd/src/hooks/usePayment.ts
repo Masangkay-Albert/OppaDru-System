@@ -67,6 +67,7 @@ export const usePayment = () => {
     expiryYear: string;
     cvv: string;
     amount: number;
+    storeTime?: string;
     items: Array<{ id: string; quantity: number; selectedSize?: string; selectedAddons?: Array<{ id: string; price: number; quantity?: number }> }>;
     deliveryType: 'standard' | 'priority' | 'scheduled';
     promoCode?: string | null;

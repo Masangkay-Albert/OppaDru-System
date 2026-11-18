@@ -307,7 +307,7 @@ const CheckoutPage: React.FC = () => {
   };
 
   const placeOrderDirect = async (paymentReference?: string) => {
-    if (!await requireStoreOpen()) return;
+    if (!paymentReference && !await requireStoreOpen()) return;
     if (orderRequestRef.current) return;
 
     const request = (async () => {

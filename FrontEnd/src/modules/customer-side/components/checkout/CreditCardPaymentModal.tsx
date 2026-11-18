@@ -94,6 +94,7 @@ const CreditCardPaymentModal: React.FC<CreditCardPaymentModalProps> = ({
       expiryYear: form.expiryYear,
       cvv: form.cvv,
       amount,
+      storeTime: new Date().toISOString(),
       items,
       deliveryType
       , promoCode, discountRate

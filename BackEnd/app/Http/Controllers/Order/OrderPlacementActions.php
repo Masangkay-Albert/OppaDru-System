@@ -104,10 +104,6 @@ trait OrderPlacementActions
         $request->validate([
             'store_time' => ['nullable', 'date'],
         ]);
-        $storeHours = StoreHours::status($request->input('store_time'));
-        if ($storeHours['state'] !== 'open') {
-            return response()->json(['message' => $storeHours['order_closed_message']], 422);
-        }
 
         if (! $request->hasFile('proof_image') && $request->hasFile('discount_proof_image')) {
             $request->files->set('proof_image', $request->file('discount_proof_image'));
@@ -384,6 +380,13 @@ trait OrderPlacementActions
             }
             if ($payment->order_id !== null) {
                 return response()->json(['message' => 'Payment is not available for this order.'], 422);
+            }
+        }
+
+        if ($payment === null) {
+            $storeHours = StoreHours::status($request->input('store_time'));
+            if ($storeHours['state'] !== 'open') {
+                return response()->json(['message' => $storeHours['order_closed_message']], 422);
             }
         }
 

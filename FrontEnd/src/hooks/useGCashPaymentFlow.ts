@@ -145,6 +145,7 @@ export const useGCashPaymentFlow = ({
       },
       body: JSON.stringify({
         amount: current.amount,
+        store_time: new Date().toISOString(),
         delivery_type: current.deliveryType,
         promo_code: current.promoCode || undefined,
         ...(current.cashierMode ? {

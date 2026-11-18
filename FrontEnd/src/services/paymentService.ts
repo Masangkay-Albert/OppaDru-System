@@ -165,6 +165,7 @@ class PaymentService {
     expiryYear: string;
     cvv: string;
     amount: number;
+    storeTime?: string;
     items: Array<{ id: string; quantity: number; selectedSize?: string; selectedAddons?: Array<{ id: string; price: number; quantity?: number }> }>;
     deliveryType: 'standard' | 'priority' | 'scheduled';
     promoCode?: string | null;
@@ -183,6 +184,7 @@ class PaymentService {
           expiry_year: data.expiryYear,
           cvv: data.cvv,
           amount: data.amount,
+          store_time: data.storeTime,
           items: data.items.map(item => ({
             product_id: item.id,
             quantity: item.quantity,
