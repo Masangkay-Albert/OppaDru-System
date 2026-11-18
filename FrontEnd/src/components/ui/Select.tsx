@@ -107,6 +107,12 @@ export default function Select<Value extends string | number = string>({
   const activeOptionId = activeOption
     ? `${listId}-option-${options.indexOf(activeOption)}`
     : undefined;
+  const menuWidth = triggerRect
+    ? Math.min(Math.max(triggerRect.width, 280), Math.max(0, window.innerWidth - 24))
+    : undefined;
+  const menuLeft = triggerRect && menuWidth !== undefined
+    ? Math.max(12, Math.min(triggerRect.left, window.innerWidth - menuWidth - 12))
+    : undefined;
 
   const openMenu = () => {
     if (disabled) return;
@@ -253,12 +259,12 @@ export default function Select<Value extends string | number = string>({
         className={`select-menu fixed z-[201] overflow-hidden rounded-xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-2 shadow-lg ${
           opensUp ? 'select-menu--up' : ''
         }`}
-        style={triggerRect ? {
-          left: triggerRect.left,
+        style={triggerRect && window.innerWidth >= 640 ? {
+          left: menuLeft,
           top: opensUp ? undefined : triggerRect.bottom + 6,
           bottom: opensUp ? window.innerHeight - triggerRect.top + 6 : undefined,
-          minWidth: triggerRect.width,
-          maxWidth: Math.max(triggerRect.width, window.innerWidth - 24),
+          width: menuWidth,
+          maxWidth: window.innerWidth - 24,
         } : undefined}
       >
         {showSearch && (
@@ -341,8 +347,8 @@ export default function Select<Value extends string | number = string>({
               >
                 {option.icon && <span className="shrink-0">{option.icon}</span>}
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate">{option.label}</span>
-                  {option.description && <span className="mt-0.5 block truncate text-xs font-normal text-[var(--oppa-text-muted)]">{option.description}</span>}
+                  <span className="block whitespace-normal break-words leading-5">{option.label}</span>
+                  {option.description && <span className="mt-0.5 block whitespace-normal break-words text-xs font-normal text-[var(--oppa-text-muted)]">{option.description}</span>}
                 </span>
                 {option.badge}
                 {isSelected && <LuCheck size={16} aria-hidden="true" className="shrink-0" />}

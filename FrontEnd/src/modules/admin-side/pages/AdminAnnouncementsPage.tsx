@@ -84,6 +84,21 @@ const formatDisplayDate = (isoDate?: string | null): string => {
   });
 };
 
+const getAnnouncementImageUrl = (
+  announcement: Pick<Announcement, 'image_url' | 'image_path'>
+): string | null => {
+  if (announcement.image_path) {
+    const apiOrigin = new URL(API_URL, typeof window === 'undefined' ? 'http://localhost' : window.location.origin).origin;
+    const imagePath = announcement.image_path
+      .split('/')
+      .filter(Boolean)
+      .map(encodeURIComponent)
+      .join('/');
+    return `${apiOrigin}/storage/${imagePath}`;
+  }
+  return announcement.image_url || null;
+};
+
 const AdminAnnouncementsPage: React.FC = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [stats, setStats] = useState<AnnouncementStats>({
@@ -269,12 +284,12 @@ const AdminAnnouncementsPage: React.FC = () => {
       status: item.status,
       date_sent: item.date_sent || '',
       scheduled_at: item.scheduled_at || '',
-      image_url: item.image_url || '',
+      image_url: '',
       imageFile: null,
       remove_image: false,
       publish_to_facebook: item.status === 'draft' && !item.metadata?.facebook_published_at,
     });
-    setImagePreview(item.image_url || null);
+    setImagePreview(getAnnouncementImageUrl(item));
     setIsFormOpen(true);
   };
 
@@ -706,6 +721,7 @@ Oppa Dru Korean Fried Chicken
               const AudienceIcon = audienceMeta.icon;
               const priorityBadge = PRIORITY_BADGES[item.priority] || PRIORITY_BADGES.normal;
               const displayDate = item.status === 'scheduled' ? item.scheduled_at : item.date_sent;
+              const announcementImageUrl = getAnnouncementImageUrl(item);
 
               return (
                 <article
@@ -714,9 +730,9 @@ Oppa Dru Korean Fried Chicken
                 >
                   {/* Card Media Header */}
                   <div className="relative h-44 w-full overflow-hidden bg-gradient-to-tr from-[var(--oppa-green-dark)]/15 via-[var(--oppa-green-soft)]/25 to-[var(--oppa-cream)]">
-                    {item.image_url ? (
+                    {announcementImageUrl ? (
                       <img
-                        src={item.image_url}
+                        src={announcementImageUrl}
                         alt={item.title}
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                         onError={(e) => {
@@ -1288,10 +1304,10 @@ Oppa Dru Korean Fried Chicken
                     </div>
 
                     {/* Attached Banner Image (full width) */}
-                    {previewItem.image_url && (
+                    {getAnnouncementImageUrl(previewItem) && (
                       <div className="-mx-4 mb-3 border-y border-slate-200 dark:border-slate-700 bg-black flex items-center justify-center overflow-hidden max-h-80">
                         <img
-                          src={previewItem.image_url}
+                          src={getAnnouncementImageUrl(previewItem) || undefined}
                           alt={previewItem.title}
                           className="w-full object-cover"
                         />
@@ -1328,9 +1344,9 @@ Oppa Dru Korean Fried Chicken
                 ) : (
                   /* Standard App View */
                   <>
-                    {previewItem.image_url && (
+                    {getAnnouncementImageUrl(previewItem) && (
                       <img
-                        src={previewItem.image_url}
+                        src={getAnnouncementImageUrl(previewItem) || undefined}
                         alt={previewItem.title}
                         className="max-h-52 w-full rounded-xl object-cover shadow-sm border border-[var(--oppa-border)]"
                       />

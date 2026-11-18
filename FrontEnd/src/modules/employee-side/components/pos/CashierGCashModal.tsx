@@ -186,13 +186,7 @@ export const CashierGCashModal: React.FC<CashierGCashModalProps> = ({
               <div className="flex flex-col items-center">
                 <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-md">
                   {qrUrl ? (
-                    <a
-                      href={qrUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Scan with phone camera or click to simulate payment"
-                      className="block transition-transform hover:scale-105 cursor-pointer"
-                    >
+                    <div role="img" aria-label="GCash payment QR code">
                       <QRCodeCanvas
                         value={qrUrl}
                         size={220}
@@ -200,7 +194,7 @@ export const CashierGCashModal: React.FC<CashierGCashModalProps> = ({
                         includeMargin
                         fgColor="#1a472a"
                       />
-                    </a>
+                    </div>
                   ) : (
                     <div className="w-[220px] h-[220px] flex items-center justify-center bg-gray-50 rounded-lg">
                       <FaSpinner className="animate-spin text-gray-400 text-2xl" />
@@ -237,19 +231,6 @@ export const CashierGCashModal: React.FC<CashierGCashModalProps> = ({
                     </span>
                   </span>
                 </div>
-
-                {/* Simulated Confirm Demo Button */}
-                {referenceNumber && (
-                  <a
-                    href={qrUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center justify-center gap-1.5 w-full py-2.5 px-3 rounded-xl bg-blue-50 text-blue-800 hover:bg-blue-100 text-xs font-bold transition border border-blue-200 shadow-2xs"
-                  >
-                    <span>Simulate GCash Redirect & Confirm</span>
-                    <span className="text-[10px] bg-blue-200 text-blue-900 px-1.5 py-0.5 rounded-md">Demo</span>
-                  </a>
-                )}
 
                 {/* Regenerate if expired */}
                 {timeRemaining === 0 && onRetry && (

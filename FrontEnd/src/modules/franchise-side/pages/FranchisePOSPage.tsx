@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, CreditCard, Drumstick, Heart, Minus, Pencil, Plus, QrCode, Receipt, Search, ShoppingBag, Smartphone, Soup, Store, Trash2, UserRound, Utensils, X } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ClipboardList, Coffee, Drumstick, Heart, Loader2, Minus, Pencil, Plus, QrCode, Receipt, Search, ShoppingBag, Smartphone, Soup, Store, Tag, Trash2, UserRound, Utensils, X } from 'lucide-react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { API_URL } from '../../../services/apiConfig';
 import SearchInput from '../../../components/ui/SearchInput';
@@ -13,6 +13,7 @@ import { useFranchiseAuth } from '../../../contexts/FranchiseAuthContext';
 import { formatPeso } from '../../../utils/formatters';
 import { getEmployeePosBrowserSessionId, loadEmployeePosDraft, saveEmployeePosDraft } from '../../../services/employeePosDraft';
 import { CashierGCashModal } from '../../employee-side/components/pos/CashierGCashModal';
+import { validateVoucherAsync } from '../../../services/voucherService';
 import '../../../styles/cashier-pos.css';
 import { useToast } from '../../customer-side/components/ToastProvider';
 import { getThirdPartyPlatformLabel, THIRD_PARTY_PLATFORMS, type OrderSource } from '../../../constants/thirdPartyPlatforms';
@@ -61,6 +62,8 @@ interface PosOrder {
     selected_addons?: Array<{ price?: number; quantity?: number }>;
   }>;
   payment_reference?: string;
+  promo_code?: string | null;
+  promo_discount?: number | string | null;
   cashTendered?: number;
   changeDue?: number;
   customerName?: string;
@@ -76,12 +79,21 @@ interface PendingPosState {
   discountType: '' | 'PWD' | 'Senior Citizen';
   discountIdNumber: string;
   discountCardholderName?: string;
+  promoCode?: string;
+  promoDiscount?: number;
   includeCutlery: boolean;
   customerNotes: string;
   tableNumber?: string;
 }
 
 const pendingPaymentStorageKey = (reference: string) => `franchise_pos_payment_${reference}`;
+const getPromoCartSignature = (cart: Record<string, PosCartLine>) => JSON.stringify(
+  Object.values(cart).map(({ product, quantity, selectedAddons }) => ({
+    productId: product.id,
+    quantity,
+    addons: selectedAddons.map(({ id, quantity: addonQuantity }) => [id, addonQuantity || 1]),
+  })),
+);
 const isBranchProductAvailable = (product: BranchProduct) =>
   product.branch_available ?? product.is_available ?? product.isAvailable ?? true;
 const isBranchProductLowStock = (product: BranchProduct) =>
@@ -138,6 +150,7 @@ const FranchisePOSPage: React.FC = () => {
       return {};
     }
   });
+  const promoCartSignatureRef = useRef(getPromoCartSignature(cart));
   const [configuringProduct, setConfiguringProduct] = useState<BranchProduct | null>(null);
   const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
@@ -179,9 +192,8 @@ const FranchisePOSPage: React.FC = () => {
   const [diningOption, setDiningOption] = useState<'dine_in' | 'takeout'>('takeout');
   const [orderSource, setOrderSource] = useState<OrderSource>('walk_in');
   const [externalOrderRef, setExternalOrderRef] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gcash' | 'credit_card'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gcash'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
-  const [terminalReference, setTerminalReference] = useState('');
   const [, setPaymentCheckoutUrl] = useState('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [isStartingPayment, setIsStartingPayment] = useState(false);
@@ -191,6 +203,10 @@ const FranchisePOSPage: React.FC = () => {
   const [discountType, setDiscountType] = useState<'' | 'PWD' | 'Senior Citizen'>('');
   const [discountIdNumber, setDiscountIdNumber] = useState('');
   const [discountCardholderName, setDiscountCardholderName] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoDiscount, setPromoDiscount] = useState(0);
+  const [isPromoValidating, setIsPromoValidating] = useState(false);
+  const [promoError, setPromoError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
@@ -322,6 +338,7 @@ const FranchisePOSPage: React.FC = () => {
         if (pendingState) {
           try {
             const saved = JSON.parse(pendingState) as PendingPosState;
+            promoCartSignatureRef.current = getPromoCartSignature(saved.cart);
             setCart(saved.cart);
             setCustomerName(saved.customerName);
             setPhone(saved.phone);
@@ -329,6 +346,8 @@ const FranchisePOSPage: React.FC = () => {
             setDiscountType(saved.discountType);
             setDiscountIdNumber(saved.discountIdNumber);
             setDiscountCardholderName(saved.discountCardholderName || '');
+            setPromoCode(saved.promoCode || '');
+            setPromoDiscount(Number(saved.promoDiscount) || 0);
             setIncludeCutlery(Boolean(saved.includeCutlery));
             setCustomerNotes(saved.customerNotes || '');
             setTableNumber(saved.tableNumber || '');
@@ -347,7 +366,7 @@ const FranchisePOSPage: React.FC = () => {
       setSuccess('GCash payment verified successfully!');
           setShowGCashModal(false);
           setStage('checkout');
-          setSuccess('GCash payment confirmed via simulated redirect!');
+          setSuccess('GCash payment confirmed.');
         }
       });
     }
@@ -397,12 +416,11 @@ const FranchisePOSPage: React.FC = () => {
   const platformLabel = getThirdPartyPlatformLabel(orderSource);
   const vatExemptBase = discountType ? Math.round(subtotal / 1.12) : 0;
   const discountAmount = discountType ? Math.round(vatExemptBase * 0.20) : 0;
-  const total = discountType ? Math.max(0, vatExemptBase - discountAmount) : subtotal;
+  const totalBeforePromo = discountType ? Math.max(0, vatExemptBase - discountAmount) : subtotal;
+  const total = Math.max(0, totalBeforePromo - promoDiscount);
+  const vat = discountType ? 0 : Math.round((subtotal - promoDiscount) * 12 / 112 * 100) / 100;
   const tenderedAmount = Number(cashTendered || 0);
   const changeDue = Math.max(0, Math.round((tenderedAmount - total) * 100) / 100);
-  useEffect(() => {
-    setTerminalReference('');
-  }, [total]);
   const topProductIds = useMemo(() => new Set(topProducts.map((product) => product.productId)), [topProducts]);
   const quantityForProduct = (productId: string) =>
     lines.filter((line) => line.product.id === productId).reduce((quantity, line) => quantity + line.quantity, 0);
@@ -440,7 +458,8 @@ const FranchisePOSPage: React.FC = () => {
   const orderReferenceIsValid = /^[A-Z0-9-]{3,30}$/.test(externalOrderRef);
   const chargeDisabled = !lines.length || isSubmitting || isLoading
     || Boolean(discountType && (!discountIdNumber.trim() || !discountCardholderName.trim()))
-    || (!isThirdParty && (paymentMethod === 'cash' ? tenderedAmount < total : paymentMethod === 'gcash' ? !Boolean(paymentReference.trim() && paymentConfirmed) : !Boolean(terminalReference.trim())));
+    || isPromoValidating
+    || (!isThirdParty && (paymentMethod === 'cash' ? tenderedAmount < total : !Boolean(paymentReference.trim() && paymentConfirmed)));
   const chargeHelperText = lines.length === 0
     ? 'Add items before charging.'
     : isThirdParty && !orderReferenceIsValid
@@ -455,9 +474,73 @@ const FranchisePOSPage: React.FC = () => {
             ? `Enter cash tendered ≥ ${formatPeso(total)}.`
             : paymentMethod === 'gcash' && !paymentConfirmed
               ? 'Complete and verify the GCash payment.'
-              : paymentMethod === 'credit_card' && !terminalReference.trim()
-                ? 'Enter the card terminal reference.'
               : '';
+
+  const invalidateAppliedPromo = () => {
+    if (promoDiscount <= 0) return;
+    setPromoDiscount(0);
+    setPromoError('Order items changed. Apply the promo again.');
+    setPaymentReference('');
+    setPaymentCheckoutUrl('');
+    setPaymentConfirmed(false);
+  };
+
+  const handleApplyPromo = async () => {
+    if (!cashierMode) return;
+    if (!promoCode.trim()) {
+      setPromoError('Please enter a promo code.');
+      return;
+    }
+    if (!lines.length) {
+      setPromoError('Add items before applying a promo.');
+      return;
+    }
+
+    setIsPromoValidating(true);
+    setPromoError('');
+    try {
+      const result = await validateVoucherAsync(
+        promoCode,
+        lines.map(({ product, quantity, selectedAddons }) => ({
+          id: product.id,
+          quantity,
+          selected_addons: selectedAddons.map(({ id, quantity: addonQuantity }) => ({
+            id,
+            quantity: addonQuantity || 1,
+          })),
+        })),
+        'cashier',
+        employeeData?.franchise_id,
+      );
+      if (!result.isValid) {
+        setPromoDiscount(0);
+        setPromoError(result.error || 'Invalid promo code.');
+        return;
+      }
+
+      const code = result.code || promoCode.trim().replace(/\s+/g, '').toUpperCase();
+      setPromoCode(code);
+      setPromoDiscount(result.discount);
+      setPromoError('');
+      setPaymentReference('');
+      setPaymentCheckoutUrl('');
+      setPaymentConfirmed(false);
+      setSuccess(`Promo ${code} applied.`);
+    } catch (validationError) {
+      setPromoError(validationError instanceof Error ? validationError.message : 'Could not validate this promo code.');
+    } finally {
+      setIsPromoValidating(false);
+    }
+  };
+
+  const removePromo = () => {
+    setPromoCode('');
+    setPromoDiscount(0);
+    setPromoError('');
+    setPaymentReference('');
+    setPaymentCheckoutUrl('');
+    setPaymentConfirmed(false);
+  };
 
   const adjustProductQuantity = (product: BranchProduct, adjustment: number) => {
     const existingLine = lines.find((line) => line.product.id === product.id);
@@ -471,6 +554,7 @@ const FranchisePOSPage: React.FC = () => {
 
   const removeCartLine = (line: PosCartLine) => {
     setRemovedLine(line);
+    invalidateAppliedPromo();
     setCart((current) => {
       const next = { ...current };
       delete next[line.key];
@@ -490,6 +574,9 @@ const FranchisePOSPage: React.FC = () => {
     setDiscountCardholderName('');
     setPaymentMethod('cash');
     setCashTendered('');
+    setPromoCode('');
+    setPromoDiscount(0);
+    setPromoError('');
     setPaymentReference('');
     setPaymentCheckoutUrl('');
     setPaymentConfirmed(false);
@@ -497,6 +584,7 @@ const FranchisePOSPage: React.FC = () => {
 
   const undoRemove = () => {
     if (!removedLine) return;
+    invalidateAppliedPromo();
     setCart((current) => ({ ...current, [removedLine.key]: removedLine }));
     setRemovedLine(null);
   };
@@ -510,6 +598,9 @@ const FranchisePOSPage: React.FC = () => {
     });
     if (!confirmed) return;
     setCart({});
+    setPromoCode('');
+    setPromoDiscount(0);
+    setPromoError('');
     setPaymentReference('');
     setPaymentCheckoutUrl('');
     setPaymentConfirmed(false);
@@ -570,6 +661,7 @@ const FranchisePOSPage: React.FC = () => {
 
   const addConfiguredProduct = () => {
     if (!configuringProduct) return;
+    invalidateAppliedPromo();
     const sortedAddonIds = selectedAddons.map((addon) => addon.id).sort().join(',');
     const key = `${configuringProduct.id}:${sortedAddonIds}`;
     setCart((current) => ({
@@ -592,6 +684,7 @@ const FranchisePOSPage: React.FC = () => {
   };
 
   const setQuantity = (lineKey: string, quantity: number) => {
+    invalidateAppliedPromo();
     setCart((current) => {
       const next = { ...current };
       if (quantity <= 0) {
@@ -641,6 +734,7 @@ const FranchisePOSPage: React.FC = () => {
           payment_method: 'gcash',
           discount_type: discountType || undefined,
           discount_id_number: discountType ? discountIdNumber.trim() : undefined,
+          promo_code: promoDiscount > 0 ? promoCode : undefined,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -653,6 +747,8 @@ const FranchisePOSPage: React.FC = () => {
         discountType,
         discountIdNumber,
         discountCardholderName,
+        promoCode: promoDiscount > 0 ? promoCode : undefined,
+        promoDiscount: promoDiscount > 0 ? promoDiscount : undefined,
         includeCutlery,
         customerNotes,
         tableNumber,
@@ -712,10 +808,6 @@ const FranchisePOSPage: React.FC = () => {
       setError('Complete and verify the GCash payment before placing the order.');
       return;
     }
-    if (!isThirdParty && paymentMethod === 'credit_card' && !terminalReference.trim()) {
-      setError('Enter the card terminal reference before placing the order.');
-      return;
-    }
     if (!isThirdParty && paymentMethod === 'cash' && tenderedAmount < total) {
       setError('Cash received must be at least the order total.');
       return;
@@ -741,11 +833,11 @@ const FranchisePOSPage: React.FC = () => {
           } : {
             payment_method: paymentMethod,
             payment_reference: paymentMethod === 'gcash' ? paymentReference.trim() : undefined,
-            terminal_reference: paymentMethod === 'credit_card' ? terminalReference.trim() : undefined,
             cash_tendered: paymentMethod === 'cash' ? tenderedAmount : undefined,
             discount_type: discountType || undefined,
             discount_id_number: discountType ? discountIdNumber.trim() : undefined,
             discount_cardholder_name: discountType ? discountCardholderName.trim() : undefined,
+            promo_code: promoDiscount > 0 ? promoCode : undefined,
           }),
           table_number: diningOption === 'dine_in' ? tableNumber.trim() || undefined : undefined,
           include_cutlery: includeCutlery,
@@ -795,12 +887,14 @@ const FranchisePOSPage: React.FC = () => {
       void loadTopProducts();
       void loadDailySales();
       setPaymentReference('');
-      setTerminalReference('');
       setPaymentCheckoutUrl('');
       setPaymentConfirmed(false);
       setDiscountType('');
       setDiscountIdNumber('');
       setDiscountCardholderName('');
+      setPromoCode('');
+      setPromoDiscount(0);
+      setPromoError('');
       setStage('menu');
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'The POS order could not be completed.');
@@ -978,20 +1072,64 @@ const FranchisePOSPage: React.FC = () => {
                 <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-7 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-xs font-extrabold text-[var(--oppa-green)]">3</span>Discount</h2>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">{[{ value: '', label: 'Regular', savings: 0 }, { value: 'Senior Citizen', label: 'Senior Citizen', savings: Math.round(vatExemptBase * 0.2) }, { value: 'PWD', label: 'PWD', savings: Math.round(vatExemptBase * 0.2) }].map(({ value, label, savings }) => <button key={value || 'regular'} type="button" aria-pressed={discountType === value} onClick={() => { setDiscountType(value as typeof discountType); setPaymentReference(''); setPaymentConfirmed(false); if (!value) { setDiscountIdNumber(''); setDiscountCardholderName(''); } }} className={`flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border px-3 py-2 text-center text-sm font-bold transition-colors ${discountType === value ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 bg-white text-gray-700 hover:border-[#2d6a4f]'}`}>{discountType === value && <Check size={15} aria-hidden="true" />}<span>{label}{value ? ' · 20%' : ''}</span><span className="text-xs font-medium text-emerald-700">{savings ? `Save ${formatPeso(savings)}` : 'No discount'}</span></button>)}</div>
                 {discountType && <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">Cardholder name<input value={discountCardholderName} onChange={(event) => setDiscountCardholderName(event.target.value)} placeholder="Name as shown on ID" className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" data-required="true" /></label><label className="text-sm font-semibold">{discountType} ID Number<input value={discountIdNumber} onChange={(event) => setDiscountIdNumber(event.target.value)} placeholder={`Enter ${discountType} ID #`} className="mt-1 min-h-12 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base font-normal" data-required="true" /></label><p className="sm:col-span-2 text-xs text-gray-600" title="The 20% discount is applied to the VAT-exempt base amount.">VAT-exempt base + 20% statutory discount</p></div>}
+                {cashierMode && <div className="mt-4 border-t border-[var(--oppa-border)] pt-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Tag size={16} className="text-[var(--oppa-green)]" aria-hidden="true" />
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--oppa-text)]">Promo code</p>
+                      <p className="text-xs text-[var(--oppa-text-muted)]">Apply a cashier promo to this order.</p>
+                    </div>
+                  </div>
+                  {promoDiscount > 0 ? (
+                    <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-emerald-800">Promo applied</p>
+                        <p className="mt-0.5 truncate text-xs text-emerald-700">
+                          <span className="font-mono font-bold">{promoCode}</span> · Save {formatPeso(promoDiscount)}
+                        </p>
+                      </div>
+                      <button type="button" onClick={removePromo} className="min-h-10 shrink-0 rounded-lg px-3 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <label htmlFor="branch-pos-promo-code" className="sr-only">Promo code</label>
+                      <input
+                        id="branch-pos-promo-code"
+                        type="text"
+                        value={promoCode}
+                        onChange={(event) => {
+                          setPromoCode(event.target.value.toUpperCase().replace(/\s+/g, '').slice(0, 50));
+                          setPromoError('');
+                        }}
+                        maxLength={50}
+                        autoComplete="off"
+                        placeholder="Enter promo code"
+                        className="min-h-11 min-w-0 flex-1 rounded-xl border border-[var(--oppa-border)] bg-white px-3 py-2 text-sm font-mono uppercase text-[var(--oppa-text)] focus:border-[var(--oppa-green)] focus:outline-none focus:ring-2 focus:ring-[var(--oppa-green)]/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleApplyPromo()}
+                        disabled={isPromoValidating || !promoCode.trim() || !lines.length}
+                        className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--oppa-green-dark)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--oppa-green)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isPromoValidating && <Loader2 size={15} className="animate-spin" aria-hidden="true" />}
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                  {promoError && <p role="alert" className="mt-2 text-xs text-red-700">{promoError}</p>}
+                </div>}
               </section>}
               {!isThirdParty ? <section className="cashier-surface rounded-2xl border border-[var(--oppa-border)] bg-[var(--oppa-surface)] p-5 shadow-sm">
                 <h2 className="mb-3 flex items-center gap-2 text-base font-bold"><span className="flex size-7 items-center justify-center rounded-full bg-[var(--oppa-green-soft)] text-xs font-extrabold text-[var(--oppa-green)]">4</span>Payment</h2>
-                <div className="grid grid-cols-3 gap-2">{[{ value: 'cash', label: 'Cash', Icon: null }, { value: 'gcash', label: 'GCash', Icon: Smartphone }, { value: 'credit_card', label: 'Card Terminal', Icon: CreditCard }].map(({ value, label, Icon }) => <button key={value} type="button" aria-pressed={paymentMethod === value} onClick={() => { setPaymentMethod(value as typeof paymentMethod); if (value === 'gcash') { if (!paymentReference) { void startGatewayPayment(); } else if (!paymentConfirmed) { setShowGCashModal(true); } } else { setPaymentReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); } if (value !== 'credit_card') setTerminalReference(''); }} className={`relative flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-sm font-semibold transition-colors ${paymentMethod === value ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>{paymentMethod === value && <Check size={15} className="absolute right-2 top-2" aria-hidden="true" />}{Icon ? <Icon size={22} /> : <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-full border-2 border-current text-lg font-bold leading-none">₱</span>}{label}</button>)}</div>
+                <div className="grid grid-cols-2 gap-2">{([{ value: 'cash', label: 'Cash', Icon: null }, { value: 'gcash', label: 'GCash', Icon: Smartphone }] as const).map(({ value, label, Icon }) => <button key={value} type="button" aria-pressed={paymentMethod === value} onClick={() => { setPaymentMethod(value); if (value === 'gcash') { if (!paymentReference) { void startGatewayPayment(); } else if (!paymentConfirmed) { setShowGCashModal(true); } } else { setPaymentReference(''); setPaymentCheckoutUrl(''); setPaymentConfirmed(false); } }} className={`relative flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-sm font-semibold transition-colors ${paymentMethod === value ? 'border-2 border-[#2d6a4f] bg-[#e3efe7] text-[#1c3d2e]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>{paymentMethod === value && <Check size={15} className="absolute right-2 top-2" aria-hidden="true" />}{Icon ? <Icon size={22} aria-hidden="true" /> : <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-full border-2 border-current text-lg font-bold leading-none">₱</span>}{label}</button>)}</div>
                 {paymentMethod === 'cash' && <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
                   <div className="flex items-center justify-between gap-2"><label htmlFor="cash-tendered" className="text-xs font-bold uppercase text-gray-700">Cash tendered</label><span className="text-xs text-gray-600">Amount due <strong className="tabular-nums text-gray-900">{formatPeso(total)}</strong></span></div>
                   <div className="relative mt-2"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-gray-600">₱</span><input id="cash-tendered" type="number" inputMode="decimal" data-min="0" step="0.01" value={cashTendered} onChange={(event) => setCashTendered(event.target.value)} placeholder="0.00" className="min-h-14 w-full rounded-lg border border-gray-300 bg-white py-3 pl-9 pr-3 text-xl font-bold tabular-nums focus:border-[#2d6a4f] focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/20" /></div>
                   <div className="mt-3 flex flex-wrap gap-2">{[{ amount: total, label: 'Exact' }, ...quickCashAmounts.map((amount) => ({ amount, label: formatPeso(amount) }))].map(({ amount, label }) => <button key={`${amount}-${label}`} type="button" onClick={() => setCashTendered(String(amount))} className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold tabular-nums hover:border-[#2d6a4f]">{label}</button>)}</div>
                   <p className="mt-3 flex min-h-11 items-center justify-between border-t border-gray-200 pt-3 text-sm" aria-live="polite"><span className="font-semibold">Change Due</span><strong className={`text-lg tabular-nums ${tenderedAmount < total ? 'text-red-700' : 'text-[#2d6a4f]'}`}>{tenderedAmount < total ? `Insufficient: ${formatPeso(total - tenderedAmount)} short` : formatPeso(changeDue)}</strong></p>
-                </div>}
-                {paymentMethod === 'credit_card' && <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                  <label htmlFor="card-terminal-reference" className="text-sm font-semibold text-gray-700">Card terminal reference</label>
-                  <input id="card-terminal-reference" value={terminalReference} onChange={(event) => setTerminalReference(event.target.value)} maxLength={100} placeholder="Enter the approved terminal transaction reference" className="mt-2 min-h-12 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base" />
-                  <p className="mt-2 text-xs text-gray-600">Confirm the card payment on the physical terminal before recording this order.</p>
                 </div>}
                 {paymentMethod === 'gcash' && (
                   <div className="mt-4 space-y-3 rounded-2xl border border-emerald-300 bg-emerald-50/70 p-4 text-sm shadow-xs">
@@ -1002,7 +1140,7 @@ const FranchisePOSPage: React.FC = () => {
                         </div>
                         <div>
                           <h4 className="text-sm font-bold text-[#1c3d2e]">GCash QR Code Payment</h4>
-                          <p className="text-xs text-gray-600">Scan QR to simulate and confirm payment</p>
+                          <p className="text-xs text-gray-600">Scan the QR code to complete payment.</p>
                         </div>
                       </div>
                       {paymentReference && (
@@ -1051,13 +1189,6 @@ const FranchisePOSPage: React.FC = () => {
                             >
                               Check Payment Status Manually
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => { setPaymentReference(''); setPaymentCheckoutUrl(''); void startGatewayPayment(); }}
-                              className="w-full text-center text-xs text-gray-500 underline hover:text-gray-700"
-                            >
-                              Generate New QR Code
-                            </button>
                           </>
                         )}
                       </div>
@@ -1079,7 +1210,7 @@ const FranchisePOSPage: React.FC = () => {
                 )}
               </section> : (
                 <section className="cashier-surface rounded-2xl border border-[var(--oppa-green-soft)] bg-[var(--oppa-green-soft)]/50 p-5 text-sm text-[var(--oppa-text)]">
-                  <div className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-full bg-white text-[var(--oppa-green)]"><CreditCard size={18} aria-hidden="true" /></span><div><h2 className="flex items-center gap-2 font-bold"><span className="flex size-7 items-center justify-center rounded-full bg-white/80 text-xs font-extrabold text-[var(--oppa-green)]">3</span>Payment</h2><p className="mt-0.5 text-[var(--oppa-text-muted)]">Paid through {platformLabel}.</p></div></div>
+                  <div className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-full bg-white text-[var(--oppa-green)]"><Receipt size={18} aria-hidden="true" /></span><div><h2 className="flex items-center gap-2 font-bold"><span className="flex size-7 items-center justify-center rounded-full bg-white/80 text-xs font-extrabold text-[var(--oppa-green)]">3</span>Payment</h2><p className="mt-0.5 text-[var(--oppa-text-muted)]">Paid through {platformLabel}.</p></div></div>
                 </section>
               )}
               </div>
@@ -1138,7 +1269,8 @@ const FranchisePOSPage: React.FC = () => {
               {stage === 'menu' ? <button type="button" disabled={!lines.length} onClick={() => { setStage('checkout'); setShowOrderDrawer(false); }} className="min-h-12 w-full rounded-xl bg-[var(--oppa-green)] px-4 py-3.5 text-left text-base font-bold text-white shadow-sm transition duration-150 hover:bg-[var(--oppa-green-dark)] active:scale-[.99] disabled:pointer-events-none disabled:opacity-50"><span className="flex items-center justify-between"><span>Proceed to Checkout</span><span className="tabular-nums">{formatPeso(total)} →</span></span></button> : <>
                 <div className="flex justify-between text-xs text-[var(--oppa-text-muted)]"><span>Subtotal</span><span className="tabular-nums text-right">{formatPeso(subtotal)}</span></div>
                 {discountType && <><div className="flex justify-between text-xs text-[var(--oppa-text-muted)]"><span>VAT-exempt base</span><span className="tabular-nums text-right">{formatPeso(vatExemptBase)}</span></div><div className="flex justify-between text-xs font-medium text-emerald-800"><span>Discount ({discountType} 20%)</span><span className="tabular-nums text-right">−{formatPeso(discountAmount)}</span></div></>}
-                <div className="flex justify-between text-xs text-[var(--oppa-text-muted)]"><span>VAT (12% inclusive)</span><span className="tabular-nums text-right">{formatPeso(discountType ? 0 : Math.round(subtotal * 12 / 112))}</span></div>
+                {promoDiscount > 0 && <div className="flex justify-between text-xs font-medium text-emerald-800"><span>Promo ({promoCode})</span><span className="tabular-nums text-right">−{formatPeso(promoDiscount)}</span></div>}
+                <div className="flex justify-between text-xs text-[var(--oppa-text-muted)]"><span>VAT (12% inclusive)</span><span className="tabular-nums text-right">{formatPeso(vat)}</span></div>
                 <div className="flex justify-between border-t border-[var(--oppa-border)] pt-3 text-xl font-bold"><span>Total</span><span className="tabular-nums text-right text-[var(--oppa-green)]">{formatPeso(total)}</span></div>
                 <button type="submit" form="franchise-pos-form" disabled={chargeDisabled} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--oppa-green)] px-4 py-3 text-sm font-bold text-white shadow-sm transition duration-150 hover:bg-[var(--oppa-green-dark)] hover:shadow-md active:scale-[.99] disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none">{isSubmitting ? <><Receipt size={18} aria-hidden="true" />Processing Sale…</> : <><Receipt size={18} aria-hidden="true" />{isThirdParty ? `Confirm ${platformLabel} order` : `Charge ${formatPeso(total)}`}</>}</button>
                 {chargeDisabled && chargeHelperText && <p className="text-center text-xs text-[var(--oppa-text-muted)]">{chargeHelperText}</p>}
@@ -1152,7 +1284,87 @@ const FranchisePOSPage: React.FC = () => {
         {removedLine && <div role="status" aria-live="polite" className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-xl bg-gray-900 px-4 py-3 text-sm text-white shadow-xl xl:bottom-5">Item removed <button type="button" onClick={undoRemove} className="font-bold underline underline-offset-2">Undo</button></div>}
       </div>
 
-      {completedOrder && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onKeyDown={(event) => { if (event.key === 'Escape') setCompletedOrder(null); }}><section role="dialog" aria-modal="true" aria-labelledby="branch-pos-receipt-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-4 flex items-center gap-2 text-[#2d6a4f]"><CheckCircle2 size={22} className="cashier-success-check" /><h2 id="branch-pos-receipt-title" className="text-lg font-bold">Order processed successfully</h2></div><p className="text-center font-serif text-lg font-bold">OPPA DRU KOREAN FRIED CHICKEN</p><p className="text-center text-xs text-gray-600">ONSITE REGISTER RECEIPT · {branchName}</p>{branchAddress && <p className="mb-4 text-center text-xs text-gray-500">{branchAddress}</p>}<div className="space-y-2 border-y border-dashed py-3 text-sm"><p className="flex justify-between"><span>Order #</span><strong>{completedOrder.order_number}</strong></p><p className="flex justify-between"><span>Customer</span><span>{completedOrder.customerName}</span></p><p className="flex justify-between"><span>Dining</span><span>{completedOrder.diningOption === 'dine_in' ? 'Dine-in' : 'Takeout'}</span></p>{(completedOrder.items || []).map((item, index) => { const quantity = Number(item.quantity || 1); const itemAmount = Number(item.product_price || 0) * quantity + (item.selected_addons || []).reduce((sum, addon) => sum + Number(addon.price || 0) * Math.max(1, Number(addon.quantity || 1)) * quantity, 0); return <p key={`${item.product_name}-${index}`} className="flex justify-between"><span>{quantity}x {item.product_name}</span><span className="tabular-nums">{formatPeso(itemAmount)}</span></p>; })}<p className="flex justify-between font-bold"><span>Total</span><span className="tabular-nums">{formatPeso(Number(completedOrder.total))}</span></p><p className="flex justify-between text-xs text-gray-600"><span>Payment</span><span className="uppercase">{completedOrder.payment_method.replace('_', ' ')}</span></p>{completedOrder.payment_method === 'cash' && <><p className="flex justify-between text-xs"><span>Cash Tendered</span><span className="tabular-nums">{formatPeso(Number(completedOrder.cashTendered || 0))}</span></p><p className="flex justify-between text-xs"><span>Change</span><span className="tabular-nums">{formatPeso(Number(completedOrder.changeDue || 0))}</span></p></>}{completedOrder.includeCutlery && <p className="text-xs">Cutlery / utensils included</p>}</div><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => window.print()} className="min-h-11 rounded-xl border px-3 text-sm font-semibold">Print Receipt</button><button type="button" onClick={() => { setCompletedOrder(null); setSuccess(''); setCustomerName(''); setPhone(''); setCustomerNotes(''); setTableNumber(''); setDiscountCardholderName(''); setDiscountIdNumber(''); setCashTendered(''); setPaymentMethod('cash'); setPaymentReference(''); setTerminalReference(''); setDiningOption('takeout'); }} className="min-h-11 rounded-xl bg-[#2d6a4f] px-3 text-sm font-semibold text-white">New Order</button><Link to={cashierMode ? '/cashier/branch-orders' : '/franchise/orders'} onClick={() => setCompletedOrder(null)} className="col-span-2 flex min-h-11 items-center justify-center rounded-xl border border-[#2d6a4f] px-3 text-sm font-semibold text-[#1c3d2e]">View Order</Link></div></section></div>}
+      {completedOrder && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          onKeyDown={(event) => { if (event.key === 'Escape') setCompletedOrder(null); }}
+        >
+          <section role="dialog" aria-modal="true" aria-labelledby="branch-pos-receipt-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-2 text-[#2d6a4f]">
+              <CheckCircle2 size={22} className="cashier-success-check" />
+              <h2 id="branch-pos-receipt-title" className="text-lg font-bold">Order processed successfully</h2>
+            </div>
+            <p className="text-center font-serif text-lg font-bold">OPPA DRU KOREAN FRIED CHICKEN</p>
+            <p className="text-center text-xs text-gray-600">ONSITE REGISTER RECEIPT · {branchName}</p>
+            {branchAddress && <p className="mb-4 text-center text-xs text-gray-500">{branchAddress}</p>}
+            <div className="space-y-2 border-y border-dashed py-3 text-sm">
+              <p className="flex justify-between"><span>Order #</span><strong>{completedOrder.order_number}</strong></p>
+              <p className="flex justify-between"><span>Customer</span><span>{completedOrder.customerName}</span></p>
+              <p className="flex justify-between"><span>Dining</span><span>{completedOrder.diningOption === 'dine_in' ? 'Dine-in' : 'Takeout'}</span></p>
+              {(completedOrder.items || []).map((item, index) => {
+                const quantity = Number(item.quantity || 1);
+                const itemAmount = Number(item.product_price || 0) * quantity
+                  + (item.selected_addons || []).reduce((sum, addon) => sum + Number(addon.price || 0) * Math.max(1, Number(addon.quantity || 1)) * quantity, 0);
+                return (
+                  <p key={`${item.product_name}-${index}`} className="flex justify-between">
+                    <span>{quantity}x {item.product_name}</span>
+                    <span className="tabular-nums">{formatPeso(itemAmount)}</span>
+                  </p>
+                );
+              })}
+              {Number(completedOrder.promo_discount || 0) > 0 && (
+                <p className="flex justify-between text-emerald-800">
+                  <span>Promo ({completedOrder.promo_code || 'Promo'})</span>
+                  <span className="tabular-nums">−{formatPeso(Number(completedOrder.promo_discount))}</span>
+                </p>
+              )}
+              <p className="flex justify-between font-bold">
+                <span>Total</span>
+                <span className="tabular-nums">{formatPeso(Number(completedOrder.total))}</span>
+              </p>
+              <p className="flex justify-between text-xs text-gray-600">
+                <span>Payment</span>
+                <span className="uppercase">{completedOrder.payment_method.replace('_', ' ')}</span>
+              </p>
+              {completedOrder.payment_method === 'cash' && <>
+                <p className="flex justify-between text-xs"><span>Cash Tendered</span><span className="tabular-nums">{formatPeso(Number(completedOrder.cashTendered || 0))}</span></p>
+                <p className="flex justify-between text-xs"><span>Change</span><span className="tabular-nums">{formatPeso(Number(completedOrder.changeDue || 0))}</span></p>
+              </>}
+              {completedOrder.includeCutlery && <p className="text-xs">Cutlery / utensils included</p>}
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => window.print()} className="min-h-11 rounded-xl border px-3 text-sm font-semibold">Print Receipt</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCompletedOrder(null);
+                  setSuccess('');
+                  setCustomerName('');
+                  setPhone('');
+                  setCustomerNotes('');
+                  setTableNumber('');
+                  setDiscountCardholderName('');
+                  setDiscountIdNumber('');
+                  setCashTendered('');
+                  setPaymentMethod('cash');
+                  setPaymentReference('');
+                  setPaymentCheckoutUrl('');
+                  setPaymentConfirmed(false);
+                  setDiscountType('');
+                  setPromoCode('');
+                  setPromoDiscount(0);
+                  setPromoError('');
+                  setDiningOption('takeout');
+                }}
+                className="min-h-11 rounded-xl bg-[#2d6a4f] px-3 text-sm font-semibold text-white"
+              >
+                New Order
+              </button>
+              <Link to={cashierMode ? '/cashier/branch-orders' : '/franchise/orders'} onClick={() => setCompletedOrder(null)} className="col-span-2 flex min-h-11 items-center justify-center rounded-xl border border-[#2d6a4f] px-3 text-sm font-semibold text-[#1c3d2e]">View Order</Link>
+            </div>
+          </section>
+        </div>
+      )}
 
       {configuringProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={() => setConfiguringProduct(null)}>
